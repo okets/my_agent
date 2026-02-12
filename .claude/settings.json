@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "command": "bash /home/nina/my_agent/scripts/check-private-data.sh \"$FILE_PATH\""
+      },
+      {
+        "matcher": "Edit",
+        "command": "bash /home/nina/my_agent/scripts/check-private-data.sh \"$FILE_PATH\""
+      }
+    ]
+  }
+}

@@ -1,0 +1,700 @@
+# my_agent — Design Document
+
+> **Status:** Brainstorming Complete — Ready for Planning
+> **Date:** 2026-02-12
+> **Session:** Hanan + Claude Code (Opus 4.6)
+> **Decision:** Replace OpenClaw with Claude Agent SDK-based architecture
+> **Project name:** `my_agent`
+> **Platform:** WSL (Linux)
+> **Location:** `/home/nina/my_agent/`
+> **Structure:** Public framework repo + `.my_agent/` private personality (gitignored, separate repo)
+
+---
+
+## Context
+
+### Why This Change
+
+OpenClaw's architecture has a fundamental mismatch with how Hanan wants to work with Nina:
+
+1. **Sessions are black boxes.** You can't see what happened, can't resume, can't interact mid-flight.
+2. **No course correction.** "Stop is a blind action — you don't know what you're stopping" (VISION.md Part 5).
+3. **Context is trapped.** Sessions live inside WebSocket connections. When they end, the context is gone.
+
+Hanan's core need: *"If I tell Nina a customer complained about a bug, she starts a Claude Code session and fixes it. A week later, I want to load that same context and ask for changes. Sessions should be meaningful tools."*
+
+### Why Agent SDK
+
+The Claude Agent SDK is the engine that powers Claude Code, exposed as a programmable library. It provides:
+- Same tools, hooks, and skill system as Claude Code
+- Long-running agent sessions with automatic context compression
+- MCP server integration for external tools
+- Session persistence and resume
+- Subagent spawning for parallel work
+
+The key insight: **folders as sessions.** Every task gets a project folder. Claude Code sessions run in those folders. Files, git history, CLAUDE.md, and session transcripts persist. Anyone (Nina or Hanan) can open the folder later and continue interactively.
+
+---
+
+## Architecture Overview
+
+Three layers, clean separation of concerns:
+
+```
+                         PLUGIN LAYER
+    ┌─────────────────────────────────────────────────┐
+    │  Channel Plugins        Tool Plugins             │
+    │  ├── WhatsApp           ├── GitHub               │
+    │  ├── Email (MS365)      ├── Calendar             │
+    │  └── (user adds more)   └── (user adds more)     │
+    └─────────────────────┬───────────────────────────┘
+                          │
+                   CORE FRAMEWORK
+    ┌─────────────────────▼───────────────────────────┐
+    │                                                  │
+    │  Event Loop ─── receives events, enriches,       │
+    │       │         routes to brain                   │
+    │       │                                          │
+    │  Nina's Brain (Agent SDK) ─── persistent session │
+    │       │   │       with personality, tools, hooks  │
+    │       │   │                                      │
+    │       │   ├── Memory System ─── graph + daily    │
+    │       │   │                     summaries + RAG   │
+    │       │   ├── Skill System ─── markdown skills   │
+    │       │   │                     at 3 levels       │
+    │       │   └── Hook System ──── safety, audit,    │
+    │       │                         notifications     │
+    │       │                                          │
+    │  Task System ─── folder-based (inbox/projects/   │
+    │       │          ongoing), spawns Claude Code     │
+    │       │                                          │
+    │  Dashboard ─── Alpine.js + Fastify, reads        │
+    │                filesystem + APIs                  │
+    └─────────────────────────────────────────────────┘
+                          │
+                   PROJECT LAYER
+    ┌─────────────────────▼───────────────────────────┐
+    │  /home/nina/                                     │
+    │  ├── inbox/        Ad-hoc tasks                  │
+    │  ├── projects/     Multi-phase project work      │
+    │  └── ongoing/      Recurring routines            │
+    │                                                  │
+    │  Each folder = CLAUDE.md + task.md + files       │
+    │  Each folder = resumable Claude Code session     │
+    └─────────────────────────────────────────────────┘
+```
+
+---
+
+## Core Framework Components
+
+### 1. Event Loop / Orchestrator
+
+The event loop is the system's entry point. It receives events from all sources and routes them to Nina's brain.
+
+**Events:**
+- Channel message (WhatsApp, Email, etc.) via webhook
+- Cron tick (heartbeat, scheduled routines)
+- File change (task.md updated externally)
+- Dashboard action (approve, message, control)
+- Session completion (Claude Code finished a project task)
+
+**Responsibilities:**
+1. **RECEIVE** — webhook/cron/watcher triggers an event
+2. **ENRICH** — extract entity mentions, query graph memory, inject context
+3. **ROUTE** — pass enriched event to Nina's brain
+4. **QUEUE** — ensure events are processed sequentially (no race conditions)
+
+**Auto-enrichment pipeline** (runs before brain sees the message):
+- Extract entity mentions via string matching against known graph entities
+- Query graph for matched entities (relationships, recent interactions)
+- Inject concise context (~200-500 tokens) into the message
+- Cost: ~$0 (local string matching + local DB query)
+
+**Technology:** Node.js/TypeScript, single process. Could be Fastify for webhooks + a scheduler for cron.
+
+### 2. Nina's Brain (Agent SDK)
+
+A long-running Agent SDK session that IS Nina. It has:
+
+- **Personality** — loaded from CLAUDE.md / system prompt
+- **Core memory** — always loaded (identity, contacts, procedures, preferences)
+- **Daily summaries** — last 7 days in system prompt
+- **MCP tools** — memory, channels, project management
+- **Hooks** — safety guards, audit logging, notifications
+- **Skills** — brain-level skills (email management, customer support, etc.)
+
+**Session persistence:**
+- The brain is a persistent session that maintains conversation history
+- Auto-compresses when approaching context limits
+- If process restarts, resumes from disk
+- For long time gaps, folder state (task.md) rescues context
+
+**The brain handles:**
+- Quick replies (ad-hoc tasks) — inline, no project folder needed
+- Task classification — ad-hoc vs project vs ongoing
+- Project spawning — creates folders, writes CLAUDE.md, runs `claude` CLI
+- Channel routing — responds via the correct channel
+- Memory management — saves insights, updates contacts, creates summaries
+- Heartbeat logic — periodic check-ins, proactive notifications
+
+### 3. Task System (Folder-Based)
+
+Every task gets a folder. Three types:
+
+**Ad-hoc (inbox/)**
+```
+/home/nina/inbox/2026-02-12-check-server-status/
+├── CLAUDE.md     # Task context: "Check production server health"
+└── task.md       # Status: Complete. Result: "Server up, 230ms response."
+```
+- Created and handled by Nina's brain directly
+- Short-lived, archived after completion
+- May or may not spawn a Claude Code session
+
+**Projects (projects/)**
+```
+/home/nina/projects/2026-02-12-projectx-login-bug/
+├── CLAUDE.md     # Full context: who reported, what repo, constraints
+├── task.md       # Phase: executing. Sprint 1 of 2. Status: awaiting review.
+├── plan.md       # The approved implementation plan
+├── .claude/
+│   ├── settings.json   # MCP servers, allowed tools for this project
+│   └── skills/         # Project-specific skills (debugging, code-review)
+└── src/                # Working files (cloned repo, etc.)
+```
+- Multi-phase: ideate → plan → execute → complete
+- Claude Code sessions run here (resumable via `--continue`)
+- Hanan can open in VS Code at any time
+
+**Ongoing (ongoing/)**
+```
+/home/nina/ongoing/email-management/
+├── CLAUDE.md     # The PROCEDURE: "Check inbox every 2h, triage, draft..."
+├── task.md       # Schedule: every 2h. Autonomy: 5. Last run: 14:00.
+└── logs/
+    ├── 2026-02-12-08h.md   # "Processed 3 emails. Flagged 1 urgent."
+    ├── 2026-02-12-10h.md
+    └── ...
+```
+- Recurring, triggered by cron schedule
+- Each execution creates a log entry
+- Procedure defined via a project first ("Ongoing = Project + Routine" per VISION.md)
+
+### 4. Memory System
+
+Three layers of memory:
+
+**Layer 1: Core Memory (always loaded, ~zero retrieval cost)**
+```
+/home/nina/brain/memory/
+├── identity.md        # Personality, voice, boundaries
+├── contacts.md        # Key people with roles and preferences
+├── procedures.md      # Standard operating procedures
+├── preferences.md     # Hanan's preferences
+└── learnings.md       # Cross-project learnings
+```
+Loaded into system prompt. Small, curated, high-value.
+
+**Layer 2: Daily Summaries (proven pattern from OpenClaw)**
+```
+/home/nina/brain/memory/daily/
+├── 2026-02-12.md      # End-of-day summary
+├── 2026-02-11.md
+└── ...
+```
+- Created during evening heartbeat
+- Last 7 days loaded in system prompt
+- Older ones searchable via memory tools
+- Provides temporal context
+
+**Layer 3: Graph Memory (structural relationships, searchable)**
+
+Database: Start with Anthropic MCP Memory Server (MVP), upgrade to Mem0 or Graphiti + Memgraph later.
+
+Entities: people, organizations, projects, tools, concepts
+Relations: works_at, uses, depends_on, contacted, decided
+Observations: timestamped facts attached to entities
+
+**MCP tools exposed to brain and project sessions:**
+- `search_memory(query)` — semantic search across all memory
+- `save_insight(topic, content)` — store a learning or pattern
+- `get_contact(name)` — retrieve contact info + interaction history
+- `get_project_summary(name)` — retrieve completed project summary
+
+**Auto-enrichment (before messages reach the brain):**
+1. String match message against known entity names in graph
+2. Query graph for matched entities (concise summaries)
+3. Inject as context (~200-500 tokens)
+4. Brain gets enriched message, no manual search needed
+
+**Entity disambiguation:** Multiple matches → inject all, let Claude's reasoning pick the right one. New entity not in graph → enrichment returns nothing, brain creates new entity if appropriate.
+
+**Progressive upgrade path:**
+- Phase 1: Anthropic MCP Memory Server (file-based, zero infra)
+- Phase 2: Mem0 with graph memory (auto entity extraction)
+- Phase 3: Graphiti + Memgraph (temporal reasoning, high performance)
+
+### 5. Skill System
+
+Skills are markdown files that give Nina specialized capabilities. Same format as Claude Code skills.
+
+**Three levels:**
+
+1. **Brain skills** — always available to Nina's brain
+   ```
+   /home/nina/brain/.claude/skills/
+   ├── email-management/SKILL.md
+   ├── customer-support/SKILL.md
+   └── task-triage/SKILL.md
+   ```
+
+2. **Project skills** — per-project, assigned when creating the folder
+   ```
+   /home/nina/projects/login-bug/.claude/skills/
+   ├── debugging/SKILL.md
+   └── code-review/SKILL.md
+   ```
+   Nina's brain selects relevant skills when creating a project folder.
+
+3. **Framework skills** — shipped with the framework (generic)
+   ```
+   /framework/skills/
+   ├── task-management/SKILL.md
+   ├── memory-management/SKILL.md
+   └── communication/SKILL.md
+   ```
+
+Users can create custom skills, share them, or override framework defaults.
+
+### 6. Hook System
+
+Hooks run at lifecycle points for safety, audit, and control.
+
+**Brain hooks (event loop level):**
+- PreMessage: validate incoming messages, rate limiting
+- PostMessage: audit log, update daily summary data
+- OnError: escalate to Hanan, save state
+
+**Project hooks (Claude Code level, per-folder .claude/hooks.json):**
+- PreToolUse (Bash): block destructive commands (rm -rf, git push --force)
+- PreToolUse (Write): prevent writing to paths outside project folder
+- PostToolUse: log all actions for audit trail
+- Stop: update task.md with final state, notify brain
+
+**Safety defaults (always on):**
+- Block destructive filesystem operations
+- Block outbound network calls to unknown hosts
+- Require review for git push, deploy commands
+- Log all Bash commands to audit file
+
+### 7. Communication Between Brain and Project Sessions
+
+Project sessions communicate back via a **Comms MCP server** configured in each project:
+
+**Tools provided:**
+| Tool | Behavior |
+|---|---|
+| `notify(message)` | Fire-and-forget status update. Session continues. |
+| `request_review(plan)` | Saves state to task.md, notifies brain/Hanan, exits cleanly. |
+| `escalate(problem)` | Urgent notification. Saves state, exits. |
+| `ask_quick(question)` | Blocks briefly (30-min timeout). For quick decisions. |
+
+**Resume flow (after review/escalation):**
+1. Project session exits cleanly, state saved in task.md
+2. Hanan approves (via WhatsApp, dashboard, or opening folder in VS Code)
+3. If via channel/dashboard: brain spawns `claude --continue --cwd /project/folder/ -p "Approved with feedback: ..."`
+4. If via VS Code: Hanan interacts directly, session resumes interactively
+5. Both work — the folder is the state, not the process
+
+### 8. Dashboard
+
+Alpine.js + Fastify + Tailwind (same tech stack as current dashboard).
+
+**Data source: filesystem + APIs**
+
+```
+Fastify API:
+  GET /api/tasks         → scans inbox/, projects/, ongoing/
+  GET /api/task/:folder  → reads CLAUDE.md + task.md
+  GET /api/sessions/:id  → lists Claude Code sessions in folder
+  GET /api/memory/graph  → queries graph DB
+  GET /api/memory/daily  → reads daily summary files
+  POST /api/approve/:id  → sends approval to event loop
+  POST /api/message      → sends message to brain
+  WebSocket /ws          → real-time updates via file watchers
+```
+
+**Dashboard shows:**
+- Task browser: inbox/projects/ongoing with live status
+- Project detail: CLAUDE.md, task.md, session history, approve/reject buttons
+- Memory viewer: graph visualization, contacts, daily summaries
+- Chat: direct communication with Nina's brain
+- Controls: pause/resume ongoing tasks, approve reviews
+- "Open in VS Code" deep links for any project folder
+
+---
+
+## Plugin System
+
+### Channel Plugin Interface
+
+A channel plugin provides:
+1. **Inbound adapter** — webhook endpoint or polling mechanism for receiving messages
+2. **Outbound tools** — MCP tools for sending messages (send_text, send_media, etc.)
+3. **Auth flow** — how to set up credentials
+4. **Configuration schema** — what config the plugin needs
+
+```typescript
+interface ChannelPlugin {
+  id: string;                          // "whatsapp", "email-ms365", "telegram"
+  name: string;                        // Human-readable name
+
+  // Webhook registration
+  registerWebhook(app: FastifyInstance): void;
+
+  // MCP server definition
+  mcpTools: MCPToolDefinition[];       // Tools exposed to the brain
+
+  // Auth
+  setupAuth(config: any): Promise<void>;
+
+  // Config schema
+  configSchema: ZodSchema;
+}
+```
+
+### First-Party Plugins
+
+**channel-whatsapp** — Baileys (WhatsApp Web), QR auth, WebSocket monitoring
+**channel-email-ms365** — Microsoft Graph API, OAuth 2.0, webhook + polling
+
+Both based on existing OpenClaw implementations. Same libraries, same auth, different wrapping.
+
+### User Configuration
+
+```yaml
+# config.yaml
+brain:
+  model: claude-sonnet-4-5
+  personality: ./brain/CLAUDE.md
+  skills: ./brain/skills/
+  memory:
+    daily: ./brain/memory/daily/
+    core: ./brain/memory/core/
+    graph:
+      backend: mcp-memory-server  # or "mem0" or "graphiti"
+
+channels:
+  - plugin: channel-whatsapp
+    config:
+      authDir: ./auth/whatsapp
+      dmPolicy: allowlist
+      allowFrom: ["+1555000000"]
+
+  - plugin: channel-email-ms365
+    config:
+      clientId: "${MS365_CLIENT_ID}"
+      tenantId: "${MS365_TENANT_ID}"
+      userEmail: "agent@example.com"
+      dmPolicy: allowlist
+      allowFrom: ["hanan@example.com.com"]
+
+heartbeat:
+  interval: 15m
+  prompt: "Check active tasks, pending reviews, and proactive opportunities."
+
+tasks:
+  inbox: ./inbox/
+  projects: ./projects/
+  ongoing: ./ongoing/
+
+dashboard:
+  port: 3456
+```
+
+---
+
+## Key Flows
+
+### Flow 1: WhatsApp Message → Quick Reply
+
+```
+1. WhatsApp webhook → event loop
+2. Event loop: extract entities → query graph → enrich message
+3. Pass to brain: "[Context: Sarah Chen, CTO TechCorp...] Hanan: send Sarah the pricing"
+4. Brain: classifies as ad-hoc, handles inline
+   → search_memory("TechCorp pricing") → finds past quote
+   → Drafts email, asks for approval
+5. Brain → WhatsApp: "Ready to send Sarah the updated pricing ($5.5K/mo). Approve?"
+6. Hanan: "Yes"
+7. Brain → Email: sends to sarah@techcorp.com
+8. Brain → WhatsApp: "Sent!"
+9. Brain: creates /inbox/2026-02-12-techcorp-pricing/ with task.md (complete)
+```
+
+### Flow 2: Project Creation → Execution → Resume
+
+```
+1. Hanan on WhatsApp: "Customer found a login bug in ProjectX"
+2. Brain classifies: project (needs investigation + fix)
+3. Brain creates folder:
+   /projects/2026-02-12-projectx-login-bug/
+   ├── CLAUDE.md    (task context, customer info from memory, repo URL)
+   ├── task.md      (status: investigating, phase: ideation)
+   └── .claude/     (skills: debugging, code-review; hooks: safety)
+4. Brain spawns: claude --cwd /projects/.../login-bug/ -p "Investigate the login bug. Details in CLAUDE.md."
+5. Claude Code investigates, reproduces, writes findings to task.md
+6. Session calls: request_review("Root cause found. Plan: refactor auth module.")
+   → Saves state, notifies brain, exits
+7. Brain → WhatsApp: "Found the bug. Auth module needs refactoring. Approve plan?"
+8. Hanan: "Go ahead, but don't touch SSO"
+9. Brain spawns: claude --continue --cwd /projects/.../login-bug/ -p "Approved. Constraint: don't touch SSO."
+10. Claude Code implements fix, creates commits, updates task.md: complete
+11. Brain → WhatsApp: "Login bug fixed. PR ready for review."
+
+12. A WEEK LATER: Hanan opens /projects/2026-02-12-projectx-login-bug/ in VS Code
+    → Full context available (CLAUDE.md, task.md, git history, session transcript)
+    → "Also fix the forgot-password flow, same pattern"
+    → Claude Code continues with complete context
+```
+
+### Flow 3: Ongoing Task Setup and Execution
+
+```
+1. Hanan: "Nina, take over our email management"
+2. Brain: classifies as ongoing (needs procedure definition first)
+3. Brain creates PROJECT first:
+   /projects/2026-02-12-email-management-setup/
+   → Ideation: What does email management mean? What accounts? What rules?
+   → Planning: Document the procedure, define schedule
+   → Output: procedure document
+4. Brain creates ONGOING folder:
+   /ongoing/email-management/
+   ├── CLAUDE.md     # Procedure from the project
+   ├── task.md       # Schedule: every 2h, autonomy: 5
+   └── logs/
+5. Event loop registers cron: every 2h
+6. Every 2h:
+   → Cron fires → event loop → brain
+   → Brain reads /ongoing/email-management/CLAUDE.md
+   → Brain checks email (via Email MCP tool)
+   → Brain triages, drafts replies, flags urgent
+   → Brain writes log: /ongoing/email-management/logs/2026-02-12-14h.md
+   → If urgent: Brain → WhatsApp to Hanan immediately
+```
+
+### Flow 4: Heartbeat
+
+```
+1. Cron fires every 15 minutes
+2. Event loop → brain: "Run heartbeat check"
+3. Brain:
+   → Scan active tasks (projects/ with status != complete)
+   → Check pending reviews (any task.md with AWAITING_REVIEW)
+   → Check ongoing routines (any overdue?)
+   → Check for proactive opportunities (birthdays, follow-ups, deadlines)
+4. If anything needs attention:
+   → WhatsApp to Hanan: "3 items: login-bug awaiting review, email routine overdue, Sarah's birthday tomorrow"
+5. If nothing: silent (no spam)
+6. End of day: write daily summary to /brain/memory/daily/2026-02-12.md
+```
+
+---
+
+## Deployment
+
+### Platform: WSL (Recommended)
+
+**Why WSL over Windows:**
+- Claude Code and Agent SDK are designed for Unix environments
+- Bash tool works natively (no PowerShell translation)
+- Systemd for service management
+- File watchers work reliably
+- Git and Node.js tooling is native
+
+**Process management:**
+```
+systemctl --user enable nina-brain     # Brain + event loop
+systemctl --user enable nina-dashboard # Dashboard
+```
+
+**Resources:**
+- CPU: 1 vCPU (idle most of the time, bursts during work)
+- RAM: ~500MB (Node.js process + in-memory caches)
+- Disk: grows with projects (git repos, logs, memory DB)
+- Network: outbound HTTPS to api.anthropic.com + channel APIs
+
+### Secrets Management
+
+```
+/home/nina/.env (or systemd EnvironmentFile)
+├── ANTHROPIC_API_KEY
+├── MS365_CLIENT_ID
+├── MS365_CLIENT_SECRET
+├── MS365_REFRESH_TOKEN
+├── GITHUB_TOKEN
+└── (other API keys)
+```
+
+---
+
+## Migration from OpenClaw
+
+### What Carries Over
+
+| Asset | Status |
+|---|---|
+| WhatsApp auth (Baileys session) | Keep auth directory, same library |
+| Email auth (MS365 OAuth tokens) | Keep tokens, same Graph API client |
+| Dashboard code (Alpine.js + Tailwind) | Adapt to new API, keep styling |
+| Model eval tool | Independent, no changes needed |
+| MEMORY.md content | Migrate to brain/memory/core/ files |
+| Daily summaries | Copy to brain/memory/daily/ |
+| Skills | Copy SKILL.md files to brain/skills/ |
+| VISION.md and roadmap | Reference documents, no migration needed |
+
+### What Gets Replaced
+
+| OpenClaw Component | Replaced By |
+|---|---|
+| Gateway (Fastify WebSocket) | Event loop + Dashboard Fastify |
+| Channel plugin system | Channel MCP plugins |
+| Agent runtime | Claude Agent SDK |
+| Session management | Folder-based + Claude Code sessions |
+| Memory indexer (SQLite + embeddings) | Graph memory MCP server |
+| Heartbeat runner | Cron in event loop |
+| Hook system | Agent SDK hooks + Claude Code hooks |
+| Skill loader | Agent SDK skill loading (same format) |
+
+### Migration Steps
+
+1. Set up the new system alongside OpenClaw (both can run)
+2. Migrate WhatsApp auth (copy Baileys auth directory)
+3. Migrate Email auth (copy OAuth tokens)
+4. Migrate memory (core files + daily summaries)
+5. Migrate skills (copy SKILL.md files)
+6. Test: verify channels work in new system
+7. Switch: point webhook URLs to new system
+8. Decommission OpenClaw
+
+---
+
+## Project Structure
+
+**Single folder: `/home/nina/my_agent/`**
+Public framework repo + `.my_agent/` private personality (gitignored, committed to separate repo).
+
+```
+/home/nina/my_agent/                    ← PUBLIC REPO (framework)
+├── packages/
+│   ├── core/                           # Event loop, task system, plugin interface
+│   ├── dashboard/                      # Operations console (Alpine.js + Fastify)
+│   ├── memory/                         # Memory system (graph + daily summaries)
+│   └── hooks/                          # Safety hooks, audit logging
+├── plugins/
+│   ├── channel-whatsapp/               # WhatsApp via Baileys
+│   ├── channel-email-ms365/            # Email via Microsoft Graph
+│   └── ...
+├── skills/                             # Framework skills (generic)
+├── docs/
+│   └── design.md                       # This design document
+├── examples/
+│   └── basic-assistant/                # Minimal setup guide
+├── .gitignore                          # Ignores .my_agent/
+├── CLAUDE.md                           # Framework dev instructions
+└── README.md
+│
+└── .my_agent/                          ← PRIVATE REPO (Nina's personality)
+    ├── brain/
+    │   ├── CLAUDE.md                   # Nina's personality + system prompt
+    │   ├── memory/
+    │   │   ├── core/                   # identity.md, contacts.md, procedures.md
+    │   │   └── daily/                  # End-of-day summaries
+    │   └── skills/                     # Nina-specific skills
+    ├── inbox/                          # Ad-hoc tasks
+    ├── projects/                       # Multi-phase project work
+    ├── ongoing/                        # Recurring routines
+    ├── config.yaml                     # Channel config, schedule, plugins
+    └── .env                            # API keys, tokens
+```
+
+---
+
+## What This Achieves (Mapping to VISION.md)
+
+| Vision Requirement | How It's Addressed |
+|---|---|
+| Part 1: Identity | CLAUDE.md personality, core memory files |
+| Part 2: Task System | Folder-based: inbox/projects/ongoing with phases |
+| Part 3: Autonomy & Bounds | Hook system + permissionMode + task metadata |
+| Part 4: Observability | task.md IS the source of truth. Folders are transparent. |
+| Part 5: Course Correction | Open folder in VS Code = full control. Approve/reject from dashboard/WhatsApp. |
+| Part 6: Cost Control | API spending limits, model routing, Ollama degraded mode |
+| Part 7: External Comms | Channel plugins with trust tiers in hooks |
+| Part 8: Growth | Nina modifies her own skills, memory, procedures |
+| Part 9: Pain Points | ALL addressed (observability, session resume, phase discipline, pause/resume) |
+| Part 10: Architecture | Clean, extensible, built on tools Hanan already uses daily |
+
+---
+
+## Milestones
+
+### M1: Basic Nina (CLI)
+Personality + memory running in `.my_agent/`. Speak via Claude Code CLI.
+- Agent SDK brain running in `.my_agent/` with personality from `brain/CLAUDE.md`
+- Core memory migrated from current Nina (identity, contacts, procedures, preferences)
+- Daily summaries migrated
+- Skills migrated
+- Verification: open folder in Claude Code, have a conversation, Nina knows who she is
+
+### M2: WhatsApp Bridge
+Remove WhatsApp from OpenClaw, connect to new Nina.
+- WhatsApp MCP plugin (Baileys, reuse existing auth)
+- Event loop receives webhook, passes to brain
+- Brain responds via WhatsApp MCP tool
+- Migrate WhatsApp from OpenClaw → new system (swap webhook URL)
+- Decommission OpenClaw WhatsApp channel
+- Verification: send WhatsApp message, get Nina response
+
+### M3a: Project System
+Folder creation, Claude Code spawning, task lifecycle, comms MCP.
+- Task classification (ad-hoc / project / ongoing)
+- Folder creation with CLAUDE.md + task.md + .claude/ setup
+- Claude Code session spawning via `claude` CLI
+- Comms MCP server (notify, request_review, escalate)
+- Resume flow (`claude --continue` on approval)
+- Verification: send "fix a bug in X" → project folder created → Claude Code works → requests review → approve → completes
+
+**After M3a: Nina can develop herself.** Milestones 4 and 5 become Nina's first autonomous projects.
+
+### M3b: Memory + Heartbeat
+Graph memory, daily summaries, auto-enrichment, cron scheduler.
+- Anthropic MCP Memory Server integration (entities, relations, observations)
+- Auto-enrichment pipeline (entity extraction → graph query → context injection)
+- Daily summary generation (evening heartbeat)
+- Cron scheduler for heartbeat and ongoing tasks
+- Ongoing task support (procedure folders + execution logs)
+- Verification: Nina remembers cross-project context, proactively checks in
+
+### M4: Dashboard (Nina's first self-built project)
+Operations console — Nina builds this herself with Hanan's review.
+- Fastify API reading filesystem (task list, project detail, memory)
+- Alpine.js + Tailwind frontend
+- Task browser, approve/reject, session history
+- Memory viewer, daily summaries
+- Chat with brain
+- "Open in VS Code" deep links
+
+### M5: Email Support (Nina's second self-built project)
+Email channel plugin — Nina builds this herself.
+- Microsoft Graph MCP plugin (reuse graph-client.ts from OpenClaw)
+- OAuth 2.0 auth flow
+- Webhook + polling for inbound
+- Send/reply/thread for outbound
+- Migrate from OpenClaw (swap tokens)
+
+---
+
+*Design document created: 2026-02-12*
+*Session: Hanan + Claude Code (Opus 4.6)*

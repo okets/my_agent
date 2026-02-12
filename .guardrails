@@ -1,0 +1,25 @@
+# Private patterns that must NEVER appear in public repo files.
+# Used by pre-commit hook and Claude Code hooks.
+# One pattern per line. Lines starting with # are comments.
+
+# Real names and identities
+Nina Van Khan
+Hanan Vaknin
+materializingvisions
+nina@materializingvisions
+
+# Phone numbers (Israeli format)
+\+972
+
+# Azure/MS365 credentials
+65ea8f75-3cfc-413b-b5da
+780baf62-dd0c-4e09
+
+# API key patterns
+sk-ant-
+ANTHROPIC_API_KEY=
+MS365_CLIENT_SECRET=
+
+# Private paths that shouldn't be hardcoded
+/home/nina/.openclaw
+/home/nina/my_agent/.my_agent
