@@ -42,10 +42,16 @@ packages/core/
 │   ├── hatching.ts       # First-run questionnaire flow
 │   ├── config.ts         # Load personality + memory files
 │   └── types.ts          # Shared types
+├── src/hatching/
+│   ├── index.ts               # Hatching orchestrator
+│   └── steps/                 # Modular steps
+│       ├── identity.ts        # Name, purpose, contacts
+│       ├── personality.ts     # Archetype selection
+│       └── operating-rules.ts # Rules setup
 ├── skills/
+│   ├── identity/SKILL.md
 │   ├── personality/SKILL.md
-│   ├── operating-rules/SKILL.md
-│   └── hatching/SKILL.md
+│   └── operating-rules/SKILL.md
 ├── package.json
 └── tsconfig.json
 
@@ -89,16 +95,35 @@ Nina: Hi! I'm Nina. Let's get to know each other...
 
 ## Hatching Flow
 
-1. First `npm run brain` detects no `.my_agent/` or no `.hatched` marker
-2. Nina creates `.my_agent/` directory structure
-3. Asks minimum questions:
-   - What's your name?
-   - What do you need help with?
-   - Any key contacts? (can skip)
-4. Offers: "Complete full setup now, or continue later?"
-5. If later: tells user about `/my-agent:personality` and `/my-agent:operating-rules`
-6. Writes `memory/core/identity.md`, creates `.hatched` marker
-7. Nina is ready to use with sensible defaults
+The hatching process is **modular** — each configuration area is a self-contained step.
+Steps can run during initial hatching or independently via `/my-agent:*` commands.
+
+**M1 Steps:**
+
+| Step | Hatching | Re-run Command | What It Configures |
+|------|----------|----------------|--------------------|
+| Identity | Required | `/my-agent:identity` | Name, purpose, key contacts |
+| Personality | Required | `/my-agent:personality` | Archetype selection (7 options + custom) |
+| Operating Rules | Optional | `/my-agent:operating-rules` | Autonomy, escalation, communication style |
+
+**Future Steps (added by later milestones):**
+
+| Step | Milestone | Re-run Command | What It Configures |
+|------|-----------|----------------|--------------------|
+| Channels | M2 | `/my-agent:channels` | WhatsApp, Email, Telegram, Slack setup |
+
+**Architecture:** Each step is a module in `src/hatching/steps/`. The hatching flow runs
+all required steps in sequence on first run. Optional steps are offered but skippable.
+Each step can also run standalone via its command.
+
+**First-run flow:**
+1. `npm run brain` detects no `.my_agent/` → runs hatching
+2. Creates `.my_agent/` directory structure
+3. Runs required steps: identity → personality
+4. Offers optional steps: operating rules
+5. "Complete full setup now, or continue later?"
+6. If later: lists available `/my-agent:*` commands
+7. Writes `.hatched` marker, drops into REPL
 
 ---
 
