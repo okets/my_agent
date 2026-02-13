@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nina — Dashboard</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: [
+                "Inter",
+                "system-ui",
+                "-apple-system",
+                "Segoe UI",
+                "sans-serif",
+              ],
+            },
+            colors: {
+              tokyo: {
+                bg: "#1a1b26",
+                panel: "#1f2335",
+                card: "#24283b",
+                text: "#c0caf5",
+                muted: "#565f89",
+                gray: "#6b7280",
+                blue: "#7aa2f7",
+                purple: "#bb9af7",
+                green: "#9ece6a",
+                red: "#f7768e",
+                orange: "#ff9e64",
+                cyan: "#7dcfff",
+              },
+            },
+          },
+        },
+      };
+    </script>
+
+    <!-- Alpine.js -->
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+    ></script>
+
+    <!-- Markdown + sanitization -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+
+    <!-- App styles -->
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+
+  <body class="bg-tokyo-bg text-tokyo-text antialiased">
+    <!-- ================================================================== -->
+    <!-- Main app shell — full viewport, no body scroll                     -->
+    <!-- ================================================================== -->
+    <div
+      x-data="chat()"
+      class="flex flex-col h-screen w-full max-w-3xl mx-auto"
+    >
+      <!-- ============================================================== -->
+      <!-- Header                                                         -->
+      <!-- ============================================================== -->
+      <header
+        class="flex items-center gap-3 px-4 h-12 shrink-0"
+        style="
+          background: #1a1b26;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        "
+      >
+        <!-- Agent avatar (small) -->
+        <div
+          class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold text-white"
+          style="background: linear-gradient(135deg, #a855f7, #ec4899)"
+        >
+          N
+        </div>
+
+        <!-- Name + status -->
+        <div class="flex flex-col leading-tight">
+          <span
+            class="text-sm font-semibold"
+            style="
+              background: linear-gradient(135deg, #a855f7, #ec4899);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            "
+            >Nina</span
+          >
+          <span class="flex items-center gap-1" style="font-size: 11px">
+            <span
+              class="inline-block w-1.5 h-1.5 rounded-full bg-tokyo-green"
+            ></span>
+            <span class="text-tokyo-muted">Online</span>
+          </span>
+        </div>
+      </header>
+
+      <!-- ============================================================== -->
+      <!-- Messages area                                                  -->
+      <!-- ============================================================== -->
+      <main
+        x-ref="messagesContainer"
+        class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
+      >
+        <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+        <!-- Welcome state (no messages)                              -->
+        <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+        <template x-if="messages.length === 0">
+          <div
+            class="flex flex-col items-center justify-center h-full select-none"
+            x-cloak
+          >
+            <!-- Avatar -->
+            <div
+              class="w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold text-white mb-4"
+              style="background: linear-gradient(135deg, #a855f7, #ec4899)"
+            >
+              N
+            </div>
+
+            <!-- Greeting -->
+            <h1
+              class="text-lg font-semibold mb-1"
+              style="
+                background: linear-gradient(135deg, #a855f7, #ec4899);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+              "
+            >
+              Hey! I'm Nina.
+            </h1>
+            <p class="text-sm text-gray-400">How can I help you today?</p>
+          </div>
+        </template>
+
+        <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+        <!-- Message list                                             -->
+        <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+        <template x-for="msg in messages" :key="msg.id">
+          <div class="msg-enter">
+            <!-- ── Assistant message ────────────────────────────── -->
+            <template x-if="msg.role === 'assistant'">
+              <div class="flex items-start gap-2.5 max-w-[85%]">
+                <!-- Avatar -->
+                <div
+                  class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold text-white mt-0.5"
+                  style="background: linear-gradient(135deg, #a855f7, #ec4899)"
+                >
+                  N
+                </div>
+
+                <!-- Bubble -->
+                <div
+                  class="rounded-xl rounded-tl-none px-3 py-2"
+                  style="background: rgba(255, 255, 255, 0.05)"
+                >
+                  <div
+                    class="chat-md text-sm leading-relaxed"
+                    x-html="msg.renderedContent"
+                  ></div>
+                  <div
+                    class="text-tokyo-muted mt-1 text-right"
+                    style="font-size: 11px"
+                    x-text="msg.timestamp"
+                  ></div>
+                </div>
+              </div>
+            </template>
+
+            <!-- ── User message ─────────────────────────────────── -->
+            <template x-if="msg.role === 'user'">
+              <div class="flex justify-end">
+                <div
+                  class="max-w-[85%] rounded-xl rounded-tr-none px-3 py-2"
+                  style="background: rgba(122, 162, 247, 0.1)"
+                >
+                  <div
+                    class="chat-md text-sm leading-relaxed"
+                    x-html="msg.renderedContent"
+                  ></div>
+                  <div
+                    class="text-tokyo-muted mt-1 text-right"
+                    style="font-size: 11px"
+                    x-text="msg.timestamp"
+                  ></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+        <!-- Typing indicator                                         -->
+        <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+        <div x-show="isResponding" x-cloak class="msg-enter">
+          <div class="flex items-start gap-2.5">
+            <!-- Avatar -->
+            <div
+              class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold text-white mt-0.5"
+              style="background: linear-gradient(135deg, #a855f7, #ec4899)"
+            >
+              N
+            </div>
+
+            <!-- Dots bubble -->
+            <div
+              class="rounded-xl rounded-tl-none px-4 py-3"
+              style="background: rgba(255, 255, 255, 0.05)"
+            >
+              <div class="typing-dots flex items-center gap-1">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- ============================================================== -->
+      <!-- Compose area                                                   -->
+      <!-- ============================================================== -->
+      <footer
+        class="shrink-0 p-3"
+        style="border-top: 1px solid rgba(255, 255, 255, 0.06)"
+      >
+        <div
+          class="flex items-end gap-2 rounded-xl px-3 py-2"
+          style="
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+          "
+        >
+          <!-- Textarea -->
+          <textarea
+            x-ref="chatInput"
+            x-model="inputText"
+            rows="1"
+            placeholder="Message Nina..."
+            class="flex-1 bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted resize-none outline-none leading-relaxed"
+            style="max-height: 7.5rem"
+            @keydown.enter="
+              if (!$event.shiftKey) {
+                $event.preventDefault();
+                sendMessage();
+              }
+            "
+            @input="autoResize($refs.chatInput)"
+          ></textarea>
+
+          <!-- Send button -->
+          <button
+            @click="sendMessage()"
+            :disabled="!canSend"
+            class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-150"
+            :class="
+              canSend
+                ? 'bg-tokyo-blue/20 text-tokyo-blue hover:bg-tokyo-blue/30 cursor-pointer'
+                : 'text-tokyo-muted opacity-30 cursor-default'
+            "
+          >
+            <!-- Send icon (arrow up) -->
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              class="w-4 h-4"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M10 17a.75.75 0 0 1-.75-.75V5.612L5.29 9.77a.75.75 0 0 1-1.08-1.04l5.25-5.5a.75.75 0 0 1 1.08 0l5.25 5.5a.75.75 0 1 1-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0 1 10 17Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <!-- App logic (must load before Alpine processes x-data) -->
+    <script src="js/ws-client.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>

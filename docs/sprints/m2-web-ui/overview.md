@@ -64,6 +64,25 @@ Slash command autocomplete, file uploads, tool-based interactive UI (AskUserQues
 | Frontend | Single HTML + JS files (CDN) | No build step, matches OpenClaw pattern |
 | Slash commands | Autocomplete dropdown on `/` | Discord/Slack-style UX |
 
+## Team Composition
+
+| Role | Agent Type | Model | Focus |
+|------|-----------|-------|-------|
+| **Tech Lead** | Human (Hanan) | — | Architecture decisions, UX choices, sprint approval |
+| **UI Designer** | `frontend-design` | Opus | Visual design, layout, polish. References OpenClaw. |
+| **Frontend Dev** | `general-purpose` | Sonnet | Clean Alpine.js, CSS hierarchy, reusable components |
+| **Backend Dev** | `general-purpose` | Sonnet | Fastify, WebSocket, Agent SDK, hatching REST |
+| **Reviewer** | `general-purpose` | Opus | Requirements verification + code quality gatekeeper |
+
+### Workflow
+
+- Tech Lead makes architecture/UX decisions and approves completed sprints
+- UI Designer produces HTML/CSS for each feature
+- Frontend Dev wires Alpine.js logic, ensures clean component structure
+- Backend Dev builds server routes, WebSocket, Agent SDK integration
+- Reviewer verifies requirements compliance and code quality before presenting to Tech Lead
+- Escalation to Tech Lead only for: major architectural choices, technical blockers requiring a different approach
+
 ## Scope
 
 **In scope:** Chat interface, hatching wizard, streaming, thinking blocks, file uploads, slash commands, tool-based interactive UI
@@ -73,4 +92,5 @@ Slash command autocomplete, file uploads, tool-based interactive UI (AskUserQues
 ---
 
 *Plan approved: 2026-02-13*
+*Team composition approved: 2026-02-13*
 *Session: Hanan + Claude Code (Opus 4.6)*

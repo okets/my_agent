@@ -12,6 +12,10 @@ dist/
 .env
 .env.*
 
+# Playwright
+.playwright_output/
+.playwright-mcp/
+
 # OS
 .DS_Store
 Thumbs.db

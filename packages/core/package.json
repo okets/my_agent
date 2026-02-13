@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "description": "Core brain module for my_agent — AI assistant framework on Claude Agent SDK",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/lib.js",
+  "exports": {
+    ".": "./dist/lib.js",
+    "./cli": "./dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "brain": "tsx src/index.ts",
