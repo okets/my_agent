@@ -1,0 +1,6 @@
+# my_agent configuration
+# Place this file at .my_agent/config.yaml
+
+brain:
+  model: claude-sonnet-4-5-20250929
+  # dir: ./brain  # brain directory, relative to .my_agent/
