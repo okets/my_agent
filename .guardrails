@@ -15,8 +15,8 @@ nina@materializingvisions
 65ea8f75-3cfc-413b-b5da
 780baf62-dd0c-4e09
 
-# API key patterns
-sk-ant-
+# API key patterns (match actual keys, not prefix references in validation code)
+sk-ant-[a-zA-Z0-9_-]{30,}
 ANTHROPIC_API_KEY=
 MS365_CLIENT_SECRET=
 

@@ -3,8 +3,10 @@ import * as path from 'node:path'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { stringify } from 'yaml'
+import { findAgentDir } from '../config.js'
 import { identityStep } from './steps/identity.js'
 import { personalityStep } from './steps/personality.js'
+import { authStep } from './steps/auth.js'
 import { operatingRulesStep } from './steps/operating-rules.js'
 
 export interface HatchingStep {
@@ -14,7 +16,7 @@ export interface HatchingStep {
   run(rl: readline.Interface, agentDir: string): Promise<void>
 }
 
-const requiredSteps: HatchingStep[] = [identityStep, personalityStep]
+const requiredSteps: HatchingStep[] = [identityStep, personalityStep, authStep]
 
 const optionalSteps: HatchingStep[] = [operatingRulesStep]
 
@@ -78,16 +80,6 @@ export async function runHatching(rl: readline.Interface, agentDir: string): Pro
   await writeHatchedMarker(agentDir)
 
   console.log("You're all set!\n")
-}
-
-export function findAgentDir(): string {
-  let dir = process.cwd()
-  while (dir !== path.dirname(dir)) {
-    const candidate = path.join(dir, '.my_agent')
-    if (existsSync(candidate)) return candidate
-    dir = path.dirname(dir)
-  }
-  return path.resolve('.my_agent')
 }
 
 export function isHatched(agentDir: string): boolean {

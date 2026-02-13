@@ -30,10 +30,17 @@ export const identityStep: HatchingStep = {
   async run(rl: readline.Interface, agentDir: string): Promise<void> {
     console.log('\n--- Identity Setup ---\n')
 
-    const userName = await rl.question("What's your name? ")
-    const purpose = await rl.question(
+    let userName = ''
+    while (!userName.trim()) {
+      userName = await rl.question("What's your name? ")
+      if (!userName.trim()) {
+        console.log('Name is required, please try again.')
+      }
+    }
+    const purposeInput = await rl.question(
       'What do you mainly need help with? (work, personal, both, something specific?) ',
     )
+    const purpose = purposeInput.trim() || 'General assistance'
     const contactsRaw = await rl.question(
       "Any key contacts I should know about? Name and relationship, or 'skip': ",
     )
@@ -43,7 +50,7 @@ export const identityStep: HatchingStep = {
 
     await writeFile(
       path.join(coreDir, 'identity.md'),
-      buildIdentityMd(userName.trim(), purpose.trim()),
+      buildIdentityMd(userName.trim(), purpose),
       'utf-8',
     )
 

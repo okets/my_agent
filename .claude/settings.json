@@ -1,13 +1,18 @@
 {
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Write",
-        "command": "bash /home/nina/my_agent/scripts/check-private-data.sh \"$FILE_PATH\""
-      },
-      {
-        "matcher": "Edit",
-        "command": "bash /home/nina/my_agent/scripts/check-private-data.sh \"$FILE_PATH\""
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/check-private-data.sh\" \"$FILE_PATH\"",
+            "statusMessage": "Checking for private data..."
+          }
+        ]
       }
     ]
   }

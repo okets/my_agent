@@ -37,8 +37,16 @@ export const operatingRulesStep: HatchingStep = {
     console.log('  1. Conservative — always ask before acting')
     console.log('  2. Balanced — ask for external actions, handle internal tasks independently')
     console.log('  3. Autonomous — act freely and report after')
-    const autonomyChoice = await rl.question('\nPick a number (1-3): ')
-    const autonomy = AUTONOMY_OPTIONS[autonomyChoice.trim()] ?? AUTONOMY_OPTIONS['2']
+    let autonomy: string
+    while (true) {
+      const autonomyChoice = await rl.question('\nPick a number (1-3): ')
+      const match = AUTONOMY_OPTIONS[autonomyChoice.trim()]
+      if (match) {
+        autonomy = match
+        break
+      }
+      console.log('Invalid choice, please try again.')
+    }
 
     const escalations = await rl.question(
       '\nWhat should always be escalated to you? (e.g., financial decisions, external communications): ',
@@ -48,8 +56,16 @@ export const operatingRulesStep: HatchingStep = {
     console.log('  1. Concise — brief and direct')
     console.log('  2. Detailed — thorough explanations')
     console.log('  3. Adaptive — matches context')
-    const styleChoice = await rl.question('\nPick a number (1-3): ')
-    const style = STYLE_OPTIONS[styleChoice.trim()] ?? STYLE_OPTIONS['3']
+    let style: string
+    while (true) {
+      const styleChoice = await rl.question('\nPick a number (1-3): ')
+      const match = STYLE_OPTIONS[styleChoice.trim()]
+      if (match) {
+        style = match
+        break
+      }
+      console.log('Invalid choice, please try again.')
+    }
 
     const brainDir = path.join(agentDir, 'brain')
     await mkdir(brainDir, { recursive: true })

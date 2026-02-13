@@ -56,8 +56,13 @@ export const personalityStep: HatchingStep = {
     const writeYourOwn = personalities.length + 1
     console.log(`  ${writeYourOwn}. Write your own\n`)
 
-    const answer = await rl.question(`Pick a number (1-${writeYourOwn}): `)
-    const choice = parseInt(answer.trim(), 10)
+    let choice: number
+    while (true) {
+      const answer = await rl.question(`Pick a number (1-${writeYourOwn}): `)
+      choice = parseInt(answer.trim(), 10)
+      if (!isNaN(choice) && choice >= 1 && choice <= writeYourOwn) break
+      console.log('Invalid choice, please try again.')
+    }
 
     const brainDir = path.join(agentDir, 'brain')
     await mkdir(brainDir, { recursive: true })

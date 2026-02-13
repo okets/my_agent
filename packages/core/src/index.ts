@@ -1,16 +1,29 @@
 import * as readline from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 import { createBrainQuery, streamResponse } from './brain.js'
-import { loadConfig } from './config.js'
+import { loadConfig, findAgentDir } from './config.js'
 import { assembleSystemPrompt } from './prompt.js'
-import { runHatching, findAgentDir, isHatched, allSteps } from './hatching/index.js'
+import { resolveAuth } from './auth.js'
+import { runHatching, isHatched, allSteps } from './hatching/index.js'
 
 async function singleShot(message: string): Promise<void> {
+  const agentDir = findAgentDir()
+  if (!isHatched(agentDir)) {
+    console.log('Agent not set up yet. Run `npm run brain` (without arguments) to start setup.')
+    process.exit(1)
+  }
+
+  resolveAuth(agentDir)
   const config = loadConfig()
   const systemPrompt = await assembleSystemPrompt(config.brainDir)
-  const q = createBrainQuery(message, { systemPrompt })
-  await streamResponse(q)
-  console.log()
+  try {
+    const q = createBrainQuery(message, { model: config.model, systemPrompt })
+    await streamResponse(q)
+    console.log()
+  } catch (err) {
+    console.error('Error:', err instanceof Error ? err.message : String(err))
+    process.exit(1)
+  }
 }
 
 function matchCommand(input: string): string | null {
@@ -23,7 +36,7 @@ async function handleCommand(
   rl: readline.Interface,
   agentDir: string,
 ): Promise<boolean> {
-  const step = allSteps.find((s) => s.name === commandName)
+  const step = allSteps.find((s) => s.name.toLowerCase() === commandName.toLowerCase())
   if (!step) {
     console.log(`Unknown command: /my-agent:${commandName}`)
     console.log('Available commands:')
@@ -45,6 +58,7 @@ async function repl(): Promise<void> {
       await runHatching(rl, agentDir)
     }
 
+    resolveAuth(agentDir)
     const config = loadConfig()
     const systemPrompt = await assembleSystemPrompt(config.brainDir)
 
@@ -62,13 +76,18 @@ async function repl(): Promise<void> {
         continue
       }
 
-      const q = createBrainQuery(userInput, {
-        systemPrompt,
-        continue: !isFirstTurn,
-      })
-      await streamResponse(q)
-      console.log('\n')
-      isFirstTurn = false
+      try {
+        const q = createBrainQuery(userInput, {
+          model: config.model,
+          systemPrompt,
+          continue: !isFirstTurn,
+        })
+        await streamResponse(q)
+        console.log('\n')
+        isFirstTurn = false
+      } catch (err) {
+        console.error('Error:', err instanceof Error ? err.message : String(err))
+      }
     }
   } finally {
     rl.close()

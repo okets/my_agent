@@ -4,7 +4,7 @@ import { parse } from 'yaml'
 import type { BrainConfig } from './types.js'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929'
-function findAgentDir(): string {
+export function findAgentDir(): string {
   let dir = process.cwd()
   while (dir !== path.dirname(dir)) {
     const candidate = path.join(dir, '.my_agent')
@@ -25,10 +25,17 @@ interface YamlConfig {
 }
 
 function loadYamlConfig(agentDir: string): YamlConfig | null {
+  const configPath = path.join(agentDir, CONFIG_FILENAME)
+  if (!existsSync(configPath)) {
+    return null
+  }
   try {
-    const raw = readFileSync(path.join(agentDir, CONFIG_FILENAME), 'utf-8')
+    const raw = readFileSync(configPath, 'utf-8')
     return parse(raw) as YamlConfig
-  } catch {
+  } catch (err) {
+    console.warn(
+      `Warning: Could not parse ${configPath}: ${err instanceof Error ? err.message : String(err)}. Using defaults.`,
+    )
     return null
   }
 }

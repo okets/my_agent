@@ -1,19 +1,25 @@
 import { query, type Query, type Options } from '@anthropic-ai/claude-agent-sdk'
-import { loadConfig } from './config.js'
 
 export interface BrainSessionOptions {
-  model?: string
+  model: string
   systemPrompt?: string
   continue?: boolean
 }
 
-export function createBrainQuery(prompt: string, options?: BrainSessionOptions): Query {
-  const config = loadConfig()
-  const queryOptions: Options = {
-    model: options?.model ?? config.model,
-    systemPrompt: options?.systemPrompt,
+export function createBrainQuery(prompt: string, options: BrainSessionOptions): Query {
+  // Auth is resolved before this point (resolveAuth sets env vars).
+  // This is a safety check in case createBrainQuery is called without resolving auth first.
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+    throw new Error(
+      'No Anthropic authentication configured. Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN, or run /my-agent:auth',
+    )
   }
-  if (options?.continue) {
+
+  const queryOptions: Options = {
+    model: options.model,
+    systemPrompt: options.systemPrompt,
+  }
+  if (options.continue) {
     queryOptions.continue = true
   }
   return query({ prompt, options: queryOptions })
@@ -23,6 +29,8 @@ export async function streamResponse(q: Query): Promise<string> {
   let fullText = ''
   for await (const msg of q) {
     if (msg.type === 'assistant') {
+      // Filter for text content blocks — the SDK may return other block types
+      // (e.g., tool_use, thinking) that don't have a text field.
       const text = msg.message.content
         .filter((block: { type: string }) => block.type === 'text')
         .map((block: { type: string; text?: string }) => block.text ?? '')
