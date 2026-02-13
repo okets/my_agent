@@ -11,8 +11,8 @@
 ```
 my_agent/                           # PUBLIC REPO (framework)
 ├── packages/
-│   ├── core/                       # Event loop, task system, plugin interface
-│   ├── dashboard/                  # Operations console (Alpine.js + Fastify)
+│   ├── core/                       # Brain, auth, hatching, config, prompt assembly
+│   ├── dashboard/                  # Web UI: chat + hatching wizard (Alpine.js + Fastify)
 │   ├── memory/                     # Memory system (graph + daily summaries)
 │   └── hooks/                      # Safety hooks, audit logging
 ├── plugins/
@@ -85,9 +85,30 @@ This is kept private since it contains paths specific to the development machine
 ## Build & Run
 
 ```bash
-# TODO: Set up after Sprint 1
+# Core (M1 — CLI REPL)
+cd packages/core && npm install && npx tsx src/index.ts
+
+# Dashboard (M2 — Web UI, in progress)
+# cd packages/dashboard && npm install && npm run dev
 ```
+
+## Milestones
+
+| Milestone | Status | Description |
+|-----------|--------|-------------|
+| M1: Basic Nina (CLI) | Complete | Brain, hatching, auth, personality, CLI REPL |
+| M2: Web UI | In Progress | Chat interface + hatching wizard (Alpine.js + Fastify) |
+| M3: WhatsApp Bridge | Planned | WhatsApp channel plugin |
+| M4a: Project System | Planned | Folder-based tasks, Claude Code spawning |
+| M4b: Memory + Heartbeat | Planned | Graph memory, daily summaries, cron |
+| M5: Operations Dashboard | Planned | Task browser, memory viewer, settings |
+| M6: Email Support | Planned | Microsoft Graph email channel |
+
+## Sprint Docs
+
+Sprint plans and reviews are in `docs/sprints/`. Each sprint has a `plan.md` and `review.md`.
 
 ---
 
 *Created: 2026-02-12*
+*Updated: 2026-02-13 — M1 complete, M2 planning*

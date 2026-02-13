@@ -1,6 +1,6 @@
 # my_agent — Design Document
 
-> **Status:** Brainstorming Complete — Ready for Planning
+> **Status:** M1 Complete — M2 In Progress
 > **Date:** 2026-02-12
 > **Session:** Hanan + Claude Code (Opus 4.6)
 > **Decision:** Replace OpenClaw with Claude Agent SDK-based architecture
@@ -138,6 +138,8 @@ A long-running Agent SDK session that IS Nina. It has:
 - Memory management — saves insights, updates contacts, creates summaries
 - Heartbeat logic — periodic check-ins, proactive notifications
 
+**Context isolation:** For complex ad-hoc tasks, the brain can delegate to subagents to avoid polluting its own context with execution details. Subagents run within the same session, report back, and are cleaned up — keeping Nina's context lean and focused on coordination.
+
 ### 3. Task System (Folder-Based)
 
 Every task gets a folder. Three types:
@@ -148,7 +150,7 @@ Every task gets a folder. Three types:
 ├── CLAUDE.md     # Task context: "Check production server health"
 └── task.md       # Status: Complete. Result: "Server up, 230ms response."
 ```
-- Created and handled by Nina's brain directly
+- Created and handled by Nina's brain directly (or via subagent for complex tasks)
 - Short-lived, archived after completion
 - May or may not spawn a Claude Code session
 
@@ -309,29 +311,143 @@ Project sessions communicate back via a **Comms MCP server** configured in each 
 
 ### 8. Dashboard
 
-Alpine.js + Fastify + Tailwind (same tech stack as current dashboard).
+Alpine.js + Fastify + Tailwind. Built in phases — chat first (M2), then operations dashboard (later milestones).
 
-**Data source: filesystem + APIs**
+**Phase 1: Chat UI (M2)**
+
+The primary interface for talking to Nina. Serves as both the hatching wizard (first-run setup) and the ongoing chat interface.
 
 ```
-Fastify API:
+Fastify server (packages/dashboard/):
+  Static files:   Alpine.js SPA (public/)
+  REST:           /api/hatching/* (setup wizard steps)
+  REST:           /api/uploads (file attachments)
+  WebSocket:      /api/chat/ws (streaming chat)
+```
+
+**Chat features (reference: OpenClaw dashboard):**
+- Real-time token streaming with delta-based rendering
+- Thinking blocks — auto-expand during thinking, auto-collapse on response, toggle
+- Markdown rendering (GFM: code blocks, tables, links, images)
+- File uploads (drag-drop, paste, click) with preview strip
+- Slash command autocomplete — typing `/` shows available commands
+- Tool-based interactive UI — agent can present selects, multi-selects, text inputs
+- Dark theme, responsive layout
+
+**Phase 2: Operations Dashboard (future)**
+
+```
+Fastify API (additional routes):
   GET /api/tasks         → scans inbox/, projects/, ongoing/
   GET /api/task/:folder  → reads CLAUDE.md + task.md
   GET /api/sessions/:id  → lists Claude Code sessions in folder
   GET /api/memory/graph  → queries graph DB
   GET /api/memory/daily  → reads daily summary files
   POST /api/approve/:id  → sends approval to event loop
-  POST /api/message      → sends message to brain
   WebSocket /ws          → real-time updates via file watchers
 ```
 
-**Dashboard shows:**
+**Operations dashboard shows:**
 - Task browser: inbox/projects/ongoing with live status
 - Project detail: CLAUDE.md, task.md, session history, approve/reject buttons
 - Memory viewer: graph visualization, contacts, daily summaries
-- Chat: direct communication with Nina's brain
+- Settings: auth profiles, model config, channel management
 - Controls: pause/resume ongoing tasks, approve reviews
 - "Open in VS Code" deep links for any project folder
+
+### 9. Authentication
+
+Supports both Claude subscriptions (Pro/Max) and API keys. Inspired by OpenClaw's auth UX.
+
+**Auth sources (resolution order):**
+
+1. **Environment variables** — `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` (always wins)
+2. **Central auth file** — `.my_agent/auth.json` (persistent, managed via hatching/dashboard)
+3. **Error with guidance** — if neither found, guides user through setup
+
+**Supported methods:**
+
+| Method | Token Prefix | Source | Billing |
+|--------|-------------|--------|---------|
+| API Key | `sk-ant-...` | [Anthropic Console](https://console.anthropic.com/) | Pay-per-use |
+| Setup-Token | `sk-ant-oat01-...` | `claude setup-token` CLI command | Subscription quota (Pro/Max) |
+
+**Central auth file** (`.my_agent/auth.json`):
+```json
+{
+  "version": 1,
+  "activeProfile": "default",
+  "profiles": {
+    "default": {
+      "provider": "anthropic",
+      "method": "setup_token",
+      "token": "sk-ant-oat01-..."
+    }
+  }
+}
+```
+
+This file lives in `.my_agent/` (gitignored from framework repo, committed to private brain repo). Multiple profiles support future multi-provider or failover scenarios.
+
+**Hatching flow (auth step):**
+1. Check for existing env vars → if found, confirm and skip
+2. Ask: "API key (pay-per-use) or Claude subscription (Pro/Max)?"
+3. **Subscription path:** Guide user to run `claude setup-token`, validate prefix (`sk-ant-oat01-`) and length (80+ chars)
+4. **API key path:** Prompt for key, detect env var if present
+5. Store in `.my_agent/auth.json`, set as active profile
+6. Verify auth works (test API call)
+
+**Runtime resolution** (`resolveAuth()`):
+```typescript
+// 1. Env var override
+if (process.env.ANTHROPIC_API_KEY) return { type: 'api_key', source: 'env' }
+if (process.env.CLAUDE_CODE_OAUTH_TOKEN) return { type: 'setup_token', source: 'env' }
+
+// 2. Auth file
+const auth = readAuthFile(agentDir)
+if (auth?.activeProfile) return auth.profiles[auth.activeProfile]
+
+// 3. Guide user
+throw new AuthNotConfiguredError('Run /my-agent:auth to set up authentication')
+```
+
+**Dashboard integration (future):** Settings page for managing auth profiles — add/remove keys, switch active profile, test connection, view usage.
+
+### 10. First-Run Setup (Hatching)
+
+Modular onboarding that runs on first launch. Each step implements the `HatchingStep` interface and doubles as a standalone `/my-agent:*` command for re-configuration anytime.
+
+**Architecture:**
+```typescript
+interface HatchingStep {
+  name: string           // Used as command: /my-agent:{name}
+  description: string    // Shown in help and hatching flow
+  required: boolean      // Must complete during hatching?
+  run(rl: readline.Interface, agentDir: string): Promise<void>
+}
+```
+
+**Steps:**
+
+| Step | Required | Command | What It Does |
+|------|----------|---------|--------------|
+| Identity | Yes | `/my-agent:identity` | Name, purpose, key contacts |
+| Personality | Yes | `/my-agent:personality` | Choose from 7 archetypes or write custom |
+| Auth | Yes | `/my-agent:auth` | API key or subscription setup |
+| Operating Rules | No | `/my-agent:operating-rules` | Autonomy level, escalation rules, style |
+
+**Interfaces:**
+
+- **CLI (M1):** readline-based sequential prompts. Functional, used as dev fallback.
+- **Web (M2):** Browser-based wizard with rich form components (dropdowns, cards, validation). REST-based: `GET /api/hatching/step/:name` returns field metadata, `POST` submits data. Step logic is shared between CLI and web via extracted pure functions.
+
+**Flow:**
+1. First visit (web) or first run (CLI) → hatching wizard
+2. Required steps run in sequence
+3. Optional steps offered (complete now or later via `/my-agent:*` commands)
+4. Writes `.hatched` marker — subsequent visits skip hatching
+
+**Extensibility:** Future milestones add steps (channels, memory backends, etc.) by implementing `HatchingStep`. Steps auto-discover from the skills directory.
 
 ---
 
@@ -375,6 +491,10 @@ Both based on existing OpenClaw implementations. Same libraries, same auth, diff
 
 ```yaml
 # config.yaml
+auth:
+  file: ./auth.json               # Central auth file (managed by hatching/dashboard)
+  # Env vars ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN override auth.json
+
 brain:
   model: claude-sonnet-4-5
   personality: ./brain/CLAUDE.md
@@ -527,15 +647,26 @@ systemctl --user enable nina-dashboard # Dashboard
 
 ### Secrets Management
 
+**Two locations for secrets:**
+
 ```
-/home/nina/.env (or systemd EnvironmentFile)
-├── ANTHROPIC_API_KEY
-├── MS365_CLIENT_ID
+.my_agent/auth.json              # Anthropic auth (API key or subscription token)
+                                 # Managed via hatching, /my-agent:auth, or dashboard
+
+.my_agent/.env (or systemd EnvironmentFile)
+├── ANTHROPIC_API_KEY            # Override: takes precedence over auth.json
+├── CLAUDE_CODE_OAUTH_TOKEN      # Override: subscription token from env
+├── MS365_CLIENT_ID              # Channel plugin secrets
 ├── MS365_CLIENT_SECRET
 ├── MS365_REFRESH_TOKEN
 ├── GITHUB_TOKEN
-└── (other API keys)
+└── (other service keys)
 ```
+
+**Separation of concerns:**
+- **Anthropic auth** → `auth.json` (managed by framework, editable via dashboard)
+- **Service secrets** → `.env` file (channel plugins, external APIs)
+- **Env vars** → always override file-based config (for CI, containers, systemd)
 
 ---
 
@@ -612,11 +743,12 @@ Public framework repo + `.my_agent/` private personality (gitignored, committed 
     │   │   ├── core/                   # identity.md, contacts.md, procedures.md
     │   │   └── daily/                  # End-of-day summaries
     │   └── skills/                     # Nina-specific skills
+    ├── auth.json                       # Anthropic auth (API key or subscription token)
     ├── inbox/                          # Ad-hoc tasks
     ├── projects/                       # Multi-phase project work
     ├── ongoing/                        # Recurring routines
     ├── config.yaml                     # Channel config, schedule, plugins
-    └── .env                            # API keys, tokens
+    └── .env                            # Service API keys (MS365, GitHub, etc.)
 ```
 
 ---
@@ -640,15 +772,26 @@ Public framework repo + `.my_agent/` private personality (gitignored, committed 
 
 ## Milestones
 
-### M1: Basic Nina (CLI)
-Personality + memory running in `.my_agent/`. Speak via Claude Code CLI.
+### M1: Basic Nina (CLI) — COMPLETE
+Personality + memory running in `.my_agent/`. Speak via CLI REPL.
+- First-run hatching: identity, personality, auth, operating rules (modular `HatchingStep` system)
+- Auth: supports both API keys and Claude subscriptions via `auth.json` + env var override
 - Agent SDK brain running in `.my_agent/` with personality from `brain/CLAUDE.md`
-- Core memory migrated from current Nina (identity, contacts, procedures, preferences)
-- Daily summaries migrated
-- Skills migrated
-- Verification: open folder in Claude Code, have a conversation, Nina knows who she is
+- System prompt assembled from brain files + skills (auto-discovered)
+- `/my-agent:*` commands for re-configuring any hatching step anytime
 
-### M2: WhatsApp Bridge
+### M2: Web UI
+Replace CLI with a browser-based interface. Chat + hatching wizard.
+- Fastify server serving Alpine.js + Tailwind SPA (`packages/dashboard/`)
+- Web-based hatching wizard (replaces CLI readline prompts)
+- Chat interface with real-time streaming, thinking blocks, markdown rendering
+- File uploads (drag-drop, paste, click)
+- Slash command autocomplete (typing `/` shows available commands)
+- Tool-based interactive UI (agent presents selects, multi-selects to user)
+- Design reference: OpenClaw dashboard (visual design + feature patterns)
+- Verification: fresh start → browser shows wizard → complete setup → chat works with streaming
+
+### M3: WhatsApp Bridge
 Remove WhatsApp from OpenClaw, connect to new Nina.
 - WhatsApp MCP plugin (Baileys, reuse existing auth)
 - Event loop receives webhook, passes to brain
@@ -657,7 +800,7 @@ Remove WhatsApp from OpenClaw, connect to new Nina.
 - Decommission OpenClaw WhatsApp channel
 - Verification: send WhatsApp message, get Nina response
 
-### M3a: Project System
+### M4a: Project System
 Folder creation, Claude Code spawning, task lifecycle, comms MCP.
 - Task classification (ad-hoc / project / ongoing)
 - Folder creation with CLAUDE.md + task.md + .claude/ setup
@@ -666,9 +809,9 @@ Folder creation, Claude Code spawning, task lifecycle, comms MCP.
 - Resume flow (`claude --continue` on approval)
 - Verification: send "fix a bug in X" → project folder created → Claude Code works → requests review → approve → completes
 
-**After M3a: Nina can develop herself.** Milestones 4 and 5 become Nina's first autonomous projects.
+**After M4a: Nina can develop herself.** Later milestones become Nina's own projects.
 
-### M3b: Memory + Heartbeat
+### M4b: Memory + Heartbeat
 Graph memory, daily summaries, auto-enrichment, cron scheduler.
 - Anthropic MCP Memory Server integration (entities, relations, observations)
 - Auto-enrichment pipeline (entity extraction → graph query → context injection)
@@ -677,17 +820,17 @@ Graph memory, daily summaries, auto-enrichment, cron scheduler.
 - Ongoing task support (procedure folders + execution logs)
 - Verification: Nina remembers cross-project context, proactively checks in
 
-### M4: Dashboard (Nina's first self-built project)
-Operations console — Nina builds this herself with Hanan's review.
-- Fastify API reading filesystem (task list, project detail, memory)
-- Alpine.js + Tailwind frontend
-- Task browser, approve/reject, session history
+### M5: Operations Dashboard
+Expand the web UI with task management, memory viewer, and settings.
+- Task browser: inbox/projects/ongoing with live status
+- Project detail: CLAUDE.md, task.md, approve/reject, session history
 - Memory viewer, daily summaries
-- Chat with brain
+- Settings: auth profiles, model config, channels
 - "Open in VS Code" deep links
+- Ideally Nina builds this herself with review
 
-### M5: Email Support (Nina's second self-built project)
-Email channel plugin — Nina builds this herself.
+### M6: Email Support
+Email channel plugin.
 - Microsoft Graph MCP plugin (reuse graph-client.ts from OpenClaw)
 - OAuth 2.0 auth flow
 - Webhook + polling for inbound
