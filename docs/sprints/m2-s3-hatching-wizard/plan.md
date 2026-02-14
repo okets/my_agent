@@ -1,177 +1,173 @@
-# Sprint M2-S3: Web Hatching Wizard
+# Sprint M2-S3: Chat-Based Hatching
 
-> **Status:** Complete
+> **Status:** In Review
 > **Started:** 2026-02-13
+> **Revised:** 2026-02-14 — Shifted from form-wizard to chat-based approach
 
 ## Goal
 
-Browser-based setup wizard that replaces the CLI hatching flow. Polished, conversational, fun — like meeting a new friend, not filling out a form.
+The agent comes alive through conversation, not forms. Hatching happens inside the chat page with a two-phase flow: scripted questions (no LLM) then LLM-driven setup with interactive controls.
 
-## UX Design
+## Architecture
 
-Full UX spec from the design phase. Key points:
+```
+index.html (single page)
+  └─ WebSocket /api/chat/ws
+       ├─ Phase 1: ScriptedHatchingEngine (no LLM)
+       │     ├─ Collects agent name, user name, auth
+       │     ├─ Sends messages with inline controls
+       │     └─ On auth success → transitions to Phase 2
+       │
+       ├─ Phase 2: Agent SDK with hatching tools
+       │     ├─ System prompt guides setup conversation
+       │     ├─ MCP tools: present_choices, ask_text, save_setup
+       │     ├─ Tool calls pause stream → controls appear → user responds
+       │     └─ save_setup writes files + sends hatching_complete
+       │
+       └─ Hatched: Normal SessionManager flow
+```
 
-**Flow:** Welcome → Identity → Personality → Auth → Rules (optional) → Celebration → Chat
+## Chat Controls Protocol
 
-**Tone:** Nina speaks in first person. Warm, slightly playful, never robotic.
+### Control types
 
-**Visual:** Tokyo Night dark theme, centered card (~560px), step indicator dots, smooth slide transitions, purple-pink gradient accents.
-
-**Personality cards:** 2-column grid, emoji + name + tagline, gradient border on select.
-
-**Celebration:** Egg wobble → crack → confetti burst → personalized greeting → "Start chatting" button.
-
-## Tasks
-
-### Task 1: Extract Hatching Logic from Core
-
-Extract pure data/file-writing logic from CLI hatching steps into reusable functions. The CLI steps currently mix readline I/O with file operations. We need the file operations separated so the web can call them.
-
-**Files:**
-- `packages/core/src/hatching/logic.ts` — NEW: pure functions for each step
-- `packages/core/src/lib.ts` — MODIFY: re-export new functions
-
-**Functions to extract:**
 ```typescript
-// From identity step
-writeIdentity(agentDir: string, data: { name: string, purpose: string, contacts?: string }): Promise<void>
+interface TextInputControl {
+  type: "text_input";
+  id: string;
+  placeholder?: string;
+  password?: boolean;
+}
 
-// From personality step
-getPersonalities(): Promise<{ name: string, description: string, filename: string }[]>
-applyPersonality(agentDir: string, choice: string): Promise<void>  // name or 'custom'
-writeCustomPersonality(agentDir: string, text: string): Promise<void>
+interface ButtonsControl {
+  type: "buttons";
+  id: string;
+  options: Array<{ label: string; value: string; variant?: "primary" | "secondary" }>;
+}
 
-// From auth step
-checkEnvAuth(): { type: 'api_key' | 'oauth', preview: string } | null
-saveAuth(agentDir: string, method: 'api_key' | 'setup_token', token: string): void
-
-// From operating-rules step
-writeOperatingRules(agentDir: string, data: { autonomy: string, escalations: string, style: string }): Promise<void>
-
-// From hatching/index.ts
-createDirectoryStructure(agentDir: string): Promise<void>
-writeMinimalConfig(agentDir: string): Promise<void>
-writeHatchedMarker(agentDir: string): Promise<void>
-```
-
-**Done when:** All functions exported and `tsc --noEmit` clean. Existing CLI hatching still works.
-
-### Task 2: REST Routes for Hatching
-
-Fastify routes that the wizard frontend calls.
-
-**Files:**
-- `packages/dashboard/src/routes/hatching.ts` — NEW: REST routes
-- `packages/dashboard/src/server.ts` — MODIFY: register hatching routes
-
-**Routes:**
-```
-GET  /api/hatching/status
-  → { hatched: boolean, envAuth: { type, preview } | null }
-
-GET  /api/hatching/personalities
-  → { personalities: { name, description, emoji }[] }
-
-POST /api/hatching/step/identity
-  body: { name, purpose, contacts? }
-  → { success: true }
-
-POST /api/hatching/step/personality
-  body: { choice: string } | { custom: string }
-  → { success: true }
-
-POST /api/hatching/step/auth
-  body: { method: 'api_key'|'setup_token'|'env', token?: string }
-  → { success: true } | { success: false, error: string }
-
-POST /api/hatching/step/rules
-  body: { autonomy, escalations, style }
-  → { success: true }
-
-POST /api/hatching/complete
-  → { success: true }
-  (writes config + .hatched marker, sets server.isHatched = true)
-```
-
-**Done when:** All routes work via curl, proper validation and error responses.
-
-### Task 3: Wizard Frontend — HTML + CSS
-
-The wizard view with all steps, following the UX spec exactly.
-
-**Files:**
-- `packages/dashboard/public/hatching.html` — NEW: wizard SPA (separate from chat)
-- `packages/dashboard/public/css/hatching.css` — NEW: wizard-specific styles
-- `packages/dashboard/public/index.html` — MODIFY: detect hatching state, redirect
-
-**Implementation:**
-- Alpine.js component `hatchingWizard()` with state machine for steps
-- Welcome screen, 4 step screens, celebration screen
-- Step indicator dots
-- Personality cards (2-column grid with emojis)
-- Auth method cards with env detection
-- Operating rules with card selection
-- All copy from UX spec
-- Slide transitions between steps
-- Confetti animation on completion
-- "Start chatting" redirects to index.html (chat)
-
-**Routing:**
-- `index.html` on load calls `GET /api/hatching/status`
-- If not hatched → redirect to `hatching.html`
-- After hatching complete → redirect to `index.html` (chat)
-
-**Done when:** Opening hatching.html shows the full wizard with all steps navigable.
-
-### Task 4: Wizard Frontend — JavaScript Logic
-
-The Alpine.js component that drives the wizard: API calls, validation, state management.
-
-**Files:**
-- `packages/dashboard/public/js/hatching.js` — NEW: Alpine.js wizard component
-
-**Component state:**
-```javascript
-{
-  currentStep: 'welcome',  // welcome, identity, personality, auth, rules, celebration
-  // Identity
-  name: '', purpose: '', purposeSpecific: '', contacts: '',
-  // Personality
-  personalities: [], selectedPersonality: null, customText: '',
-  // Auth
-  envAuth: null, authMethod: null, authToken: '', authError: '',
-  // Rules
-  autonomy: 'balanced', escalations: '', style: 'adaptive',
-  // UI
-  isSubmitting: false, errors: {}
+interface CardsControl {
+  type: "cards";
+  id: string;
+  columns?: 1 | 2;
+  options: Array<{ label: string; value: string; emoji?: string; description?: string }>;
 }
 ```
 
-**Methods:** `goNext()`, `goBack()`, `submitStep()`, `skipRules()`, `startChatting()`
+### WebSocket messages
 
-**Done when:** Full wizard flow works: fill fields → submit each step → see celebration → redirect to chat.
+```typescript
+// Server → Client
+| { type: "controls"; controls: ChatControl[] }
+| { type: "hatching_complete"; agentName: string }
 
-### Task 5: Integration + Review
+// Client → Server
+| { type: "control_response"; controlId: string; value: string }
+```
 
-Wire everything together, test full flow, handle edge cases.
+## Tasks
 
-**Verification:**
-1. `npx tsc --noEmit` — clean compilation
-2. Fresh start (delete .my_agent/) → navigate to dashboard → wizard appears
-3. Complete all steps → celebration → chat loads
-4. Refresh page → chat loads (already hatched)
-5. All validation messages work
-6. Auth step detects env vars
+### Task 1: Protocol Extension
+
+Add ChatControl types and hatching messages to protocol.
+
+**Files:**
+- `packages/dashboard/src/ws/protocol.ts` — ADD: ChatControl types, controls/hatching_complete/control_response
+
+### Task 2: Frontend Controls
+
+Control templates in chat, handlers in app.js.
+
+**Files:**
+- `packages/dashboard/public/index.html` — ADD: control templates in message bubbles
+- `packages/dashboard/public/js/app.js` — ADD: handle controls event, submitControl()
+- `packages/dashboard/public/js/chat-controls.js` — NEW: control interaction helpers
+- `packages/dashboard/public/css/app.css` — ADD: chat control styles
+
+### Task 3: Scripted Hatching Engine (Phase 1)
+
+State machine for pre-auth setup: agent name → user name → auth.
+
+**Files:**
+- `packages/dashboard/src/hatching/scripted-engine.ts` — NEW: ScriptedHatchingEngine class
+
+### Task 4: LLM Hatching Tools (Phase 2)
+
+MCP tools the agent uses to show interactive controls.
+
+**Files:**
+- `packages/dashboard/src/hatching/hatching-tools.ts` — NEW: createHatchingSession with tools
+- `packages/dashboard/src/hatching/hatching-prompt.ts` — NEW: system prompt for hatching agent
+
+### Task 5: Chat Handler Integration
+
+Route to scripted engine → Phase 2 agent → normal chat.
+
+**Files:**
+- `packages/dashboard/src/ws/chat-handler.ts` — MODIFY: hatching state routing
+
+### Task 6: Cleanup + Migration
+
+Remove old form-based hatching files.
+
+**Files:**
+- DELETE: `public/hatching.html`, `public/css/hatching.css`, `public/js/hatching.js`
+- MODIFY: `src/routes/hatching.ts` — keep GET /status, remove POST /complete
+
+### Task 7: Integration + Review
+
+Full flow test, TypeScript check, Prettier.
+
+## Blockers Fixed
+
+### B1: Tool promises hang on disconnect
+
+**Problem:** `waitForControlResponse()` promises hang forever if WebSocket closes.
+
+**Fix:** Added `cleanup()` function that resolves all pending promises with `"__session_closed__"` marker.
+
+```typescript
+// hatching-tools.ts
+function cleanup() {
+  for (const [id, pending] of pendingResponses) {
+    pending.resolve("__session_closed__");
+  }
+  pendingResponses.clear();
+}
+```
+
+### B2: No SDK query abort on socket close
+
+**Problem:** WebSocket close nulled hatchingSession but SDK query continued running.
+
+**Fix:** Store Query reference, call `interrupt()` on cleanup. Order matters: `interrupt()` first, then `cleanup()`.
+
+```typescript
+// chat-handler.ts
+if (hatchingSession) {
+  if (hatchingSession.query) {
+    await hatchingSession.query.interrupt();
+  }
+  hatchingSession.cleanup();
+  hatchingSession = null;
+}
+```
 
 ## Dependencies
 
 ```
-Task 1 (core logic extraction)
-  └── Task 2 (REST routes) ──────────┐
-                                      ├── Task 5 (integration)
-  Task 3 (HTML/CSS) ──┐              │
-                       ├── Task 4 ────┘
-  Task 3 doesn't need Task 1
+Task 1 (Protocol)
+  ├── Task 2 (Frontend) ─────────────────────┐
+  ├── Task 3 (Scripted Engine) ──┐           │
+  └── Task 4 (LLM Tools) ────────┼── Task 5 ─┼── Task 6 ── Task 7
+                                 └───────────┘
 ```
 
-Task 1 and Task 3 can be parallel. Task 2 needs Task 1. Task 4 needs Task 3. Task 5 needs all.
+## Verification
+
+1. `npx tsc --noEmit` — clean on both packages
+2. Delete `.my_agent/`, start server → chat page loads → hatching conversation starts
+3. Phase 1: name your agent, name yourself, auth (env detected or manual)
+4. Phase 2: agent asks about purpose, shows personality cards
+5. Agent calls save_setup → files written → hatching_complete → seamless transition
+6. Send a message → normal chat works (streaming, thinking, stop)
+7. Refresh → straight to chat (already hatched)

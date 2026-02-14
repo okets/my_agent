@@ -94,6 +94,10 @@ export async function registerChatWebSocket(
             scriptedEngine = null;
           }
           if (hatchingSession) {
+            if (hatchingSession.query) {
+              await hatchingSession.query.interrupt();
+            }
+            hatchingSession.cleanup();
             hatchingSession = null;
           }
           await sessionManager.abort();
@@ -194,10 +198,16 @@ export async function registerChatWebSocket(
       }
     });
 
-    socket.on("close", () => {
+    socket.on("close", async () => {
       fastify.log.info("Chat WebSocket disconnected");
       scriptedEngine = null;
-      hatchingSession = null;
+      if (hatchingSession) {
+        if (hatchingSession.query) {
+          await hatchingSession.query.interrupt();
+        }
+        hatchingSession.cleanup();
+        hatchingSession = null;
+      }
       sessionManager.abort();
     });
 

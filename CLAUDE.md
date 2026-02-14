@@ -59,10 +59,29 @@ my_agent/                           # PUBLIC REPO (framework)
 
 | Document | Path | Purpose |
 |----------|------|---------|
+| Roadmap | `docs/ROADMAP.md` | **Source of truth** for milestones, sprints, work breakdown |
 | Design doc | `docs/design.md` | Full architecture, flows, decisions |
+| Design specs | `docs/design/*.md` | Detailed specs (channels, conversations, etc.) |
+| Procedures | `docs/procedures/*.md` | Team workflows (overnight sprints, etc.) |
 | References | `.my_agent/docs/references.md` | OpenClaw source paths, vision docs, SDK links (private) |
 | Agent SDK docs | https://platform.claude.com/docs/en/agent-sdk/overview | Official docs |
 | Agent SDK TS repo | https://github.com/anthropics/claude-agent-sdk-typescript | TypeScript SDK |
+
+## Sprint Workflows
+
+**Two modes of execution:**
+
+| Mode | When | Decision Handling | Deliverable |
+|------|------|-------------------|-------------|
+| **Normal Sprint** | Daytime, CTO available | Block → escalate → wait | Incremental commits |
+| **Overnight Sprint** | Async, CTO reviews later | Decide → log → continue | Branch + artifacts |
+
+**Overnight procedure:** `docs/procedures/overnight-sprint.md`
+- Works on feature branch
+- Logs all decisions in DECISIONS.md
+- Logs deviations in DEVIATIONS.md
+- Includes Opus review + QA test report
+- CTO reviews and merges in morning
 
 ## OpenClaw Reference
 
@@ -92,21 +111,18 @@ cd packages/core && npm install && npx tsx src/index.ts
 # cd packages/dashboard && npm install && npm run dev
 ```
 
-## Milestones
+## Roadmap
 
-| Milestone | Status | Description |
-|-----------|--------|-------------|
-| M1: Basic Nina (CLI) | Complete | Brain, hatching, auth, personality, CLI REPL |
-| M2: Web UI | In Progress | Chat interface + hatching wizard (Alpine.js + Fastify) |
-| M3: WhatsApp Bridge | Planned | WhatsApp channel plugin |
-| M4a: Project System | Planned | Folder-based tasks, Claude Code spawning |
-| M4b: Memory + Heartbeat | Planned | Graph memory, daily summaries, cron |
-| M5: Operations Dashboard | Planned | Task browser, memory viewer, settings |
-| M6: Email Support | Planned | Microsoft Graph email channel |
+**Source of truth:** [`docs/ROADMAP.md`](docs/ROADMAP.md)
 
-## Sprint Docs
+The roadmap contains:
+- Milestone status and progress
+- Sprint plans and reviews
+- Design spec traceability
+- Dependency graph
+- Work breakdown
 
-Sprint plans and reviews are in `docs/sprints/`. Each sprint has a `plan.md` and `review.md`.
+**Current:** M2 Web UI (S1 complete, S2-S5 pending)
 
 ---
 

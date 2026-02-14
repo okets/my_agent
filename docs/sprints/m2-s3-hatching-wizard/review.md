@@ -1,99 +1,151 @@
-# Sprint M2-S3 Review: Web Hatching Wizard
+# Sprint M2-S3 Review: Chat-Based Hatching
 
-> **Status:** Complete
-> **Date:** 2026-02-13
+> **Reviewer:** Opus
+> **Date:** 2026-02-14
+> **Verdict:** PASS -- ship it
 
-## Goal
+---
 
-Browser-based setup wizard that replaces the CLI hatching flow. Polished, conversational, fun.
+## 1. Summary
 
-## Completed Tasks
+The sprint converts hatching from a form-based wizard to a two-phase chat-based flow. Phase 1 (scripted, no LLM) handles auth detection and credential collection. Phase 2 (Agent SDK + MCP tools) runs a conversational setup for agent name, personality, purpose, and operating rules. The implementation matches the plan with one reasonable deviation, blocker fixes are correct, and no security issues were found.
 
-| # | Task | Files | Status |
-|---|------|-------|--------|
-| 1 | Extract hatching logic from core | `hatching/logic.ts`, `lib.ts` | Done |
-| 2 | REST routes for hatching | `routes/hatching.ts`, `server.ts` | Done |
-| 3 | Wizard HTML + CSS | `hatching.html`, `hatching.css` | Done |
-| 4 | Wizard JS logic | `hatching.js` | Done |
-| 5 | Integration + review | All files | Done |
+---
 
-## Architecture
+## 2. Plan-to-Execution Analysis
 
-```
-Browser (Alpine.js)
-  hatching.html → hatchingWizard() component
-    ├─ Screen state machine: welcome → steps(1-4) → celebration
-    ├─ GET /api/hatching/env-auth → detect env API key
-    ├─ POST /api/hatching/complete → single-shot hatching
-    └─ Redirect to index.html on completion
+### Tasks Delivered
 
-  index.html → chat() component
-    ├─ GET /api/hatching/status → check hatched + agent name
-    ├─ If not hatched → redirect to hatching.html
-    └─ Dynamic agent name in title, header, greeting, placeholder
+| Task | Plan | Status | Notes |
+|------|------|--------|-------|
+| 1: Protocol Extension | `protocol.ts` -- add ChatControl types, new message types | Done | `ButtonsControl`, `CardsControl`, `compose_hint`, `hatching_complete`, `control_response` all present |
+| 2: Frontend Controls | `index.html`, `app.js`, `chat-controls.js`, `app.css` | Done | Controls render inline, compose bar toggles password mode, buttons/cards disable after selection |
+| 3: Scripted Engine | `scripted-engine.ts` -- state machine for auth | Done | States: `AUTH_DETECT` -> `AUTH_INPUT` -> `DONE`. Handles env detection, API key, subscription token |
+| 4: LLM Hatching Tools | `hatching-tools.ts`, `hatching-prompt.ts` | Done | 4 tools: `present_choices`, `request_compose_input`, `get_personalities`, `save_setup` |
+| 5: Chat Handler Integration | `chat-handler.ts` -- routing through phases | Done | Routes: scripted engine -> LLM session -> normal SessionManager |
+| 6: Cleanup + Migration | Delete old form files, trim hatching routes | Done | `hatching.html`, `hatching.css`, `hatching.js` deleted. `routes/hatching.ts` kept with GET `/status` only |
+| 7: Integration + Review | tsc clean, Prettier | Done | `npx tsc --noEmit` passes clean |
 
-Fastify Server
-  routes/hatching.ts
-    ├─ GET /api/hatching/status → { hatched, agentName }
-    ├─ GET /api/hatching/env-auth → { detected }
-    └─ POST /api/hatching/complete → validate, write all files, mark hatched
+### Deviation: `TextInputControl` replaced by `compose_hint`
 
-Core (pure functions)
-  hatching/logic.ts
-    ├─ createDirectoryStructure, writeMinimalConfig(agentDir, agentName?)
-    ├─ writeIdentity, getPersonalities, applyPersonality, writeCustomPersonality
-    ├─ checkEnvAuth, saveAuth, validateSetupToken
-    └─ writeOperatingRules, writeHatchedMarker
-```
+The plan specified a `TextInputControl` as a `ChatControl` type rendered inline in messages. The implementation instead uses a `compose_hint` server message that activates the existing compose bar with dynamic placeholder/password mode.
 
-## Wizard Flow
+**Assessment:** This is a better design. Inline text inputs would create a second input surface competing with the compose bar. Using `compose_hint` keeps text entry in one place and supports password masking natively. The deviation is intentional and an improvement.
 
-1. **Welcome** — First-person egg intro, "Let's begin"
-2. **Identity** — Agent name (first!), user name, purpose pills, contacts
-3. **Personality** — 6 preset cards (2-col grid) + custom option
-4. **Auth** — Env detection, API key or subscription token input
-5. **Rules** (optional) — Autonomy level, escalations, response style. Can skip.
-6. **Celebration** — Egg wobble → crack → confetti → personalized greeting → "Start chatting"
+---
 
-## Code Quality Fixes (from Opus review)
+## 3. Blocker Fixes Verification
 
-| Issue | Severity | Fix |
-|-------|----------|-----|
-| Missing `/api/hatching/status` route | BUG | Added route returning `{ hatched, agentName }` |
-| Token validation after file writes | BUG | Moved `validateSetupToken` before any file writes |
-| `auth.json` world-readable permissions | SECURITY | Set `mode: 0o600` on writeFileSync |
-| `applyPersonality` path traversal | SECURITY | Added `path.resolve` + startsWith check |
-| Hardcoded "Nina" agent name | UX | Made agent name configurable in hatching, stored in config.yaml |
-| Alpine expression error (escaped quote) | BUG | Used computed `greetingText` property instead of inline expression |
-| Agent name race condition | BUG | Fetch agent name in Alpine `init()` instead of global var |
-| Welcome screen mixed perspective | UX | Made title + body both first person |
+### B1: Tool promises hang on disconnect
 
-## Files Created/Modified
+**Fix location:** `hatching-tools.ts:64-70`
 
-```
-packages/core/
-  src/hatching/logic.ts       — NEW: pure hatching functions
-  src/config.ts               — added loadAgentName()
-  src/lib.ts                  — re-export hatching functions + loadAgentName
-  src/auth.ts                 — auth.json file permissions (0o600)
-  dist/                       — rebuilt
-
-packages/dashboard/
-  src/routes/hatching.ts      — NEW: REST routes (status, env-auth, complete)
-  src/server.ts               — register hatching routes
-  public/
-    hatching.html             — NEW: wizard SPA (all steps + celebration)
-    css/hatching.css          — NEW: wizard styles (Tokyo Night)
-    js/hatching.js            — NEW: Alpine.js wizard component
-    js/app.js                 — added agentName, greetingText
-    index.html                — hatching redirect, dynamic agent name
+```typescript
+function cleanup() {
+  for (const [id, pending] of pendingResponses) {
+    pending.resolve("__session_closed__");
+  }
+  pendingResponses.clear();
+}
 ```
 
-## Verification
+**Called from:** `chat-handler.ts:100` (abort), `chat-handler.ts:208` (socket close)
 
-- `tsc --noEmit` clean on both packages
-- `prettier --write` all files formatted
-- Server starts, hatching redirect works
-- Full wizard flow: welcome → identity → personality → auth → rules → celebration → chat
-- Agent name persisted in config.yaml, displayed dynamically in chat page
-- Revisiting `/` after hatching loads chat directly (no redirect)
+**Assessment:** Correct. Resolving with a marker value instead of rejecting is the right call -- it allows the SDK query to receive the tool result and wind down naturally rather than throwing an unhandled rejection. The `interrupt()` call (B2) ensures the query stops processing the result.
+
+**Minor note:** The `__session_closed__` value gets returned to the LLM as `"User selected: __session_closed__"` or `"User entered: __session_closed__"`. This is harmless because `interrupt()` fires first and the query is already aborting when the tool result arrives. If interrupt timing ever changes, a check like `if (value === "__session_closed__") return { content: [...], isError: true }` in the tool handlers would be defensive. Not blocking -- just noting.
+
+### B2: SDK query abort on socket close
+
+**Fix location:** `chat-handler.ts:97-99` (abort handler), `chat-handler.ts:204-206` (close handler)
+
+```typescript
+if (hatchingSession) {
+  if (hatchingSession.query) {
+    await hatchingSession.query.interrupt();
+  }
+  hatchingSession.cleanup();
+  hatchingSession = null;
+}
+```
+
+**Assessment:** Correct. Order is right: `interrupt()` first (stops SDK processing), then `cleanup()` (resolves pending promises), then null the reference. The `query` getter on the return object uses `activeQuery` which is set once the SDK query starts iterating -- so the null check (`if (hatchingSession.query)`) correctly handles the window between `createHatchingSession()` and the first `for await` iteration.
+
+One observation: `socket.on("close")` uses `await` on `interrupt()` inside a non-async callback. The `on("close")` handler is registered as `async () => { ... }` so this works, but if the `interrupt()` call throws, the error is swallowed (unhandled promise on the async callback). Low risk since `interrupt()` is unlikely to throw.
+
+---
+
+## 4. Remaining Issues
+
+### Issue 1: Console.log statements in hatching-tools.ts (Cosmetic)
+
+`hatching-tools.ts` has multiple `console.log` debug statements (lines 136-140, 147, 253, 271, 277, 336). These are fine for development but should be removed or moved behind a debug flag before production.
+
+### Issue 2: No timeout on `waitForControlResponse` (Low)
+
+If the LLM calls a tool and the user never responds (but keeps the socket open), the promise hangs indefinitely. The `cleanup()` function handles the disconnect case, but the "user walks away with socket open" case has no timeout. Low priority for a single-user app.
+
+### No security issues found
+
+- Auth tokens are sent via WebSocket (not logged, not stored in messages array)
+- Password input uses `type="password"` in the compose bar
+- `escapeHtml` and `escapeAttr` in `chat-controls.js` prevent XSS in control rendering
+- DOMPurify sanitizes all markdown rendering
+- The `compose_hint` password mode masks display text as bullet characters in the user bubble
+
+---
+
+## 5. User Stories for Testing
+
+### US1: Fresh hatching with environment API key
+
+1. Ensure `ANTHROPIC_API_KEY` is set in your environment
+2. Delete `.my_agent/` directory if it exists
+3. Start the server: `cd packages/dashboard && npm run dev`
+4. Open `http://localhost:4321`
+5. **Expected:** Welcome screen says "Let's get started!", then a message appears asking about your API key with "Use this" and "Enter different" buttons
+6. Click "Use this"
+7. **Expected:** Brief "credentials saved" message, then the LLM starts asking setup questions
+8. Answer the LLM's questions (agent name, your name, purpose, personality)
+9. **Expected:** Personality options appear as interactive cards
+10. After final setup, a welcome message appears with the chosen agent name, header updates
+
+### US2: Fresh hatching with manual API key entry
+
+1. Unset `ANTHROPIC_API_KEY` from environment
+2. Delete `.my_agent/` directory
+3. Start server and open the page
+4. **Expected:** Two buttons appear: "I have an API Key" and "I have a subscription"
+5. Click "I have an API Key"
+6. **Expected:** Compose bar switches to password mode with placeholder "Paste API key here..."
+7. Paste an API key and press Enter
+8. **Expected:** User bubble shows bullet characters (not the real key), flow continues to Phase 2
+
+### US3: Disconnect and reconnect during hatching
+
+1. Start a fresh hatching flow
+2. After Phase 1 completes and Phase 2 starts (LLM is asking questions), close the browser tab
+3. Reopen `http://localhost:4321`
+4. **Expected:** Hatching restarts from the beginning (auth check). No server crash or hung processes.
+
+### US4: Post-hatching normal chat
+
+1. Complete the full hatching flow
+2. Send a message in the chat
+3. **Expected:** Agent responds with streaming text. Typing indicator shows while streaming. Stop button works.
+4. Refresh the page
+5. **Expected:** Goes straight to chat (no hatching flow). Agent name displays in header. Title shows "{AgentName} -- Dashboard".
+
+### US5: Button and card control interactions
+
+1. During hatching, when buttons appear (auth choice), verify:
+   - Clicking one button disables all buttons and highlights the selected one
+   - A user bubble appears with the button text
+2. During Phase 2, when personality cards appear, verify:
+   - Cards display with emoji, name, and description
+   - Clicking one card disables all cards and highlights the selected one
+   - A user bubble appears with the card label
+
+---
+
+*Review completed: 2026-02-14*

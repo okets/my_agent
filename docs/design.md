@@ -1,12 +1,10 @@
 # my_agent — Design Document
 
 > **Status:** M1 Complete — M2 In Progress
-> **Date:** 2026-02-12
-> **Session:** Hanan + Claude Code (Opus 4.6)
+> **Date:** 2026-02-12 (updated 2026-02-14)
 > **Decision:** Replace OpenClaw with Claude Agent SDK-based architecture
 > **Project name:** `my_agent`
 > **Platform:** WSL (Linux)
-> **Location:** `/home/nina/my_agent/`
 > **Structure:** Public framework repo + `.my_agent/` private personality (gitignored, separate repo)
 
 ---
@@ -15,13 +13,13 @@
 
 ### Why This Change
 
-OpenClaw's architecture has a fundamental mismatch with how Hanan wants to work with Nina:
+OpenClaw's architecture has a fundamental mismatch with how users want to work with their agents:
 
 1. **Sessions are black boxes.** You can't see what happened, can't resume, can't interact mid-flight.
 2. **No course correction.** "Stop is a blind action — you don't know what you're stopping" (VISION.md Part 5).
 3. **Context is trapped.** Sessions live inside WebSocket connections. When they end, the context is gone.
 
-Hanan's core need: *"If I tell Nina a customer complained about a bug, she starts a Claude Code session and fixes it. A week later, I want to load that same context and ask for changes. Sessions should be meaningful tools."*
+Core need: *"If I tell the agent a customer complained about a bug, it starts a Claude Code session and fixes it. A week later, I want to load that same context and ask for changes. Sessions should be meaningful tools."*
 
 ### Why Agent SDK
 
@@ -32,7 +30,7 @@ The Claude Agent SDK is the engine that powers Claude Code, exposed as a program
 - Session persistence and resume
 - Subagent spawning for parallel work
 
-The key insight: **folders as sessions.** Every task gets a project folder. Claude Code sessions run in those folders. Files, git history, CLAUDE.md, and session transcripts persist. Anyone (Nina or Hanan) can open the folder later and continue interactively.
+The key insight: **folders as sessions.** Every task gets a project folder. Claude Code sessions run in those folders. Files, git history, CLAUDE.md, and session transcripts persist. Anyone (the agent or user) can open the folder later and continue interactively.
 
 ---
 
@@ -55,7 +53,7 @@ Three layers, clean separation of concerns:
     │  Event Loop ─── receives events, enriches,       │
     │       │         routes to brain                   │
     │       │                                          │
-    │  Nina's Brain (Agent SDK) ─── persistent session │
+    │  Agent Brain (Agent SDK) ─── persistent session  │
     │       │   │       with personality, tools, hooks  │
     │       │   │                                      │
     │       │   ├── Memory System ─── graph + daily    │
@@ -90,7 +88,7 @@ Three layers, clean separation of concerns:
 
 ### 1. Event Loop / Orchestrator
 
-The event loop is the system's entry point. It receives events from all sources and routes them to Nina's brain.
+The event loop is the system's entry point. It receives events from all sources and routes them to the agent's brain.
 
 **Events:**
 - Channel message (WhatsApp, Email, etc.) via webhook
@@ -102,7 +100,7 @@ The event loop is the system's entry point. It receives events from all sources 
 **Responsibilities:**
 1. **RECEIVE** — webhook/cron/watcher triggers an event
 2. **ENRICH** — extract entity mentions, query graph memory, inject context
-3. **ROUTE** — pass enriched event to Nina's brain
+3. **ROUTE** — pass enriched event to the agent's brain
 4. **QUEUE** — ensure events are processed sequentially (no race conditions)
 
 **Auto-enrichment pipeline** (runs before brain sees the message):
@@ -113,9 +111,9 @@ The event loop is the system's entry point. It receives events from all sources 
 
 **Technology:** Node.js/TypeScript, single process. Could be Fastify for webhooks + a scheduler for cron.
 
-### 2. Nina's Brain (Agent SDK)
+### 2. Agent Brain (Agent SDK)
 
-A long-running Agent SDK session that IS Nina. It has:
+A long-running Agent SDK session that IS the agent. It has:
 
 - **Personality** — loaded from CLAUDE.md / system prompt
 - **Core memory** — always loaded (identity, contacts, procedures, preferences)
@@ -138,7 +136,7 @@ A long-running Agent SDK session that IS Nina. It has:
 - Memory management — saves insights, updates contacts, creates summaries
 - Heartbeat logic — periodic check-ins, proactive notifications
 
-**Context isolation:** For complex ad-hoc tasks, the brain can delegate to subagents to avoid polluting its own context with execution details. Subagents run within the same session, report back, and are cleaned up — keeping Nina's context lean and focused on coordination.
+**Context isolation:** For complex ad-hoc tasks, the brain can delegate to subagents to avoid polluting its own context with execution details. Subagents run within the same session, report back, and are cleaned up — keeping the agent's context lean and focused on coordination.
 
 ### 3. Task System (Folder-Based)
 
@@ -150,7 +148,7 @@ Every task gets a folder. Three types:
 ├── CLAUDE.md     # Task context: "Check production server health"
 └── task.md       # Status: Complete. Result: "Server up, 230ms response."
 ```
-- Created and handled by Nina's brain directly (or via subagent for complex tasks)
+- Created and handled by the agent's brain directly (or via subagent for complex tasks)
 - Short-lived, archived after completion
 - May or may not spawn a Claude Code session
 
@@ -239,11 +237,11 @@ Observations: timestamped facts attached to entities
 
 ### 5. Skill System
 
-Skills are markdown files that give Nina specialized capabilities. Same format as Claude Code skills.
+Skills are markdown files that give the agent specialized capabilities. Same format as Claude Code skills.
 
 **Three levels:**
 
-1. **Brain skills** — always available to Nina's brain
+1. **Brain skills** — always available to the agent's brain
    ```
    /home/nina/brain/.claude/skills/
    ├── email-management/SKILL.md
@@ -257,7 +255,7 @@ Skills are markdown files that give Nina specialized capabilities. Same format a
    ├── debugging/SKILL.md
    └── code-review/SKILL.md
    ```
-   Nina's brain selects relevant skills when creating a project folder.
+   The agent's brain selects relevant skills when creating a project folder.
 
 3. **Framework skills** — shipped with the framework (generic)
    ```
@@ -315,7 +313,7 @@ Alpine.js + Fastify + Tailwind. Built in phases — chat first (M2), then operat
 
 **Phase 1: Chat UI (M2)**
 
-The primary interface for talking to Nina. Serves as both the hatching wizard (first-run setup) and the ongoing chat interface.
+The primary interface for talking to the agent. Serves as both the hatching wizard (first-run setup) and the ongoing chat interface.
 
 ```
 Fastify server (packages/dashboard/):
@@ -582,7 +580,7 @@ dashboard:
 ### Flow 3: Ongoing Task Setup and Execution
 
 ```
-1. Hanan: "Nina, take over our email management"
+1. User: "Take over our email management"
 2. Brain: classifies as ongoing (needs procedure definition first)
 3. Brain creates PROJECT first:
    /projects/2026-02-12-email-management-setup/
@@ -736,13 +734,13 @@ Public framework repo + `.my_agent/` private personality (gitignored, committed 
 ├── CLAUDE.md                           # Framework dev instructions
 └── README.md
 │
-└── .my_agent/                          ← PRIVATE REPO (Nina's personality)
+└── .my_agent/                          ← PRIVATE REPO (agent personality)
     ├── brain/
-    │   ├── CLAUDE.md                   # Nina's personality + system prompt
+    │   ├── CLAUDE.md                   # Agent's personality + system prompt
     │   ├── memory/
     │   │   ├── core/                   # identity.md, contacts.md, procedures.md
     │   │   └── daily/                  # End-of-day summaries
-    │   └── skills/                     # Nina-specific skills
+    │   └── skills/                     # Agent-specific skills
     ├── auth.json                       # Anthropic auth (API key or subscription token)
     ├── inbox/                          # Ad-hoc tasks
     ├── projects/                       # Multi-phase project work
@@ -764,7 +762,7 @@ Public framework repo + `.my_agent/` private personality (gitignored, committed 
 | Part 5: Course Correction | Open folder in VS Code = full control. Approve/reject from dashboard/WhatsApp. |
 | Part 6: Cost Control | API spending limits, model routing, Ollama degraded mode |
 | Part 7: External Comms | Channel plugins with trust tiers in hooks |
-| Part 8: Growth | Nina modifies her own skills, memory, procedures |
+| Part 8: Growth | Agent modifies its own skills, memory, procedures |
 | Part 9: Pain Points | ALL addressed (observability, session resume, phase discipline, pause/resume) |
 | Part 10: Architecture | Clean, extensible, built on tools Hanan already uses daily |
 
@@ -772,7 +770,11 @@ Public framework repo + `.my_agent/` private personality (gitignored, committed 
 
 ## Milestones
 
-### M1: Basic Nina (CLI) — COMPLETE
+> **Source of truth:** [`ROADMAP.md`](ROADMAP.md) — sprint breakdowns, status, dependencies.
+>
+> **Design specs:** See `design/` folder for detailed architecture.
+
+### M1: Foundation (CLI) — COMPLETE
 Personality + memory running in `.my_agent/`. Speak via CLI REPL.
 - First-run hatching: identity, personality, auth, operating rules (modular `HatchingStep` system)
 - Auth: supports both API keys and Claude subscriptions via `auth.json` + env var override
@@ -791,34 +793,34 @@ Replace CLI with a browser-based interface. Chat + hatching wizard.
 - Design reference: OpenClaw dashboard (visual design + feature patterns)
 - Verification: fresh start → browser shows wizard → complete setup → chat works with streaming
 
-### M3: WhatsApp Bridge
-Remove WhatsApp from OpenClaw, connect to new Nina.
+### M3: WhatsApp Channel
+First external channel plugin with **dedicated role** (agent owns the identity).
 - WhatsApp MCP plugin (Baileys, reuse existing auth)
+- Immediate processing: message arrives → agent responds
+- Escalation policies for autonomous communication
 - Event loop receives webhook, passes to brain
 - Brain responds via WhatsApp MCP tool
-- Migrate WhatsApp from OpenClaw → new system (swap webhook URL)
-- Decommission OpenClaw WhatsApp channel
-- Verification: send WhatsApp message, get Nina response
+- Verification: send WhatsApp message, get agent response
 
-### M4a: Project System
-Folder creation, Claude Code spawning, task lifecycle, comms MCP.
+### M4a: Task System
+Folder creation, Claude Code spawning, task lifecycle, **scheduled tasks**.
 - Task classification (ad-hoc / project / ongoing)
 - Folder creation with CLAUDE.md + task.md + .claude/ setup
 - Claude Code session spawning via `claude` CLI
 - Comms MCP server (notify, request_review, escalate)
 - Resume flow (`claude --continue` on approval)
+- **Scheduled tasks**: cron-based recurring work (e.g., "summarize my inbox every morning")
 - Verification: send "fix a bug in X" → project folder created → Claude Code works → requests review → approve → completes
 
-**After M4a: Nina can develop herself.** Later milestones become Nina's own projects.
+**After M4a: The agent can develop itself.** Later milestones become the agent's own projects.
 
-### M4b: Memory + Heartbeat
-Graph memory, daily summaries, auto-enrichment, cron scheduler.
+### M4b: Memory
+Graph memory, daily summaries, auto-enrichment.
 - Anthropic MCP Memory Server integration (entities, relations, observations)
 - Auto-enrichment pipeline (entity extraction → graph query → context injection)
-- Daily summary generation (evening heartbeat)
-- Cron scheduler for heartbeat and ongoing tasks
+- Daily summary generation
 - Ongoing task support (procedure folders + execution logs)
-- Verification: Nina remembers cross-project context, proactively checks in
+- Verification: agent remembers cross-project context
 
 ### M5: Operations Dashboard
 Expand the web UI with task management, memory viewer, and settings.
@@ -827,17 +829,19 @@ Expand the web UI with task management, memory viewer, and settings.
 - Memory viewer, daily summaries
 - Settings: auth profiles, model config, channels
 - "Open in VS Code" deep links
-- Ideally Nina builds this herself with review
+- Ideally the agent builds this itself with review
 
-### M6: Email Support
-Email channel plugin.
+### M6: Email Channel
+Email channel plugin with **both roles** (dedicated + personal).
 - Microsoft Graph MCP plugin (reuse graph-client.ts from OpenClaw)
+- **Dedicated role**: agent's own email (info@company.com), immediate processing
+- **Personal role**: user's email (user@company.com), on-demand processing only
 - OAuth 2.0 auth flow
-- Webhook + polling for inbound
+- Webhook for inbound (dedicated), on-demand reads (personal)
 - Send/reply/thread for outbound
 - Migrate from OpenClaw (swap tokens)
 
 ---
 
 *Design document created: 2026-02-12*
-*Session: Hanan + Claude Code (Opus 4.6)*
+*Updated: 2026-02-14 — Channel architecture, milestone clarifications*

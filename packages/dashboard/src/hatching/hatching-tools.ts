@@ -30,6 +30,8 @@ export function createHatchingSession(
   start: () => AsyncGenerator<unknown>;
   handleControlResponse: (controlId: string, value: string) => boolean;
   handleFreeText: (text: string) => boolean;
+  cleanup: () => void;
+  query: Query | null;
 } {
   // Session-scoped state
   let controlIdCounter = 0;
@@ -37,6 +39,7 @@ export function createHatchingSession(
     string,
     { resolve: (value: string) => void }
   >();
+  let activeQuery: Query | null = null;
 
   function generateControlId(): string {
     return `hatching-control-${++controlIdCounter}`;
@@ -56,6 +59,14 @@ export function createHatchingSession(
       return true;
     }
     return false;
+  }
+
+  function cleanup() {
+    // Resolve all pending promises with a session closed marker
+    for (const [id, pending] of pendingResponses) {
+      pending.resolve("__session_closed__");
+    }
+    pendingResponses.clear();
   }
 
   // Define tools using the SDK's tool() helper for proper type inference
@@ -262,6 +273,7 @@ export function createHatchingSession(
       prompt: `Hi! I just got authenticated. Let's set things up.`,
       options: queryOptions,
     });
+    activeQuery = q;
     console.log("[Hatching] Query created, starting iteration...");
 
     let lastSentText = "";
@@ -348,5 +360,9 @@ export function createHatchingSession(
     start: startGenerator,
     handleControlResponse: resolveResponse,
     handleFreeText,
+    cleanup,
+    get query() {
+      return activeQuery;
+    },
   };
 }

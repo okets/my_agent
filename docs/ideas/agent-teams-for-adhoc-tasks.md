@@ -1,6 +1,6 @@
 # Agent Teams for Ad-Hoc Tasks
 
-> **Status:** Parked — revisit when Claude Code teams feature stabilizes
+> **Status:** Deferred — evaluate during M4a (task-system.md) design
 > **Date:** 2026-02-13
 > **Origin:** Hanan's observation during M1 development using Claude Code agent teams
 
