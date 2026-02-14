@@ -5,12 +5,22 @@ import type { BrainConfig } from './types.js'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929'
 export function findAgentDir(): string {
+  // Walk up from cwd looking for an existing .my_agent/ directory
   let dir = process.cwd()
   while (dir !== path.dirname(dir)) {
     const candidate = path.join(dir, '.my_agent')
     if (existsSync(candidate)) return candidate
     dir = path.dirname(dir)
   }
+  // No .my_agent/ found — default to project root (where .git lives)
+  dir = process.cwd()
+  while (dir !== path.dirname(dir)) {
+    if (existsSync(path.join(dir, '.git'))) {
+      return path.join(dir, '.my_agent')
+    }
+    dir = path.dirname(dir)
+  }
+  // Fallback: cwd
   return path.resolve('.my_agent')
 }
 
@@ -18,6 +28,9 @@ const DEFAULT_AGENT_DIR = findAgentDir()
 const CONFIG_FILENAME = 'config.yaml'
 
 interface YamlConfig {
+  agent?: {
+    name?: string
+  }
   brain?: {
     model?: string
     dir?: string
@@ -38,6 +51,12 @@ function loadYamlConfig(agentDir: string): YamlConfig | null {
     )
     return null
   }
+}
+
+export function loadAgentName(agentDir?: string): string {
+  const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
+  const yaml = loadYamlConfig(dir)
+  return yaml?.agent?.name ?? 'Agent'
 }
 
 export function loadConfig(): BrainConfig {

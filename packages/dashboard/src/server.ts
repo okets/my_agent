@@ -5,6 +5,7 @@ import fastifyWebSocket from "@fastify/websocket";
 import fastifyMultipart from "@fastify/multipart";
 import { join } from "node:path";
 import { registerChatWebSocket } from "./ws/chat-handler.js";
+import { registerHatchingRoutes } from "./routes/hatching.js";
 
 export interface ServerOptions {
   agentDir: string;
@@ -59,6 +60,9 @@ export async function createServer(
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);
+
+  // Register hatching routes
+  await registerHatchingRoutes(fastify);
 
   return fastify;
 }

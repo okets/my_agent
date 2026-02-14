@@ -3,12 +3,15 @@ import {
   loadConfig,
   assembleSystemPrompt,
 } from "@my-agent/core";
+import type { Query } from "@my-agent/core";
+import { processStream, type StreamEvent } from "./stream-processor.js";
 
 export class SessionManager {
   private isFirstTurn = true;
   private config: { model: string; brainDir: string } | null = null;
   private systemPrompt: string | null = null;
   private initPromise: Promise<void> | null = null;
+  private activeQuery: Query | null = null;
 
   private ensureInitialized(): Promise<void> {
     if (!this.initPromise) {
@@ -18,37 +21,33 @@ export class SessionManager {
   }
 
   private async doInitialize(): Promise<void> {
-    // Load config and system prompt (do this once, reuse)
     this.config = loadConfig();
     this.systemPrompt = await assembleSystemPrompt(this.config.brainDir);
   }
 
-  async sendMessage(content: string): Promise<string> {
+  async *streamMessage(content: string): AsyncGenerator<StreamEvent> {
     await this.ensureInitialized();
 
-    // Create query with continue:true for subsequent turns
-    const query = createBrainQuery(content, {
+    const q = createBrainQuery(content, {
       model: this.config!.model,
       systemPrompt: this.systemPrompt!,
       continue: !this.isFirstTurn,
+      includePartialMessages: true,
     });
 
-    // Collect the full response text
-    // NOTE: Don't use streamResponse() because it writes to stdout
-    // Instead, iterate the query directly:
-    let fullText = "";
-    for await (const msg of query) {
-      if (msg.type === "assistant") {
-        const text = msg.message.content
-          .filter((block: { type: string }) => block.type === "text")
-          .map((block: { type: string; text?: string }) => block.text ?? "")
-          .join("");
-        fullText = text;
-      }
-      if (msg.type === "result") break;
-    }
+    this.activeQuery = q;
 
-    this.isFirstTurn = false;
-    return fullText;
+    try {
+      yield* processStream(q);
+      this.isFirstTurn = false;
+    } finally {
+      this.activeQuery = null;
+    }
+  }
+
+  async abort(): Promise<void> {
+    if (this.activeQuery) {
+      await this.activeQuery.interrupt();
+    }
   }
 }

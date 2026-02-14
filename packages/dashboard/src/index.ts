@@ -1,6 +1,11 @@
 import { findAgentDir, resolveAuth, isHatched } from "@my-agent/core";
 import { createServer } from "./server.js";
 
+// Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
+// When the dashboard is started from within a Claude Code session (e.g. during dev),
+// this var would otherwise block nested claude processes.
+delete process.env.CLAUDECODE;
+
 async function main() {
   // Find agent directory
   const agentDir = findAgentDir();

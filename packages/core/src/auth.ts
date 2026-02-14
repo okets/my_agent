@@ -65,7 +65,10 @@ export function writeAuthFile(agentDir: string, profile: AuthProfile): void {
   authFile.profiles['default'] = profile
   authFile.activeProfile = 'default'
 
-  writeFileSync(filePath, JSON.stringify(authFile, null, 2) + '\n', 'utf-8')
+  writeFileSync(filePath, JSON.stringify(authFile, null, 2) + '\n', {
+    encoding: 'utf-8',
+    mode: 0o600,
+  })
 }
 
 export function resolveAuth(agentDir: string): ResolvedAuth {

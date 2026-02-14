@@ -4,6 +4,7 @@ export interface BrainSessionOptions {
   model: string
   systemPrompt?: string
   continue?: boolean
+  includePartialMessages?: boolean
 }
 
 export function createBrainQuery(prompt: string, options: BrainSessionOptions): Query {
@@ -21,6 +22,9 @@ export function createBrainQuery(prompt: string, options: BrainSessionOptions): 
   }
   if (options.continue) {
     queryOptions.continue = true
+  }
+  if (options.includePartialMessages) {
+    queryOptions.includePartialMessages = true
   }
   return query({ prompt, options: queryOptions })
 }
