@@ -10,7 +10,7 @@
 | Milestone                    | Status      | Progress                     |
 | ---------------------------- | ----------- | ---------------------------- |
 | **M1: Foundation**           | Complete    | 4/4 sprints                  |
-| **M2: Web UI**               | In Progress | 2/5 sprints                  |
+| **M2: Web UI**               | In Progress | 3/5 sprints                  |
 | **M3: WhatsApp Channel**     | Planned     | Design complete, sprints TBD |
 | **M4a: Task System**         | Planned     | Design complete, sprints TBD |
 | **M4b: Memory**              | Planned     | Design complete, sprints TBD |
@@ -26,12 +26,12 @@
 ├─────────────────────────────────────────────────────────────────────►
 
 M1 Foundation     M2 Web UI                      M3-M6 Future
-[████████████]    [██░░░░░░░░]                   [░░░░░░░░░░]
+[████████████]    [█████░░░░░]                   [░░░░░░░░░░]
    COMPLETE         IN PROGRESS                     PLANNED
 
                   S1 ██ Server + Chat (done)
                   S2 ██ Streaming (done)
-                  S3 ░░ Hatching Wizard
+                  S3 ██ Hatching Wizard (done)
                   S4 ░░ Conversations
                   S5 ░░ Naming
 
@@ -75,7 +75,7 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 | ------ | ----------------- | -------- | ----------------------------------------------- | --------------------------------------------------- |
 | S1     | Server Foundation | Complete | [plan](sprints/m2-s1-server-foundation/plan.md) | [review](sprints/m2-s1-server-foundation/review.md) |
 | S2     | Streaming         | Complete | [plan](sprints/m2-s2-streaming/plan.md)         | [review](sprints/m2-s2-streaming/review.md)         |
-| S3     | Hatching Wizard   | Pending  | [plan](sprints/m2-s3-hatching-wizard/plan.md)   | —                                                   |
+| S3     | Hatching Wizard   | Complete | [plan](sprints/m2-s3-hatching-wizard/plan.md)   | [review](sprints/m2-s3-hatching-wizard/review.md)   |
 | S4     | Conversations     | Pending  | [plan](sprints/m2-s4-conversations/plan.md)     | —                                                   |
 | S5     | Naming            | Pending  | [plan](sprints/m2-s5-naming/plan.md)            | —                                                   |
 

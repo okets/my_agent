@@ -11,17 +11,20 @@
     "format:check": "prettier --check src/ public/"
   },
   "dependencies": {
-    "@my-agent/core": "file:../core",
     "@anthropic-ai/claude-agent-sdk": "^0.2.39",
     "@fastify/cors": "^11.0.0",
     "@fastify/multipart": "^9.0.0",
     "@fastify/static": "^8.0.0",
     "@fastify/websocket": "^11.0.0",
+    "@my-agent/core": "file:../core",
+    "better-sqlite3": "^12.6.2",
     "fastify": "^5.0.0",
     "pino-pretty": "^13.1.0",
+    "ulid": "^2.3.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "prettier": "^3.8.1",
     "tsx": "^4.0.0",
