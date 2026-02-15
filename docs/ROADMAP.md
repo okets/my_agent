@@ -7,15 +7,15 @@
 
 ## Quick Status
 
-| Milestone | Status | Progress |
-|-----------|--------|----------|
-| **M1: Foundation** | Complete | 4/4 sprints |
-| **M2: Web UI** | In Progress | 2/5 sprints |
-| **M3: WhatsApp Channel** | Planned | Design complete, sprints TBD |
-| **M4a: Task System** | Planned | Design complete, sprints TBD |
-| **M4b: Memory** | Planned | Design complete, sprints TBD |
-| **M5: Operations Dashboard** | Planned | Design complete, sprints TBD |
-| **M6: Email Channel** | Planned | Design complete, sprints TBD |
+| Milestone                    | Status      | Progress                     |
+| ---------------------------- | ----------- | ---------------------------- |
+| **M1: Foundation**           | Complete    | 4/4 sprints                  |
+| **M2: Web UI**               | In Progress | 2/5 sprints                  |
+| **M3: WhatsApp Channel**     | Planned     | Design complete, sprints TBD |
+| **M4a: Task System**         | Planned     | Design complete, sprints TBD |
+| **M4b: Memory**              | Planned     | Design complete, sprints TBD |
+| **M5: Operations Dashboard** | Planned     | Design complete, sprints TBD |
+| **M6: Email Channel**        | Planned     | Design complete, sprints TBD |
 
 ---
 
@@ -50,14 +50,15 @@ M1 Foundation     M2 Web UI                      M3-M6 Future
 
 The agent's core brain running in `.my_agent/`. CLI REPL for development/testing.
 
-| Sprint | Name | Status | Plan | Review |
-|--------|------|--------|------|--------|
-| S1 | Foundation | Complete | [plan](sprints/m1-s1-foundation/plan.md) | [review](sprints/m1-s1-foundation/review.md) |
-| S2 | Personality | Complete | [plan](sprints/m1-s2-personality/plan.md) | [review](sprints/m1-s2-personality/review.md) |
-| S3 | Hatching | Complete | [plan](sprints/m1-s3-hatching/plan.md) | [review](sprints/m1-s3-hatching/review.md) |
-| S4 | Auth | Complete | [plan](sprints/m1-s4-auth/plan.md) | [review](sprints/m1-s4-auth/review.md) |
+| Sprint | Name        | Status   | Plan                                      | Review                                        |
+| ------ | ----------- | -------- | ----------------------------------------- | --------------------------------------------- |
+| S1     | Foundation  | Complete | [plan](sprints/m1-s1-foundation/plan.md)  | [review](sprints/m1-s1-foundation/review.md)  |
+| S2     | Personality | Complete | [plan](sprints/m1-s2-personality/plan.md) | [review](sprints/m1-s2-personality/review.md) |
+| S3     | Hatching    | Complete | [plan](sprints/m1-s3-hatching/plan.md)    | [review](sprints/m1-s3-hatching/review.md)    |
+| S4     | Auth        | Complete | [plan](sprints/m1-s4-auth/plan.md)        | [review](sprints/m1-s4-auth/review.md)        |
 
 **Deliverables:**
+
 - Agent SDK brain with personality from `brain/CLAUDE.md`
 - Modular hatching flow (`HatchingStep` interface)
 - Auth system (API keys + subscriptions, env var override)
@@ -70,18 +71,20 @@ The agent's core brain running in `.my_agent/`. CLI REPL for development/testing
 
 Browser-based interface replacing CLI. Chat + hatching wizard.
 
-| Sprint | Name | Status | Plan | Review |
-|--------|------|--------|------|--------|
-| S1 | Server Foundation | Complete | [plan](sprints/m2-s1-server-foundation/plan.md) | [review](sprints/m2-s1-server-foundation/review.md) |
-| S2 | Streaming | Complete | [plan](sprints/m2-s2-streaming/plan.md) | [review](sprints/m2-s2-streaming/review.md) |
-| S3 | Hatching Wizard | Pending | [plan](sprints/m2-s3-hatching-wizard/plan.md) | — |
-| S4 | Conversations | Pending | [plan](sprints/m2-s4-conversations/plan.md) | — |
-| S5 | Naming | Pending | [plan](sprints/m2-s5-naming/plan.md) | — |
+| Sprint | Name              | Status   | Plan                                            | Review                                              |
+| ------ | ----------------- | -------- | ----------------------------------------------- | --------------------------------------------------- |
+| S1     | Server Foundation | Complete | [plan](sprints/m2-s1-server-foundation/plan.md) | [review](sprints/m2-s1-server-foundation/review.md) |
+| S2     | Streaming         | Complete | [plan](sprints/m2-s2-streaming/plan.md)         | [review](sprints/m2-s2-streaming/review.md)         |
+| S3     | Hatching Wizard   | Pending  | [plan](sprints/m2-s3-hatching-wizard/plan.md)   | —                                                   |
+| S4     | Conversations     | Pending  | [plan](sprints/m2-s4-conversations/plan.md)     | —                                                   |
+| S5     | Naming            | Pending  | [plan](sprints/m2-s5-naming/plan.md)            | —                                                   |
 
 **Design specs:**
+
 - [conversation-system.md](design/conversation-system.md) — Persistence, search, naming, lifecycle
 
 **Deliverables:**
+
 - Fastify server + Alpine.js SPA (`packages/dashboard/`)
 - WebSocket chat with streaming, thinking blocks, markdown
 - Web-based hatching wizard
@@ -97,6 +100,7 @@ First external channel. Agent owns a phone number, responds immediately.
 **Design reference:** [channels.md](design/channels.md) (channel architecture is complete)
 
 **Deliverables:**
+
 - WhatsApp MCP plugin (Baileys)
 - Dedicated role: agent's phone number
 - Immediate processing: webhook → brain → response
@@ -116,6 +120,7 @@ Folder-based tasks, Claude Code spawning, scheduled tasks.
 **Design spec:** [task-system.md](design/task-system.md)
 
 **Deliverables:**
+
 - Task classification (ad-hoc / project / ongoing)
 - Folder creation with CLAUDE.md + task.md
 - Claude Code session spawning (`claude` CLI)
@@ -136,6 +141,7 @@ Notebook memory with flexible user-defined lists, daily summaries.
 **Design spec:** [memory-system.md](design/memory-system.md)
 
 **Deliverables:**
+
 - SQLite notebook with user-defined lists (contacts, shopping, preferences, etc.)
 - MCP tools: list_create, entry_add, entry_search, entry_update, entry_delete
 - Prompted additions ("Should I remember this?")
@@ -155,6 +161,7 @@ Expand web UI with task management and memory viewer.
 **Design spec:** [operations-dashboard.md](design/operations-dashboard.md)
 
 **Deliverables:**
+
 - Task browser: inbox/projects/ongoing
 - Project detail view with approve/reject
 - Memory viewer (notebook lists, entries, search)
@@ -174,6 +181,7 @@ Email plugin with both dedicated and personal roles.
 **Design reference:** [channels.md](design/channels.md) (complete design)
 
 **Deliverables:**
+
 - Microsoft Graph MCP plugin
 - Dedicated role: agent's email (info@company.com)
 - Personal role: user's email (on-demand only)
@@ -188,13 +196,13 @@ Email plugin with both dedicated and personal roles.
 
 Design specs define architecture before implementation. Each spec should be complete before sprints begin.
 
-| Spec | Status | Milestones | Path |
-|------|--------|------------|------|
-| Channels | Complete | M3, M6 | [design/channels.md](design/channels.md) |
-| Conversations | Complete | M2 | [design/conversation-system.md](design/conversation-system.md) |
-| Task System | Complete | M4a | [design/task-system.md](design/task-system.md) |
-| Memory | Complete | M4b | [design/memory-system.md](design/memory-system.md) |
-| Operations Dashboard | Complete | M5 | [design/operations-dashboard.md](design/operations-dashboard.md) |
+| Spec                 | Status   | Milestones | Path                                                             |
+| -------------------- | -------- | ---------- | ---------------------------------------------------------------- |
+| Channels             | Complete | M3, M6     | [design/channels.md](design/channels.md)                         |
+| Conversations        | Complete | M2         | [design/conversation-system.md](design/conversation-system.md)   |
+| Task System          | Complete | M4a        | [design/task-system.md](design/task-system.md)                   |
+| Memory               | Complete | M4b        | [design/memory-system.md](design/memory-system.md)               |
+| Operations Dashboard | Complete | M5         | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
 **Note:** M3 (WhatsApp) and M6 (Email) are covered by `channels.md`. No separate specs needed.
 
@@ -222,12 +230,24 @@ M1 Foundation ───► M2 Web UI ───┬──► M3 WhatsApp (standalo
 
 ---
 
+## Pre-Release Checklist
+
+Requirements that must be complete before public release, regardless of milestone.
+
+| Item                         | Status  | Notes                                                    |
+| ---------------------------- | ------- | -------------------------------------------------------- |
+| **Dashboard authentication** | Pending | Session-based auth for web UI. Currently localhost-only. |
+| **Security audit**           | Pending | Review hooks, guardrails, and trust tier enforcement     |
+| **Documentation**            | Pending | User-facing README, setup guide, examples                |
+
+---
+
 ## Ideas Backlog
 
 Ideas that haven't been promoted to design specs yet.
 
-| Idea | Status | Path |
-|------|--------|------|
+| Idea                         | Status          | Path                                                                         |
+| ---------------------------- | --------------- | ---------------------------------------------------------------------------- |
 | Agent Teams for Ad-hoc Tasks | Deferred to M4a | [ideas/agent-teams-for-adhoc-tasks.md](ideas/agent-teams-for-adhoc-tasks.md) |
 
 ---
@@ -262,34 +282,44 @@ docs/
 Every sprint follows this workflow before implementation begins:
 
 ### 1. Sprint Breakdown
+
 Tech Lead breaks down the sprint into tasks:
+
 - Read the relevant design spec
 - Identify all files to create/modify
 - Define task dependencies (what can parallelize)
 - Estimate complexity
 
 ### 2. Risk & Blocker Review
+
 Opus reviewer analyzes the plan:
+
 - **Gaps:** Missing pieces in the plan
 - **Blockers:** Things that could prevent implementation
 - **Risks:** Potential issues needing mitigation
 - **Recommendations:** Suggested improvements
 
 ### 3. Design Approval
+
 CTO reviews and approves:
+
 - Verify plan matches design spec
 - Resolve open architectural questions
 - Confirm risk mitigations
 - Approve team composition
 
 ### 4. Implementation
+
 Team executes the approved plan:
+
 - Backend Dev (Sonnet) + Frontend Dev (Sonnet)
 - Opus reviewer verifies plan↔execution match
 - Escalate only for architectural decisions or blockers
 
 ### 5. Sprint Review
+
 After completion:
+
 - Opus reviewer conducts final review
 - Generate user stories for testing
 - Document in `review.md`
@@ -307,4 +337,4 @@ After completion:
 
 ---
 
-*Updated: 2026-02-14*
+_Updated: 2026-02-14_

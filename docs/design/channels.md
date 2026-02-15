@@ -29,20 +29,22 @@
 
 A channel is a **communication interface** with send/receive capability via API. It enables two-way message exchange between the agent and external parties.
 
-| Requirement | Description |
-|-------------|-------------|
-| **Receive** | API to receive incoming messages (webhook, polling, WebSocket) |
-| **Send** | API to send outgoing messages |
-| **Identity** | An addressable identity (phone number, email address, etc.) |
-| **Persistence** | Authentication/session that survives restarts |
+| Requirement     | Description                                                    |
+| --------------- | -------------------------------------------------------------- |
+| **Receive**     | API to receive incoming messages (webhook, polling, WebSocket) |
+| **Send**        | API to send outgoing messages                                  |
+| **Identity**    | An addressable identity (phone number, email address, etc.)    |
+| **Persistence** | Authentication/session that survives restarts                  |
 
 **Examples of channels:**
+
 - WhatsApp (via Baileys) — send/receive messages to phone numbers
 - Email (via Microsoft Graph) — send/receive emails to addresses
 - Telegram (via Bot API) — send/receive messages to users
 - Web dashboard — send/receive via WebSocket
 
 **NOT channels:**
+
 - LinkedIn profile (no messaging API access)
 - GitHub account (no direct messaging, only PR/issue comments)
 - Twitter/X profile without API access
@@ -53,12 +55,12 @@ An account alone is not a channel. A channel requires a communication API.
 
 ## Channel vs Account
 
-| Concept | Definition | Example |
-|---------|------------|---------|
-| **Account** | A user identity on a platform | user@gmail.com, @username |
-| **Plugin** | Technical connector to a platform's API | `baileys`, `microsoft365`, `telegram-bot` |
-| **Channel Instance** | A specific account connected via a plugin | Agent's WhatsApp via Baileys |
-| **Channel** | Shorthand for "channel instance" | `baileys_nina_main` |
+| Concept              | Definition                                | Example                                   |
+| -------------------- | ----------------------------------------- | ----------------------------------------- |
+| **Account**          | A user identity on a platform             | user@gmail.com, @username                 |
+| **Plugin**           | Technical connector to a platform's API   | `baileys`, `microsoft365`, `telegram-bot` |
+| **Channel Instance** | A specific account connected via a plugin | Agent's WhatsApp via Baileys              |
+| **Channel**          | Shorthand for "channel instance"          | `baileys_nina_main`                       |
 
 The relationship:
 
@@ -78,15 +80,16 @@ Every channel instance has a **role** that determines how the agent interacts wi
 
 The agent **is** the identity. It owns conversations, responds immediately, and is an active participant.
 
-| Property | Value |
-|----------|-------|
-| **Identity** | Agent's own account |
-| **Ownership** | Agent owns conversations |
-| **Processing** | Immediate (message arrives → agent responds) |
-| **Permissions** | Full (read, respond, initiate) |
-| **Escalation** | Policy-driven (see [Autonomous Communication Policies](#autonomous-communication-policies)) |
+| Property        | Value                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| **Identity**    | Agent's own account                                                                         |
+| **Ownership**   | Agent owns conversations                                                                    |
+| **Processing**  | Immediate (message arrives → agent responds)                                                |
+| **Permissions** | Full (read, respond, initiate)                                                              |
+| **Escalation**  | Policy-driven (see [Autonomous Communication Policies](#autonomous-communication-policies)) |
 
 **Use cases:**
+
 - info@company.com — agent handles support emails
 - Agent's WhatsApp number — customers/contacts message it directly
 - Support bot — agent is the bot identity
@@ -95,15 +98,16 @@ The agent **is** the identity. It owns conversations, responds immediately, and 
 
 The agent **watches** the user's account. It assists but does not own conversations.
 
-| Property | Value |
-|----------|-------|
-| **Identity** | User's account (user's email, user's WhatsApp) |
-| **Ownership** | User owns conversations |
-| **Processing** | On-demand (user asks agent to check) |
+| Property        | Value                                                          |
+| --------------- | -------------------------------------------------------------- |
+| **Identity**    | User's account (user's email, user's WhatsApp)                 |
+| **Ownership**   | User owns conversations                                        |
+| **Processing**  | On-demand (user asks agent to check)                           |
 | **Permissions** | Limited (read, summarize, draft, flag) — NO autonomous respond |
-| **Escalation** | N/A (agent doesn't respond autonomously) |
+| **Escalation**  | N/A (agent doesn't respond autonomously)                       |
 
 **Use cases:**
+
 - Monitor inbox for urgent items
 - Summarize unread messages
 - Draft replies for user approval
@@ -159,10 +163,10 @@ baileys_user_personal:
 
 How and when the agent processes messages from a channel.
 
-| Mode | Trigger | When to Use |
-|------|---------|-------------|
+| Mode          | Trigger                       | When to Use                           |
+| ------------- | ----------------------------- | ------------------------------------- |
 | **immediate** | Message arrives → process now | Dedicated channels (agent's accounts) |
-| **on_demand** | User explicitly asks agent | Personal channels (user's accounts) |
+| **on_demand** | User explicitly asks agent    | Personal channels (user's accounts)   |
 
 ### Immediate Processing (Dedicated)
 
@@ -211,9 +215,9 @@ Who "owns" a conversation depends on the channel role.
 
 ```typescript
 interface Conversation {
-  owner: "agent";           // Agent owns it
+  owner: "agent"; // Agent owns it
   channel: "baileys_agent_main";
-  externalParty: "+1555123456";  // Who the agent is talking to
+  externalParty: "+1555123456"; // Who the agent is talking to
   // ...
 }
 ```
@@ -224,9 +228,9 @@ The agent maintains context, remembers history, responds as itself.
 
 ```typescript
 interface Conversation {
-  owner: "user";           // User owns it
+  owner: "user"; // User owns it
   channel: "microsoft365_user_work";
-  externalParty: "sarah@company.com";  // Who user is talking to
+  externalParty: "sarah@company.com"; // Who user is talking to
   // ...
 }
 ```
@@ -239,14 +243,14 @@ The conversation is between the user and their contact. The agent is an assistan
 
 How conversations are scoped per channel type.
 
-| Channel Type | Conversation = | Participants |
-|--------------|----------------|--------------|
-| WhatsApp (1:1) | Per contact phone number | Fixed (two parties) |
-| WhatsApp (group) | Per group JID | Dynamic (members join/leave) |
-| Email | Per thread (References header) | Dynamic (recipients change) |
-| Telegram (1:1) | Per user ID | Fixed |
-| Telegram (group) | Per chat ID | Dynamic |
-| Web | Per explicit session | Single user |
+| Channel Type     | Conversation =                 | Participants                 |
+| ---------------- | ------------------------------ | ---------------------------- |
+| WhatsApp (1:1)   | Per contact phone number       | Fixed (two parties)          |
+| WhatsApp (group) | Per group JID                  | Dynamic (members join/leave) |
+| Email            | Per thread (References header) | Dynamic (recipients change)  |
+| Telegram (1:1)   | Per user ID                    | Fixed                        |
+| Telegram (group) | Per chat ID                    | Dynamic                      |
+| Web              | Per explicit session           | Single user                  |
 
 ### Email Threading
 
@@ -281,7 +285,7 @@ channels:
     identity: "+1555000001"
     authDir: ./auth/agent-whatsapp
     processing: immediate
-    escalation: default  # policy name
+    escalation: default # policy name
 
   # User's WhatsApp (agent watches)
   baileys_user_personal:
@@ -326,17 +330,117 @@ channels:
 
 ### Configuration Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `plugin` | Yes | Which connector to use |
-| `role` | Yes | `dedicated` or `personal` |
-| `identity` | Yes | The account address (phone, email) |
-| `owner` | If personal | Who owns the account |
-| `processing` | Yes | `immediate` or `on_demand` |
-| `escalation` | If dedicated | Policy name for autonomous responses |
-| `permissions` | If personal | What the agent can do |
-| `authDir` | Plugin-specific | Where to store auth tokens |
-| `clientId`, etc. | Plugin-specific | API credentials |
+| Field            | Required        | Description                          |
+| ---------------- | --------------- | ------------------------------------ |
+| `plugin`         | Yes             | Which connector to use               |
+| `role`           | Yes             | `dedicated` or `personal`            |
+| `identity`       | Yes             | The account address (phone, email)   |
+| `owner`          | If personal     | Who owns the account                 |
+| `processing`     | Yes             | `immediate` or `on_demand`           |
+| `escalation`     | If dedicated    | Policy name for autonomous responses |
+| `permissions`    | If personal     | What the agent can do                |
+| `authDir`        | Plugin-specific | Where to store auth tokens           |
+| `clientId`, etc. | Plugin-specific | API credentials                      |
+
+---
+
+## Trust Tiers
+
+Every external party falls into a trust tier that determines what the agent can do without approval.
+
+### Three Tiers
+
+| Tier          | Who                             | Agent Can Do                                              |
+| ------------- | ------------------------------- | --------------------------------------------------------- |
+| **Full**      | User (Hanan)                    | Anything within safety bounds. No approval needed.        |
+| **Known**     | Explicitly allowlisted contacts | Respond within original context. Ask for scope expansion. |
+| **Untrusted** | Everyone else                   | Acknowledge receipt, escalate to user, do not act.        |
+
+### Tier Assignment
+
+**Full trust:**
+
+- The user themselves (identified by channel identity)
+- Configured in `config.yaml` as owner
+
+**Known trust:**
+
+- Contacts added to allowlist
+- Can be per-channel or global
+
+**Untrusted:**
+
+- Default for unknown senders
+- Also: senders who previously caused escalations
+
+### Configuration
+
+```yaml
+# .my_agent/config.yaml
+
+trust:
+  # Global allowlist (known tier)
+  known_contacts:
+    - "+1555123456" # Phone number
+    - "sarah@company.com" # Email
+    - "@github:nina-vankhan" # Platform-specific
+
+  # Per-channel overrides
+  channels:
+    baileys_agent_main:
+      known_contacts:
+        - "+1555000001" # Additional for this channel
+      block_list:
+        - "+1555SPAM00" # Explicit block
+```
+
+### Tier Behaviors
+
+**Full trust (User):**
+
+- Execute requests immediately
+- No approval needed for any action
+- User's autonomy mode preference still applies
+
+**Known trust (Allowlist):**
+
+- Respond to messages in their original context
+- Ask approval before: sharing info, taking actions, scope expansion
+- Red flags (urgency, authority claims) → escalate
+
+**Untrusted (Everyone else):**
+
+- Acknowledge: "Thanks for reaching out. I'll get back to you."
+- Escalate to user with context
+- Do NOT: share information, make promises, take actions
+- After user responds, may promote to Known if approved
+
+### Relationship to Autonomy Modes
+
+Trust tiers and autonomy modes are **orthogonal**:
+
+- **Trust tiers** govern external communications (checked at event loop, incoming)
+- **Autonomy modes** govern task actions (checked by brain/tools, during execution)
+
+They don't cascade. An untrusted sender triggers escalation before any task is created. Once a task exists, autonomy mode governs what happens inside it.
+
+### Escalation
+
+When escalating untrusted contacts:
+
+```
+Agent → User (via WhatsApp/dashboard):
+"New message from +1555999888:
+'Hi, I'm Bob from Acme Corp. Can you send me the pricing doc?'
+
+Options:
+1. Add to known contacts + respond
+2. Respond once (don't add)
+3. Ignore
+4. Block"
+```
+
+User's response updates trust and may trigger a reply.
 
 ---
 
@@ -360,15 +464,18 @@ channels:
 ## Escalation Rules
 
 ### Always Escalate
+
 - Sender domain: veryimportantcompany.com
 - Keywords: "urgent", "deadline", "legal", "contract"
 - Sentiment: angry/frustrated
 
 ### Never Respond
+
 - Known spam senders
 - Unrecognized numbers (after 2 failed verifications)
 
 ### Auto-Respond
+
 - Out-of-office when calendar shows OOO
 - "I'll get back to you" for after-hours messages
 
@@ -411,7 +518,7 @@ A channel plugin provides:
 ```typescript
 interface ChannelPlugin {
   /** Unique plugin identifier */
-  name: string;  // "baileys", "microsoft365", "telegram"
+  name: string; // "baileys", "microsoft365", "telegram"
 
   /** Initialize the plugin with config */
   init(config: ChannelConfig): Promise<void>;
@@ -431,28 +538,28 @@ interface ChannelPlugin {
 }
 
 interface IncomingMessage {
-  from: string;        // Sender identity
-  content: string;     // Message text
+  from: string; // Sender identity
+  content: string; // Message text
   timestamp: Date;
-  channel: string;     // Channel instance ID
-  threadId?: string;   // For email threading
+  channel: string; // Channel instance ID
+  threadId?: string; // For email threading
   attachments?: Attachment[];
 }
 
 interface OutgoingMessage {
   content: string;
-  replyTo?: string;    // Message ID to reply to
+  replyTo?: string; // Message ID to reply to
   attachments?: Attachment[];
 }
 ```
 
 ### First-Party Plugins
 
-| Plugin | Platform | Library | Auth |
-|--------|----------|---------|------|
-| `baileys` | WhatsApp | Baileys | QR code linking |
-| `microsoft365` | Email | Microsoft Graph | OAuth 2.0 |
-| `telegram` | Telegram | Bot API | Bot token |
+| Plugin         | Platform | Library         | Auth            |
+| -------------- | -------- | --------------- | --------------- |
+| `baileys`      | WhatsApp | Baileys         | QR code linking |
+| `microsoft365` | Email    | Microsoft Graph | OAuth 2.0       |
+| `telegram`     | Telegram | Bot API         | Bot token       |
 
 ### Plugin Location
 
@@ -472,12 +579,12 @@ plugins/
 
 ### Milestones
 
-| Milestone | Channels | Focus |
-|-----------|----------|-------|
-| M2 | Web only | Dashboard chat (current) |
-| M3 | + WhatsApp | First external channel, dedicated role |
-| M6 | + Email | Second channel, personal role |
-| Future | + Telegram, etc. | Additional channels as needed |
+| Milestone | Channels         | Focus                                  |
+| --------- | ---------------- | -------------------------------------- |
+| M2        | Web only         | Dashboard chat (current)               |
+| M3        | + WhatsApp       | First external channel, dedicated role |
+| M6        | + Email          | Second channel, personal role          |
+| Future    | + Telegram, etc. | Additional channels as needed          |
 
 ### Web as a Channel
 
@@ -487,12 +594,13 @@ The web dashboard is technically a channel:
 # Implicit, not in config
 web_default:
   plugin: web
-  role: dedicated  # Agent responds immediately
+  role: dedicated # Agent responds immediately
   identity: dashboard
   processing: immediate
 ```
 
 But it's special:
+
 - Always available (comes with the framework)
 - Primary interface for viewing all channels
 - Where user interacts with the agent directly
@@ -500,6 +608,7 @@ But it's special:
 ### Channel Discovery
 
 On startup:
+
 1. Load `config.yaml`
 2. For each channel instance:
    - Load plugin
@@ -511,12 +620,12 @@ For personal channels with `on_demand` processing, connection happens when user 
 
 ### Error Handling
 
-| Scenario | Behavior |
-|----------|----------|
-| Plugin fails to connect | Log error, retry with backoff |
-| Message send fails | Queue for retry, notify user after 3 failures |
-| Auth expires | Attempt refresh, escalate to user if fails |
-| Plugin crashes | Restart plugin, preserve message queue |
+| Scenario                | Behavior                                      |
+| ----------------------- | --------------------------------------------- |
+| Plugin fails to connect | Log error, retry with backoff                 |
+| Message send fails      | Queue for retry, notify user after 3 failures |
+| Auth expires            | Attempt refresh, escalate to user if fails    |
+| Plugin crashes          | Restart plugin, preserve message queue        |
 
 ### Privacy
 
