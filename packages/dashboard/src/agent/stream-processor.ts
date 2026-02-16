@@ -12,7 +12,15 @@ export type StreamEvent =
 
 /**
  * Process SDK messages from a query async generator and yield StreamEvents.
- * Handles stream_event (partial messages) and result messages.
+ *
+ * The Agent SDK yields multiple message types simultaneously:
+ * - "stream_event" — raw SSE events (content_block_start/delta/stop) — token-level granularity
+ * - "assistant" — partial/complete messages with content blocks
+ * - "result" — final result with cost/usage
+ * - "system" — system messages (ignored)
+ *
+ * IMPORTANT: The SDK sends BOTH stream_event AND assistant for the same content.
+ * We use only stream_event for streaming (finer granularity) and ignore assistant messages.
  */
 export async function* processStream(
   messages: AsyncIterable<{ type: string; [key: string]: unknown }>,
@@ -21,12 +29,12 @@ export async function* processStream(
   let currentBlockType: string | null = null;
 
   for await (const msg of messages) {
+    // Handle raw SSE stream events (token-level granularity)
     if (msg.type === "stream_event") {
       const event = msg.event as {
         type: string;
         content_block?: { type: string };
         delta?: { type: string; text?: string; thinking?: string };
-        [key: string]: unknown;
       };
 
       switch (event.type) {
@@ -52,9 +60,24 @@ export async function* processStream(
           currentBlockType = null;
           break;
       }
+
+      continue;
     }
 
+    // Skip assistant messages — SDK sends these alongside stream_event
+    // and we'd double-count content if we processed both
+    if (msg.type === "assistant") {
+      continue;
+    }
+
+    // Handle final result
     if (msg.type === "result") {
+      // Emit thinking_end if we were still in thinking mode
+      if (currentBlockType === "thinking") {
+        yield { type: "thinking_end" };
+        currentBlockType = null;
+      }
+
       const result = msg as {
         type: string;
         subtype?: string;

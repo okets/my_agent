@@ -1,5 +1,9 @@
 import { findAgentDir, resolveAuth, isHatched } from "@my-agent/core";
 import { createServer } from "./server.js";
+import {
+  ConversationManager,
+  AbbreviationQueue,
+} from "./conversations/index.js";
 
 // Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
 // When the dashboard is started from within a Claude Code session (e.g. during dev),
@@ -30,10 +34,38 @@ async function main() {
     );
   }
 
+  // Create shared ConversationManager
+  const conversationManager = new ConversationManager(agentDir);
+
+  // Initialize abbreviation queue (only if hatched and auth available)
+  let abbreviationQueue: AbbreviationQueue | null = null;
+
+  if (hatched) {
+    try {
+      const apiKey =
+        process.env.ANTHROPIC_API_KEY ||
+        process.env.CLAUDE_CODE_OAUTH_TOKEN ||
+        "";
+
+      if (apiKey) {
+        abbreviationQueue = new AbbreviationQueue(conversationManager, apiKey);
+        await abbreviationQueue.retryPending();
+      } else {
+        console.warn(
+          "No API key available - abbreviation queue will not start",
+        );
+      }
+    } catch (err) {
+      console.warn("Failed to initialize abbreviation queue:", err);
+    }
+  }
+
   // Create and start server
   const port = parseInt(process.env.PORT ?? "4321", 10);
   const server = await createServer({ agentDir });
   server.isHatched = hatched;
+  server.conversationManager = conversationManager;
+  server.abbreviationQueue = abbreviationQueue;
 
   try {
     await server.listen({ port, host: "0.0.0.0" });
@@ -48,6 +80,12 @@ async function main() {
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} received, shutting down gracefully...`);
     try {
+      // Drain abbreviation queue first
+      if (abbreviationQueue) {
+        await abbreviationQueue.drain();
+      }
+
+      // Then close server
       await server.close();
       console.log("Server closed.");
       process.exit(0);

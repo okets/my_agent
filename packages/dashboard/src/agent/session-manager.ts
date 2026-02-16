@@ -6,12 +6,27 @@ import {
 import type { Query } from "@my-agent/core";
 import { processStream, type StreamEvent } from "./stream-processor.js";
 
+interface TurnRecord {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export class SessionManager {
-  private isFirstTurn = true;
+  private conversationId: string | null;
+  private contextInjection: string | null;
   private config: { model: string; brainDir: string } | null = null;
-  private systemPrompt: string | null = null;
+  private baseSystemPrompt: string | null = null;
   private initPromise: Promise<void> | null = null;
   private activeQuery: Query | null = null;
+  private turns: TurnRecord[] = [];
+
+  constructor(
+    conversationId?: string | null,
+    contextInjection?: string | null,
+  ) {
+    this.conversationId = conversationId ?? null;
+    this.contextInjection = contextInjection ?? null;
+  }
 
   private ensureInitialized(): Promise<void> {
     if (!this.initPromise) {
@@ -22,24 +37,67 @@ export class SessionManager {
 
   private async doInitialize(): Promise<void> {
     this.config = loadConfig();
-    this.systemPrompt = await assembleSystemPrompt(this.config.brainDir);
+    this.baseSystemPrompt = await assembleSystemPrompt(this.config.brainDir);
+  }
+
+  /**
+   * Build system prompt with conversation history.
+   *
+   * The SDK's `continue: true` resumes the last subprocess globally,
+   * not per conversation. So we always start fresh and inject history.
+   */
+  private buildPromptWithHistory(): string {
+    let prompt = this.baseSystemPrompt!;
+
+    // Add cold-start context injection (abbreviation + older turns from transcript)
+    if (this.contextInjection) {
+      prompt += `\n\n${this.contextInjection}`;
+    }
+
+    // Add in-session conversation history
+    if (this.turns.length > 0) {
+      prompt += "\n\n[Current conversation]\n";
+      for (const turn of this.turns) {
+        const role = turn.role === "user" ? "User" : "Assistant";
+        prompt += `${role}: ${turn.content}\n`;
+      }
+      prompt += "[End conversation history]\n";
+    }
+
+    return prompt;
   }
 
   async *streamMessage(content: string): AsyncGenerator<StreamEvent> {
     await this.ensureInitialized();
 
+    // Record user turn
+    this.turns.push({ role: "user", content });
+
+    // Build prompt with full history — each query is independent
+    const systemPrompt = this.buildPromptWithHistory();
+
     const q = createBrainQuery(content, {
       model: this.config!.model,
-      systemPrompt: this.systemPrompt!,
-      continue: !this.isFirstTurn,
+      systemPrompt,
+      continue: false, // Always fresh — SDK continue is global, not per-conversation
       includePartialMessages: true,
     });
 
     this.activeQuery = q;
+    let assistantContent = "";
 
     try {
-      yield* processStream(q);
-      this.isFirstTurn = false;
+      for await (const event of processStream(q)) {
+        if (event.type === "text_delta") {
+          assistantContent += event.text;
+        }
+        yield event;
+      }
+
+      // Record assistant turn for future history
+      if (assistantContent) {
+        this.turns.push({ role: "assistant", content: assistantContent });
+      }
     } finally {
       this.activeQuery = null;
     }

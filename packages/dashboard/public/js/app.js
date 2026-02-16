@@ -24,6 +24,11 @@ function chat() {
     composePlaceholder: "", // Dynamic placeholder from server
     composePasswordMode: false, // Toggles password masking
 
+    // Conversation state
+    conversations: [],
+    currentConversationId: null,
+    sidebarOpen: true,
+
     // ─────────────────────────────────────────────────────────────────
     // Computed
     // ─────────────────────────────────────────────────────────────────
@@ -95,6 +100,9 @@ function chat() {
           this.currentAssistantMessage = null;
           this.currentThinkingText = "";
           this.isThinking = false;
+
+          // Send connect message to get conversation list
+          this.ws.send({ type: "connect" });
         },
         onClose: () => {
           console.log("[App] WebSocket disconnected");
@@ -128,6 +136,62 @@ function chat() {
     // ─────────────────────────────────────────────────────────────────
     // Methods
     // ─────────────────────────────────────────────────────────────────
+
+    resetChatState() {
+      this.messages = [];
+      this.currentAssistantMessage = null;
+      this.currentThinkingText = "";
+      this.isThinking = false;
+      this.isResponding = false;
+      this.pendingControlMsgId = null;
+      this.composeHintControlId = null;
+      this.composePlaceholder = "";
+      this.composePasswordMode = false;
+    },
+
+    touchCurrentConversation() {
+      if (!this.currentConversationId) return;
+      const conv = this.conversations.find(
+        (c) => c.id === this.currentConversationId,
+      );
+      if (conv) {
+        conv.updated = new Date().toISOString();
+        this.conversations.sort(
+          (a, b) => new Date(b.updated) - new Date(a.updated),
+        );
+      }
+    },
+
+    createNewConversation() {
+      if (!this.wsConnected) return;
+      // Reset chat immediately so the UI switches to the empty state
+      this.resetChatState();
+      this.currentConversationId = null;
+      this._pendingNewConversation = true;
+      this.ws.send({ type: "new_conversation" });
+      this.$nextTick(() => { this.$refs.chatInput?.focus(); });
+    },
+
+    switchConversation(conversationId) {
+      if (!this.wsConnected || conversationId === this.currentConversationId)
+        return;
+      this.ws.send({ type: "switch_conversation", conversationId });
+    },
+
+    formatRelativeTime(isoString) {
+      const date = new Date(isoString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return "just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString();
+    },
 
     sendMessage() {
       const text = this.inputText.trim();
@@ -169,6 +233,9 @@ function chat() {
         });
       }
 
+      // Update sidebar timestamp for current conversation
+      this.touchCurrentConversation();
+
       // Reset compose bar state
       this.inputText = "";
       this.composeHintControlId = null;
@@ -193,49 +260,59 @@ function chat() {
 
       switch (data.type) {
         case "start":
-          // Response is starting — create a new assistant message
+          // Response is starting — show typing dots, defer bubble creation
           this.isResponding = true;
           this.currentThinkingText = "";
           this.isThinking = false;
-          this.currentAssistantMessage = {
-            id: ++this.messageIdCounter,
-            role: "assistant",
-            content: "",
-            renderedContent: "",
-            thinkingText: "",
-            thinkingExpanded: true,
-            timestamp: this.formatTime(new Date()),
-          };
-          this.messages.push(this.currentAssistantMessage);
+          this.currentAssistantMessage = null;
           this.$nextTick(() => {
             this.scrollToBottom();
           });
           break;
 
         case "text_delta":
-          // Append text delta to current message
-          if (this.currentAssistantMessage) {
-            this.currentAssistantMessage.content += data.content;
-            this.currentAssistantMessage.renderedContent = this.renderMarkdown(
-              this.currentAssistantMessage.content,
-            );
-            this.$nextTick(() => {
-              this.scrollToBottom();
-            });
+          // Create assistant bubble on first text delta (replaces typing dots)
+          if (!this.currentAssistantMessage) {
+            this.currentAssistantMessage = {
+              id: ++this.messageIdCounter,
+              role: "assistant",
+              content: "",
+              renderedContent: "",
+              thinkingText: "",
+              thinkingExpanded: true,
+              timestamp: this.formatTime(new Date()),
+            };
+            this.messages.push(this.currentAssistantMessage);
           }
+          this.currentAssistantMessage.content += data.content;
+          this.currentAssistantMessage.renderedContent = this.renderMarkdown(
+            this.currentAssistantMessage.content,
+          );
+          this.$nextTick(() => {
+            this.scrollToBottom();
+          });
           break;
 
         case "thinking_delta":
-          // Append thinking delta to current thinking text
-          if (this.currentAssistantMessage) {
-            this.currentThinkingText += data.content;
-            this.currentAssistantMessage.thinkingText =
-              this.currentThinkingText;
-            this.isThinking = true;
-            this.$nextTick(() => {
-              this.scrollToBottom();
-            });
+          // Create assistant bubble on first thinking delta
+          if (!this.currentAssistantMessage) {
+            this.currentAssistantMessage = {
+              id: ++this.messageIdCounter,
+              role: "assistant",
+              content: "",
+              renderedContent: "",
+              thinkingText: "",
+              thinkingExpanded: true,
+              timestamp: this.formatTime(new Date()),
+            };
+            this.messages.push(this.currentAssistantMessage);
           }
+          this.currentThinkingText += data.content;
+          this.currentAssistantMessage.thinkingText = this.currentThinkingText;
+          this.isThinking = true;
+          this.$nextTick(() => {
+            this.scrollToBottom();
+          });
           break;
 
         case "thinking_end":
@@ -317,6 +394,7 @@ function chat() {
           this.isThinking = false;
           this.currentAssistantMessage = null;
           this.currentThinkingText = "";
+          this.touchCurrentConversation();
           if (data.usage && this.messages.length > 0) {
             // Store usage on the last message
             const lastMsg = this.messages[this.messages.length - 1];
@@ -350,6 +428,116 @@ function chat() {
           this.$nextTick(() => {
             this.scrollToBottom();
           });
+          break;
+
+        case "conversation_loaded":
+          // Conversation loaded (on connect or switch)
+          this.resetChatState();
+          if (data.conversation) {
+            this.currentConversationId = data.conversation.id;
+          } else {
+            this.currentConversationId = null;
+          }
+
+          // Convert turns to messages
+          if (data.turns && data.turns.length > 0) {
+            this.messages = data.turns.map((turn) => ({
+              id: ++this.messageIdCounter,
+              role: turn.role,
+              content: turn.content,
+              renderedContent: this.renderMarkdown(turn.content),
+              thinkingText: turn.thinkingText || "",
+              thinkingExpanded: false,
+              timestamp: this.formatTime(new Date(turn.timestamp)),
+              usage: turn.usage,
+              cost: turn.cost,
+            }));
+          }
+
+          this.$nextTick(() => {
+            this.scrollToBottom();
+          });
+          break;
+
+        case "conversation_list":
+          // Update sidebar conversation list
+          this.conversations = data.conversations;
+          break;
+
+        case "conversation_created":
+          // Add to sidebar list
+          this.conversations.unshift(data.conversation);
+
+          // Only switch to it if THIS client created it
+          if (
+            this._pendingNewConversation ||
+            this.currentConversationId === null
+          ) {
+            this.currentConversationId = data.conversation.id;
+            this._pendingNewConversation = false;
+          }
+          break;
+
+        case "conversation_updated": {
+          // Update sidebar timestamp for the conversation
+          const updatedConv = this.conversations.find(
+            (c) => c.id === data.conversationId,
+          );
+          if (updatedConv) {
+            updatedConv.updated = data.turn.timestamp;
+            // Re-sort conversations by updated time
+            this.conversations.sort(
+              (a, b) => new Date(b.updated) - new Date(a.updated),
+            );
+          }
+
+          // If another tab updated the current conversation, render the new turn
+          if (data.conversationId === this.currentConversationId) {
+            const msg = {
+              id: ++this.messageIdCounter,
+              role: data.turn.role,
+              content: data.turn.content,
+              renderedContent: this.renderMarkdown(data.turn.content),
+              thinkingText: data.turn.thinkingText || "",
+              thinkingExpanded: false,
+              timestamp: this.formatTime(new Date(data.turn.timestamp)),
+              usage: data.turn.usage,
+              cost: data.turn.cost,
+            };
+            this.messages.push(msg);
+            this.$nextTick(() => {
+              this.scrollToBottom();
+            });
+          }
+          break;
+        }
+
+        case "turns_loaded":
+          // Older turns loaded (pagination)
+          if (data.turns && data.turns.length > 0) {
+            const olderMessages = data.turns.map((turn) => ({
+              id: ++this.messageIdCounter,
+              role: turn.role,
+              content: turn.content,
+              renderedContent: this.renderMarkdown(turn.content),
+              thinkingText: turn.thinkingText || "",
+              thinkingExpanded: false,
+              timestamp: this.formatTime(new Date(turn.timestamp)),
+              usage: turn.usage,
+              cost: turn.cost,
+            }));
+            this.messages.unshift(...olderMessages);
+          }
+          break;
+
+        case "conversation_renamed":
+          // Conversation title updated
+          const convToRename = this.conversations.find(
+            (c) => c.id === data.conversationId,
+          );
+          if (convToRename) {
+            convToRename.title = data.title;
+          }
           break;
 
         default:

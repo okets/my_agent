@@ -20,11 +20,9 @@
     system-ui,
     -apple-system,
     "Segoe UI",
-    "Noto Color Emoji",
+    sans-serif,
     "Apple Color Emoji",
-    "Segoe UI Emoji",
-    sans-serif;
-  font-variant-emoji: emoji;
+    "Segoe UI Emoji";
 }
 
 html,
@@ -446,4 +444,52 @@ footer input[type="password"]::placeholder {
 
 footer input[type="password"]:focus {
   outline: none;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────── */
+
+.sidebar-panel {
+  width: 260px;
+  transition: all 0.3s ease;
+}
+
+.sidebar-open {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.sidebar-closed {
+  width: 0;
+  opacity: 0;
+  transform: translateX(-100%);
+  overflow: hidden;
+}
+
+/* Mobile: sidebar as overlay */
+@media (max-width: 768px) {
+  .sidebar-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    background: #1f2335;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar-closed {
+    width: 260px; /* Keep width for animation */
+    pointer-events: none;
+  }
+
+  .sidebar-open {
+    pointer-events: auto;
+  }
+}
+
+/* Desktop: sidebar pushes content */
+@media (min-width: 769px) {
+  .sidebar-panel {
+    position: relative;
+  }
 }

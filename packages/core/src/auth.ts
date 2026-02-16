@@ -86,14 +86,15 @@ export function resolveAuth(agentDir: string): ResolvedAuth {
   if (profileName && authFile?.profiles[profileName]) {
     const profile = authFile.profiles[profileName]
 
-    // Set the appropriate env var so the SDK picks it up
-    if (profile.method === 'api_key') {
-      process.env.ANTHROPIC_API_KEY = profile.token
-    } else {
+    // Auto-detect method from token prefix (overrides stored method if mismatched)
+    const isSetupToken = profile.token.startsWith(SETUP_TOKEN_PREFIX)
+    if (isSetupToken) {
       process.env.CLAUDE_CODE_OAUTH_TOKEN = profile.token
+    } else {
+      process.env.ANTHROPIC_API_KEY = profile.token
     }
 
-    return { type: profile.method, source: 'file' }
+    return { type: isSetupToken ? 'setup_token' : 'api_key', source: 'file' }
   }
 
   // 3. No auth found
