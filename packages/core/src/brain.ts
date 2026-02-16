@@ -19,6 +19,7 @@ export function createBrainQuery(prompt: string, options: BrainSessionOptions): 
   const queryOptions: Options = {
     model: options.model,
     systemPrompt: options.systemPrompt,
+    permissionMode: 'bypassPermissions',
   }
   if (options.continue) {
     queryOptions.continue = true
