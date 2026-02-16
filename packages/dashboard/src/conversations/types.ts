@@ -41,6 +41,9 @@ export interface Conversation {
 
   /** Whether the user manually set the title (protects from auto-rename) */
   manuallyNamed: boolean;
+
+  /** Turn count at last auto-rename (null if never renamed) */
+  lastRenamedAtTurn: number | null;
 }
 
 /**

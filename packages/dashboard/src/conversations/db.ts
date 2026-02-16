@@ -52,17 +52,23 @@ export class ConversationDatabase {
         participants TEXT,
         abbreviation TEXT,
         needs_abbreviation INTEGER DEFAULT 0,
-        manually_named INTEGER DEFAULT 0
+        manually_named INTEGER DEFAULT 0,
+        last_renamed_at_turn INTEGER DEFAULT NULL
       );
     `);
 
-    // Migration: add manually_named column if missing (for existing databases)
+    // Migration: add columns if missing (for existing databases)
     const columns = this.db
       .prepare("PRAGMA table_info(conversations)")
       .all() as Array<{ name: string }>;
     if (!columns.some((c) => c.name === "manually_named")) {
       this.db.exec(
         "ALTER TABLE conversations ADD COLUMN manually_named INTEGER DEFAULT 0",
+      );
+    }
+    if (!columns.some((c) => c.name === "last_renamed_at_turn")) {
+      this.db.exec(
+        "ALTER TABLE conversations ADD COLUMN last_renamed_at_turn INTEGER DEFAULT NULL",
       );
     }
 
@@ -96,8 +102,9 @@ export class ConversationDatabase {
     const stmt = this.db.prepare(`
       INSERT INTO conversations (
         id, channel, title, topics, created, updated,
-        turn_count, participants, abbreviation, needs_abbreviation, manually_named
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        turn_count, participants, abbreviation, needs_abbreviation, manually_named,
+        last_renamed_at_turn
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -112,6 +119,7 @@ export class ConversationDatabase {
       conversation.abbreviation,
       conversation.needsAbbreviation ? 1 : 0,
       conversation.manuallyNamed ? 1 : 0,
+      conversation.lastRenamedAtTurn,
     );
   }
 
@@ -235,6 +243,11 @@ export class ConversationDatabase {
       values.push(updates.manuallyNamed ? 1 : 0);
     }
 
+    if (updates.lastRenamedAtTurn !== undefined) {
+      fields.push("last_renamed_at_turn = ?");
+      values.push(updates.lastRenamedAtTurn);
+    }
+
     if (fields.length === 0) {
       return;
     }
@@ -339,6 +352,7 @@ export class ConversationDatabase {
       abbreviation: row.abbreviation,
       needsAbbreviation: row.needs_abbreviation === 1,
       manuallyNamed: row.manually_named === 1,
+      lastRenamedAtTurn: row.last_renamed_at_turn ?? null,
     };
   }
 

@@ -47,6 +47,7 @@ export class ConversationManager {
       abbreviation: null,
       needsAbbreviation: false,
       manuallyNamed: false,
+      lastRenamedAtTurn: null,
     };
 
     // Create transcript file with metadata header
@@ -224,6 +225,16 @@ export class ConversationManager {
       topics,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  /**
+   * Update conversation metadata fields directly
+   */
+  async update(
+    id: string,
+    updates: Partial<Omit<Conversation, "id" | "created">>,
+  ): Promise<void> {
+    this.db.updateConversation(id, updates);
   }
 
   /**

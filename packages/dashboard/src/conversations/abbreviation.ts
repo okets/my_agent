@@ -46,7 +46,6 @@ export class AbbreviationQueue {
   private processing = false;
   private pendingIds = new Set<string>();
   private currentQuery: Query | null = null;
-  private lastRenamedAt = new Map<string, number>(); // conversationId → turnCount at last rename
 
   /** Minimum turns between auto-renames */
   private static readonly MIN_TURNS_BETWEEN_RENAMES = 10;
@@ -211,11 +210,10 @@ export class AbbreviationQueue {
       console.log(`Generated abbreviation for conversation ${conversationId}`);
 
       // Re-generate name if not manually named and enough turns since last rename
-      const lastRenamed = this.lastRenamedAt.get(conversationId);
       const shouldRename =
         !conversation.manuallyNamed &&
-        (lastRenamed === undefined ||
-          conversation.turnCount - lastRenamed >=
+        (conversation.lastRenamedAtTurn === null ||
+          conversation.turnCount - conversation.lastRenamedAtTurn >=
             AbbreviationQueue.MIN_TURNS_BETWEEN_RENAMES);
 
       if (shouldRename) {
@@ -224,7 +222,9 @@ export class AbbreviationQueue {
           await this.manager.setTitle(conversationId, result.title);
           await this.manager.setTopics(conversationId, result.topics);
 
-          this.lastRenamedAt.set(conversationId, conversation.turnCount);
+          await this.manager.update(conversationId, {
+            lastRenamedAtTurn: conversation.turnCount,
+          });
           this.onRenamed?.(conversationId, result.title);
 
           console.log(
