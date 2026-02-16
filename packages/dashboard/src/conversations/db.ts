@@ -71,6 +71,11 @@ export class ConversationDatabase {
         "ALTER TABLE conversations ADD COLUMN last_renamed_at_turn INTEGER DEFAULT NULL",
       );
     }
+    if (!columns.some((c) => c.name === "model")) {
+      this.db.exec(
+        "ALTER TABLE conversations ADD COLUMN model TEXT DEFAULT NULL",
+      );
+    }
 
     // Create FTS5 virtual table for full-text search
     this.db.exec(`
@@ -103,8 +108,8 @@ export class ConversationDatabase {
       INSERT INTO conversations (
         id, channel, title, topics, created, updated,
         turn_count, participants, abbreviation, needs_abbreviation, manually_named,
-        last_renamed_at_turn
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        last_renamed_at_turn, model
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -120,6 +125,7 @@ export class ConversationDatabase {
       conversation.needsAbbreviation ? 1 : 0,
       conversation.manuallyNamed ? 1 : 0,
       conversation.lastRenamedAtTurn,
+      conversation.model,
     );
   }
 
@@ -248,6 +254,11 @@ export class ConversationDatabase {
       values.push(updates.lastRenamedAtTurn);
     }
 
+    if (updates.model !== undefined) {
+      fields.push("model = ?");
+      values.push(updates.model);
+    }
+
     if (fields.length === 0) {
       return;
     }
@@ -353,7 +364,27 @@ export class ConversationDatabase {
       needsAbbreviation: row.needs_abbreviation === 1,
       manuallyNamed: row.manually_named === 1,
       lastRenamedAtTurn: row.last_renamed_at_turn ?? null,
+      model: row.model ?? null,
     };
+  }
+
+  /**
+   * Delete a conversation and its FTS entries in a transaction
+   */
+  deleteConversation(id: string): void {
+    const deleteConv = this.db.prepare(
+      "DELETE FROM conversations WHERE id = ?",
+    );
+    const deleteFts = this.db.prepare(
+      "DELETE FROM turns_fts WHERE conversation_id = ?",
+    );
+
+    const transaction = this.db.transaction(() => {
+      deleteFts.run(id);
+      deleteConv.run(id);
+    });
+
+    transaction();
   }
 
   /**

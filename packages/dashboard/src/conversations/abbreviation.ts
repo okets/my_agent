@@ -245,6 +245,23 @@ export class AbbreviationQueue {
   }
 
   /**
+   * Cancel a pending abbreviation task
+   *
+   * Removes the conversation from the queue if not yet processing.
+   * Does NOT stop a task that's already in progress.
+   */
+  cancel(conversationId: string): void {
+    if (!this.pendingIds.has(conversationId)) {
+      return; // Not in queue
+    }
+
+    this.pendingIds.delete(conversationId);
+    this.queue = this.queue.filter(
+      (task) => task.conversationId !== conversationId,
+    );
+  }
+
+  /**
    * Retry pending abbreviations from database
    *
    * Called on startup to process conversations that failed previously.

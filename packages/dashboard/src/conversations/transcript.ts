@@ -256,4 +256,15 @@ export class TranscriptManager {
     const turnNumbers = new Set(turns.map((t) => t.turnNumber));
     return turnNumbers.size;
   }
+
+  /**
+   * Delete a transcript file
+   */
+  deleteTranscript(conversationId: string): void {
+    const transcriptPath = this.getTranscriptPath(conversationId);
+
+    if (fs.existsSync(transcriptPath)) {
+      fs.unlinkSync(transcriptPath);
+    }
+  }
 }

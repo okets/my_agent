@@ -33,6 +33,7 @@ export interface ConversationMeta {
   created: string;
   updated: string;
   turnCount: number;
+  model: string | null;
 }
 
 // Turn data for UI display
@@ -48,14 +49,16 @@ export interface Turn {
 
 // Client → Server messages
 export type ClientMessage =
-  | { type: "message"; content: string }
+  | { type: "message"; content: string; reasoning?: boolean; model?: string }
   | { type: "abort" }
   | { type: "control_response"; controlId: string; value: string }
   | { type: "connect"; conversationId?: string }
   | { type: "new_conversation" }
   | { type: "switch_conversation"; conversationId: string }
   | { type: "rename_conversation"; title: string }
-  | { type: "load_more_turns"; before: string };
+  | { type: "load_more_turns"; before: string }
+  | { type: "delete_conversation"; conversationId: string }
+  | { type: "set_model"; model: string };
 
 // Server → Client messages
 export type ServerMessage =
@@ -83,4 +86,5 @@ export type ServerMessage =
   | { type: "conversation_renamed"; conversationId: string; title: string }
   | { type: "conversation_created"; conversation: ConversationMeta }
   | { type: "conversation_updated"; conversationId: string; turn: Turn }
-  | { type: "turns_loaded"; turns: Turn[]; hasMore: boolean };
+  | { type: "turns_loaded"; turns: Turn[]; hasMore: boolean }
+  | { type: "conversation_deleted"; conversationId: string };

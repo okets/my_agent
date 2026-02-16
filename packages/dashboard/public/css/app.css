@@ -70,9 +70,9 @@ body {
 }
 
 .glass-strong {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(30, 30, 46, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -300,9 +300,19 @@ footer textarea:focus {
   animation: messageIn 0.25s ease-out both;
 }
 
+/* ── Assistant message bubble ───────────────────────────────────── */
+.assistant-bubble {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── User message bubble ────────────────────────────────────────── */
+.user-bubble {
+  background: rgba(122, 162, 247, 0.12);
+}
+
 /* ── Thinking block ──────────────────────────────────────────── */
 .thinking-block {
-  border-left: 2px solid rgba(187, 154, 247, 0.3);
+  border-left: 2px solid rgba(187, 154, 247, 0.4);
   padding-left: 0.5rem;
 }
 
@@ -311,6 +321,7 @@ footer textarea:focus {
   font-size: 0.75rem;
   max-height: 12rem;
   overflow-y: auto;
+  color: #bb9af7;
 }
 
 /* ── Chat controls (inline in assistant messages) ─────────── */
@@ -446,11 +457,13 @@ footer input[type="password"]:focus {
   outline: none;
 }
 
-/* ── Sidebar ──────────────────────────────────────────────────── */
+/* ── Sidebar (conversation list) ─────────────────────────────── */
 
 .sidebar-panel {
   width: 260px;
   min-width: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0; /* Override glass-strong rounded corners */
 }
 
 .sidebar-open {
@@ -501,7 +514,7 @@ body.sidebar-resizing {
     left: 0;
     bottom: 0;
     z-index: 50;
-    background: #1f2335;
+    /* Glass-strong background is inherited; add shadow for overlay effect */
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
   }
 
@@ -547,4 +560,180 @@ body.sidebar-resizing {
 .conversation-title-input:focus {
   border-color: #7aa2f7;
   background: rgba(122, 162, 247, 0.08);
+}
+
+/* ── Action bar (compose area) ─────────────────────────────────── */
+
+.compose-container {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Compose box wrapper — V1 style with stronger border */
+.compose-box {
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0.75rem;
+  transition: border-color 0.15s;
+}
+
+.compose-box:focus-within {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.action-bar {
+  background: transparent;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.action-bar-btn {
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  white-space: nowrap;
+}
+
+/* Model badge — matches reasoning toggle style */
+.model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  position: relative;
+  top: -1px;
+  background: rgba(167, 139, 250, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 11px;
+  line-height: 1;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.model-badge:hover {
+  background: rgba(167, 139, 250, 0.15);
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.model-badge .model-name {
+  font-size: 11px;
+  color: rgba(167, 139, 250, 0.85);
+  font-weight: 500;
+}
+
+/* Capability icons in model badge */
+.cap-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+}
+
+.cap-icon.thinking {
+  color: #a78bfa;
+}
+.cap-icon.vision {
+  color: #7dd3fc;
+}
+.cap-icon.tools {
+  color: #fbbf24;
+}
+
+/* Send button — V1 solid coral style */
+.send-btn {
+  background: #e07a5f;
+  border: none;
+  color: white;
+  padding: 7px 8px;
+  border-radius: 8px;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.send-btn:hover {
+  background: #d4694f;
+}
+
+.send-btn:active {
+  background: #c85a40;
+}
+
+.send-btn:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.3);
+  cursor: default;
+}
+
+/* Reasoning toggle — V1 style with purple active state */
+.reasoning-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+
+.reasoning-toggle:hover {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.reasoning-toggle.active {
+  background: rgba(139, 92, 246, 0.2);
+  color: #c4b5fd;
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.reasoning-toggle.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reasoning-toggle.disabled:hover {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Capability badges — V1 micro-badge style */
+.cap-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.cap-badge.thinking {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+
+.cap-badge.vision {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+.cap-badge.tools {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+/* Model dropdown appears above the action bar */
+.action-bar .relative {
+  position: relative;
 }

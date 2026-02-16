@@ -92,7 +92,7 @@
       <!-- Sidebar                                                        -->
       <!-- ============================================================== -->
       <aside
-        class="sidebar-panel shrink-0 border-r border-tokyo-muted/10 bg-tokyo-panel overflow-y-auto"
+        class="sidebar-panel glass-strong shrink-0 overflow-y-auto"
         :class="sidebarOpen ? 'sidebar-open' : 'sidebar-closed'"
         :style="sidebarOpen ? 'width:' + sidebarWidth + 'px' : ''"
       >
@@ -100,7 +100,7 @@
           <!-- New conversation button -->
           <button
             @click="createNewConversation()"
-            class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-tokyo-blue/10 text-tokyo-blue hover:bg-tokyo-blue/20 transition-colors text-sm font-medium mb-3"
+            class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-opacity text-sm font-medium mb-3"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -118,26 +118,47 @@
           <!-- Conversation list -->
           <div class="flex-1 overflow-y-auto space-y-1">
             <template x-for="conv in conversations" :key="conv.id">
-              <button
-                @click="switchConversation(conv.id)"
-                class="w-full text-left px-3 py-2 rounded-lg transition-colors"
-                :class="
-                  currentConversationId === conv.id
-                    ? 'bg-tokyo-blue/15 text-tokyo-blue'
-                    : 'hover:bg-tokyo-card/50 text-tokyo-text'
-                "
-              >
-                <div class="flex flex-col gap-1">
-                  <div
-                    class="text-sm font-medium truncate"
-                    x-text="conv.title || 'New conversation'"
-                  ></div>
-                  <div
-                    class="text-xs text-tokyo-muted"
-                    x-text="formatRelativeTime(conv.updated)"
-                  ></div>
-                </div>
-              </button>
+              <div class="group relative">
+                <button
+                  @click="switchConversation(conv.id)"
+                  class="w-full text-left px-3 py-2 rounded-lg transition-colors"
+                  :class="
+                    currentConversationId === conv.id
+                      ? 'bg-tokyo-blue/15 text-tokyo-blue'
+                      : 'hover:bg-white/5 text-tokyo-text'
+                  "
+                >
+                  <div class="flex flex-col gap-1 pr-6">
+                    <div
+                      class="text-sm font-medium truncate"
+                      x-text="conv.title || 'New conversation'"
+                    ></div>
+                    <div
+                      class="text-xs text-tokyo-muted"
+                      x-text="formatRelativeTime(conv.updated)"
+                    ></div>
+                  </div>
+                </button>
+                <!-- Delete button (visible on hover) -->
+                <button
+                  @click.stop="confirmDeleteConversation(conv.id, conv.title)"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-tokyo-muted hover:text-tokyo-red hover:bg-tokyo-red/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Delete conversation"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    class="w-4 h-4"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                </button>
+              </div>
             </template>
           </div>
         </div>
@@ -297,8 +318,7 @@
 
                   <!-- Bubble -->
                   <div
-                    class="rounded-xl rounded-tl-none px-3 py-2"
-                    style="background: rgba(255, 255, 255, 0.05)"
+                    class="assistant-bubble rounded-xl rounded-tl-none px-3 py-2"
                   >
                     <div
                       class="chat-md text-sm leading-relaxed"
@@ -315,7 +335,7 @@
                       <div class="thinking-block mt-1.5 mb-1">
                         <button
                           @click="msg.thinkingExpanded = !msg.thinkingExpanded"
-                          class="flex items-center gap-1.5 text-xs text-tokyo-muted hover:text-tokyo-text transition-colors"
+                          class="flex items-center gap-1.5 text-xs text-tokyo-purple/70 hover:text-tokyo-purple transition-colors"
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -354,8 +374,7 @@
               <template x-if="msg.role === 'user'">
                 <div class="flex justify-end">
                   <div
-                    class="max-w-[85%] rounded-xl rounded-tr-none px-3 py-2"
-                    style="background: rgba(122, 162, 247, 0.1)"
+                    class="user-bubble max-w-[85%] rounded-xl rounded-tr-none px-3 py-2"
                   >
                     <div
                       class="chat-md text-sm leading-relaxed"
@@ -392,8 +411,7 @@
 
               <!-- Dots bubble -->
               <div
-                class="rounded-xl rounded-tl-none px-4 py-3"
-                style="background: rgba(255, 255, 255, 0.05)"
+                class="assistant-bubble rounded-xl rounded-tl-none px-4 py-3"
               >
                 <template x-if="isThinking">
                   <span class="text-xs text-tokyo-purple">Thinking...</span>
@@ -417,87 +435,253 @@
           class="shrink-0 p-3"
           style="border-top: 1px solid rgba(255, 255, 255, 0.06)"
         >
-          <div
-            class="flex items-end gap-2 rounded-xl px-3 py-2"
-            style="
-              background: rgba(255, 255, 255, 0.05);
-              border: 1px solid rgba(255, 255, 255, 0.06);
-            "
-          >
-            <!-- Textarea (normal mode) -->
-            <textarea
-              x-ref="chatInput"
-              x-model="inputText"
-              x-show="!composePasswordMode"
-              rows="1"
-              :placeholder="currentPlaceholder"
-              class="flex-1 bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted resize-none outline-none leading-relaxed"
-              style="max-height: 7.5rem"
-              @keydown.enter="
-              if (!$event.shiftKey) {
-                $event.preventDefault();
-                sendMessage();
-              }
-            "
-              @input="autoResize($refs.chatInput)"
-            ></textarea>
+          <div class="compose-container compose-box">
+            <!-- Textarea area -->
+            <div class="px-3 py-2">
+              <!-- Textarea (normal mode) -->
+              <textarea
+                x-ref="chatInput"
+                x-model="inputText"
+                x-show="!composePasswordMode"
+                rows="1"
+                :placeholder="currentPlaceholder"
+                class="w-full bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted resize-none outline-none leading-relaxed"
+                style="max-height: 7.5rem"
+                @keydown.enter="
+                if (!$event.shiftKey) {
+                  $event.preventDefault();
+                  sendMessage();
+                }
+              "
+                @input="autoResize($refs.chatInput)"
+              ></textarea>
 
-            <!-- Password input (shown only in password mode) -->
-            <input
-              x-ref="chatInputPassword"
-              x-model="inputText"
-              x-show="composePasswordMode"
-              type="password"
-              :placeholder="currentPlaceholder"
-              class="flex-1 bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted outline-none leading-relaxed"
-              @keydown.enter="$event.preventDefault(); sendMessage();"
-            />
+              <!-- Password input (shown only in password mode) -->
+              <input
+                x-ref="chatInputPassword"
+                x-model="inputText"
+                x-show="composePasswordMode"
+                type="password"
+                :placeholder="currentPlaceholder"
+                class="w-full bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted outline-none leading-relaxed"
+                @keydown.enter="$event.preventDefault(); sendMessage();"
+              />
+            </div>
 
-            <!-- Send button -->
-            <button
-              x-show="!isResponding"
-              @click="sendMessage()"
-              :disabled="!canSend"
-              class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-150"
-              :class="
-              canSend
-                ? 'bg-tokyo-blue/20 text-tokyo-blue hover:bg-tokyo-blue/30 cursor-pointer'
-                : 'text-tokyo-muted opacity-30 cursor-default'
-            "
-            >
-              <!-- Send icon (arrow up) -->
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                class="w-4 h-4"
+            <!-- Action bar -->
+            <div class="action-bar flex items-center gap-1 px-2 py-1.5">
+              <!-- Model selector dropdown -->
+              <div class="relative" x-data="{ modelOpen: false }">
+                <button
+                  @click="modelOpen = !modelOpen"
+                  @click.outside="modelOpen = false"
+                  class="model-badge"
+                >
+                  <span class="model-name" x-text="modelDisplayName"></span>
+                  <!-- Capability icons -->
+                  <svg
+                    class="cap-icon thinking"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M8 1a4.5 4.5 0 0 0-4.5 4.5c0 1.544.78 2.912 1.969 3.728a.75.75 0 0 1 .337.63v.392a.75.75 0 0 0 .75.75h2.888a.75.75 0 0 0 .75-.75v-.392a.75.75 0 0 1 .337-.63A4.498 4.498 0 0 0 12.5 5.5 4.5 4.5 0 0 0 8 1Z"
+                    />
+                  </svg>
+                  <svg
+                    class="cap-icon vision"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                  >
+                    <path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
+                    <path
+                      fill-rule="evenodd"
+                      d="M1.38 8.28a.87.87 0 0 1 0-.56C2.57 4.84 5.03 3 8 3s5.43 1.84 6.62 4.72a.87.87 0 0 1 0 .56C13.43 11.16 10.97 13 8 13s-5.43-1.84-6.62-4.72ZM11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  <svg
+                    class="cap-icon tools"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M6.455 1.45A.5.5 0 0 1 6.952 1h2.096a.5.5 0 0 1 .497.45l.186 1.858a4.996 4.996 0 0 1 1.466.848l1.703-.769a.5.5 0 0 1 .639.206l1.047 1.814a.5.5 0 0 1-.142.656l-1.517 1.09a5.026 5.026 0 0 1 0 1.694l1.517 1.09a.5.5 0 0 1 .142.656l-1.047 1.814a.5.5 0 0 1-.639.206l-1.703-.769c-.433.36-.928.652-1.466.848l-.186 1.858a.5.5 0 0 1-.497.45H6.952a.5.5 0 0 1-.497-.45l-.186-1.858a4.993 4.993 0 0 1-1.466-.848l-1.703.769a.5.5 0 0 1-.639-.206L1.414 11.5a.5.5 0 0 1 .142-.656l1.517-1.09a5.026 5.026 0 0 1 0-1.694l-1.517-1.09a.5.5 0 0 1-.142-.656l1.047-1.814a.5.5 0 0 1 .639-.206l1.703.769c.433-.36.928-.652 1.466-.848l.186-1.858ZM8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    class="w-3 h-3 ml-1 opacity-50"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                </button>
+
+                <!-- Dropdown menu -->
+                <div
+                  x-show="modelOpen"
+                  x-transition:enter="transition ease-out duration-100"
+                  x-transition:enter-start="opacity-0 scale-95"
+                  x-transition:enter-end="opacity-100 scale-100"
+                  x-transition:leave="transition ease-in duration-75"
+                  x-transition:leave-start="opacity-100 scale-100"
+                  x-transition:leave-end="opacity-0 scale-95"
+                  class="absolute bottom-full left-0 mb-1 w-40 rounded-lg bg-tokyo-panel border border-tokyo-muted/20 shadow-lg overflow-hidden z-50"
+                  x-cloak
+                >
+                  <template x-for="model in modelOptions" :key="model.id">
+                    <button
+                      @click="onModelChange(model.id); modelOpen = false"
+                      class="w-full text-left px-3 py-2 text-xs transition-colors"
+                      :class="
+                        selectedModel === model.id
+                          ? 'bg-tokyo-blue/15 text-tokyo-blue'
+                          : 'text-tokyo-text hover:bg-tokyo-card/50'
+                      "
+                      x-text="model.name"
+                    ></button>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Reasoning toggle (disabled for Haiku) -->
+              <label
+                class="reasoning-toggle"
+                :class="{ 'active': reasoningEnabled, 'disabled': isHaikuModel }"
+                :title="isHaikuModel ? 'Reasoning not supported with Haiku' : 'Enable extended thinking'"
               >
-                <path
-                  fill-rule="evenodd"
-                  d="M10 17a.75.75 0 0 1-.75-.75V5.612L5.29 9.77a.75.75 0 0 1-1.08-1.04l5.25-5.5a.75.75 0 0 1 1.08 0l5.25 5.5a.75.75 0 1 1-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0 1 10 17Z"
-                  clip-rule="evenodd"
+                <input
+                  type="checkbox"
+                  x-model="reasoningEnabled"
+                  :disabled="isHaikuModel"
+                  class="sr-only"
                 />
-              </svg>
-            </button>
+                <!-- Sparkle icon -->
+                <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3">
+                  <path
+                    d="M8 0a.75.75 0 0 1 .7.48l1.17 3.15 3.15 1.17a.75.75 0 0 1 0 1.4l-3.15 1.17-1.17 3.15a.75.75 0 0 1-1.4 0L6.13 7.37 2.98 6.2a.75.75 0 0 1 0-1.4l3.15-1.17L7.3.48A.75.75 0 0 1 8 0Zm4.5 9a.5.5 0 0 1 .47.33l.5 1.35 1.35.5a.5.5 0 0 1 0 .94l-1.35.5-.5 1.35a.5.5 0 0 1-.94 0l-.5-1.35-1.35-.5a.5.5 0 0 1 0-.94l1.35-.5.5-1.35A.5.5 0 0 1 12.5 9Z"
+                  />
+                </svg>
+                <span>Reasoning</span>
+              </label>
 
-            <!-- Stop button -->
-            <button
-              x-show="isResponding"
-              @click="stopResponse()"
-              class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-tokyo-red/20 text-tokyo-red hover:bg-tokyo-red/30 cursor-pointer transition-all duration-150"
-            >
-              <!-- Stop icon (square) -->
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                class="w-3.5 h-3.5"
+              <!-- Spacer -->
+              <div class="flex-1"></div>
+
+              <!-- Attachment button (right-aligned, before slash) -->
+              <button
+                class="action-bar-btn flex items-center justify-center w-7 h-7 rounded-md text-tokyo-muted hover:text-tokyo-text hover:bg-tokyo-card/50 transition-colors"
+                title="Attach file"
               >
-                <rect x="5" y="5" width="10" height="10" rx="1" />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  class="w-4 h-4"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M11.986 3.012a2.249 2.249 0 0 0-3.183 0l-4.5 4.5a3.75 3.75 0 1 0 5.304 5.304l4.5-4.5a.75.75 0 0 1 1.06 1.06l-4.5 4.5a5.25 5.25 0 0 1-7.424-7.424l4.5-4.5a3.75 3.75 0 0 1 5.304 5.304l-4.5 4.5a2.25 2.25 0 0 1-3.182-3.182l4.5-4.5a.75.75 0 0 1 1.06 1.06l-4.5 4.5a.75.75 0 1 0 1.061 1.06l4.5-4.5a2.25 2.25 0 0 0 0-3.182Z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              <!-- Slash divider -->
+              <span class="text-tokyo-muted/40 text-sm select-none">/</span>
+
+              <!-- Send button (solid coral V1 style) -->
+              <button
+                x-show="!isResponding"
+                @click="sendMessage()"
+                :disabled="!canSend"
+                class="send-btn shrink-0 w-7 h-7 flex items-center justify-center"
+              >
+                <!-- Send icon (arrow up) -->
+                <svg viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 17a.75.75 0 0 1-.75-.75V5.612L5.29 9.77a.75.75 0 0 1-1.08-1.04l5.25-5.5a.75.75 0 0 1 1.08 0l5.25 5.5a.75.75 0 1 1-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0 1 10 17Z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              <!-- Stop button -->
+              <button
+                x-show="isResponding"
+                @click="stopResponse()"
+                class="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-tokyo-red/20 text-tokyo-red hover:bg-tokyo-red/30 cursor-pointer transition-all duration-150"
+              >
+                <!-- Stop icon (square) -->
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  class="w-3.5 h-3.5"
+                >
+                  <rect x="5" y="5" width="10" height="10" rx="1" />
+                </svg>
+              </button>
+            </div>
           </div>
         </footer>
+      </div>
+
+      <!-- ============================================================== -->
+      <!-- Delete Confirmation Dialog                                     -->
+      <!-- ============================================================== -->
+      <div
+        x-show="deleteConfirmOpen"
+        x-transition:enter="transition ease-out duration-150"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-100"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+        @click.self="cancelDelete()"
+        x-cloak
+      >
+        <div
+          x-show="deleteConfirmOpen"
+          x-transition:enter="transition ease-out duration-150"
+          x-transition:enter-start="opacity-0 scale-95"
+          x-transition:enter-end="opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-100"
+          x-transition:leave-start="opacity-100 scale-100"
+          x-transition:leave-end="opacity-0 scale-95"
+          class="glass-strong rounded-xl p-5 max-w-sm w-full mx-4 shadow-xl"
+        >
+          <h3 class="text-lg font-semibold text-tokyo-text mb-2">
+            Delete conversation?
+          </h3>
+          <p class="text-sm text-tokyo-muted mb-4">
+            "<span x-text="deleteTargetTitle" class="text-tokyo-text"></span>"
+            will be permanently deleted. This cannot be undone.
+          </p>
+          <div class="flex justify-end gap-3">
+            <button
+              @click="cancelDelete()"
+              class="px-4 py-2 rounded-lg text-sm font-medium text-tokyo-text hover:bg-white/5 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              @click="executeDelete()"
+              class="px-4 py-2 rounded-lg text-sm font-medium bg-tokyo-red/20 text-tokyo-red hover:bg-tokyo-red/30 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 

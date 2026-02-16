@@ -35,6 +35,22 @@ function chat() {
     editingTitle: false,
     editTitleValue: "",
 
+    // Action bar state
+    selectedModel: "claude-sonnet-4-5-20250929",
+    reasoningEnabled: false,
+    attachments: [], // Will hold {file, preview, type} objects
+
+    // Delete confirmation
+    deleteConfirmOpen: false,
+    deleteTargetId: null,
+    deleteTargetTitle: null,
+
+    modelOptions: [
+      { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5" },
+      { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5" },
+      { id: "claude-opus-4-6", name: "Opus 4.6" },
+    ],
+
     // ─────────────────────────────────────────────────────────────────
     // Computed
     // ─────────────────────────────────────────────────────────────────
@@ -63,6 +79,15 @@ function chat() {
       return (
         words[0].charAt(0).toUpperCase() + words[1].charAt(0).toUpperCase()
       );
+    },
+
+    get modelDisplayName() {
+      const model = this.modelOptions.find((m) => m.id === this.selectedModel);
+      return model ? model.name : "Sonnet 4.5";
+    },
+
+    get isHaikuModel() {
+      return this.selectedModel.includes("haiku");
     },
 
     // ─────────────────────────────────────────────────────────────────
@@ -243,9 +268,15 @@ function chat() {
           value: text,
         });
       } else {
+        // Include reasoning flag (only if not Haiku)
+        const reasoning =
+          this.reasoningEnabled && !this.selectedModel.includes("haiku");
+        // Include model so server can set it on new conversations
         this.ws.send({
           type: "message",
           content: text,
+          reasoning,
+          model: this.selectedModel,
         });
       }
 
@@ -451,8 +482,13 @@ function chat() {
           this.resetChatState();
           if (data.conversation) {
             this.currentConversationId = data.conversation.id;
+            // Sync model from conversation (use default if not set)
+            this.selectedModel =
+              data.conversation.model || "claude-sonnet-4-5-20250929";
           } else {
             this.currentConversationId = null;
+            // Reset to default model for new conversations
+            this.selectedModel = "claude-sonnet-4-5-20250929";
           }
 
           // Convert turns to messages
@@ -553,6 +589,18 @@ function chat() {
           );
           if (convToRename) {
             convToRename.title = data.title;
+          }
+          break;
+
+        case "conversation_deleted":
+          // Remove from sidebar
+          this.conversations = this.conversations.filter(
+            (c) => c.id !== data.conversationId,
+          );
+          // If it was the current conversation, show empty state
+          if (this.currentConversationId === data.conversationId) {
+            this.currentConversationId = null;
+            this.resetChatState();
           }
           break;
 
@@ -670,6 +718,47 @@ function chat() {
 
     cancelTitleEdit() {
       this.editingTitle = false;
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Model selection
+    // ─────────────────────────────────────────────────────────────────
+    onModelChange(model) {
+      this.selectedModel = model;
+      // Haiku doesn't support extended thinking — disable reasoning if switching to Haiku
+      if (model.includes("haiku")) {
+        this.reasoningEnabled = false;
+      }
+      // Persist to server if we have an active conversation
+      if (this.wsConnected && this.currentConversationId) {
+        this.ws.send({ type: "set_model", model: model });
+      }
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Conversation deletion
+    // ─────────────────────────────────────────────────────────────────
+    confirmDeleteConversation(id, title) {
+      this.deleteTargetId = id;
+      this.deleteTargetTitle = title || "New conversation";
+      this.deleteConfirmOpen = true;
+    },
+
+    cancelDelete() {
+      this.deleteConfirmOpen = false;
+      this.deleteTargetId = null;
+      this.deleteTargetTitle = null;
+    },
+
+    executeDelete() {
+      if (!this.deleteTargetId || !this.wsConnected) return;
+      this.ws.send({
+        type: "delete_conversation",
+        conversationId: this.deleteTargetId,
+      });
+      this.deleteConfirmOpen = false;
+      this.deleteTargetId = null;
+      this.deleteTargetTitle = null;
     },
 
     // ─────────────────────────────────────────────────────────────────

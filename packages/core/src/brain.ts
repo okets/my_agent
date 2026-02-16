@@ -5,6 +5,8 @@ export interface BrainSessionOptions {
   systemPrompt?: string
   continue?: boolean
   includePartialMessages?: boolean
+  /** Enable extended thinking (adaptive mode with high effort) */
+  reasoning?: boolean
 }
 
 export function createBrainQuery(prompt: string, options: BrainSessionOptions): Query {
@@ -26,6 +28,13 @@ export function createBrainQuery(prompt: string, options: BrainSessionOptions): 
   }
   if (options.includePartialMessages) {
     queryOptions.includePartialMessages = true
+  }
+  // Extended thinking configuration
+  if (options.reasoning) {
+    queryOptions.thinking = { type: 'adaptive' }
+    queryOptions.effort = 'high'
+  } else {
+    queryOptions.thinking = { type: 'disabled' }
   }
   return query({ prompt, options: queryOptions })
 }

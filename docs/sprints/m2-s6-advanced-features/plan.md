@@ -3,6 +3,23 @@
 > **Status:** Active
 > **Depends on:** M2-S5 (Naming)
 > **Design spec:** This document
+> **Design language:** [`docs/design/nina-v1-design-language.md`](../../design/nina-v1-design-language.md)
+
+## Design Language Compliance
+
+**All frontend work in this sprint MUST follow the Nina V1 Design Language.**
+
+Key requirements:
+- **Glass panels:** Purple-tinted `rgba(30,30,46,0.8)`, not transparent
+- **Send button:** Solid coral `#e07a5f`, not ghost style
+- **Model badge:** Purple-tinted with capability icons (Thinking/Vision/Tools)
+- **Compose border:** `0.15` normal → `0.35` on focus
+- **Capability badges:** `text-[9px]` with `bg-{color}-500/15` backgrounds
+- **Toggle active state:** `bg-violet-500/20 text-violet-300 border-violet-500/30`
+
+Reference the full design language doc and `packages/dashboard/CLAUDE.md` before implementing any UI.
+
+---
 
 ## Goal
 

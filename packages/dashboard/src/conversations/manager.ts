@@ -48,6 +48,7 @@ export class ConversationManager {
       needsAbbreviation: false,
       manuallyNamed: false,
       lastRenamedAtTurn: null,
+      model: null,
     };
 
     // Create transcript file with metadata header
@@ -238,10 +239,39 @@ export class ConversationManager {
   }
 
   /**
+   * Set the model for a conversation
+   */
+  async setModel(id: string, model: string): Promise<void> {
+    this.db.updateConversation(id, { model });
+  }
+
+  /**
    * Search conversations using FTS
    */
   async search(query: string, limit = 10) {
     return this.db.searchConversations(query, limit);
+  }
+
+  /**
+   * Delete a conversation
+   *
+   * Removes:
+   * - Database record and FTS entries
+   * - JSONL transcript file
+   * - Attachments folder (placeholder - T6 will implement AttachmentService)
+   *
+   * Note: Session cleanup (idle timer, abbreviation task, session registry)
+   * should be handled by the caller (chat-handler.ts) before calling this.
+   */
+  async delete(id: string): Promise<void> {
+    // Delete from database (conversations + turns_fts)
+    this.db.deleteConversation(id);
+
+    // Delete transcript file
+    this.transcripts.deleteTranscript(id);
+
+    // TODO (T6): Delete attachments folder via AttachmentService
+    // For now, attachments are not implemented so nothing to clean up
   }
 
   /**

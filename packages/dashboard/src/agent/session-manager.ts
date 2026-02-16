@@ -11,6 +11,13 @@ interface TurnRecord {
   content: string;
 }
 
+interface StreamOptions {
+  /** Override the default model */
+  model?: string;
+  /** Enable extended thinking */
+  reasoning?: boolean;
+}
+
 export class SessionManager {
   private conversationId: string | null;
   private contextInjection: string | null;
@@ -67,7 +74,10 @@ export class SessionManager {
     return prompt;
   }
 
-  async *streamMessage(content: string): AsyncGenerator<StreamEvent> {
+  async *streamMessage(
+    content: string,
+    options?: StreamOptions,
+  ): AsyncGenerator<StreamEvent> {
     await this.ensureInitialized();
 
     // Record user turn
@@ -76,11 +86,19 @@ export class SessionManager {
     // Build prompt with full history — each query is independent
     const systemPrompt = this.buildPromptWithHistory();
 
+    // Use override model if provided, otherwise use config default
+    const model = options?.model || this.config!.model;
+
+    // Haiku doesn't support extended thinking — ignore reasoning flag for Haiku
+    const isHaiku = model.includes("haiku");
+    const reasoning = options?.reasoning && !isHaiku;
+
     const q = createBrainQuery(content, {
-      model: this.config!.model,
+      model,
       systemPrompt,
       continue: false, // Always fresh — SDK continue is global, not per-conversation
       includePartialMessages: true,
+      reasoning,
     });
 
     this.activeQuery = q;

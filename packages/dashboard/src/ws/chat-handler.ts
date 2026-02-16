@@ -223,6 +223,20 @@ export async function registerChatWebSocket(
             await handleLoadMoreTurns(msg.before);
             return;
           }
+
+          if (msg.type === "delete_conversation") {
+            if (!isValidConversationId(msg.conversationId)) {
+              send({ type: "error", message: "Invalid conversation ID" });
+              return;
+            }
+            await handleDeleteConversation(msg.conversationId);
+            return;
+          }
+
+          if (msg.type === "set_model") {
+            await handleSetModel(msg.model);
+            return;
+          }
         }
 
         // Handle regular messages
@@ -265,7 +279,7 @@ export async function registerChatWebSocket(
             return;
           }
 
-          await handleChatMessage(msg.content);
+          await handleChatMessage(msg.content, msg.reasoning, msg.model);
         }
       } catch (err) {
         send({ type: "error", message: "Invalid message format" });
@@ -513,14 +527,105 @@ export async function registerChatWebSocket(
     }
 
     /**
+     * Handle delete conversation
+     *
+     * Cleanup includes:
+     * - Cancel pending abbreviation task
+     * - Clear idle timer
+     * - Remove from session registry
+     * - Delete from database + transcript
+     * - Broadcast deletion to all tabs
+     */
+    async function handleDeleteConversation(
+      conversationId: string,
+    ): Promise<void> {
+      // Verify conversation exists
+      const conversation = await conversationManager.get(conversationId);
+      if (!conversation) {
+        send({ type: "error", message: "Conversation not found" });
+        return;
+      }
+
+      // Cancel pending abbreviation task if exists
+      if (fastify.abbreviationQueue) {
+        fastify.abbreviationQueue.cancel(conversationId);
+      }
+
+      // Clear idle timer if exists
+      if (idleTimerManager) {
+        idleTimerManager.clear(conversationId);
+      }
+
+      // Remove from session registry if active
+      sessionRegistry.remove(conversationId);
+
+      // If this was the current conversation, clear local state
+      if (currentConversationId === conversationId) {
+        currentConversationId = null;
+        currentTurnNumber = 0;
+        sessionManager = null;
+      }
+
+      // Delete from database + transcript
+      // (Attachments folder placeholder - T6 will implement AttachmentService)
+      await conversationManager.delete(conversationId);
+
+      fastify.log.info(`Deleted conversation ${conversationId}`);
+
+      // Broadcast deletion to all tabs
+      connectionRegistry.broadcastToAll({
+        type: "conversation_deleted",
+        conversationId,
+      });
+    }
+
+    /**
+     * Handle set model
+     */
+    async function handleSetModel(model: string): Promise<void> {
+      if (!currentConversationId) {
+        send({ type: "error", message: "No active conversation" });
+        return;
+      }
+
+      // Validate model (basic validation - allow known models)
+      const validModels = [
+        "claude-sonnet-4-5-20250929",
+        "claude-haiku-4-5-20251001",
+        "claude-opus-4-6",
+      ];
+      if (!validModels.includes(model)) {
+        send({ type: "error", message: "Invalid model" });
+        return;
+      }
+
+      // Persist model to database
+      await conversationManager.setModel(currentConversationId, model);
+
+      fastify.log.info(
+        `Set model for conversation ${currentConversationId}: ${model}`,
+      );
+    }
+
+    /**
      * Handle chat message
      */
-    async function handleChatMessage(content: string): Promise<void> {
+    async function handleChatMessage(
+      content: string,
+      reasoning?: boolean,
+      model?: string,
+    ): Promise<void> {
       // Create conversation if needed
       if (!currentConversationId) {
         const conversation = await conversationManager.create("web");
         currentConversationId = conversation.id;
         currentTurnNumber = 0;
+
+        // Set model if provided (user selected before first message)
+        if (model) {
+          await conversationManager.setModel(conversation.id, model);
+          conversation.model = model;
+        }
 
         connectionRegistry.switchConversation(socket, conversation.id);
 
@@ -592,8 +697,20 @@ export async function registerChatWebSocket(
       let usage: { input: number; output: number } | undefined;
       let cost: number | undefined;
 
+      // Get model: prefer message's model, fall back to stored model
+      const conversation = await conversationManager.get(currentConversationId);
+      const modelOverride = model || conversation?.model || undefined;
+
+      // If message specifies model and it differs from stored, persist it
+      if (model && model !== conversation?.model) {
+        await conversationManager.setModel(currentConversationId, model);
+      }
+
       try {
-        for await (const event of sessionManager.streamMessage(content)) {
+        for await (const event of sessionManager.streamMessage(content, {
+          model: modelOverride,
+          reasoning,
+        })) {
           switch (event.type) {
             case "text_delta":
               assistantContent += event.text;
@@ -738,6 +855,7 @@ function toConversationMeta(conv: Conversation): ConversationMeta {
     created: conv.created.toISOString(),
     updated: conv.updated.toISOString(),
     turnCount: conv.turnCount,
+    model: conv.model,
   };
 }
 

@@ -44,6 +44,9 @@ export interface Conversation {
 
   /** Turn count at last auto-rename (null if never renamed) */
   lastRenamedAtTurn: number | null;
+
+  /** Model used for this conversation (e.g., claude-sonnet-4-20250514) */
+  model: string | null;
 }
 
 /**
