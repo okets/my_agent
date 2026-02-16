@@ -138,7 +138,7 @@ export class AbbreviationQueue {
 
     try {
       const query = createBrainQuery(fullPrompt, {
-        model: "claude-haiku-4", // Use Haiku for fast, cheap abbreviations
+        model: "claude-haiku-4-5-20251001", // Use Haiku for fast, cheap abbreviations
         systemPrompt: "You are a conversation summarizer.",
         continue: false,
         includePartialMessages: false,
@@ -148,20 +148,30 @@ export class AbbreviationQueue {
 
       let abbreviationText = "";
 
+      // With includePartialMessages: false, the SDK returns complete
+      // "assistant" messages (not streaming "stream_event" deltas).
       for await (const msg of query) {
-        if (msg.type === "stream_event") {
-          const event = msg.event as {
-            type: string;
-            delta?: { type: string; text?: string };
-          };
-
-          if (
-            event.type === "content_block_delta" &&
-            event.delta?.type === "text_delta" &&
-            event.delta.text
-          ) {
-            abbreviationText += event.delta.text;
+        if (msg.type === "assistant") {
+          const message = (
+            msg as {
+              message?: {
+                content?: Array<{ type: string; text?: string }>;
+              };
+            }
+          ).message;
+          if (message?.content) {
+            for (const block of message.content) {
+              if (block.type === "text" && block.text) {
+                abbreviationText += block.text;
+              }
+            }
           }
+        } else if (msg.type === "result") {
+          const result = msg as { result?: string };
+          if (!abbreviationText && result.result) {
+            abbreviationText = result.result;
+          }
+          break;
         }
       }
 

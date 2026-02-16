@@ -4,7 +4,7 @@ import type { SessionManager } from "../agent/session-manager.js";
 import { ScriptedHatchingEngine } from "../hatching/scripted-engine.js";
 import { createHatchingSession } from "../hatching/hatching-tools.js";
 import { resolveAuth } from "@my-agent/core";
-import { IdleTimerManager } from "../conversations/index.js";
+import { IdleTimerManager, NamingService } from "../conversations/index.js";
 import type { ConversationManager } from "../conversations/index.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
 import { ConnectionRegistry } from "./connection-registry.js";
@@ -25,6 +25,9 @@ const connectionRegistry = new ConnectionRegistry();
 
 // Global idle timer manager (lazily initialized on first WS connection)
 let idleTimerManager: IdleTimerManager | null = null;
+
+// Global naming service (lazily initialized when needed)
+let namingService: NamingService | null = null;
 
 // Global session registry for conversation-bound sessions
 const sessionRegistry = new SessionRegistry(5); // Max 5 concurrent sessions
@@ -609,6 +612,60 @@ export async function registerChatWebSocket(
         // Touch idle timer on assistant response complete
         if (idleTimerManager) {
           idleTimerManager.touch(currentConversationId);
+        }
+
+        // Log turn completion for diagnostics
+        fastify.log.info(
+          `Turn ${currentTurnNumber} completed for ${currentConversationId}`,
+        );
+
+        // Trigger naming at turn 5 (fire-and-forget)
+        if (currentTurnNumber === 5 && currentConversationId) {
+          // Capture conversation ID to avoid closure issues if user switches
+          const convIdForNaming = currentConversationId;
+
+          // Lazily initialize naming service (auth handled by createBrainQuery)
+          if (!namingService) {
+            namingService = new NamingService();
+          }
+
+          // Fire-and-forget naming
+          (async () => {
+            try {
+              // Check if title already set (user may have renamed manually)
+              const conv = await conversationManager.get(convIdForNaming);
+              if (conv?.title) {
+                return;
+              }
+
+              const turns = await conversationManager.getRecentTurns(
+                convIdForNaming,
+                10,
+              );
+              const result = await namingService!.generateName(turns);
+              await conversationManager.setTitle(convIdForNaming, result.title);
+              await conversationManager.setTopics(
+                convIdForNaming,
+                result.topics,
+              );
+
+              // Broadcast to ALL clients
+              connectionRegistry.broadcastToAll({
+                type: "conversation_renamed",
+                conversationId: convIdForNaming,
+                title: result.title,
+              });
+
+              fastify.log.info(
+                `Named conversation ${convIdForNaming}: ${result.title} [${result.topics.join(", ")}]`,
+              );
+            } catch (err) {
+              fastify.log.error(
+                err,
+                `Naming failed for conversation ${convIdForNaming}`,
+              );
+            }
+          })();
         }
 
         // Broadcast assistant turn to other tabs

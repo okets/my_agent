@@ -201,6 +201,30 @@
               <span class="text-tokyo-muted">Online</span>
             </span>
           </div>
+
+          <!-- Conversation title (editable) -->
+          <div class="flex-1 min-w-0 ml-3">
+            <!-- Display mode -->
+            <div
+              x-show="!editingTitle"
+              @click="startTitleEdit()"
+              class="conversation-title-display text-sm text-tokyo-muted cursor-pointer hover:text-tokyo-text transition-colors truncate"
+              x-text="currentTitle || 'New conversation'"
+            ></div>
+
+            <!-- Edit mode -->
+            <input
+              x-show="editingTitle"
+              x-ref="titleInput"
+              x-model="editTitleValue"
+              type="text"
+              class="conversation-title-input text-sm text-tokyo-text bg-transparent border-none outline-none w-full"
+              placeholder="Conversation title"
+              @keydown.enter="confirmTitleEdit()"
+              @keydown.escape="cancelTitleEdit()"
+              @blur="cancelTitleEdit()"
+            />
+          </div>
         </header>
 
         <!-- ============================================================== -->

@@ -29,6 +29,10 @@ function chat() {
     currentConversationId: null,
     sidebarOpen: true,
 
+    // Title editing
+    editingTitle: false,
+    editTitleValue: "",
+
     // ─────────────────────────────────────────────────────────────────
     // Computed
     // ─────────────────────────────────────────────────────────────────
@@ -67,6 +71,14 @@ function chat() {
         return "Let's get started!";
       }
       return "Hey! I\u2019m " + this.agentName + ".";
+    },
+
+    get currentTitle() {
+      if (!this.currentConversationId) return null;
+      const conv = this.conversations.find(
+        (c) => c.id === this.currentConversationId,
+      );
+      return conv?.title || null;
     },
 
     init() {
@@ -169,7 +181,9 @@ function chat() {
       this.currentConversationId = null;
       this._pendingNewConversation = true;
       this.ws.send({ type: "new_conversation" });
-      this.$nextTick(() => { this.$refs.chatInput?.focus(); });
+      this.$nextTick(() => {
+        this.$refs.chatInput?.focus();
+      });
     },
 
     switchConversation(conversationId) {
@@ -629,6 +643,31 @@ function chat() {
       this.$nextTick(() => {
         this.scrollToBottom();
       });
+    },
+
+    startTitleEdit() {
+      if (!this.currentConversationId || !this.wsConnected) return;
+      this.editingTitle = true;
+      this.editTitleValue = this.currentTitle || "";
+      this.$nextTick(() => {
+        this.$refs.titleInput?.focus();
+        this.$refs.titleInput?.select();
+      });
+    },
+
+    confirmTitleEdit() {
+      const title = this.editTitleValue.trim();
+      if (title && this.wsConnected && this.currentConversationId) {
+        this.ws.send({
+          type: "rename_conversation",
+          title: title,
+        });
+      }
+      this.editingTitle = false;
+    },
+
+    cancelTitleEdit() {
+      this.editingTitle = false;
     },
   };
 }
