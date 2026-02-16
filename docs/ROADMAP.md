@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-02-16
+> **Updated:** 2026-02-17
 
 ---
 
@@ -10,7 +10,7 @@
 | Milestone                    | Status   | Progress                     |
 | ---------------------------- | -------- | ---------------------------- |
 | **M1: Foundation**           | Complete | 4/4 sprints                  |
-| **M2: Web UI**               | Active   | 5/6 sprints                  |
+| **M2: Web UI**               | Complete | 6/6 sprints                  |
 | **M3: WhatsApp Channel**     | Planned  | Design complete, sprints TBD |
 | **M4a: Task System**         | Planned  | Design complete, sprints TBD |
 | **M4b: Memory**              | Planned  | Design complete, sprints TBD |
@@ -26,15 +26,15 @@
 ├─────────────────────────────────────────────────────────────────────►
 
 M1 Foundation     M2 Web UI                      M3-M6 Future
-[████████████]    [██████████░░]                  [░░░░░░░░░░]
-   COMPLETE          ACTIVE                          PLANNED
+[████████████]    [████████████]                  [░░░░░░░░░░]
+   COMPLETE          COMPLETE                         PLANNED
 
                   S1 ██ Server + Chat (done)
                   S2 ██ Streaming (done)
                   S3 ██ Hatching Wizard (done)
                   S4 ██ Conversations (done)
                   S5 ██ Naming (done)
-                  S6 ░░ Advanced Chat Features (active)
+                  S6 ██ Advanced Chat Features (done)
 
                                                  M3 WhatsApp ─┐
                                                  M4a Tasks ───┼─► Agent can develop itself
@@ -79,7 +79,7 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 | S3     | Hatching Wizard   | Complete | [plan](sprints/m2-s3-hatching-wizard/plan.md)   | [review](sprints/m2-s3-hatching-wizard/review.md)   |
 | S4     | Conversations     | Complete | [plan](sprints/m2-s4-conversations/plan.md)     | [review](sprints/m2-s4-conversations/review.md)     |
 | S5     | Naming            | Complete | [plan](sprints/m2-s5-naming/plan.md)            | [review](sprints/m2-s5-naming/review.md)            |
-| S6     | Advanced Chat Features | Active   | [plan](sprints/m2-s6-advanced-features/plan.md) | —                                                   |
+| S6     | Advanced Chat Features | Complete | [plan](sprints/m2-s6-advanced-features/plan.md) | [review](sprints/m2-s6-advanced-features/review.md) |
 
 **Design specs:**
 
@@ -349,4 +349,4 @@ After completion:
 
 ---
 
-_Updated: 2026-02-16_
+_Updated: 2026-02-17_
