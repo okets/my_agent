@@ -38,6 +38,9 @@ export interface Conversation {
 
   /** Whether abbreviation needs to be generated/regenerated */
   needsAbbreviation: boolean;
+
+  /** Whether the user manually set the title (protects from auto-rename) */
+  manuallyNamed: boolean;
 }
 
 /**

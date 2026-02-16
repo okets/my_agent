@@ -51,9 +51,20 @@ export class ConversationDatabase {
         turn_count INTEGER DEFAULT 0,
         participants TEXT,
         abbreviation TEXT,
-        needs_abbreviation INTEGER DEFAULT 0
+        needs_abbreviation INTEGER DEFAULT 0,
+        manually_named INTEGER DEFAULT 0
       );
     `);
+
+    // Migration: add manually_named column if missing (for existing databases)
+    const columns = this.db
+      .prepare("PRAGMA table_info(conversations)")
+      .all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === "manually_named")) {
+      this.db.exec(
+        "ALTER TABLE conversations ADD COLUMN manually_named INTEGER DEFAULT 0",
+      );
+    }
 
     // Create FTS5 virtual table for full-text search
     this.db.exec(`
@@ -85,8 +96,8 @@ export class ConversationDatabase {
     const stmt = this.db.prepare(`
       INSERT INTO conversations (
         id, channel, title, topics, created, updated,
-        turn_count, participants, abbreviation, needs_abbreviation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        turn_count, participants, abbreviation, needs_abbreviation, manually_named
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -100,6 +111,7 @@ export class ConversationDatabase {
       JSON.stringify(conversation.participants),
       conversation.abbreviation,
       conversation.needsAbbreviation ? 1 : 0,
+      conversation.manuallyNamed ? 1 : 0,
     );
   }
 
@@ -218,6 +230,11 @@ export class ConversationDatabase {
       values.push(updates.needsAbbreviation ? 1 : 0);
     }
 
+    if (updates.manuallyNamed !== undefined) {
+      fields.push("manually_named = ?");
+      values.push(updates.manuallyNamed ? 1 : 0);
+    }
+
     if (fields.length === 0) {
       return;
     }
@@ -321,6 +338,7 @@ export class ConversationDatabase {
       participants: row.participants ? JSON.parse(row.participants) : [],
       abbreviation: row.abbreviation,
       needsAbbreviation: row.needs_abbreviation === 1,
+      manuallyNamed: row.manually_named === 1,
     };
   }
 

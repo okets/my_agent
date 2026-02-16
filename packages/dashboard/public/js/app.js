@@ -28,6 +28,8 @@ function chat() {
     conversations: [],
     currentConversationId: null,
     sidebarOpen: true,
+    sidebarWidth: 260,
+    sidebarDragging: false,
 
     // Title editing
     editingTitle: false,
@@ -668,6 +670,28 @@ function chat() {
 
     cancelTitleEdit() {
       this.editingTitle = false;
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Sidebar resize
+    // ─────────────────────────────────────────────────────────────────
+    startSidebarDrag(e) {
+      if (!this.sidebarOpen) return;
+      e.preventDefault();
+      this.sidebarDragging = true;
+      document.body.classList.add("sidebar-resizing");
+      const onMove = (ev) => {
+        const x = ev.clientX;
+        this.sidebarWidth = Math.min(Math.max(x, 180), 500);
+      };
+      const onUp = () => {
+        this.sidebarDragging = false;
+        document.body.classList.remove("sidebar-resizing");
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
     },
   };
 }

@@ -7,15 +7,15 @@
 
 ## Quick Status
 
-| Milestone                    | Status      | Progress                     |
-| ---------------------------- | ----------- | ---------------------------- |
-| **M1: Foundation**           | Complete    | 4/4 sprints                  |
-| **M2: Web UI**               | In Progress | 4/5 sprints                  |
-| **M3: WhatsApp Channel**     | Planned     | Design complete, sprints TBD |
-| **M4a: Task System**         | Planned     | Design complete, sprints TBD |
-| **M4b: Memory**              | Planned     | Design complete, sprints TBD |
-| **M5: Operations Dashboard** | Planned     | Design complete, sprints TBD |
-| **M6: Email Channel**        | Planned     | Design complete, sprints TBD |
+| Milestone                    | Status   | Progress                     |
+| ---------------------------- | -------- | ---------------------------- |
+| **M1: Foundation**           | Complete | 4/4 sprints                  |
+| **M2: Web UI**               | Complete | 5/5 sprints                  |
+| **M3: WhatsApp Channel**     | Planned  | Design complete, sprints TBD |
+| **M4a: Task System**         | Planned  | Design complete, sprints TBD |
+| **M4b: Memory**              | Planned  | Design complete, sprints TBD |
+| **M5: Operations Dashboard** | Planned  | Design complete, sprints TBD |
+| **M6: Email Channel**        | Planned  | Design complete, sprints TBD |
 
 ---
 
@@ -26,14 +26,14 @@
 ├─────────────────────────────────────────────────────────────────────►
 
 M1 Foundation     M2 Web UI                      M3-M6 Future
-[████████████]    [█████░░░░░]                   [░░░░░░░░░░]
-   COMPLETE         IN PROGRESS                     PLANNED
+[████████████]    [████████████]                  [░░░░░░░░░░]
+   COMPLETE          COMPLETE                        PLANNED
 
                   S1 ██ Server + Chat (done)
                   S2 ██ Streaming (done)
                   S3 ██ Hatching Wizard (done)
                   S4 ██ Conversations (done)
-                  S5 ░░ Naming
+                  S5 ██ Naming (done)
 
                                                  M3 WhatsApp ─┐
                                                  M4a Tasks ───┼─► Agent can develop itself
@@ -67,7 +67,7 @@ The agent's core brain running in `.my_agent/`. CLI REPL for development/testing
 
 ---
 
-### M2: Web UI — IN PROGRESS
+### M2: Web UI — COMPLETE
 
 Browser-based interface replacing CLI. Chat + hatching wizard.
 
@@ -77,7 +77,7 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 | S2     | Streaming         | Complete | [plan](sprints/m2-s2-streaming/plan.md)         | [review](sprints/m2-s2-streaming/review.md)         |
 | S3     | Hatching Wizard   | Complete | [plan](sprints/m2-s3-hatching-wizard/plan.md)   | [review](sprints/m2-s3-hatching-wizard/review.md)   |
 | S4     | Conversations     | Complete | [plan](sprints/m2-s4-conversations/plan.md)     | [review](sprints/m2-s4-conversations/review.md)     |
-| S5     | Naming            | Pending  | [plan](sprints/m2-s5-naming/plan.md)            | —                                                   |
+| S5     | Naming            | Complete | [plan](sprints/m2-s5-naming/plan.md)            | [review](sprints/m2-s5-naming/review.md)            |
 
 **Design specs:**
 
@@ -89,7 +89,7 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 - WebSocket chat with streaming, thinking blocks, markdown
 - Web-based hatching wizard
 - Conversation persistence (SQLite + JSONL transcripts)
-- Haiku naming at turn 5
+- Auto-naming at turn 5 + periodic re-naming on idle
 
 ---
 
@@ -108,6 +108,10 @@ First external channel. Agent owns a phone number, responds immediately.
 - Channel conversations (per-contact, per-group)
 
 **Dependencies:** M2 (chat infra)
+
+**Includes:**
+
+- Channel-specific conversation naming (contact name + topic instead of haiku). `NamingService` needs a channel-aware prompt. See `docs/design/conversation-system.md` §Conversation Naming.
 
 **Note:** M3 ships standalone. Basic WhatsApp ↔ agent works. Project spawning from WhatsApp ("fix this bug") requires M4a — that's a later enhancement, not a blocker.
 
@@ -187,6 +191,10 @@ Email plugin with both dedicated and personal roles.
 - Personal role: user's email (on-demand only)
 - OAuth 2.0 auth flow
 - Thread management
+
+**Includes:**
+
+- Channel-specific conversation naming (subject line + thread context). See `docs/design/conversation-system.md` §Conversation Naming.
 
 **Dependencies:** M3 (channel pattern established), M4a (for email-triggered projects)
 

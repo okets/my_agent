@@ -1,6 +1,6 @@
 # Sprint M2-S5: Conversation Naming
 
-> **Status:** Planned
+> **Status:** Complete
 > **Depends on:** M2-S4 (Conversation Persistence)
 > **Design spec:** `docs/design/conversation-system.md`
 
@@ -22,23 +22,26 @@ Conversations get meaningful haiku names automatically after turn 5.
 Create the service that calls Haiku to generate conversation names.
 
 **Files:**
+
 - `packages/dashboard/src/conversations/naming.ts` — NEW: NamingService class
 
 **NamingService API:**
+
 ```typescript
 interface NamingResult {
-  title: string;       // "autumn-wind-drifts"
-  topics: string[];    // ["server-monitoring", "deployment"]
+  title: string; // "autumn-wind-drifts"
+  topics: string[]; // ["server-monitoring", "deployment"]
 }
 
 class NamingService {
-  constructor(apiKey: string)
+  constructor(apiKey: string);
 
-  async generateName(turns: TranscriptTurn[]): Promise<NamingResult>
+  async generateName(turns: TranscriptTurn[]): Promise<NamingResult>;
 }
 ```
 
 **Haiku prompt:**
+
 ```
 Given this conversation, generate:
 1. A 3-word haiku-style title (lowercase, hyphenated): e.g., "morning-code-flows"
@@ -54,10 +57,12 @@ Return JSON: { "title": "...", "topics": [...] }
 Integrate naming into the conversation flow — trigger at turn 5, update transcript and DB.
 
 **Files:**
+
 - `packages/dashboard/src/conversations/manager.ts` — MODIFY: add naming trigger
 - `packages/dashboard/src/ws/chat-handler.ts` — MODIFY: send title update to client
 
 **Flow:**
+
 1. User sends 5th message
 2. After agent response completes:
    a. Load last N turns
@@ -67,12 +72,13 @@ Integrate naming into the conversation flow — trigger at turn 5, update transc
    e. Send `conversation_renamed` to client
 
 **Manager additions:**
+
 ```typescript
 class ConversationManager {
   // ...existing...
 
-  setTitle(id: string, title: string, topics: string[]): Promise<void>
-  getTurnCount(id: string): Promise<number>
+  setTitle(id: string, title: string, topics: string[]): Promise<void>;
+  getTurnCount(id: string): Promise<number>;
 }
 ```
 
@@ -83,20 +89,24 @@ class ConversationManager {
 Update frontend to show titles and allow manual renaming.
 
 **Files:**
+
 - `packages/dashboard/public/index.html` — MODIFY: title display, rename UI
 - `packages/dashboard/public/js/app.js` — MODIFY: handle rename
 - `packages/dashboard/public/css/app.css` — MODIFY: title styles
 
 **Sidebar update:**
+
 - Show haiku title or "New conversation" (if null)
 - Click title to edit inline
 - Enter to confirm, Escape to cancel
 
 **Chat header:**
+
 - Show current conversation title
 - Click to edit (same inline edit pattern)
 
 **App.js additions:**
+
 ```javascript
 {
   editingTitle: false,
@@ -112,6 +122,7 @@ renameConversation() {
 ```
 
 **Handle `conversation_renamed`:**
+
 ```javascript
 case 'conversation_renamed':
   const conv = this.conversations.find(c => c.id === data.conversationId);
@@ -129,6 +140,7 @@ case 'conversation_renamed':
 Wire everything together, verify naming flow.
 
 **Verification:**
+
 1. `npx tsc --noEmit` — clean compilation
 2. `npx prettier --write packages/dashboard/src/`
 3. Start conversation, send 4 messages → title stays "New conversation"
@@ -149,6 +161,30 @@ Task 1 (NamingService)
 ```
 
 Task 1 must complete first. Task 3 needs Task 2. Task 4 needs all.
+
+### Task 5: Periodic Re-naming on Idle (Augmentation)
+
+> Added post-sprint: re-generate haiku names on idle to keep them relevant as conversations evolve.
+
+**Approach:** Piggyback on the existing abbreviation queue. After a successful abbreviation, also re-generate the haiku name (unless the user manually renamed the conversation).
+
+**Files:**
+
+- `packages/dashboard/src/conversations/types.ts` — MODIFY: add `manuallyNamed: boolean`
+- `packages/dashboard/src/conversations/db.ts` — MODIFY: add `manually_named` column + migration
+- `packages/dashboard/src/conversations/manager.ts` — MODIFY: add `setTitleManual()` method
+- `packages/dashboard/src/ws/chat-handler.ts` — MODIFY: use `setTitleManual()` for user renames, wire `onRenamed` callback
+- `packages/dashboard/src/conversations/abbreviation.ts` — MODIFY: call NamingService after abbreviation if `!manuallyNamed`
+- `docs/design/conversation-system.md` — MODIFY: document periodic naming + `manuallyNamed` flag
+
+**Key rules:**
+
+- `manuallyNamed` flag protects user-defined titles from auto-rename
+- User renames set `manuallyNamed = true` via `setTitleManual()`
+- Auto-naming (turn 5 and idle) uses `setTitle()` which does NOT set `manuallyNamed`
+- `AbbreviationQueue.onRenamed` callback broadcasts `conversation_renamed` to all WS clients
+
+**Done when:** Conversations get re-named on each idle cycle. Manually-named conversations are never overridden.
 
 ## Out of Scope
 

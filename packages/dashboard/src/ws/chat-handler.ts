@@ -51,6 +51,17 @@ export async function registerChatWebSocket(
         fastify.abbreviationQueue,
         connectionRegistry,
       );
+
+      // Wire rename callback so abbreviation-triggered renames broadcast to all clients
+      if (!fastify.abbreviationQueue.onRenamed) {
+        fastify.abbreviationQueue.onRenamed = (conversationId, title) => {
+          connectionRegistry.broadcastToAll({
+            type: "conversation_renamed",
+            conversationId,
+            title,
+          });
+        };
+      }
     }
 
     let sessionManager: SessionManager | null = null;
@@ -365,9 +376,21 @@ export async function registerChatWebSocket(
     }
 
     /**
+     * Queue abbreviation+naming for the old conversation when switching away
+     */
+    function queueAbbreviationForCurrent(): void {
+      if (currentConversationId && fastify.abbreviationQueue) {
+        fastify.abbreviationQueue.enqueue(currentConversationId);
+      }
+    }
+
+    /**
      * Handle new conversation
      */
     async function handleNewConversation(): Promise<void> {
+      // Queue abbreviation for the conversation we're leaving
+      queueAbbreviationForCurrent();
+
       // Create new conversation
       const conversation = await conversationManager.create("web");
 
@@ -405,6 +428,9 @@ export async function registerChatWebSocket(
     async function handleSwitchConversation(
       conversationId: string,
     ): Promise<void> {
+      // Queue abbreviation for the conversation we're leaving
+      queueAbbreviationForCurrent();
+
       const conversation = await conversationManager.get(conversationId);
 
       if (!conversation) {
@@ -451,7 +477,10 @@ export async function registerChatWebSocket(
       }
 
       const trimmedTitle = title.slice(0, MAX_TITLE_LENGTH);
-      await conversationManager.setTitle(currentConversationId, trimmedTitle);
+      await conversationManager.setTitleManual(
+        currentConversationId,
+        trimmedTitle,
+      );
 
       // Broadcast rename to all viewers including sender
       connectionRegistry.broadcastToConversation(currentConversationId, {

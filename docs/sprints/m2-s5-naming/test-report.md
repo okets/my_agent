@@ -249,7 +249,7 @@ The auth fix was necessary but insufficient. The fact that auto-naming still doe
 3. Does it call `ConversationManager.setTitle()` with the result?
 4. Does it emit `conversation_renamed` WebSocket event?
 
-**Next Action:** Backend dev should add debug logging to trace the naming flow from turn 5 detection through WebSocket emission.
+**Next Action:** Backend dev should add debug logging to trace the naming flow from turn 5 detection through WebSocket emission. → RESOLVED in final re-test below.
 
 ---
 
@@ -302,3 +302,33 @@ Verified by sidebar showing title after page navigation.
 | US3: Title persistence     | PASS    | PASS      | PASS  |
 
 **Overall Verdict: PASS**
+
+---
+
+## CTO Verification (10:30+ UTC)
+
+**Tester:** CTO (Hanan), manual testing from LAN (10.10.10.12:4321)
+
+### Augmentation Features Verified
+
+| Feature                       | Result | Notes                                                 |
+| ----------------------------- | ------ | ----------------------------------------------------- |
+| Human-readable naming         | PASS   | Descriptive titles generated (not haiku)              |
+| Rename on conversation switch | PASS   | Leaving a conversation triggers abbreviation + rename |
+| `manuallyNamed` protection    | PASS   | User-renamed conversations not overridden             |
+| Live rename via WebSocket     | PASS   | Sidebar updates without refresh                       |
+| Draggable sidebar             | PASS   | Drag handle works, titles fully visible               |
+
+### Bug Fixes Verified
+
+| Bug                           | Before Fix                       | After Fix                    |
+| ----------------------------- | -------------------------------- | ---------------------------- |
+| Viewer count blocking enqueue | Rename never triggered on switch | Triggers immediately         |
+| 10-turn minimum first-rename  | First rename skipped             | First rename always eligible |
+
+### Build Verification
+
+- [x] `npx tsc --noEmit` — PASS
+- [x] `npx prettier --check src/` — PASS
+- [x] Server starts clean — PASS
+- [x] No console errors — PASS

@@ -450,19 +450,47 @@ footer input[type="password"]:focus {
 
 .sidebar-panel {
   width: 260px;
-  transition: all 0.3s ease;
+  min-width: 0;
 }
 
 .sidebar-open {
-  transform: translateX(0);
   opacity: 1;
 }
 
 .sidebar-closed {
-  width: 0;
+  width: 0 !important;
   opacity: 0;
-  transform: translateX(-100%);
   overflow: hidden;
+}
+
+/* Drag handle between sidebar and chat */
+.sidebar-drag-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  position: relative;
+  z-index: 10;
+}
+
+.sidebar-drag-handle:hover,
+.sidebar-drag-handle.active {
+  background: rgba(122, 162, 247, 0.4);
+}
+
+.sidebar-drag-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -3px;
+  right: -3px;
+  bottom: 0;
+}
+
+/* Prevent text selection while dragging sidebar */
+body.sidebar-resizing {
+  cursor: col-resize !important;
+  user-select: none;
 }
 
 /* Mobile: sidebar as overlay */
@@ -478,12 +506,15 @@ footer input[type="password"]:focus {
   }
 
   .sidebar-closed {
-    width: 260px; /* Keep width for animation */
     pointer-events: none;
   }
 
   .sidebar-open {
     pointer-events: auto;
+  }
+
+  .sidebar-drag-handle {
+    display: none;
   }
 }
 

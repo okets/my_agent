@@ -9,21 +9,23 @@
 
 ## Verdict: PASS
 
-All three tasks are implemented and verified working. The naming trigger fires at turn 5, NamingService calls Haiku and generates valid titles, and the frontend displays/edits titles correctly. TypeScript compiles clean, Prettier passes. Two medium-severity notes from the initial review (title-exists guard and closure capture) were fixed during the sprint. Two additional bug fixes (model ID and response parsing) were required and applied.
+All five tasks implemented and verified. The naming system generates human-readable titles at turn 5, re-names on idle/switch cycles, protects manual renames, and displays titles in a resizable sidebar. TypeScript compiles clean, Prettier passes, CTO verified naming and rename flows manually.
 
 ---
 
 ## Review Summary
 
-| Area | Status | Notes |
-|------|--------|-------|
-| Task 1: NamingService | PASS | Clean implementation, good validation and retry logic |
-| Task 2: Naming Trigger | PASS | Working, title-exists guard added, closure captured by value |
-| Task 3: Frontend Title | PASS | Header edit + sidebar display + CSS styles all present |
-| TypeScript | PASS | `npx tsc --noEmit` clean |
-| Prettier | PASS | `npx prettier --check src/` clean |
-| Security | PASS | Title truncated, `x-text` used (no XSS), API key not exposed |
-| Integration | PASS | No regressions to existing chat/sidebar/conversation features |
+| Area                       | Status | Notes                                                   |
+| -------------------------- | ------ | ------------------------------------------------------- |
+| Task 1: NamingService      | PASS   | Descriptive titles (2-6 words), topic tags, retry logic |
+| Task 2: Naming Trigger     | PASS   | Turn 5 trigger, fire-and-forget, closure captured       |
+| Task 3: Frontend Title     | PASS   | Header edit + sidebar display + real-time WS updates    |
+| Task 4: Integration        | PASS   | tsc clean, prettier clean, naming + rename verified     |
+| Task 5: Periodic Re-naming | PASS   | Abbreviation piggyback, manuallyNamed flag, cooldown    |
+| Draggable Sidebar          | PASS   | Drag handle, 180-500px range, mobile-safe               |
+| TypeScript                 | PASS   | `npx tsc --noEmit` clean                                |
+| Prettier                   | PASS   | `npx prettier --check src/` clean                       |
+| Security                   | PASS   | Title truncated, `x-text` used, no XSS vectors          |
 
 ---
 
@@ -33,123 +35,119 @@ All three tasks are implemented and verified working. The naming trigger fires a
 
 **File:** `packages/dashboard/src/conversations/naming.ts`
 
-Well-implemented:
 - Correct Haiku model (`claude-haiku-4-5-20251001`)
 - Retry logic (2 attempts) for invalid title format
-- JSON parsing with markdown code block fallback (handles Haiku wrapping JSON in triple backticks)
-- Title validation: exactly 3 lowercase-alpha words separated by hyphens
+- JSON parsing with markdown code block fallback
+- Title validation: 2-6 words, max 80 chars, title case
 - Topic normalization to kebab-case via regex
-- Cost-efficient: `max_tokens: 200`, single prompt, no system message overhead
-
-Minor note (non-blocking):
-- `isValidTitle` only allows `[a-z]+` per word. This is correct per the design spec ("3-word haiku-style phrase using lowercase words separated by hyphens"). Words like "AI" or "GPT" would be rejected, which is the desired behavior since haiku titles should be evocative.
+- Cost-efficient: `max_tokens: 200`, single prompt
 
 ### Task 2: Naming Trigger Integration (PASS)
 
-**File:** `packages/dashboard/src/ws/chat-handler.ts` (lines 617-668)
+**File:** `packages/dashboard/src/ws/chat-handler.ts`
 
-The trigger is implemented as a fire-and-forget async IIFE after the assistant turn is saved at turn 5. It lazily initializes `NamingService` using `process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN` (matching the pattern in `index.ts` for `AbbreviationQueue`), calls `generateName()`, updates the DB via `conversationManager.setTitle()` and `setTopics()`, and broadcasts `conversation_renamed` to all clients.
-
-**Note 1 (Medium, RESOLVED): Title-exists guard**
-
-Title-exists guard was added to the turn-5 trigger. If the conversation already has a title (e.g., from manual rename), auto-naming is skipped.
-
-**Note 2 (Medium, RESOLVED): Closure captures `currentConversationId` by value**
-
-`currentConversationId` is now captured by value at the top of the IIFE, preventing race conditions if the user switches conversations during the Haiku API call.
-
-**Note 3 (Low, RESOLVED): Auth token fallback**
-
-~~Previously only checked `ANTHROPIC_API_KEY`.~~ Now checks `ANTHROPIC_API_KEY || CLAUDE_CODE_OAUTH_TOKEN`, matching the pattern in `index.ts` for `AbbreviationQueue`. Fixed.
-
-**Note 4 (Low): `broadcastToAll` vs `broadcastToConversation`**
-
-The trigger uses `broadcastToAll` instead of `broadcastToConversation`. This is actually correct behavior: all clients need the rename event to update their sidebar conversation list, regardless of which conversation they're viewing. Good call.
+Turn 5 fire-and-forget async IIFE. Lazily initializes NamingService. Captures `currentConversationId` by value to prevent race conditions. Skips if conversation already has a title. Broadcasts `conversation_renamed` to all clients.
 
 ### Task 3: Frontend Title Display + Manual Rename (PASS)
 
-**Files:** `index.html` (lines 205-227), `app.js` (lines 648-671), `app.css` (lines 497-519)
+**Files:** `index.html`, `app.js`, `app.css`
 
-All components present and working:
+- Header: click-to-edit with `x-show` toggle, Enter confirms, Escape/blur cancels
+- Sidebar: `conversation_renamed` WS handler updates Alpine state reactively
+- Computed `currentTitle` getter prevents stale state
+- CSS: Tokyo Night themed title display/input styles
 
-1. **Header title display** (`index.html`): Shows `currentTitle || 'New conversation'` with click-to-edit. Uses `x-show` toggle between display div and input.
+### Task 4: Integration + Verification (PASS)
 
-2. **Alpine.js state** (`app.js:33-34`): `editingTitle: false` and `editTitleValue: ""`.
+- `npx tsc --noEmit` — clean
+- `npx prettier --check src/` — clean
+- CTO verified: naming at turn 5, manual rename, live sidebar updates
 
-3. **Computed property** (`app.js:76-82`): `currentTitle` getter derives title from the `conversations` array by finding the matching ID. Avoids stale state.
+### Task 5: Periodic Re-naming on Idle (PASS)
 
-4. **Title edit methods** (`app.js:648-671`):
-   - `startTitleEdit()`: Guards on `currentConversationId` and `wsConnected`, focuses input, selects text via `$nextTick`
-   - `confirmTitleEdit()`: Validates non-empty, sends `rename_conversation` WS message
-   - `cancelTitleEdit()`: Resets `editingTitle` flag
-   - `@blur` cancels edit (explicit Enter required to confirm) -- consistent UX pattern
+**Files:** `types.ts`, `db.ts`, `manager.ts`, `abbreviation.ts`, `chat-handler.ts`
 
-5. **`conversation_renamed` handler** (`app.js:545-553`): Updates sidebar title in the conversations array.
+- `manuallyNamed` boolean added to Conversation type + DB schema + migration
+- `setTitleManual()` sets both title and flag; auto-rename uses `setTitle()` only
+- AbbreviationQueue re-names after abbreviation if `!manuallyNamed`
+- `lastRenamedAt` Map with 10-turn minimum cooldown
+- `undefined` (never renamed) always qualifies — no false negatives
+- `onRenamed` callback decouples queue from WebSocket layer
+- Abbreviation enqueued on conversation switch (not just idle timer)
+- CTO verified: rename triggers on switch, respects manual names
 
-6. **CSS styles** (`app.css:497-519`): `.conversation-title-display` has hover highlight, `.conversation-title-input` has focused border styling with Tokyo Night blue (#7aa2f7). Clean.
+### Draggable Sidebar (PASS)
 
-### Existing Manual Rename Handler (PASS)
+**Files:** `index.html`, `app.js`, `app.css`
 
-**File:** `packages/dashboard/src/ws/chat-handler.ts` (lines 444-462)
-
-The `handleRenameConversation` function correctly:
-- Validates `currentConversationId` exists
-- Truncates title to `MAX_TITLE_LENGTH` (100 chars)
-- Calls `conversationManager.setTitle()`
-- Broadcasts to all clients
-
-### Exports (PASS)
-
-**File:** `packages/dashboard/src/conversations/index.ts`
-
-`NamingService` and `NamingResult` type are correctly exported.
-
----
-
-## Security Assessment
-
-| Check | Result |
-|-------|--------|
-| API key handling | Passed as constructor param from env var, not hardcoded |
-| XSS in title display | `x-text` used (safe text interpolation), not `x-html` |
-| Title input sanitization | Server truncates to 100 chars via `MAX_TITLE_LENGTH` |
-| Conversation ID validation | Regex check `^conv-[A-Z0-9]{26}$` applied on rename |
-| DOMPurify for markdown | Used in all `renderMarkdown()` calls (unrelated to naming, but verified) |
-| No secrets in public files | Clean |
-
----
-
-## Plan Adherence
-
-| Plan Item | Implemented | Notes |
-|-----------|-------------|-------|
-| NamingService class | Yes | As specified |
-| Haiku model call | Yes | `claude-haiku-4-5-20251001` |
-| 3-word hyphenated title | Yes | Validated by `isValidTitle()` |
-| Topic tags (kebab-case) | Yes | Normalized by regex |
-| Turn 5 trigger | Yes | `currentTurnNumber === 5` check |
-| Fire-and-forget pattern | Yes | Async IIFE with try/catch |
-| `conversation_renamed` WS | Yes | Broadcasts to all clients |
-| Header title display | Yes | With inline edit |
-| Sidebar title update | Yes | Via `conversation_renamed` handler |
-| `getTurnCount()` on manager | No | Used local `currentTurnNumber` instead (functionally equivalent) |
-| Fastify decorator for naming | No | Used lazy init in chat-handler (functionally equivalent) |
-
-Deviations are minor and pragmatic. The lazy initialization pattern avoids touching `server.ts` type augmentation and `index.ts` startup, keeping changes localized. Acceptable.
+- Drag handle between sidebar and chat (4px, col-resize cursor)
+- Min 180px, max 500px
+- `body.sidebar-resizing` prevents text selection during drag
+- Hidden on mobile (overlay mode)
+- CTO verified: drag works, titles no longer truncated
 
 ---
 
 ## Bug Fixes Applied During Sprint
 
-Two additional bugs were discovered and fixed after the initial review:
-
-1. **Model ID fix:** `claude-haiku-4` is not a valid model ID and caused `createBrainQuery` to fail with "process exited with code 1". Changed to `claude-haiku-4-5-20251001` in both `naming.ts` and `abbreviation.ts`.
-
-2. **Response parsing fix:** With `includePartialMessages: false`, the Agent SDK returns `assistant` type messages (with `message.content` blocks), not `stream_event` type messages. Both `naming.ts` and `abbreviation.ts` were parsing `stream_event` messages, so `responseText` was always empty. Changed to extract text from `assistant` message content blocks, with `result` type as fallback.
-
-**Final verified result:** Turn 5 triggers naming, produces "curious-rapid-answers" with topics ["general-knowledge", "quick-reference"]. Manual rename also works.
+| #   | Bug                                   | Root Cause                                                      | Fix                                     |
+| --- | ------------------------------------- | --------------------------------------------------------------- | --------------------------------------- |
+| 1   | Auth: naming never triggered          | Only checked `ANTHROPIC_API_KEY`, not `CLAUDE_CODE_OAUTH_TOKEN` | Added fallback                          |
+| 2   | Model ID: `claude-haiku-4` invalid    | Short alias not supported by SDK                                | Changed to `claude-haiku-4-5-20251001`  |
+| 3   | Response parsing: empty text          | Parsed `stream_event` but SDK sends `assistant` messages        | Fixed message type handling             |
+| 4   | Viewer count blocking enqueue         | Switch socket still counted as viewer                           | Removed viewer check on switch          |
+| 5   | 10-turn minimum blocking first rename | `lastRenamedAt` defaulted to 0, not undefined                   | Check for `undefined` = always eligible |
 
 ---
 
-*Review completed: 2026-02-16*
-*Reviewer: Opus 4.6 (Independent)*
+## Security Assessment
+
+| Check                      | Result                               |
+| -------------------------- | ------------------------------------ |
+| API key handling           | From env vars, not hardcoded         |
+| XSS in title display       | `x-text` used (safe), not `x-html`   |
+| Title input sanitization   | Truncated to 100 chars server-side   |
+| Conversation ID validation | Regex `^conv-[A-Z0-9]{26}$` applied  |
+| DOMPurify for markdown     | Used in all `renderMarkdown()` calls |
+| No secrets in public files | Clean                                |
+
+---
+
+## Plan Adherence
+
+| Plan Item                   | Implemented | Notes                                       |
+| --------------------------- | ----------- | ------------------------------------------- |
+| NamingService class         | Yes         | Stateless, uses `createBrainQuery`          |
+| Haiku model call            | Yes         | `claude-haiku-4-5-20251001`                 |
+| Title format                | Changed     | CTO directed: descriptive titles, not haiku |
+| Topic tags (kebab-case)     | Yes         | Normalized by regex                         |
+| Turn 5 trigger              | Yes         | Fire-and-forget async IIFE                  |
+| Frontend title display      | Yes         | Header + sidebar, click-to-edit             |
+| `conversation_renamed` WS   | Yes         | Broadcasts to all clients                   |
+| Periodic re-naming (Task 5) | Yes         | CTO augmentation, abbreviation piggyback    |
+| `manuallyNamed` flag        | Yes         | DB + types + manager                        |
+| Draggable sidebar           | Yes         | CTO request, drag handle UI                 |
+
+---
+
+## Files Modified
+
+| File                                 | Changes                                                |
+| ------------------------------------ | ------------------------------------------------------ |
+| `src/conversations/types.ts`         | Added `manuallyNamed: boolean`                         |
+| `src/conversations/db.ts`            | Added `manually_named` column + migration              |
+| `src/conversations/manager.ts`       | Added `setTitleManual()` method                        |
+| `src/conversations/naming.ts`        | Descriptive title prompt + validation                  |
+| `src/conversations/abbreviation.ts`  | NamingService integration, `onRenamed`, cooldown       |
+| `src/ws/chat-handler.ts`             | `setTitleManual()`, switch enqueue, `onRenamed` wiring |
+| `public/index.html`                  | Drag handle, dynamic sidebar width                     |
+| `public/js/app.js`                   | Drag state/method, `sidebarWidth`                      |
+| `public/css/app.css`                 | Drag handle styles, sidebar-resizing class             |
+| `docs/design/conversation-system.md` | Updated naming spec, schema, data model                |
+| `docs/ROADMAP.md`                    | Updated naming description, channel-specific future    |
+| `docs/sprints/m2-s5-naming/plan.md`  | Added Task 5                                           |
+
+---
+
+_Review completed: 2026-02-16_
+_Reviewer: Opus 4.6 (Independent)_

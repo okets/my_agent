@@ -92,8 +92,9 @@
       <!-- Sidebar                                                        -->
       <!-- ============================================================== -->
       <aside
-        class="sidebar-panel shrink-0 border-r border-tokyo-muted/10 bg-tokyo-panel overflow-y-auto transition-all duration-300"
+        class="sidebar-panel shrink-0 border-r border-tokyo-muted/10 bg-tokyo-panel overflow-y-auto"
         :class="sidebarOpen ? 'sidebar-open' : 'sidebar-closed'"
+        :style="sidebarOpen ? 'width:' + sidebarWidth + 'px' : ''"
       >
         <div class="p-3 flex flex-col h-full">
           <!-- New conversation button -->
@@ -141,6 +142,14 @@
           </div>
         </div>
       </aside>
+
+      <!-- Drag handle for sidebar resize -->
+      <div
+        x-show="sidebarOpen"
+        @mousedown="startSidebarDrag($event)"
+        class="sidebar-drag-handle shrink-0"
+        :class="sidebarDragging ? 'active' : ''"
+      ></div>
 
       <!-- Main chat area -->
       <div class="flex flex-col flex-1 min-w-0 max-w-3xl mx-auto w-full">

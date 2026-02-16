@@ -46,6 +46,7 @@ export class ConversationManager {
       participants: ["user"],
       abbreviation: null,
       needsAbbreviation: false,
+      manuallyNamed: false,
     };
 
     // Create transcript file with metadata header
@@ -182,10 +183,25 @@ export class ConversationManager {
   }
 
   /**
-   * Update conversation title
+   * Update conversation title (auto-naming)
    */
   async setTitle(id: string, title: string): Promise<void> {
     this.db.updateConversation(id, { title });
+
+    // Append title_assigned event to transcript
+    this.transcripts.appendEvent(id, {
+      type: "event",
+      event: "title_assigned",
+      title,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Update conversation title manually (user-initiated, protects from auto-rename)
+   */
+  async setTitleManual(id: string, title: string): Promise<void> {
+    this.db.updateConversation(id, { title, manuallyNamed: true });
 
     // Append title_assigned event to transcript
     this.transcripts.appendEvent(id, {

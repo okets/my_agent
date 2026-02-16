@@ -6,6 +6,7 @@
  */
 
 import { ConversationManager } from "./manager.js";
+import { NamingService } from "./naming.js";
 import { createBrainQuery } from "@my-agent/core";
 import type { Query } from "@my-agent/core";
 
@@ -40,14 +41,23 @@ interface AbbreviationTask {
 export class AbbreviationQueue {
   private manager: ConversationManager;
   private apiKey: string;
+  private namingService: NamingService;
   private queue: AbbreviationTask[] = [];
   private processing = false;
   private pendingIds = new Set<string>();
   private currentQuery: Query | null = null;
+  private lastRenamedAt = new Map<string, number>(); // conversationId → turnCount at last rename
+
+  /** Minimum turns between auto-renames */
+  private static readonly MIN_TURNS_BETWEEN_RENAMES = 10;
+
+  /** Callback invoked when a conversation is auto-renamed after abbreviation */
+  onRenamed?: (conversationId: string, title: string) => void;
 
   constructor(manager: ConversationManager, apiKey: string) {
     this.manager = manager;
     this.apiKey = apiKey;
+    this.namingService = new NamingService();
   }
 
   /**
@@ -199,6 +209,35 @@ export class AbbreviationQueue {
       await this.manager.setAbbreviation(conversationId, abbreviationText);
 
       console.log(`Generated abbreviation for conversation ${conversationId}`);
+
+      // Re-generate name if not manually named and enough turns since last rename
+      const lastRenamed = this.lastRenamedAt.get(conversationId);
+      const shouldRename =
+        !conversation.manuallyNamed &&
+        (lastRenamed === undefined ||
+          conversation.turnCount - lastRenamed >=
+            AbbreviationQueue.MIN_TURNS_BETWEEN_RENAMES);
+
+      if (shouldRename) {
+        try {
+          const result = await this.namingService.generateName(turns);
+          await this.manager.setTitle(conversationId, result.title);
+          await this.manager.setTopics(conversationId, result.topics);
+
+          this.lastRenamedAt.set(conversationId, conversation.turnCount);
+          this.onRenamed?.(conversationId, result.title);
+
+          console.log(
+            `Re-named conversation ${conversationId}: ${result.title} [${result.topics.join(", ")}]`,
+          );
+        } catch (namingErr) {
+          console.error(
+            `Failed to re-name conversation ${conversationId}:`,
+            namingErr,
+          );
+          // Non-fatal — abbreviation still succeeded
+        }
+      }
     } catch (err) {
       console.error(`Error generating abbreviation:`, err);
       throw err;

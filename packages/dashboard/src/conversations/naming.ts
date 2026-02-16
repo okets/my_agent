@@ -18,14 +18,13 @@ export interface NamingResult {
   topics: string[];
 }
 
-const NAMING_PROMPT = `You are a conversation naming assistant. Your task is to generate a concise, evocative title and topic tags for a conversation based on its transcript.
+const NAMING_PROMPT = `You are a conversation naming assistant. Generate a short, descriptive title and topic tags for a conversation.
 
 TITLE FORMAT:
-- Exactly 3 words
-- Lowercase
-- Separated by hyphens
-- Evocative, haiku-style (capture the essence, not literal description)
-- Examples: "autumn-wind-drifts", "midnight-code-whispers", "database-blues-symphony"
+- A natural, human-readable phrase (2-6 words)
+- Title case (capitalize main words)
+- Descriptive but concise — capture what the conversation is about
+- Examples: "Server Monitoring Setup", "Debugging the Login Flow", "Weekend Trip Planning", "Quick Math Questions"
 
 TOPICS FORMAT:
 - 1-5 kebab-case tags
@@ -34,7 +33,7 @@ TOPICS FORMAT:
 
 Return ONLY valid JSON in this exact format:
 {
-  "title": "three-word-title",
+  "title": "Short Descriptive Title",
   "topics": ["topic-one", "topic-two"]
 }`;
 
@@ -64,7 +63,7 @@ export class NamingService {
         const q = createBrainQuery(fullPrompt, {
           model: "claude-haiku-4-5-20251001",
           systemPrompt:
-            "You are a conversation naming assistant. Return only valid JSON.",
+            "You are a conversation naming assistant. Generate short, descriptive titles. Return only valid JSON.",
           continue: false,
           includePartialMessages: false,
         });
@@ -130,7 +129,7 @@ export class NamingService {
             continue; // Retry
           }
           throw new Error(
-            `Invalid title format: "${result.title}" (must be 3 lowercase words with hyphens)`,
+            `Invalid title format: "${result.title}" (must be 2-6 words, max 80 chars)`,
           );
         }
 
@@ -159,15 +158,12 @@ export class NamingService {
   }
 
   /**
-   * Validate title format: exactly 3 lowercase words separated by hyphens
+   * Validate title format: 2-6 words, max 80 characters
    */
   private isValidTitle(title: string): boolean {
-    if (!title) return false;
+    if (!title || title.length > 80) return false;
 
-    const parts = title.split("-");
-    if (parts.length !== 3) return false;
-
-    // Each part must be lowercase letters only
-    return parts.every((part) => /^[a-z]+$/.test(part));
+    const words = title.trim().split(/\s+/);
+    return words.length >= 2 && words.length <= 6;
   }
 }
