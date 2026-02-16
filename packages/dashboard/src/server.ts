@@ -46,8 +46,12 @@ export async function createServer(
     origin: true,
   });
 
-  // Register WebSocket support
-  await fastify.register(fastifyWebSocket);
+  // Register WebSocket support with increased payload for file uploads (6MB)
+  await fastify.register(fastifyWebSocket, {
+    options: {
+      maxPayload: 6 * 1024 * 1024,
+    },
+  });
 
   // Register multipart/form-data support for file uploads
   await fastify.register(fastifyMultipart);
@@ -56,6 +60,13 @@ export async function createServer(
   await fastify.register(fastifyStatic, {
     root: join(import.meta.dirname, "../public"),
     prefix: "/",
+  });
+
+  // Serve attachments from {agentDir}/conversations/
+  await fastify.register(fastifyStatic, {
+    root: join(agentDir, "conversations"),
+    prefix: "/attachments/",
+    decorateReply: false, // Avoid conflict with first static plugin
   });
 
   // Store agentDir and isHatched status as decorators for route handlers

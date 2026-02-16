@@ -1,6 +1,12 @@
 // Public API for consumption by other packages (dashboard, plugins)
 export { createBrainQuery, streamResponse } from './brain.js'
-export type { BrainSessionOptions } from './brain.js'
+export type {
+  BrainSessionOptions,
+  ContentBlock,
+  TextBlock,
+  ImageBlock,
+  PromptContent,
+} from './brain.js'
 export type { Query } from '@anthropic-ai/claude-agent-sdk'
 
 export { loadConfig, findAgentDir, loadAgentName } from './config.js'

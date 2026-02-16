@@ -1,4 +1,9 @@
-import { query, type Query, type Options } from '@anthropic-ai/claude-agent-sdk'
+import {
+  query,
+  type Query,
+  type Options,
+  type SDKUserMessage,
+} from '@anthropic-ai/claude-agent-sdk'
 
 export interface BrainSessionOptions {
   model: string
@@ -9,7 +14,18 @@ export interface BrainSessionOptions {
   reasoning?: boolean
 }
 
-export function createBrainQuery(prompt: string, options: BrainSessionOptions): Query {
+/** Content block types for multimodal messages */
+export type TextBlock = { type: 'text'; text: string }
+export type ImageBlock = {
+  type: 'image'
+  source: { type: 'base64'; media_type: string; data: string }
+}
+export type ContentBlock = TextBlock | ImageBlock
+
+/** Prompt can be plain text or content blocks (for images) */
+export type PromptContent = string | ContentBlock[]
+
+export function createBrainQuery(prompt: PromptContent, options: BrainSessionOptions): Query {
   // Auth is resolved before this point (resolveAuth sets env vars).
   // This is a safety check in case createBrainQuery is called without resolving auth first.
   if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_CODE_OAUTH_TOKEN) {
@@ -36,7 +52,27 @@ export function createBrainQuery(prompt: string, options: BrainSessionOptions): 
   } else {
     queryOptions.thinking = { type: 'disabled' }
   }
-  return query({ prompt, options: queryOptions })
+
+  // Handle content blocks (for images) vs plain text
+  if (typeof prompt === 'string') {
+    return query({ prompt, options: queryOptions })
+  } else {
+    // Convert content blocks to async iterable matching SDK streaming input pattern
+    // See: https://platform.claude.com/docs/en/agent-sdk/streaming-vs-single-mode
+    async function* messageStream(): AsyncIterable<SDKUserMessage> {
+      yield {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: prompt,
+        },
+        // Required by SDK types but not used for simple queries
+        parent_tool_use_id: null,
+        session_id: '',
+      } as SDKUserMessage
+    }
+    return query({ prompt: messageStream(), options: queryOptions })
+  }
 }
 
 export async function streamResponse(q: Query): Promise<string> {

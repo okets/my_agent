@@ -376,6 +376,33 @@
                   <div
                     class="user-bubble max-w-[85%] rounded-xl rounded-tr-none px-3 py-2"
                   >
+                    <!-- Attachment previews (images shown inline) -->
+                    <template x-if="msg.attachmentPreviews && msg.attachmentPreviews.length > 0">
+                      <div class="flex flex-wrap gap-2 mb-2">
+                        <template x-for="(att, idx) in msg.attachmentPreviews" :key="idx">
+                          <div>
+                            <!-- Image attachment -->
+                            <template x-if="att.type === 'image'">
+                              <img
+                                :src="att.preview || att.url"
+                                :alt="att.name"
+                                class="max-w-[200px] max-h-[200px] rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                                @click="window.open(att.preview || att.url, '_blank')"
+                              />
+                            </template>
+                            <!-- Text file attachment (chip) -->
+                            <template x-if="att.type !== 'image'">
+                              <div class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-tokyo-card/50 text-xs text-tokyo-muted">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3">
+                                  <path fill-rule="evenodd" d="M3.5 2A1.5 1.5 0 0 0 2 3.5v9A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 12.5 4H9.621a1.5 1.5 0 0 1-1.06-.44L7.439 2.44A1.5 1.5 0 0 0 6.379 2H3.5Z" clip-rule="evenodd" />
+                                </svg>
+                                <span x-text="att.name"></span>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
                     <div
                       class="chat-md text-sm leading-relaxed"
                       x-html="msg.renderedContent"
@@ -435,7 +462,105 @@
           class="shrink-0 p-3"
           style="border-top: 1px solid rgba(255, 255, 255, 0.06)"
         >
-          <div class="compose-container compose-box">
+          <!-- Hidden file input for attachments -->
+          <input
+            type="file"
+            x-ref="fileInput"
+            @change="handleFileSelect($event)"
+            accept="image/*,.txt,.md,.json,.yaml,.yml,.ts,.tsx,.js,.jsx,.py,.sh,.css,.html,.xml,.csv,.sql,.rs,.go,.rb,.java,.c,.cpp,.h"
+            multiple
+            class="hidden"
+          />
+
+          <div
+            class="compose-container compose-box"
+            @dragover.prevent="dragOver = true"
+            @dragleave.prevent="dragOver = false"
+            @drop.prevent="handleDrop($event); dragOver = false"
+            :class="{ 'ring-2 ring-tokyo-blue/50': dragOver }"
+            x-data="{ dragOver: false }"
+          >
+            <!-- Attachment preview strip (above textarea) -->
+            <template x-if="attachments.length > 0">
+              <div class="px-3 pt-2 pb-1 flex flex-wrap gap-2">
+                <template x-for="(att, index) in attachments" :key="index">
+                  <div class="attachment-preview relative group">
+                    <!-- Image preview -->
+                    <template x-if="att.type === 'image'">
+                      <div class="relative">
+                        <img
+                          :src="att.preview"
+                          alt="Preview"
+                          class="w-16 h-16 object-cover rounded-lg border border-tokyo-muted/20"
+                        />
+                        <!-- Size badge -->
+                        <span
+                          class="absolute bottom-0.5 left-0.5 px-1 py-0.5 text-[8px] rounded bg-black/60 text-white"
+                          :class="att.file.size > 4 * 1024 * 1024 ? 'text-tokyo-orange' : ''"
+                          x-text="formatFileSize(att.file.size)"
+                        ></span>
+                      </div>
+                    </template>
+                    <!-- File preview (non-image) -->
+                    <template x-if="att.type !== 'image'">
+                      <div
+                        class="w-16 h-16 rounded-lg border border-tokyo-muted/20 bg-tokyo-card flex flex-col items-center justify-center gap-0.5 relative"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 16 16"
+                          fill="currentColor"
+                          class="w-4 h-4 text-tokyo-muted"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            d="M3.5 2A1.5 1.5 0 0 0 2 3.5v9A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 12.5 4H9.621a1.5 1.5 0 0 1-1.06-.44L7.439 2.44A1.5 1.5 0 0 0 6.379 2H3.5Z"
+                            clip-rule="evenodd"
+                          />
+                        </svg>
+                        <span
+                          class="text-[8px] text-tokyo-muted truncate max-w-14 px-1"
+                          x-text="att.file.name.split('.').pop()"
+                        ></span>
+                        <span
+                          class="text-[8px] text-tokyo-muted/70"
+                          :class="att.file.size > 4 * 1024 * 1024 ? 'text-tokyo-orange' : ''"
+                          x-text="formatFileSize(att.file.size)"
+                        ></span>
+                      </div>
+                    </template>
+                    <!-- Remove button -->
+                    <button
+                      @click="removeAttachment(index)"
+                      class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-tokyo-red text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        class="w-3 h-3"
+                      >
+                        <path
+                          d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <!-- Size warning -->
+            <template x-if="attachments.some(a => a.file.size > 4 * 1024 * 1024)">
+              <div class="px-3 pb-1">
+                <div class="text-[10px] text-tokyo-orange flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3">
+                    <path fill-rule="evenodd" d="M6.701 2.25c.577-1 2.02-1 2.598 0l5.196 9a1.5 1.5 0 0 1-1.299 2.25H2.804a1.5 1.5 0 0 1-1.3-2.25l5.197-9ZM8 5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-1.5 0v-2.5A.75.75 0 0 1 8 5Zm0 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" />
+                  </svg>
+                  <span>Large file — may be slow to upload</span>
+                </div>
+              </div>
+            </template>
+
             <!-- Textarea area -->
             <div class="px-3 py-2">
               <!-- Textarea (normal mode) -->
@@ -454,6 +579,7 @@
                 }
               "
                 @input="autoResize($refs.chatInput)"
+                @paste="handlePaste($event)"
               ></textarea>
 
               <!-- Password input (shown only in password mode) -->
@@ -577,8 +703,9 @@
 
               <!-- Attachment button (right-aligned, before slash) -->
               <button
+                @click="$refs.fileInput.click()"
                 class="action-bar-btn flex items-center justify-center w-7 h-7 rounded-md text-tokyo-muted hover:text-tokyo-text hover:bg-tokyo-card/50 transition-colors"
-                title="Attach file"
+                title="Attach file (images, text files)"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

@@ -55,8 +55,10 @@ function chat() {
     // Computed
     // ─────────────────────────────────────────────────────────────────
     get canSend() {
+      const hasContent =
+        this.inputText.trim().length > 0 || this.attachments.length > 0;
       return (
-        this.inputText.trim().length > 0 &&
+        hasContent &&
         this.wsConnected &&
         (!this.isResponding || this.isHatching || this.composeHintControlId)
       );
@@ -186,6 +188,7 @@ function chat() {
       this.composeHintControlId = null;
       this.composePlaceholder = "";
       this.composePasswordMode = false;
+      this.attachments = [];
     },
 
     touchCurrentConversation() {
@@ -234,9 +237,15 @@ function chat() {
       return date.toLocaleDateString();
     },
 
-    sendMessage() {
+    async sendMessage() {
       const text = this.inputText.trim();
-      if (!text || !this.wsConnected) {
+      const hasAttachments = this.attachments.length > 0;
+
+      // Need either text or attachments
+      if (!text && !hasAttachments) {
+        return;
+      }
+      if (!this.wsConnected) {
         return;
       }
 
@@ -248,7 +257,7 @@ function chat() {
       // Show masked or actual text in user bubble
       const displayText = this.composePasswordMode
         ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
-        : text;
+        : text || (hasAttachments ? "[Attached files]" : "");
 
       // Add user message to the chat
       const userMessage = {
@@ -257,6 +266,13 @@ function chat() {
         content: displayText,
         renderedContent: this.renderMarkdown(displayText),
         timestamp: this.formatTime(new Date()),
+        attachmentPreviews: hasAttachments
+          ? this.attachments.map((a) => ({
+              type: a.type,
+              preview: a.preview,
+              name: a.file.name,
+            }))
+          : null,
       };
       this.messages.push(userMessage);
 
@@ -268,16 +284,32 @@ function chat() {
           value: text,
         });
       } else {
+        // Convert attachments to base64 for WebSocket
+        let wsAttachments = null;
+        if (hasAttachments) {
+          wsAttachments = await Promise.all(
+            this.attachments.map(async (att) => ({
+              filename: att.file.name,
+              mimeType: att.file.type || "application/octet-stream",
+              base64Data: await this.fileToBase64(att.file),
+            })),
+          );
+        }
+
         // Include reasoning flag (only if not Haiku)
         const reasoning =
           this.reasoningEnabled && !this.selectedModel.includes("haiku");
         // Include model so server can set it on new conversations
-        this.ws.send({
+        const msg = {
           type: "message",
           content: text,
           reasoning,
           model: this.selectedModel,
-        });
+        };
+        if (wsAttachments) {
+          msg.attachments = wsAttachments;
+        }
+        this.ws.send(msg);
       }
 
       // Update sidebar timestamp for current conversation
@@ -285,6 +317,7 @@ function chat() {
 
       // Reset compose bar state
       this.inputText = "";
+      this.attachments = [];
       this.composeHintControlId = null;
       this.composePlaceholder = "";
       this.composePasswordMode = false;
@@ -503,6 +536,7 @@ function chat() {
               timestamp: this.formatTime(new Date(turn.timestamp)),
               usage: turn.usage,
               cost: turn.cost,
+              attachmentPreviews: this.buildAttachmentPreviews(turn.attachments),
             }));
           }
 
@@ -555,6 +589,7 @@ function chat() {
               timestamp: this.formatTime(new Date(data.turn.timestamp)),
               usage: data.turn.usage,
               cost: data.turn.cost,
+              attachmentPreviews: this.buildAttachmentPreviews(data.turn.attachments),
             };
             this.messages.push(msg);
             this.$nextTick(() => {
@@ -577,6 +612,7 @@ function chat() {
               timestamp: this.formatTime(new Date(turn.timestamp)),
               usage: turn.usage,
               cost: turn.cost,
+              attachmentPreviews: this.buildAttachmentPreviews(turn.attachments),
             }));
             this.messages.unshift(...olderMessages);
           }
@@ -661,6 +697,12 @@ function chat() {
       const hours = date.getHours().toString().padStart(2, "0");
       const minutes = date.getMinutes().toString().padStart(2, "0");
       return `${hours}:${minutes}`;
+    },
+
+    formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(1) + " MB";
     },
 
     stopResponse() {
@@ -781,6 +823,237 @@ function chat() {
       };
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Attachment handling
+    // ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Handle file selection from file picker
+     */
+    handleFileSelect(event) {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+      for (const file of files) {
+        this.addAttachment(file);
+      }
+      // Clear the input so the same file can be selected again
+      event.target.value = "";
+    },
+
+    /**
+     * Handle paste event (for images)
+     */
+    handlePaste(event) {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          event.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            this.addAttachment(file);
+          }
+        }
+      }
+    },
+
+    /**
+     * Handle drop event for drag-and-drop
+     */
+    handleDrop(event) {
+      const files = event.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+
+      for (const file of files) {
+        this.addAttachment(file);
+      }
+    },
+
+    /**
+     * Add a file as attachment
+     */
+    async addAttachment(file) {
+      // Validate file type
+      const allowedImageTypes = [
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+      ];
+      const allowedTextExts = [
+        ".txt",
+        ".md",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".py",
+        ".sh",
+        ".css",
+        ".html",
+        ".xml",
+        ".csv",
+        ".sql",
+        ".rs",
+        ".go",
+        ".rb",
+        ".java",
+        ".c",
+        ".cpp",
+        ".h",
+      ];
+
+      const ext = "." + file.name.split(".").pop()?.toLowerCase();
+      const isImage = allowedImageTypes.includes(file.type);
+      const isText =
+        file.type.startsWith("text/") || allowedTextExts.includes(ext);
+
+      if (!isImage && !isText) {
+        console.warn("[App] File type not allowed:", file.type, file.name);
+        return;
+      }
+
+      // Validate size (5MB max)
+      const maxSize = 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        console.warn(
+          "[App] File too large:",
+          (file.size / 1024 / 1024).toFixed(1) + "MB",
+        );
+        return;
+      }
+
+      // For images > 2MB, resize to max 1920px
+      let processedFile = file;
+      let preview = null;
+      if (isImage) {
+        if (file.size > 2 * 1024 * 1024) {
+          console.log(
+            "[App] Resizing large image:",
+            (file.size / 1024 / 1024).toFixed(1) + "MB",
+          );
+          const resized = await this.resizeImage(file, 1920);
+          processedFile = resized.file;
+          preview = resized.dataUrl;
+          console.log(
+            "[App] Resized to:",
+            (processedFile.size / 1024 / 1024).toFixed(1) + "MB",
+          );
+        } else {
+          preview = await this.fileToDataUrl(file);
+        }
+      }
+
+      this.attachments.push({
+        file: processedFile,
+        preview,
+        type: isImage ? "image" : "text",
+      });
+    },
+
+    /**
+     * Resize image to max dimension using canvas
+     */
+    async resizeImage(file, maxDimension) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          // Calculate new dimensions
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          // Draw to canvas
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to blob (JPEG for compression)
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error("Canvas to blob failed"));
+                return;
+              }
+              const resizedFile = new File(
+                [blob],
+                file.name.replace(/\.[^.]+$/, ".jpg"),
+                { type: "image/jpeg" },
+              );
+              const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+              resolve({ file: resizedFile, dataUrl });
+            },
+            "image/jpeg",
+            0.85,
+          );
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
+    },
+
+    /**
+     * Remove attachment at index
+     */
+    removeAttachment(index) {
+      this.attachments.splice(index, 1);
+    },
+
+    /**
+     * Convert file to data URL for preview
+     */
+    fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    },
+
+    /**
+     * Convert file to base64 (without data URL prefix)
+     */
+    fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          // Remove the data URL prefix (e.g., "data:image/png;base64,")
+          const base64 = reader.result.split(",")[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    },
+
+    /**
+     * Build attachment previews from server attachment metadata
+     */
+    buildAttachmentPreviews(attachments) {
+      if (!attachments || attachments.length === 0) return null;
+      return attachments.map((att) => ({
+        type: att.mimeType.startsWith("image/") ? "image" : "text",
+        name: att.filename,
+        url: `/attachments/${att.localPath}`,
+        size: att.size,
+      }));
     },
   };
 }

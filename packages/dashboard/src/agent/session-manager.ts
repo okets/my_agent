@@ -3,7 +3,7 @@ import {
   loadConfig,
   assembleSystemPrompt,
 } from "@my-agent/core";
-import type { Query } from "@my-agent/core";
+import type { Query, ContentBlock, PromptContent } from "@my-agent/core";
 import { processStream, type StreamEvent } from "./stream-processor.js";
 
 interface TurnRecord {
@@ -75,13 +75,22 @@ export class SessionManager {
   }
 
   async *streamMessage(
-    content: string,
+    content: string | ContentBlock[],
     options?: StreamOptions,
   ): AsyncGenerator<StreamEvent> {
     await this.ensureInitialized();
 
-    // Record user turn
-    this.turns.push({ role: "user", content });
+    // Record user turn (extract text for history)
+    const textContent =
+      typeof content === "string"
+        ? content
+        : content
+            .filter(
+              (b): b is { type: "text"; text: string } => b.type === "text",
+            )
+            .map((b) => b.text)
+            .join("\n");
+    this.turns.push({ role: "user", content: textContent });
 
     // Build prompt with full history — each query is independent
     const systemPrompt = this.buildPromptWithHistory();

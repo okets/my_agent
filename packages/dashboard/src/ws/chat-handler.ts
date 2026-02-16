@@ -8,7 +8,9 @@ import { IdleTimerManager, NamingService } from "../conversations/index.js";
 import type { ConversationManager } from "../conversations/index.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
 import { ConnectionRegistry } from "./connection-registry.js";
+import { AttachmentService } from "../conversations/attachments.js";
 import type {
+  Attachment,
   ClientMessage,
   ServerMessage,
   ConversationMeta,
@@ -32,6 +34,9 @@ let namingService: NamingService | null = null;
 // Global session registry for conversation-bound sessions
 const sessionRegistry = new SessionRegistry(5); // Max 5 concurrent sessions
 
+// Attachment service (initialized per connection with agentDir)
+let attachmentService: AttachmentService | null = null;
+
 function isValidConversationId(id: string): boolean {
   return CONVERSATION_ID_RE.test(id);
 }
@@ -44,6 +49,11 @@ export async function registerChatWebSocket(
 
     // Use shared ConversationManager from fastify decorator
     const conversationManager = fastify.conversationManager!;
+
+    // Initialize attachment service if not already done
+    if (!attachmentService) {
+      attachmentService = new AttachmentService(fastify.agentDir);
+    }
 
     // Lazily initialize IdleTimerManager on first WS connection
     if (!idleTimerManager && fastify.abbreviationQueue) {
@@ -279,7 +289,12 @@ export async function registerChatWebSocket(
             return;
           }
 
-          await handleChatMessage(msg.content, msg.reasoning, msg.model);
+          await handleChatMessage(
+            msg.content,
+            msg.reasoning,
+            msg.model,
+            msg.attachments,
+          );
         }
       } catch (err) {
         send({ type: "error", message: "Invalid message format" });
@@ -614,6 +629,7 @@ export async function registerChatWebSocket(
       content: string,
       reasoning?: boolean,
       model?: string,
+      attachments?: Attachment[],
     ): Promise<void> {
       // Create conversation if needed
       if (!currentConversationId) {
@@ -661,13 +677,86 @@ export async function registerChatWebSocket(
       const turnNumber = currentTurnNumber;
       const userTimestamp = new Date().toISOString();
 
-      // Save user turn
+      // Process attachments and build content blocks for Agent SDK
+      type ContentBlock =
+        | { type: "text"; text: string }
+        | {
+            type: "image";
+            source: { type: "base64"; media_type: string; data: string };
+          };
+
+      let contentBlocks: ContentBlock[] | undefined;
+      const savedAttachments: Array<{
+        id: string;
+        filename: string;
+        localPath: string;
+        mimeType: string;
+        size: number;
+      }> = [];
+
+      if (attachments && attachments.length > 0 && attachmentService) {
+        contentBlocks = [];
+
+        // Add text content first if present
+        if (content.trim()) {
+          contentBlocks.push({ type: "text", text: content });
+        }
+
+        // Process each attachment
+        for (const attachment of attachments) {
+          try {
+            const saved = await attachmentService.save(
+              currentConversationId,
+              attachment.filename,
+              attachment.mimeType,
+              attachment.base64Data,
+            );
+            savedAttachments.push(saved.meta);
+
+            // Build content block based on type
+            if (attachmentService.isImage(attachment.mimeType)) {
+              // Image: add as image block
+              contentBlocks.push({
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: attachment.mimeType,
+                  data: attachment.base64Data,
+                },
+              });
+            } else {
+              // Text file: decode and include as text
+              const textContent = Buffer.from(
+                attachment.base64Data,
+                "base64",
+              ).toString("utf-8");
+              contentBlocks.push({
+                type: "text",
+                text: `<file name="${attachment.filename}">\n${textContent}\n</file>`,
+              });
+            }
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : "Failed to save attachment";
+            send({ type: "error", message });
+            fastify.log.error(err, `Attachment save failed: ${message}`);
+          }
+        }
+
+        // If no text content and contentBlocks is empty (all attachments failed), fall back
+        if (contentBlocks.length === 0) {
+          contentBlocks = undefined;
+        }
+      }
+
+      // Save user turn (include attachment metadata if present)
       const userTurn: TranscriptTurn = {
         type: "turn",
         role: "user",
         content,
         timestamp: userTimestamp,
         turnNumber,
+        attachments: savedAttachments.length > 0 ? savedAttachments : undefined,
       };
 
       await conversationManager.appendTurn(currentConversationId, userTurn);
@@ -707,7 +796,9 @@ export async function registerChatWebSocket(
       }
 
       try {
-        for await (const event of sessionManager.streamMessage(content, {
+        // Use content blocks if we have attachments, otherwise plain text
+        const messageContent = contentBlocks || content;
+        for await (const event of sessionManager.streamMessage(messageContent, {
           model: modelOverride,
           reasoning,
         })) {
@@ -871,5 +962,6 @@ function toTurn(turn: TranscriptTurn): Turn {
     thinkingText: turn.thinkingText,
     usage: turn.usage,
     cost: turn.cost,
+    attachments: turn.attachments,
   };
 }

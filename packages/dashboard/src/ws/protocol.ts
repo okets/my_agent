@@ -1,3 +1,10 @@
+// Attachment type for file uploads
+export interface Attachment {
+  filename: string;
+  base64Data: string;
+  mimeType: string;
+}
+
 // Chat control types (used in hatching + future features)
 
 export interface ButtonsControl {
@@ -36,6 +43,15 @@ export interface ConversationMeta {
   model: string | null;
 }
 
+// Attachment metadata for display (stored in transcript)
+export interface AttachmentMeta {
+  id: string;
+  filename: string;
+  localPath: string;
+  mimeType: string;
+  size: number;
+}
+
 // Turn data for UI display
 export interface Turn {
   role: "user" | "assistant";
@@ -45,11 +61,18 @@ export interface Turn {
   thinkingText?: string;
   usage?: { input: number; output: number };
   cost?: number;
+  attachments?: AttachmentMeta[];
 }
 
 // Client → Server messages
 export type ClientMessage =
-  | { type: "message"; content: string; reasoning?: boolean; model?: string }
+  | {
+      type: "message";
+      content: string;
+      reasoning?: boolean;
+      model?: string;
+      attachments?: Attachment[];
+    }
   | { type: "abort" }
   | { type: "control_response"; controlId: string; value: string }
   | { type: "connect"; conversationId?: string }

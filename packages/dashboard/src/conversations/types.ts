@@ -82,6 +82,15 @@ export interface TranscriptTurn {
 
   /** Sender identifier (phone number, email, etc.) */
   sender?: string;
+
+  /** Attached files (images, text files) */
+  attachments?: Array<{
+    id: string;
+    filename: string;
+    localPath: string;
+    mimeType: string;
+    size: number;
+  }>;
 }
 
 /**
