@@ -10,7 +10,7 @@
 | Milestone                    | Status   | Progress                     |
 | ---------------------------- | -------- | ---------------------------- |
 | **M1: Foundation**           | Complete | 4/4 sprints                  |
-| **M2: Web UI**               | Complete | 5/5 sprints                  |
+| **M2: Web UI**               | Active   | 5/6 sprints                  |
 | **M3: WhatsApp Channel**     | Planned  | Design complete, sprints TBD |
 | **M4a: Task System**         | Planned  | Design complete, sprints TBD |
 | **M4b: Memory**              | Planned  | Design complete, sprints TBD |
@@ -26,14 +26,15 @@
 ├─────────────────────────────────────────────────────────────────────►
 
 M1 Foundation     M2 Web UI                      M3-M6 Future
-[████████████]    [████████████]                  [░░░░░░░░░░]
-   COMPLETE          COMPLETE                        PLANNED
+[████████████]    [██████████░░]                  [░░░░░░░░░░]
+   COMPLETE          ACTIVE                          PLANNED
 
                   S1 ██ Server + Chat (done)
                   S2 ██ Streaming (done)
                   S3 ██ Hatching Wizard (done)
                   S4 ██ Conversations (done)
                   S5 ██ Naming (done)
+                  S6 ░░ Advanced Chat Features (active)
 
                                                  M3 WhatsApp ─┐
                                                  M4a Tasks ───┼─► Agent can develop itself
@@ -78,6 +79,7 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 | S3     | Hatching Wizard   | Complete | [plan](sprints/m2-s3-hatching-wizard/plan.md)   | [review](sprints/m2-s3-hatching-wizard/review.md)   |
 | S4     | Conversations     | Complete | [plan](sprints/m2-s4-conversations/plan.md)     | [review](sprints/m2-s4-conversations/review.md)     |
 | S5     | Naming            | Complete | [plan](sprints/m2-s5-naming/plan.md)            | [review](sprints/m2-s5-naming/review.md)            |
+| S6     | Advanced Chat Features | Active   | [plan](sprints/m2-s6-advanced-features/plan.md) | —                                                   |
 
 **Design specs:**
 
@@ -90,6 +92,8 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 - Web-based hatching wizard
 - Conversation persistence (SQLite + JSONL transcripts)
 - Auto-naming at turn 5 + periodic re-naming on idle
+- *(S6)* Conversation deletion, per-conversation model selection
+- *(S6)* Extended thinking toggle, file attachments (images + text)
 
 ---
 
