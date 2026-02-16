@@ -377,9 +377,14 @@
                     class="user-bubble max-w-[85%] rounded-xl rounded-tr-none px-3 py-2"
                   >
                     <!-- Attachment previews (images shown inline) -->
-                    <template x-if="msg.attachmentPreviews && msg.attachmentPreviews.length > 0">
+                    <template
+                      x-if="msg.attachmentPreviews && msg.attachmentPreviews.length > 0"
+                    >
                       <div class="flex flex-wrap gap-2 mb-2">
-                        <template x-for="(att, idx) in msg.attachmentPreviews" :key="idx">
+                        <template
+                          x-for="(att, idx) in msg.attachmentPreviews"
+                          :key="idx"
+                        >
                           <div>
                             <!-- Image attachment -->
                             <template x-if="att.type === 'image'">
@@ -387,14 +392,26 @@
                                 :src="att.preview || att.url"
                                 :alt="att.name"
                                 class="max-w-[200px] max-h-[200px] rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                                @click="window.open(att.preview || att.url, '_blank')"
+                                title="Click to enlarge"
+                                @click="lightboxImage = att.url || att.preview"
                               />
                             </template>
                             <!-- Text file attachment (chip) -->
                             <template x-if="att.type !== 'image'">
-                              <div class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-tokyo-card/50 text-xs text-tokyo-muted">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3">
-                                  <path fill-rule="evenodd" d="M3.5 2A1.5 1.5 0 0 0 2 3.5v9A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 12.5 4H9.621a1.5 1.5 0 0 1-1.06-.44L7.439 2.44A1.5 1.5 0 0 0 6.379 2H3.5Z" clip-rule="evenodd" />
+                              <div
+                                class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-tokyo-card/50 text-xs text-tokyo-muted"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 16 16"
+                                  fill="currentColor"
+                                  class="w-3 h-3"
+                                >
+                                  <path
+                                    fill-rule="evenodd"
+                                    d="M3.5 2A1.5 1.5 0 0 0 2 3.5v9A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 12.5 4H9.621a1.5 1.5 0 0 1-1.06-.44L7.439 2.44A1.5 1.5 0 0 0 6.379 2H3.5Z"
+                                    clip-rule="evenodd"
+                                  />
                                 </svg>
                                 <span x-text="att.name"></span>
                               </div>
@@ -491,7 +508,9 @@
                         <img
                           :src="att.preview"
                           alt="Preview"
-                          class="w-16 h-16 object-cover rounded-lg border border-tokyo-muted/20"
+                          class="w-16 h-16 object-cover rounded-lg border border-tokyo-muted/20 cursor-pointer hover:opacity-80 transition-opacity"
+                          title="Click to enlarge"
+                          @click="lightboxImage = att.preview"
                         />
                         <!-- Size badge -->
                         <span
@@ -550,11 +569,24 @@
               </div>
             </template>
             <!-- Size warning -->
-            <template x-if="attachments.some(a => a.file.size > 4 * 1024 * 1024)">
+            <template
+              x-if="attachments.some(a => a.file.size > 4 * 1024 * 1024)"
+            >
               <div class="px-3 pb-1">
-                <div class="text-[10px] text-tokyo-orange flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3">
-                    <path fill-rule="evenodd" d="M6.701 2.25c.577-1 2.02-1 2.598 0l5.196 9a1.5 1.5 0 0 1-1.299 2.25H2.804a1.5 1.5 0 0 1-1.3-2.25l5.197-9ZM8 5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-1.5 0v-2.5A.75.75 0 0 1 8 5Zm0 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" />
+                <div
+                  class="text-[10px] text-tokyo-orange flex items-center gap-1"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    class="w-3 h-3"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M6.701 2.25c.577-1 2.02-1 2.598 0l5.196 9a1.5 1.5 0 0 1-1.299 2.25H2.804a1.5 1.5 0 0 1-1.3-2.25l5.197-9ZM8 5a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-1.5 0v-2.5A.75.75 0 0 1 8 5Zm0 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                      clip-rule="evenodd"
+                    />
                   </svg>
                   <span>Large file — may be slow to upload</span>
                 </div>
@@ -809,6 +841,30 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- ============================================================== -->
+      <!-- Image Lightbox                                                 -->
+      <!-- ============================================================== -->
+      <div
+        x-show="lightboxImage"
+        x-cloak
+        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        @click="lightboxImage = null"
+        @keydown.escape.window="lightboxImage = null"
+      >
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+        <img
+          :src="lightboxImage"
+          class="relative max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl object-contain"
+          @click.stop
+        />
+        <button
+          @click="lightboxImage = null"
+          class="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white/80 hover:text-white flex items-center justify-center text-2xl transition-colors"
+        >
+          &times;
+        </button>
       </div>
     </div>
 

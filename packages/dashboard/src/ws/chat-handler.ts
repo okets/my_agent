@@ -251,7 +251,10 @@ export async function registerChatWebSocket(
 
         // Handle regular messages
         if (msg.type === "message") {
-          if (!msg.content?.trim()) return;
+          // Need either text content or attachments
+          const hasContent = msg.content?.trim();
+          const hasAttachments = msg.attachments && msg.attachments.length > 0;
+          if (!hasContent && !hasAttachments) return;
 
           // If in scripted hatching, treat as free text
           if (scriptedEngine) {
@@ -581,8 +584,12 @@ export async function registerChatWebSocket(
         sessionManager = null;
       }
 
+      // Delete attachments folder
+      if (attachmentService) {
+        attachmentService.deleteConversationAttachments(conversationId);
+      }
+
       // Delete from database + transcript
-      // (Attachments folder placeholder - T6 will implement AttachmentService)
       await conversationManager.delete(conversationId);
 
       fastify.log.info(`Deleted conversation ${conversationId}`);
@@ -697,9 +704,12 @@ export async function registerChatWebSocket(
       if (attachments && attachments.length > 0 && attachmentService) {
         contentBlocks = [];
 
-        // Add text content first if present
+        // Add text content first if present, or a placeholder for image-only messages
         if (content.trim()) {
           contentBlocks.push({ type: "text", text: content });
+        } else {
+          // Image-only message — add minimal context for Claude
+          contentBlocks.push({ type: "text", text: "What is this?" });
         }
 
         // Process each attachment
@@ -798,10 +808,20 @@ export async function registerChatWebSocket(
       try {
         // Use content blocks if we have attachments, otherwise plain text
         const messageContent = contentBlocks || content;
+        fastify.log.info(
+          `Sending message with ${Array.isArray(messageContent) ? messageContent.length + " content blocks" : "text"}`,
+        );
+        if (Array.isArray(messageContent)) {
+          fastify.log.info(
+            `Content block types: ${messageContent.map((b) => b.type).join(", ")}`,
+          );
+        }
+        fastify.log.info("Starting stream iteration...");
         for await (const event of sessionManager.streamMessage(messageContent, {
           model: modelOverride,
           reasoning,
         })) {
+          fastify.log.info(`Stream event: ${event.type}`);
           switch (event.type) {
             case "text_delta":
               assistantContent += event.text;
@@ -828,6 +848,7 @@ export async function registerChatWebSocket(
               break;
           }
         }
+        fastify.log.info("Stream iteration complete");
 
         // Save assistant turn
         const assistantTurn: TranscriptTurn = {
@@ -916,6 +937,7 @@ export async function registerChatWebSocket(
           socket,
         );
       } catch (err) {
+        fastify.log.error(err, "Error in streamMessage");
         send({
           type: "error",
           message: err instanceof Error ? err.message : "Unknown error",

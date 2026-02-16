@@ -45,6 +45,9 @@ function chat() {
     deleteTargetId: null,
     deleteTargetTitle: null,
 
+    // Image lightbox
+    lightboxImage: null,
+
     modelOptions: [
       { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5" },
       { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5" },
@@ -257,7 +260,7 @@ function chat() {
       // Show masked or actual text in user bubble
       const displayText = this.composePasswordMode
         ? "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
-        : text || (hasAttachments ? "[Attached files]" : "");
+        : text;
 
       // Add user message to the chat
       const userMessage = {
@@ -536,7 +539,9 @@ function chat() {
               timestamp: this.formatTime(new Date(turn.timestamp)),
               usage: turn.usage,
               cost: turn.cost,
-              attachmentPreviews: this.buildAttachmentPreviews(turn.attachments),
+              attachmentPreviews: this.buildAttachmentPreviews(
+                turn.attachments,
+              ),
             }));
           }
 
@@ -578,7 +583,38 @@ function chat() {
           }
 
           // If another tab updated the current conversation, render the new turn
+          // For user turns with attachments from this tab, just update the attachment URLs
           if (data.conversationId === this.currentConversationId) {
+            // Check if this is a user turn with attachments - find matching message
+            if (
+              data.turn.role === "user" &&
+              data.turn.attachments &&
+              data.turn.attachments.length > 0
+            ) {
+              // Find the most recent user message with blob/data URL attachments
+              for (let i = this.messages.length - 1; i >= 0; i--) {
+                const msg = this.messages[i];
+                if (
+                  msg.role === "user" &&
+                  msg.attachmentPreviews &&
+                  msg.attachmentPreviews.some(
+                    (att) =>
+                      att.preview &&
+                      (att.preview.startsWith("data:") ||
+                        att.preview.startsWith("blob:")),
+                  )
+                ) {
+                  // Update with server URLs
+                  msg.attachmentPreviews = this.buildAttachmentPreviews(
+                    data.turn.attachments,
+                  );
+                  break;
+                }
+              }
+              // Don't add duplicate message for user turns from same tab
+              break;
+            }
+
             const msg = {
               id: ++this.messageIdCounter,
               role: data.turn.role,
@@ -589,7 +625,9 @@ function chat() {
               timestamp: this.formatTime(new Date(data.turn.timestamp)),
               usage: data.turn.usage,
               cost: data.turn.cost,
-              attachmentPreviews: this.buildAttachmentPreviews(data.turn.attachments),
+              attachmentPreviews: this.buildAttachmentPreviews(
+                data.turn.attachments,
+              ),
             };
             this.messages.push(msg);
             this.$nextTick(() => {
@@ -612,7 +650,9 @@ function chat() {
               timestamp: this.formatTime(new Date(turn.timestamp)),
               usage: turn.usage,
               cost: turn.cost,
-              attachmentPreviews: this.buildAttachmentPreviews(turn.attachments),
+              attachmentPreviews: this.buildAttachmentPreviews(
+                turn.attachments,
+              ),
             }));
             this.messages.unshift(...olderMessages);
           }
