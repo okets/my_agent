@@ -20,6 +20,18 @@ import { SessionRegistry } from "../agent/session-registry.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import type { TranscriptTurn } from "../conversations/types.js";
 import { ExternalMessageStore } from "./external-store.js";
+import {
+  AttachmentService,
+  type AttachmentMeta,
+} from "../conversations/attachments.js";
+
+/** Content block types for Agent SDK (images + text) */
+type ContentBlock =
+  | { type: "text"; text: string }
+  | {
+      type: "image";
+      source: { type: "base64"; media_type: string; data: string };
+    };
 
 interface MessageHandlerDeps {
   conversationManager: ConversationManager;
@@ -74,6 +86,7 @@ interface PendingToken {
 export class ChannelMessageHandler {
   private deps: MessageHandlerDeps;
   private externalStore: ExternalMessageStore;
+  private attachmentService: AttachmentService;
   private warnedMissingOwner = new Set<string>();
   private pendingTokens = new Map<string, PendingToken>();
 
@@ -82,6 +95,7 @@ export class ChannelMessageHandler {
     this.externalStore = new ExternalMessageStore(
       deps.conversationManager.getDb(),
     );
+    this.attachmentService = new AttachmentService(deps.agentDir);
   }
 
   /**
@@ -251,19 +265,67 @@ export class ChannelMessageHandler {
       contextPrefix = `[Replying to: "${first.replyTo.text}"]\n`;
     }
 
-    const userContent = contextPrefix + combinedContent;
+    const textContent = contextPrefix + combinedContent;
     const turnNumber = conversation.turnCount + 1;
     const userTimestamp = new Date().toISOString();
 
-    // Save user turn
+    // Process attachments and build ContentBlocks
+    const savedAttachments: AttachmentMeta[] = [];
+    const contentBlocks: ContentBlock[] = [];
+
+    if (first.attachments?.length) {
+      for (const att of first.attachments) {
+        try {
+          const base64 = att.data.toString("base64");
+          const saved = await this.attachmentService.save(
+            conversation.id,
+            att.filename,
+            att.mimeType,
+            base64,
+          );
+          savedAttachments.push(saved.meta);
+
+          // Build ContentBlock directly from buffer (no re-read)
+          if (this.attachmentService.isImage(att.mimeType)) {
+            contentBlocks.push({
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: att.mimeType,
+                data: base64,
+              },
+            });
+          }
+        } catch (err) {
+          console.error(
+            `[ChannelMessageHandler] Failed to save attachment ${att.filename}:`,
+            err,
+          );
+        }
+      }
+    }
+
+    // Add text content if present
+    if (textContent) {
+      contentBlocks.push({ type: "text", text: textContent });
+    }
+
+    // Use ContentBlocks if we have attachments, otherwise plain string
+    const messageContent: string | ContentBlock[] =
+      contentBlocks.length > 0 && savedAttachments.length > 0
+        ? contentBlocks
+        : textContent;
+
+    // Save user turn (with attachment metadata)
     const userTurn: TranscriptTurn = {
       type: "turn",
       role: "user",
-      content: userContent,
+      content: textContent,
       timestamp: userTimestamp,
       turnNumber,
       channel: channelId,
       sender: first.from,
+      ...(savedAttachments.length > 0 && { attachments: savedAttachments }),
     };
 
     await this.deps.conversationManager.appendTurn(conversation.id, userTurn);
@@ -274,9 +336,10 @@ export class ChannelMessageHandler {
       conversationId: conversation.id,
       turn: {
         role: "user",
-        content: userContent,
+        content: textContent,
         timestamp: userTimestamp,
         turnNumber,
+        ...(savedAttachments.length > 0 && { attachments: savedAttachments }),
       },
     });
 
@@ -289,7 +352,7 @@ export class ChannelMessageHandler {
     // Stream brain response
     let assistantContent = "";
     try {
-      for await (const event of sessionManager.streamMessage(userContent)) {
+      for await (const event of sessionManager.streamMessage(messageContent)) {
         if (event.type === "text_delta") {
           assistantContent += event.text;
           // Broadcast streaming to WS clients

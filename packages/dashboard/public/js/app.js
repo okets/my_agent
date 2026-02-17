@@ -642,6 +642,21 @@ function chat() {
               break;
             }
 
+            // Skip assistant turns we already received via streaming
+            // (channel messages broadcast both streaming deltas AND conversation_updated)
+            if (data.turn.role === "assistant" && this.messages.length > 0) {
+              const lastMsg = this.messages[this.messages.length - 1];
+              if (
+                lastMsg.role === "assistant" &&
+                lastMsg.content === data.turn.content
+              ) {
+                // Already have this message from streaming — just update metadata
+                if (data.turn.usage) lastMsg.usage = data.turn.usage;
+                if (data.turn.cost) lastMsg.cost = data.turn.cost;
+                break;
+              }
+            }
+
             const msg = {
               id: ++this.messageIdCounter,
               role: data.turn.role,
