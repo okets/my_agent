@@ -98,13 +98,19 @@ The agent **is** the identity. It owns conversations, responds immediately, and 
 
 The agent **watches** the user's account. It assists but does not own conversations.
 
-| Property        | Value                                                          |
-| --------------- | -------------------------------------------------------------- |
-| **Identity**    | User's account (user's email, user's WhatsApp)                 |
-| **Ownership**   | User owns conversations                                        |
-| **Processing**  | On-demand (user asks agent to check)                           |
-| **Permissions** | Limited (read, summarize, draft, flag) — NO autonomous respond |
-| **Escalation**  | N/A (agent doesn't respond autonomously)                       |
+| Property        | Value                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **Identity**    | User's account (user's email, user's WhatsApp)                                     |
+| **Ownership**   | User owns conversations                                                            |
+| **Processing**  | On-demand (user asks agent to check)                                               |
+| **Permissions** | Limited (read, summarize, draft, flag) — NO autonomous respond                     |
+| **Escalation**  | N/A (agent doesn't respond autonomously)                                           |
+
+**Permission definitions:**
+- `read` — Access message content
+- `summarize` — Generate summaries of conversations
+- `draft` — Compose response drafts that require user approval before sending (see [Approval Flow](#approval-flow-personal-channels))
+- `flag` — Mark messages for user attention
 
 **Use cases:**
 
@@ -189,7 +195,48 @@ User: "Check my inbox for anything urgent"
   → Agent reports back to user
 ```
 
-Personal channels are passive. The agent only looks when asked. This is fundamentally different from a heartbeat — there's no automatic polling.
+Personal channels default to **pure on-demand**: no listener, no polling. The agent only looks when explicitly asked. This is the privacy-first default.
+
+### Monitoring Gate (Personal Channels)
+
+Personal channels support **selective monitoring** — a per-conversation opt-in that enables real-time message flow for specific conversations while keeping others fully private.
+
+**How it works:**
+
+- **Unmonitored (default):** No listener attached. Messages never reach the agent. Pure privacy.
+- **Monitored:** Channel plugin listens for messages from this conversation only. Messages flow to agent.
+
+Enabling monitoring for a conversation **changes the processing model** for that specific conversation from `on_demand` to event-driven. The channel-level default remains `on_demand`.
+
+**Storage:** `.my_agent/channels/{id}/monitoring.json`
+
+```json
+{
+  "default": false,
+  "conversations": {
+    "+1555123456": { "monitored": true },
+    "group-abc123": { "monitored": true, "reason": "Watch for pricing" }
+  }
+}
+```
+
+**Privacy guarantee:** Unmonitored conversations on personal channels are never sent to the cloud. The filtering happens at the plugin level, before any data leaves the device.
+
+**Toggle mechanisms:**
+
+1. Dashboard UI: Settings → Channels → Monitoring
+2. Natural language: "Start monitoring my sales group"
+3. API: `POST /api/channels/{id}/monitoring`
+
+### Approval Flow (Personal Channels)
+
+When the agent drafts a response on a personal channel, it requires user approval:
+
+1. Agent drafts response
+2. Draft appears in conversation view (read-only history + editable draft)
+3. User edits text and clicks Send, or rejects
+
+**Note:** The `external-communications.md` file governs **dedicated channels** (how the agent handles messages from third parties on the agent's own accounts). Personal channel responses always require approval — there is no auto-respond bypass for personal channels, as the agent should never send messages as the user without explicit approval.
 
 ### Scheduled Tasks (Future — M4a)
 
@@ -255,18 +302,18 @@ Incoming message on dedicated channel
   │   └─ Brain processes immediately
   │
   └─ FROM anyone else → EXTERNAL COMMUNICATION
-      ├─ Trust tier lookup (known vs untrusted)
+      ├─ Rule lookup (check external-communications.md)
       ├─ Separate UI area (NOT in conversation sidebar)
-      ├─ Deferred processing for untrusted senders
-      └─ Escalation to owner for unknowns
+      ├─ Default: notify user, no response
+      └─ Apply rule if exists (auto-respond, draft, or block)
 ```
 
 ### Definitions
 
-| Concept | Definition | Example |
-|---------|-----------|---------|
-| **Conversation** | Exchange between the user (owner) and the agent. User-facing. Appears in sidebar. | Hanan messages Nina's WhatsApp, web chat |
-| **External Communication** | Exchange between the agent and a third party. Trust-tiered. Separate UI. | Customer messages Nina's WhatsApp |
+| Concept                    | Definition                                                                        | Example                                  |
+| -------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------- |
+| **Conversation**           | Exchange between the user (owner) and the agent. User-facing. Appears in sidebar. | Hanan messages Nina's WhatsApp, web chat |
+| **External Communication** | Exchange between the agent and a third party. Trust-tiered. Separate UI.          | Customer messages Nina's WhatsApp        |
 
 ### Owner Identity Configuration
 
@@ -279,8 +326,8 @@ channels:
     role: dedicated
     identity: "+1555000001"
     processing: immediate
-    owner_identities:       # Messages from these = Conversation
-      - "+1555000000"       # Owner's phone number
+    owner_identities: # Messages from these = Conversation
+      - "+1555000000" # Owner's phone number
 ```
 
 If `owner_identities` is not configured, ALL messages on dedicated channels are treated as external communications (safe default).
@@ -295,19 +342,25 @@ External communications use a separate data model from conversations:
 
 ```typescript
 interface ExternalCommunication {
-  id: string;                    // ext-{ulid}
-  channelId: string;             // Which channel
-  externalParty: string;         // Phone/email of the external party
-  displayName: string | null;    // senderName from message
-  trustTier: 'known' | 'untrusted';
+  id: string; // ext-{ulid}
+  channelId: string; // Which channel
+  externalParty: string; // Phone/email of the external party
+  displayName: string | null; // senderName from message
+  hasRule: boolean; // Whether a rule exists for this contact
   created: Date;
   updated: Date;
   messageCount: number;
-  status: 'active' | 'escalated' | 'blocked';
+  status: "pending" | "responded" | "blocked" | "ignored";
 }
 ```
 
-External communications are displayed in a dedicated UI area (not the conversation sidebar). Full implementation is in M3-S3.
+**Status values:**
+- `pending` — New message, no action taken yet
+- `responded` — Agent or user has replied
+- `blocked` — Contact is blocked, future messages silently dropped
+- `ignored` — Marked as seen, no response sent
+
+External communications are displayed in a dedicated UI area (not the conversation sidebar). Full implementation is in M3-S4.
 
 ---
 
@@ -402,99 +455,92 @@ channels:
 
 ### Configuration Fields
 
-| Field            | Required        | Description                          |
-| ---------------- | --------------- | ------------------------------------ |
-| `plugin`         | Yes             | Which connector to use               |
-| `role`           | Yes             | `dedicated` or `personal`            |
-| `identity`       | Yes             | The account address (phone, email)   |
-| `owner`          | If personal     | Who owns the account                 |
-| `processing`     | Yes             | `immediate` or `on_demand`           |
-| `escalation`     | If dedicated    | Policy name for autonomous responses |
-| `permissions`    | If personal     | What the agent can do                |
-| `authDir`        | Plugin-specific | Where to store auth tokens           |
-| `clientId`, etc. | Plugin-specific | API credentials                      |
+| Field              | Required        | Description                                                  |
+| ------------------ | --------------- | ------------------------------------------------------------ |
+| `plugin`           | Yes             | Which connector to use                                       |
+| `role`             | Yes             | `dedicated` or `personal`                                    |
+| `identity`         | Yes             | The account address (phone, email)                           |
+| `owner`            | If personal     | Who owns the account                                         |
+| `owner_identities` | If dedicated    | Phone/email identities that route to conversation flow       |
+| `processing`       | Yes             | `immediate` or `on_demand`                                   |
+| `escalation`       | If dedicated    | Policy name for autonomous responses                         |
+| `permissions`      | If personal     | What the agent can do                                        |
+| `authDir`          | Plugin-specific | Where to store auth tokens                                   |
+| `clientId`, etc.   | Plugin-specific | API credentials                                              |
 
 ---
 
-## Trust Tiers
+## External Communications Ruleset
 
-Every external party falls into a trust tier that determines what the agent can do without approval.
+External communications (non-owner messages on dedicated channels) are governed by a **ruleset** rather than rigid tiers. The user defines per-contact rules through natural language conversation with the agent.
 
-### Three Tiers
+### Default Behavior
 
-| Tier          | Who                             | Agent Can Do                                              |
-| ------------- | ------------------------------- | --------------------------------------------------------- |
-| **Full**      | User (Hanan)                    | Anything within safety bounds. No approval needed.        |
-| **Known**     | Explicitly allowlisted contacts | Respond within original context. Ask for scope expansion. |
-| **Untrusted** | Everyone else                   | Acknowledge receipt, escalate to user, do not act.        |
+**All non-owner messages: Notify user. Do not respond.**
 
-### Tier Assignment
+No automatic acknowledgment. The user must explicitly add rules for contacts.
 
-**Full trust:**
+### Ruleset Model
 
-- The user themselves (identified by channel identity)
-- Configured in `config.yaml` as owner
+Instead of fixed tiers, the agent uses flexible per-contact rules:
 
-**Known trust:**
+| Rule Type        | Example                                 | Behavior                    |
+| ---------------- | --------------------------------------- | --------------------------- |
+| **Auto-respond** | "Always answer Sarah warmly"            | Agent responds autonomously |
+| **Draft**        | "Draft replies to Bob for approval"     | Agent drafts, user approves |
+| **Block**        | "Never answer mother-in-law"            | Silent drop                 |
+| **Custom**       | "When CEO emails, escalate immediately" | Per-contact logic           |
 
-- Contacts added to allowlist
-- Can be per-channel or global
+### Rule Storage
 
-**Untrusted:**
+**Global defaults:** `.my_agent/external-communications.md`
+**Per-channel overrides:** `.my_agent/channels/{id}/external-communications.md`
 
-- Default for unknown senders
-- Also: senders who previously caused escalations
+Example file:
 
-### Configuration
+```markdown
+# External Communications Rules
 
-```yaml
-# .my_agent/config.yaml
+## Default
 
-trust:
-  # Global allowlist (known tier)
-  known_contacts:
-    - "+1555123456" # Phone number
-    - "sarah@company.com" # Email
-    - "@github:nina-vankhan" # Platform-specific
+Notify owner. Do not respond without explicit rule.
 
-  # Per-channel overrides
-  channels:
-    baileys_agent_main:
-      known_contacts:
-        - "+1555000001" # Additional for this channel
-      block_list:
-        - "+1555SPAM00" # Explicit block
+## Contacts
+
+### Sarah Chen (+1555123456)
+
+Respond warmly. She's a friend. Auto-respond allowed.
+
+### Bob from Acme (+1555999888)
+
+Important client. Draft for approval before responding.
+
+### Mother-in-law (+1555000999)
+
+Never respond. Ignore completely.
 ```
 
-### Tier Behaviors
+### Rule Evolution
 
-**Full trust (User):**
+Rules are managed through conversation with the agent:
 
-- Execute requests immediately
-- No approval needed for any action
-- User's autonomy mode preference still applies
+> **User:** "Always answer my wife on WhatsApp"
+> **Agent:** "Got it. I'll respond freely to messages from [wife's number]. Added to your rules."
 
-**Known trust (Allowlist):**
+The agent appends to `external-communications.md` with the new rule.
 
-- Respond to messages in their original context
-- Ask approval before: sharing info, taking actions, scope expansion
-- Red flags (urgency, authority claims) → escalate
+### Owner Identity
 
-**Untrusted (Everyone else):**
-
-- Acknowledge: "Thanks for reaching out. I'll get back to you."
-- Escalate to user with context
-- Do NOT: share information, make promises, take actions
-- After user responds, may promote to Known if approved
+The **owner** (user) is identified via token-based verification during channel setup. Owner messages bypass the ruleset entirely and route to the main conversation flow.
 
 ### Relationship to Autonomy Modes
 
-Trust tiers and autonomy modes are **orthogonal**:
+Rulesets and autonomy modes are **orthogonal**:
 
-- **Trust tiers** govern external communications (checked at event loop, incoming)
-- **Autonomy modes** govern task actions (checked by brain/tools, during execution)
+- **Ruleset** governs external communications (checked at message arrival)
+- **Autonomy modes** govern task actions (checked during task execution)
 
-They don't cascade. An untrusted sender triggers escalation before any task is created. Once a task exists, autonomy mode governs what happens inside it.
+They don't cascade. A message without a rule triggers notification before any task is created.
 
 ### Escalation
 
@@ -714,7 +760,7 @@ For personal channels with `on_demand` processing, connection happens when user 
 
 2. **Group ownership** — For WhatsApp groups on dedicated channels, the agent owns the conversation if it responds as itself. The ownership follows who is actively communicating.
 
-3. **Cross-channel conversations** — No. A conversation is bound to a single channel. Conversations do not span channels (e.g., cannot start on email and continue on WhatsApp). This is already defined in the conversation design.
+3. **Cross-channel conversations** — No. A conversation is bound to a single channel. Conversations do not span channels (e.g., cannot start on email and continue on WhatsApp). This is already defined in `docs/design/conversation-system.md`.
 
 ---
 

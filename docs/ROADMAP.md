@@ -11,7 +11,7 @@
 | ---------------------------- | -------- | ---------------------------- |
 | **M1: Foundation**           | Complete | 4/4 sprints                  |
 | **M2: Web UI**               | Complete | 6/6 sprints                  |
-| **M3: WhatsApp Channel**     | Active   | S1-S2 done, S3 in progress   |
+| **M3: WhatsApp Channel**     | Active   | S1-S3 done, S4 planned       |
 | **M4a: Task System**         | Planned  | Design complete, sprints TBD |
 | **M4b: Memory**              | Planned  | Design complete, sprints TBD |
 | **M5: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -32,8 +32,8 @@ M1 Foundation     M2 Web UI        M3 WhatsApp        M4-M6 Future
                   S1 ██ Server + Chat (done)
                   S2 ██ Streaming (done)        S1 ██ Channel Infra (done)
                   S3 ██ Hatching Wizard (done)  S2 ██ WhatsApp Plugin (done)
-                  S4 ██ Conversations (done)    S3 ▓▓ Slash Commands (in progress)
-                  S5 ██ Naming (done)           S4 ░░ Trust & External Comms
+                  S4 ██ Conversations (done)    S3 ██ Slash Commands (done)
+                  S5 ██ Naming (done)           S4 ░░ External Comms & Personal
                   S6 ██ Advanced Chat (done)
 
                                                         M4a Tasks ───┐
@@ -71,13 +71,13 @@ The agent's core brain running in `.my_agent/`. CLI REPL for development/testing
 
 Browser-based interface replacing CLI. Chat + hatching wizard.
 
-| Sprint | Name              | Status   | Plan                                            | Review                                              |
-| ------ | ----------------- | -------- | ----------------------------------------------- | --------------------------------------------------- |
-| S1     | Server Foundation | Complete | [plan](sprints/m2-s1-server-foundation/plan.md) | [review](sprints/m2-s1-server-foundation/review.md) |
-| S2     | Streaming         | Complete | [plan](sprints/m2-s2-streaming/plan.md)         | [review](sprints/m2-s2-streaming/review.md)         |
-| S3     | Hatching Wizard   | Complete | [plan](sprints/m2-s3-hatching-wizard/plan.md)   | [review](sprints/m2-s3-hatching-wizard/review.md)   |
-| S4     | Conversations     | Complete | [plan](sprints/m2-s4-conversations/plan.md)     | [review](sprints/m2-s4-conversations/review.md)     |
-| S5     | Naming            | Complete | [plan](sprints/m2-s5-naming/plan.md)            | [review](sprints/m2-s5-naming/review.md)            |
+| Sprint | Name                   | Status   | Plan                                            | Review                                              |
+| ------ | ---------------------- | -------- | ----------------------------------------------- | --------------------------------------------------- |
+| S1     | Server Foundation      | Complete | [plan](sprints/m2-s1-server-foundation/plan.md) | [review](sprints/m2-s1-server-foundation/review.md) |
+| S2     | Streaming              | Complete | [plan](sprints/m2-s2-streaming/plan.md)         | [review](sprints/m2-s2-streaming/review.md)         |
+| S3     | Hatching Wizard        | Complete | [plan](sprints/m2-s3-hatching-wizard/plan.md)   | [review](sprints/m2-s3-hatching-wizard/review.md)   |
+| S4     | Conversations          | Complete | [plan](sprints/m2-s4-conversations/plan.md)     | [review](sprints/m2-s4-conversations/review.md)     |
+| S5     | Naming                 | Complete | [plan](sprints/m2-s5-naming/plan.md)            | [review](sprints/m2-s5-naming/review.md)            |
 | S6     | Advanced Chat Features | Complete | [plan](sprints/m2-s6-advanced-features/plan.md) | [review](sprints/m2-s6-advanced-features/review.md) |
 
 **Design specs:**
@@ -91,8 +91,8 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 - Web-based hatching wizard
 - Conversation persistence (SQLite + JSONL transcripts)
 - Auto-naming at turn 5 + periodic re-naming on idle
-- *(S6)* Conversation deletion, per-conversation model selection
-- *(S6)* Extended thinking toggle, file attachments (images + text)
+- _(S6)_ Conversation deletion, per-conversation model selection
+- _(S6)_ Extended thinking toggle, file attachments (images + text)
 
 ---
 
@@ -100,23 +100,24 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 
 First external channel. Agent owns a phone number, responds immediately. Introduces identity-based routing (conversations vs external communications).
 
-| Sprint | Name                      | Status      | Plan                                                    | Review |
-| ------ | ------------------------- | ----------- | ------------------------------------------------------- | ------ |
-| S1     | Channel Infrastructure    | Complete    | [plan](sprints/m3-s1-channel-infrastructure/plan.md)    | —      |
-| S2     | WhatsApp Plugin + Routing | Complete    | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)           | —      |
-| S3     | Slash Commands            | In Progress | [plan](sprints/m3-s3-slash-commands/plan.md)            | —      |
-| S4     | Trust & External Comms    | Planned     | —                                                       | —      |
+| Sprint | Name                      | Status   | Plan                                                 | Review |
+| ------ | ------------------------- | -------- | ---------------------------------------------------- | ------ |
+| S1     | Channel Infrastructure    | Complete | [plan](sprints/m3-s1-channel-infrastructure/plan.md) | —      |
+| S2     | WhatsApp Plugin + Routing | Complete | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)        | —      |
+| S3     | Slash Commands            | Complete | [plan](sprints/m3-s3-slash-commands/plan.md)         | —      |
+| S4     | External Comms & Personal | Planned  | [plan](sprints/m3-s4-external-personal/plan.md)      | —      |
 
 **Design references:**
-- [channels.md](design/channels.md) — channel architecture, identity-based routing, trust tiers
+
+- [channels.md](design/channels.md) — channel architecture, identity-based routing, ruleset model
 - [conversation-system.md](design/conversation-system.md) — conversation persistence, external communications concept
 
 **Deliverables:**
 
-- *(S1)* Channel plugin interface, manager with resilience (reconnection, dedup, debounce, watchdog), mock plugin
-- *(S2)* Baileys WhatsApp plugin, QR pairing, identity-based routing, owner conversations, settings view
-- *(S3)* Slash commands: `/new` (conversation reset with pinning), `/model` (model switching) — works on web + WhatsApp
-- *(S4)* Trust tiers enforcement, external communications UI, escalation, personal channel role
+- _(S1)_ Channel plugin interface, manager with resilience (reconnection, dedup, debounce, watchdog), mock plugin
+- _(S2)_ Baileys WhatsApp plugin, QR pairing, identity-based routing, owner conversations, settings view
+- _(S3)_ Slash commands: `/new` (conversation reset with pinning), `/model` (model switching) — works on web + WhatsApp
+- _(S4)_ External communications UI with ruleset model (including rule evolution via conversation), personal channel role with monitoring gate, approval flow for drafts
 
 **Dependencies:** M2 (chat infra)
 
