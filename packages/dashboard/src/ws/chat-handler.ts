@@ -395,15 +395,22 @@ export async function registerChatWebSocket(
         });
       }
 
-      // Send conversation list for sidebar
-      const conversations = await conversationManager.list({
+      // Send web conversations (limited) for sidebar
+      const webConversations = await conversationManager.list({
         channel: "web",
         limit: 50,
       });
 
+      // Send channel conversations separately (no limit — always visible)
+      const allConversations = await conversationManager.list({});
+      const channelConversations = allConversations.filter(
+        (c) => c.channel !== "web",
+      );
+
       send({
         type: "conversation_list",
-        conversations: conversations.map(toConversationMeta),
+        conversations: webConversations.map(toConversationMeta),
+        channelConversations: channelConversations.map(toConversationMeta),
       });
     }
 

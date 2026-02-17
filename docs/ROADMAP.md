@@ -11,7 +11,7 @@
 | ---------------------------- | -------- | ---------------------------- |
 | **M1: Foundation**           | Complete | 4/4 sprints                  |
 | **M2: Web UI**               | Complete | 6/6 sprints                  |
-| **M3: WhatsApp Channel**     | Planned  | Design complete, sprints TBD |
+| **M3: WhatsApp Channel**     | Active   | S1 done, S2 in review        |
 | **M4a: Task System**         | Planned  | Design complete, sprints TBD |
 | **M4b: Memory**              | Planned  | Design complete, sprints TBD |
 | **M5: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -25,22 +25,21 @@
 2026-02                                          2026-03+
 ├─────────────────────────────────────────────────────────────────────►
 
-M1 Foundation     M2 Web UI                      M3-M6 Future
-[████████████]    [████████████]                  [░░░░░░░░░░]
-   COMPLETE          COMPLETE                         PLANNED
+M1 Foundation     M2 Web UI        M3 WhatsApp        M4-M6 Future
+[████████████]    [████████████]    [████░░░░░░]        [░░░░░░░░░░]
+   COMPLETE          COMPLETE         ACTIVE               PLANNED
 
                   S1 ██ Server + Chat (done)
-                  S2 ██ Streaming (done)
-                  S3 ██ Hatching Wizard (done)
-                  S4 ██ Conversations (done)
+                  S2 ██ Streaming (done)        S1 ██ Channel Infra (done)
+                  S3 ██ Hatching Wizard (done)  S2 ▓▓ WhatsApp Plugin (in review)
+                  S4 ██ Conversations (done)    S3 ░░ Trust & External Comms
                   S5 ██ Naming (done)
-                  S6 ██ Advanced Chat Features (done)
+                  S6 ██ Advanced Chat (done)
 
-                                                 M3 WhatsApp ─┐
-                                                 M4a Tasks ───┼─► Agent can develop itself
-                                                 M4b Memory ──┘
-                                                 M5 Ops Dashboard
-                                                 M6 Email
+                                                        M4a Tasks ───┐
+                                                        M4b Memory ──┼─► Agent can develop itself
+                                                        M5 Ops Dash ─┘
+                                                        M6 Email
 ```
 
 ---
@@ -97,19 +96,25 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 
 ---
 
-### M3: WhatsApp Channel — PLANNED
+### M3: WhatsApp Channel — IN PROGRESS
 
-First external channel. Agent owns a phone number, responds immediately.
+First external channel. Agent owns a phone number, responds immediately. Introduces identity-based routing (conversations vs external communications).
 
-**Design reference:** [channels.md](design/channels.md) (channel architecture is complete)
+| Sprint | Name                      | Status      | Plan                                                    | Review |
+| ------ | ------------------------- | ----------- | ------------------------------------------------------- | ------ |
+| S1     | Channel Infrastructure    | Complete    | [plan](sprints/m3-s1-channel-infrastructure/plan.md)    | —      |
+| S2     | WhatsApp Plugin + Routing | In Progress | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)           | —      |
+| S3     | Trust & External Comms    | Planned     | —                                                       | —      |
+
+**Design references:**
+- [channels.md](design/channels.md) — channel architecture, identity-based routing, trust tiers
+- [conversation-system.md](design/conversation-system.md) — conversation persistence, external communications concept
 
 **Deliverables:**
 
-- WhatsApp MCP plugin (Baileys)
-- Dedicated role: agent's phone number
-- Immediate processing: webhook → brain → response
-- Escalation policies
-- Channel conversations (per-contact, per-group)
+- *(S1)* Channel plugin interface, manager with resilience (reconnection, dedup, debounce, watchdog), mock plugin
+- *(S2)* Baileys WhatsApp plugin, QR pairing, identity-based routing, owner conversations, settings view
+- *(S3)* Trust tiers enforcement, external communications UI, escalation, personal channel role
 
 **Dependencies:** M2 (chat infra)
 

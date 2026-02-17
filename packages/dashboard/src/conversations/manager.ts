@@ -289,6 +289,13 @@ export class ConversationManager {
   }
 
   /**
+   * Expose the underlying database instance for shared access (e.g. ExternalMessageStore)
+   */
+  getDb(): import("better-sqlite3").Database {
+    return this.db.getDb();
+  }
+
+  /**
    * Close database connection
    */
   close(): void {

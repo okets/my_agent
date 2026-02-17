@@ -1,0 +1,20 @@
+{
+  "name": "@my-agent/channel-whatsapp",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "format": "prettier --write src/"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "qrcode": "^1.5.4",
+    "pino": "^9.0.0",
+    "@my-agent/core": "file:../../packages/core"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "typescript": "^5.7.3",
+    "prettier": "^3.5.3"
+  }
+}

@@ -106,7 +106,11 @@ export type ServerMessage =
       turns: Turn[];
       hasMore: boolean;
     }
-  | { type: "conversation_list"; conversations: ConversationMeta[] }
+  | {
+      type: "conversation_list";
+      conversations: ConversationMeta[];
+      channelConversations?: ConversationMeta[];
+    }
   | { type: "conversation_renamed"; conversationId: string; title: string }
   | { type: "conversation_created"; conversation: ConversationMeta }
   | { type: "conversation_updated"; conversationId: string; turn: Turn }
@@ -117,4 +121,12 @@ export type ServerMessage =
       channelId: string;
       status: string;
       reconnectAttempts: number;
+    }
+  | { type: "channel_qr_code"; channelId: string; qrDataUrl: string }
+  | { type: "channel_paired"; channelId: string }
+  | {
+      type: "channel_authorized";
+      channelId: string;
+      ownerJid: string;
+      ownerName: string | null;
     };

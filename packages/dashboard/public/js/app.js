@@ -26,6 +26,7 @@ function chat() {
 
     // Conversation state
     conversations: [],
+    channelConversations: [],
     currentConversationId: null,
     sidebarOpen: true,
     sidebarWidth: 260,
@@ -47,6 +48,22 @@ function chat() {
 
     // Channel state
     channels: [],
+
+    // Settings view
+    currentView: "chat", // 'chat' | 'settings'
+
+    // QR pairing state
+    pairingChannelId: null,
+    qrCodeDataUrl: null,
+
+    // Add channel form state
+    showAddChannel: false,
+    addingChannel: false,
+    addChannelError: null,
+    newChannel: { id: "" },
+
+    // Authorization tokens: { channelId: "TOKEN" }
+    authTokens: {},
 
     // Image lightbox
     lightboxImage: null,
@@ -557,8 +574,12 @@ function chat() {
           break;
 
         case "conversation_list":
-          // Update sidebar conversation list
+          // Update sidebar conversation list (web only)
           this.conversations = data.conversations;
+          // Channel conversations shown under their channel
+          if (data.channelConversations) {
+            this.channelConversations = data.channelConversations;
+          }
           break;
 
         case "conversation_created":
@@ -692,7 +713,43 @@ function chat() {
           if (ch) {
             ch.status = data.status;
             ch.reconnectAttempts = data.reconnectAttempts;
+            // Clear QR state if channel connected
+            if (
+              data.status === "connected" &&
+              this.pairingChannelId === data.channelId
+            ) {
+              this.pairingChannelId = null;
+              this.qrCodeDataUrl = null;
+            }
           }
+          break;
+        }
+
+        case "channel_qr_code": {
+          // QR code received from server during pairing
+          if (data.channelId === this.pairingChannelId) {
+            this.qrCodeDataUrl = data.qrDataUrl;
+          }
+          break;
+        }
+
+        case "channel_paired": {
+          // Channel successfully paired — clear QR, request auth token
+          if (data.channelId === this.pairingChannelId) {
+            this.pairingChannelId = null;
+            this.qrCodeDataUrl = null;
+          }
+          // Refresh channel list to get updated status
+          this.fetchChannels();
+          // Auto-request authorization token if channel has no owner yet
+          this.requestAuthToken(data.channelId);
+          break;
+        }
+
+        case "channel_authorized": {
+          // Owner verified via token — clear token, refresh channels
+          delete this.authTokens[data.channelId];
+          this.fetchChannels();
           break;
         }
 
@@ -1139,6 +1196,124 @@ function chat() {
         tip += ` (attempt ${ch.reconnectAttempts})`;
       }
       return tip;
+    },
+
+    /** Get channel info for a conversation (returns null for web conversations) */
+    getConversationChannel(conv) {
+      if (!conv.channel || conv.channel === "web") return null;
+      return this.channels.find((ch) => ch.id === conv.channel) || null;
+    },
+
+    /** Check if a conversation is read-only (from external channel) */
+    isReadOnlyConversation(conv) {
+      return conv.channel && conv.channel !== "web";
+    },
+
+    /** Get channel conversations for a specific channel */
+    getChannelConversations(channelId) {
+      return this.channelConversations.filter((c) => c.channel === channelId);
+    },
+
+    /** Find a conversation by ID across both web and channel lists */
+    findConversation(id) {
+      return (
+        this.conversations.find((c) => c.id === id) ||
+        this.channelConversations.find((c) => c.id === id) ||
+        null
+      );
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Settings / Channel actions
+    // ─────────────────────────────────────────────────────────────────
+
+    async addChannel() {
+      if (!this.newChannel.id) return;
+      this.addingChannel = true;
+      this.addChannelError = null;
+
+      try {
+        const res = await fetch("/api/channels", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: this.newChannel.id.trim().replace(/\s+/g, "_").toLowerCase(),
+            plugin: "baileys",
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          this.addChannelError = data.error || "Failed to create channel";
+          return;
+        }
+
+        // Add to local channels list
+        this.channels.push(data);
+
+        // Reset form and trigger pairing
+        const channelId = data.id;
+        this.showAddChannel = false;
+        this.newChannel = { id: "" };
+
+        // Auto-trigger QR pairing
+        await this.pairChannel(channelId);
+      } catch (err) {
+        console.error("[App] Add channel failed:", err);
+        this.addChannelError = "Network error. Is the server running?";
+      } finally {
+        this.addingChannel = false;
+      }
+    },
+
+    async pairChannel(channelId) {
+      this.pairingChannelId = channelId;
+      this.qrCodeDataUrl = null;
+      try {
+        const res = await fetch(`/api/channels/${channelId}/pair`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.error("[App] Pair failed:", data.error || res.statusText);
+          this.pairingChannelId = null;
+        }
+        // QR code will arrive via WebSocket channel_qr_code event
+      } catch (err) {
+        console.error("[App] Pair request failed:", err);
+        this.pairingChannelId = null;
+      }
+    },
+
+    async requestAuthToken(channelId) {
+      try {
+        const res = await fetch(`/api/channels/${channelId}/authorize`, {
+          method: "POST",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          this.authTokens[channelId] = data.token;
+        }
+      } catch (err) {
+        console.error("[App] Auth token request failed:", err);
+      }
+    },
+
+    async disconnectChannel(channelId) {
+      try {
+        const res = await fetch(`/api/channels/${channelId}/disconnect`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.error(
+            "[App] Disconnect failed:",
+            data.error || res.statusText,
+          );
+        }
+      } catch (err) {
+        console.error("[App] Disconnect request failed:", err);
+      }
     },
 
     /**

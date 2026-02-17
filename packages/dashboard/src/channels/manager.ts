@@ -49,12 +49,20 @@ type MessageHandler = (channelId: string, messages: IncomingMessage[]) => void;
 /** Status change handler signature */
 type StatusChangeHandler = (channelId: string, status: ChannelStatus) => void;
 
+/** QR code handler signature */
+type QrCodeHandler = (channelId: string, qrDataUrl: string) => void;
+
+/** Pairing success handler signature */
+type PairedHandler = (channelId: string) => void;
+
 export class ChannelManager {
   private channels = new Map<string, ChannelEntry>();
   private pluginFactories = new Map<string, PluginFactory>();
   private dedup = new DedupCache();
   private messageHandler: MessageHandler | null = null;
   private statusChangeHandlers: StatusChangeHandler[] = [];
+  private qrCodeHandler: QrCodeHandler | null = null;
+  private pairingHandler: PairedHandler | null = null;
 
   /**
    * Register a plugin factory by name.
@@ -78,90 +86,129 @@ export class ChannelManager {
   }
 
   /**
+   * Register a QR code handler (called when a plugin emits a 'qr' event).
+   */
+  onQrCode(handler: QrCodeHandler): void {
+    this.qrCodeHandler = handler;
+  }
+
+  /**
+   * Register a pairing success handler (called when a channel transitions to connected).
+   */
+  onPaired(handler: PairedHandler): void {
+    this.pairingHandler = handler;
+  }
+
+  /**
+   * Add and initialize a single channel at runtime.
+   * Returns the ChannelInfo for the newly created channel.
+   */
+  async addChannel(config: ChannelInstanceConfig): Promise<ChannelInfo> {
+    const id = config.id;
+    if (this.channels.has(id)) {
+      throw new Error(`Channel already exists: ${id}`);
+    }
+
+    await this.initChannel(id, config);
+
+    const info = this.getChannelInfo(id);
+    if (!info) throw new Error(`Failed to get info for channel: ${id}`);
+    return info;
+  }
+
+  /**
    * Initialize all channels from config.
    */
   async initAll(configs: Record<string, ChannelInstanceConfig>): Promise<void> {
     for (const [id, config] of Object.entries(configs)) {
-      // Inject ID from key if not present
-      if (!config.id) {
-        config.id = id;
-      }
-
-      // Look up factory
-      const factory = this.pluginFactories.get(config.plugin);
-      if (!factory) {
+      if (!config.id) config.id = id;
+      try {
+        await this.initChannel(id, config);
+      } catch (err) {
         console.error(
           `[ChannelManager] Plugin factory not found: ${config.plugin} for channel ${id}`,
         );
-        continue;
       }
+    }
+  }
 
-      // Create plugin instance
-      const plugin = factory(config);
+  /**
+   * Initialize a single channel: create plugin, wire events, connect if immediate.
+   */
+  private async initChannel(
+    id: string,
+    config: ChannelInstanceConfig,
+  ): Promise<void> {
+    const factory = this.pluginFactories.get(config.plugin);
+    if (!factory) {
+      throw new Error(`Plugin factory not found: ${config.plugin}`);
+    }
 
-      // Create channel entry
-      const entry: ChannelEntry = {
-        config,
-        plugin,
-        status: initialStatus(),
-        reconnectTimer: null,
-        watchdogTimer: null,
-        debouncer: null,
-      };
+    const plugin = factory(config);
 
-      // Wire up event handlers
-      plugin.on("message", (msg) => this.handlePluginMessage(id, msg));
-      plugin.on("error", (err) => {
-        console.error(`[ChannelManager] Error from ${id}:`, err);
-        entry.status.lastError = err.message;
-      });
-      plugin.on("status", (status) => this.handlePluginStatus(id, status));
+    const entry: ChannelEntry = {
+      config,
+      plugin,
+      status: initialStatus(),
+      reconnectTimer: null,
+      watchdogTimer: null,
+      debouncer: null,
+    };
 
-      // Store entry
-      this.channels.set(id, entry);
+    // Wire up event handlers
+    plugin.on("message", (msg) => this.handlePluginMessage(id, msg));
+    plugin.on("error", (err) => {
+      console.error(`[ChannelManager] Error from ${id}:`, err);
+      entry.status.lastError = err.message;
+    });
+    plugin.on("status", (status) => this.handlePluginStatus(id, status));
+    plugin.on("qr", (qrDataUrl: string) => {
+      if (this.qrCodeHandler) {
+        this.qrCodeHandler(id, qrDataUrl);
+      }
+    });
 
-      // Initialize plugin
+    this.channels.set(id, entry);
+
+    try {
+      await plugin.init(config);
+      console.log(`[ChannelManager] Initialized channel: ${id}`);
+    } catch (err) {
+      console.error(`[ChannelManager] Failed to initialize ${id}:`, err);
+      entry.status.lastError = err instanceof Error ? err.message : String(err);
+      return;
+    }
+
+    // Connect if immediate processing
+    if (config.processing === "immediate") {
       try {
-        await plugin.init(config);
-        console.log(`[ChannelManager] Initialized channel: ${id}`);
+        await plugin.connect();
+        console.log(`[ChannelManager] Connected channel: ${id}`);
       } catch (err) {
-        console.error(`[ChannelManager] Failed to initialize ${id}:`, err);
+        console.error(`[ChannelManager] Failed to connect ${id}:`, err);
         entry.status.lastError =
           err instanceof Error ? err.message : String(err);
-        continue;
       }
+    }
 
-      // Connect if immediate processing
-      if (config.processing === "immediate") {
-        try {
-          await plugin.connect();
-          console.log(`[ChannelManager] Connected channel: ${id}`);
-        } catch (err) {
-          console.error(`[ChannelManager] Failed to connect ${id}:`, err);
-          entry.status.lastError =
-            err instanceof Error ? err.message : String(err);
-        }
+    // Start watchdog if applicable
+    if (config.role === "dedicated" && config.processing === "immediate") {
+      const watchdogConfig = this.getWatchdogConfig(config);
+      if (watchdogConfig.enabled) {
+        this.startWatchdog(id, watchdogConfig);
       }
+    }
 
-      // Start watchdog if applicable
-      if (config.role === "dedicated" && config.processing === "immediate") {
-        const watchdogConfig = this.getWatchdogConfig(config);
-        if (watchdogConfig.enabled) {
-          this.startWatchdog(id, watchdogConfig);
-        }
-      }
-
-      // Create debouncer if configured
-      if (config.debounceMs && config.debounceMs > 0) {
-        entry.debouncer = new MessageDebouncer(
-          { flushMs: config.debounceMs },
-          (key, messages) => {
-            if (this.messageHandler) {
-              this.messageHandler(id, messages);
-            }
-          },
-        );
-      }
+    // Create debouncer if configured
+    if (config.debounceMs && config.debounceMs > 0) {
+      entry.debouncer = new MessageDebouncer(
+        { flushMs: config.debounceMs },
+        (key, messages) => {
+          if (this.messageHandler) {
+            this.messageHandler(id, messages);
+          }
+        },
+      );
     }
   }
 
@@ -220,6 +267,49 @@ export class ChannelManager {
       statusDetail: entry.status,
       icon: entry.plugin.icon,
     };
+  }
+
+  /**
+   * Get raw channel config (used by routing to look up ownerIdentities).
+   */
+  getChannelConfig(id: string): ChannelInstanceConfig | undefined {
+    return this.channels.get(id)?.config;
+  }
+
+  /**
+   * Update a channel's runtime config (e.g., adding ownerIdentities after token auth).
+   */
+  updateChannelConfig(
+    id: string,
+    update: Partial<ChannelInstanceConfig>,
+  ): void {
+    const entry = this.channels.get(id);
+    if (!entry) return;
+    Object.assign(entry.config, update);
+  }
+
+  /**
+   * Initiate connection for a single channel (triggers QR pairing flow for WhatsApp).
+   */
+  async connectChannel(id: string): Promise<void> {
+    const entry = this.channels.get(id);
+    if (!entry) throw new Error(`Channel not found: ${id}`);
+    if (entry.status.connected)
+      throw new Error(`Channel already connected: ${id}`);
+    await entry.plugin.connect();
+  }
+
+  /**
+   * Disconnect a single channel and clear its reconnect timer.
+   */
+  async disconnectChannel(id: string): Promise<void> {
+    const entry = this.channels.get(id);
+    if (!entry) throw new Error(`Channel not found: ${id}`);
+    if (entry.reconnectTimer) {
+      clearTimeout(entry.reconnectTimer);
+      entry.reconnectTimer = null;
+    }
+    await entry.plugin.disconnect();
   }
 
   /**
@@ -352,6 +442,11 @@ export class ChannelManager {
       console.log(
         `[ChannelManager] Channel ${channelId} connected successfully`,
       );
+
+      // Notify pairing success handler
+      if (this.pairingHandler) {
+        this.pairingHandler(channelId);
+      }
     }
   }
 

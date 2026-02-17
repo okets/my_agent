@@ -239,6 +239,78 @@ The conversation is between the user and their contact. The agent is an assistan
 
 ---
 
+## Conversations vs External Communications
+
+Every message arriving on a dedicated channel is routed based on **who sent it**, not just which channel it came from.
+
+### Identity-Based Routing
+
+```
+Incoming message on dedicated channel
+  │
+  ├─ FROM owner identity → CONVERSATION (user ↔ agent)
+  │   ├─ Route to existing conversation flow
+  │   ├─ Read-only in dashboard (source of truth = channel medium)
+  │   ├─ Full trust, same as web chat
+  │   └─ Brain processes immediately
+  │
+  └─ FROM anyone else → EXTERNAL COMMUNICATION
+      ├─ Trust tier lookup (known vs untrusted)
+      ├─ Separate UI area (NOT in conversation sidebar)
+      ├─ Deferred processing for untrusted senders
+      └─ Escalation to owner for unknowns
+```
+
+### Definitions
+
+| Concept | Definition | Example |
+|---------|-----------|---------|
+| **Conversation** | Exchange between the user (owner) and the agent. User-facing. Appears in sidebar. | Hanan messages Nina's WhatsApp, web chat |
+| **External Communication** | Exchange between the agent and a third party. Trust-tiered. Separate UI. | Customer messages Nina's WhatsApp |
+
+### Owner Identity Configuration
+
+Each dedicated channel can specify which identities belong to the owner. Messages from these identities are routed as conversations, not external communications.
+
+```yaml
+channels:
+  baileys_agent_main:
+    plugin: baileys
+    role: dedicated
+    identity: "+1555000001"
+    processing: immediate
+    owner_identities:       # Messages from these = Conversation
+      - "+1555000000"       # Owner's phone number
+```
+
+If `owner_identities` is not configured, ALL messages on dedicated channels are treated as external communications (safe default).
+
+### Cross-Channel Conversations
+
+Conversations are **per-channel** — a WhatsApp conversation and a web conversation are separate items in the sidebar. However, the agent can cross-reference across channels ("I see what you sent me on WhatsApp earlier").
+
+### External Communication Data Model
+
+External communications use a separate data model from conversations:
+
+```typescript
+interface ExternalCommunication {
+  id: string;                    // ext-{ulid}
+  channelId: string;             // Which channel
+  externalParty: string;         // Phone/email of the external party
+  displayName: string | null;    // senderName from message
+  trustTier: 'known' | 'untrusted';
+  created: Date;
+  updated: Date;
+  messageCount: number;
+  status: 'active' | 'escalated' | 'blocked';
+}
+```
+
+External communications are displayed in a dedicated UI area (not the conversation sidebar). Full implementation is in M3-S3.
+
+---
+
 ## Conversation Continuity
 
 How conversations are scoped per channel type.

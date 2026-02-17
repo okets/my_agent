@@ -1,6 +1,6 @@
 import * as path from 'node:path'
-import { existsSync, readFileSync } from 'node:fs'
-import { parse } from 'yaml'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { parse, stringify } from 'yaml'
 import type { BrainConfig } from './types.js'
 import type { ChannelInstanceConfig, ReconnectPolicy, WatchdogConfig } from './channels/types.js'
 
@@ -107,44 +107,53 @@ function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInst
   for (const [key, value] of Object.entries(channelsSection)) {
     if (key === 'defaults') continue
 
-    const channelYaml = value as Partial<ChannelInstanceConfig>
+    const channelYaml = value as Record<string, unknown>
 
     const config: ChannelInstanceConfig = {
       id: key,
-      plugin: channelYaml.plugin ?? '',
-      role: channelYaml.role ?? 'dedicated',
-      identity: channelYaml.identity ?? '',
-      processing: channelYaml.processing ?? 'immediate',
-      owner: channelYaml.owner,
-      escalation: channelYaml.escalation,
-      permissions: channelYaml.permissions,
-      authDir: channelYaml.authDir,
+      plugin: (channelYaml.plugin as string) ?? '',
+      role: (channelYaml.role as 'dedicated' | 'personal') ?? 'dedicated',
+      identity: (channelYaml.identity as string) ?? '',
+      processing: (channelYaml.processing as 'immediate' | 'on_demand') ?? 'immediate',
+      owner: channelYaml.owner as string | undefined,
+      escalation: channelYaml.escalation as string | undefined,
+      permissions: channelYaml.permissions as string[] | undefined,
+      authDir: (channelYaml.authDir ?? channelYaml.auth_dir) as string | undefined,
       reconnect: {
         ...mergedReconnect,
-        ...(channelYaml.reconnect ?? {}),
+        ...((channelYaml.reconnect as Partial<ReconnectPolicy>) ?? {}),
       },
       watchdog: {
         ...mergedWatchdog,
-        ...(channelYaml.watchdog ?? {}),
+        ...((channelYaml.watchdog as Partial<WatchdogConfig>) ?? {}),
       },
-      debounceMs: channelYaml.debounceMs ?? mergedDebounce,
+      debounceMs: (channelYaml.debounceMs ?? channelYaml.debounce_ms ?? mergedDebounce) as number,
+      ownerIdentities: (channelYaml.ownerIdentities ?? channelYaml.owner_identities) as
+        | string[]
+        | undefined,
     }
 
+    const knownKeys = new Set([
+      'id',
+      'plugin',
+      'role',
+      'identity',
+      'processing',
+      'owner',
+      'escalation',
+      'permissions',
+      'authDir',
+      'auth_dir',
+      'reconnect',
+      'watchdog',
+      'debounceMs',
+      'debounce_ms',
+      'ownerIdentities',
+      'owner_identities',
+    ])
+
     for (const [k, v] of Object.entries(channelYaml)) {
-      if (
-        k !== 'id' &&
-        k !== 'plugin' &&
-        k !== 'role' &&
-        k !== 'identity' &&
-        k !== 'processing' &&
-        k !== 'owner' &&
-        k !== 'escalation' &&
-        k !== 'permissions' &&
-        k !== 'authDir' &&
-        k !== 'reconnect' &&
-        k !== 'watchdog' &&
-        k !== 'debounceMs'
-      ) {
+      if (!knownKeys.has(k)) {
         config[k] = v
       }
     }
@@ -172,4 +181,37 @@ export function loadConfig(): BrainConfig {
       (yaml?.brain?.dir ? path.resolve(agentDir, yaml.brain.dir) : path.join(agentDir, 'brain')),
     channels: loadChannelConfigs(yaml),
   }
+}
+
+/**
+ * Save channel config to config.yaml.
+ * Merges channelData into the existing channel entry (if any),
+ * preserving fields not present in channelData.
+ */
+export function saveChannelToConfig(
+  channelId: string,
+  channelData: Record<string, unknown>,
+  agentDir?: string,
+): void {
+  const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
+  const configPath = path.join(dir, CONFIG_FILENAME)
+
+  let yaml: Record<string, unknown> = {}
+  if (existsSync(configPath)) {
+    try {
+      yaml = (parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>) ?? {}
+    } catch {
+      yaml = {}
+    }
+  }
+
+  if (!yaml.channels || typeof yaml.channels !== 'object') {
+    yaml.channels = {}
+  }
+
+  const channels = yaml.channels as Record<string, unknown>
+  const existing = (channels[channelId] as Record<string, unknown>) ?? {}
+  channels[channelId] = { ...existing, ...channelData }
+
+  writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
 }

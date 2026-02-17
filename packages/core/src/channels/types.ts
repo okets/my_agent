@@ -158,6 +158,8 @@ export interface ChannelInstanceConfig {
   watchdog?: Partial<WatchdogConfig>
   /** Message debounce window in ms (0 = disabled) */
   debounceMs?: number
+  /** Owner identities — messages from these are routed as conversations */
+  ownerIdentities?: string[]
   /** Plugin-specific config */
   [key: string]: unknown
 }
@@ -180,6 +182,7 @@ export interface ChannelPlugin {
   on(event: 'message', handler: (msg: IncomingMessage) => void): void
   on(event: 'error', handler: (err: Error) => void): void
   on(event: 'status', handler: (status: ChannelStatus) => void): void
+  on(event: 'qr', handler: (qrDataUrl: string) => void): void
   /** Get current status */
   status(): ChannelStatus
 }

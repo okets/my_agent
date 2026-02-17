@@ -10,6 +10,7 @@ import { registerChannelRoutes } from "./routes/channels.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
+import type { ChannelMessageHandler } from "./channels/message-handler.js";
 
 export interface ServerOptions {
   agentDir: string;
@@ -23,6 +24,7 @@ declare module "fastify" {
     conversationManager: ConversationManager | null;
     abbreviationQueue: AbbreviationQueue | null;
     channelManager: ChannelManager | null;
+    channelMessageHandler: ChannelMessageHandler | null;
   }
 }
 
@@ -78,6 +80,7 @@ export async function createServer(
   fastify.decorate("conversationManager", null);
   fastify.decorate("abbreviationQueue", null);
   fastify.decorate("channelManager", null);
+  fastify.decorate("channelMessageHandler", null);
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);

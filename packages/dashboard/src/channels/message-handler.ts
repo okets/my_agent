@@ -1,16 +1,25 @@
 /**
  * Channel Message Handler
  *
- * Routes incoming channel messages to conversations via the brain.
+ * Routes incoming channel messages based on sender identity:
+ * - Token messages → authorize sender as owner
+ * - Owner messages → conversation flow (brain routing)
+ * - External messages → stored for S3 trust tier system
+ *
  * Dedup and debounce are handled by ChannelManager before messages reach here.
  */
 
-import type { IncomingMessage, OutgoingMessage } from "@my-agent/core";
+import type {
+  IncomingMessage,
+  OutgoingMessage,
+  ChannelInstanceConfig,
+} from "@my-agent/core";
+import { saveChannelToConfig } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
-import type { SessionManager } from "../agent/session-manager.js";
 import { SessionRegistry } from "../agent/session-registry.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import type { TranscriptTurn } from "../conversations/types.js";
+import { ExternalMessageStore } from "./external-store.js";
 
 interface MessageHandlerDeps {
   conversationManager: ConversationManager;
@@ -21,13 +30,79 @@ interface MessageHandlerDeps {
     to: string,
     message: OutgoingMessage,
   ) => Promise<void>;
+  getChannelConfig: (channelId: string) => ChannelInstanceConfig | undefined;
+  updateChannelConfig: (
+    channelId: string,
+    update: Partial<ChannelInstanceConfig>,
+  ) => void;
+  agentDir: string;
+}
+
+/**
+ * Strip platform-specific suffixes and normalise to digits + optional leading +.
+ * Handles WhatsApp JIDs: @s.whatsapp.net, @lid, @g.us
+ */
+function normalizeIdentity(identity: string): string {
+  let normalized = identity.replace(/@(s\.whatsapp\.net|lid|g\.us)$/, "");
+  normalized = normalized.replace(/[^\d+]/g, "");
+  return normalized;
+}
+
+function isOwnerMessage(
+  config: ChannelInstanceConfig | undefined,
+  senderIdentity: string,
+): boolean {
+  if (!config?.ownerIdentities?.length) {
+    // WARNING: LID JIDs (e.g., 169969@lid) cannot be matched to phone numbers
+    // without a contact store lookup. Owner detection will fail for LID senders.
+    // TODO: Implement LID resolution via Baileys store in S3.
+    return false;
+  }
+  const normalizedSender = normalizeIdentity(senderIdentity);
+  return config.ownerIdentities.some(
+    (owner) => normalizeIdentity(owner) === normalizedSender,
+  );
+}
+
+/** Pending authorization token for a channel */
+interface PendingToken {
+  token: string;
+  channelId: string;
+  expiresAt: Date;
 }
 
 export class ChannelMessageHandler {
   private deps: MessageHandlerDeps;
+  private externalStore: ExternalMessageStore;
+  private warnedMissingOwner = new Set<string>();
+  private pendingTokens = new Map<string, PendingToken>();
 
   constructor(deps: MessageHandlerDeps) {
     this.deps = deps;
+    this.externalStore = new ExternalMessageStore(
+      deps.conversationManager.getDb(),
+    );
+  }
+
+  /**
+   * Generate an authorization token for a channel.
+   * User sends this token via WhatsApp to prove ownership.
+   */
+  generateToken(channelId: string): string {
+    // 6-char alphanumeric token (easy to type on phone)
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 to avoid confusion
+    let token = "";
+    for (let i = 0; i < 6; i++) {
+      token += chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    this.pendingTokens.set(channelId, {
+      token,
+      channelId,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+    });
+
+    return token;
   }
 
   /**
@@ -40,7 +115,99 @@ export class ChannelMessageHandler {
   ): Promise<void> {
     if (messages.length === 0) return;
 
-    // Use first message to determine conversation party
+    const first = messages[0];
+
+    // Check for authorization token BEFORE owner check
+    const pending = this.pendingTokens.get(channelId);
+    if (pending) {
+      const content = first.content.trim().toUpperCase();
+      if (content === pending.token && new Date() < pending.expiresAt) {
+        await this.handleTokenAuthorization(channelId, first);
+        return;
+      }
+    }
+
+    const channelConfig = this.deps.getChannelConfig(channelId);
+
+    // Warn once per channel if ownerIdentities is missing (all messages treated as external)
+    if (
+      !channelConfig?.ownerIdentities?.length &&
+      !this.warnedMissingOwner.has(channelId)
+    ) {
+      this.warnedMissingOwner.add(channelId);
+      console.warn(
+        `[ChannelMessageHandler] Channel "${channelId}" has no ownerIdentities configured — all messages will be treated as external.`,
+      );
+    }
+
+    if (isOwnerMessage(channelConfig, first.from)) {
+      // Owner message → conversation flow
+      await this.handleOwnerMessage(channelId, messages);
+    } else {
+      // External party → store for S3 trust tier system
+      await this.handleExternalMessage(channelId, messages);
+    }
+  }
+
+  /**
+   * Handle a valid authorization token — register sender as channel owner.
+   */
+  private async handleTokenAuthorization(
+    channelId: string,
+    msg: IncomingMessage,
+  ): Promise<void> {
+    const senderJid = msg.from;
+    const normalizedJid = normalizeIdentity(senderJid);
+
+    console.log(
+      `[ChannelMessageHandler] Token authorization successful for channel "${channelId}" — owner JID: ${senderJid}`,
+    );
+
+    // Update runtime config
+    this.deps.updateChannelConfig(channelId, {
+      ownerIdentities: [normalizedJid],
+    });
+
+    // Persist to config.yaml
+    try {
+      saveChannelToConfig(
+        channelId,
+        { owner_identities: [normalizedJid] },
+        this.deps.agentDir,
+      );
+    } catch (err) {
+      console.error(
+        `[ChannelMessageHandler] Failed to persist owner identity:`,
+        err,
+      );
+    }
+
+    // Clear the pending token
+    this.pendingTokens.delete(channelId);
+    this.warnedMissingOwner.delete(channelId);
+
+    // Send confirmation via WhatsApp
+    const name = msg.senderName ?? "there";
+    await this.deps.sendViaChannel(channelId, senderJid, {
+      content: `Hi ${name}! You're now authorized as my owner on this channel. Send me anything and I'll respond!`,
+    });
+
+    // Broadcast to dashboard
+    this.deps.connectionRegistry.broadcastToAll({
+      type: "channel_authorized",
+      channelId,
+      ownerJid: normalizedJid,
+      ownerName: msg.senderName ?? null,
+    });
+  }
+
+  /**
+   * Handle messages from the channel owner — route through brain as a conversation.
+   */
+  private async handleOwnerMessage(
+    channelId: string,
+    messages: IncomingMessage[],
+  ): Promise<void> {
     const first = messages[0];
     const externalParty = first.groupId ?? first.from;
 
@@ -158,8 +325,9 @@ export class ChannelMessageHandler {
         assistantTurn,
       );
 
-      // Send response back via channel
-      await this.deps.sendViaChannel(channelId, first.from, {
+      // Send response back via channel (use group JID for groups, sender JID for DMs)
+      const replyTo = first.groupId ?? first.from;
+      await this.deps.sendViaChannel(channelId, replyTo, {
         content: assistantContent,
       });
 
@@ -173,6 +341,31 @@ export class ChannelMessageHandler {
           timestamp: assistantTurn.timestamp,
           turnNumber,
         },
+      });
+    }
+  }
+
+  /**
+   * Handle messages from an external party — store without brain routing.
+   * S3 trust tier system will handle these via escalation rules.
+   */
+  private async handleExternalMessage(
+    channelId: string,
+    messages: IncomingMessage[],
+  ): Promise<void> {
+    const first = messages[0];
+    console.log(
+      `[ChannelMessageHandler] External message from ${first.from} on ${channelId} — stored (pending S3 trust tier)`,
+    );
+
+    for (const msg of messages) {
+      this.externalStore.storeMessage({
+        id: msg.id,
+        channelId,
+        from: msg.from,
+        displayName: msg.senderName ?? msg.groupName,
+        content: msg.content,
+        timestamp: msg.timestamp.toISOString(),
       });
     }
   }

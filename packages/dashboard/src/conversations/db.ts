@@ -425,6 +425,13 @@ export class ConversationDatabase {
   }
 
   /**
+   * Expose the raw Database instance for shared access (e.g. ExternalMessageStore)
+   */
+  getDb(): Database.Database {
+    return this.db;
+  }
+
+  /**
    * Close the database connection
    */
   close(): void {

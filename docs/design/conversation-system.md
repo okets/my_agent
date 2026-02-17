@@ -73,6 +73,7 @@ These terms are used consistently across all code, APIs, UI, and documentation:
 | **Index**           | The searchable representation of conversation content. Two parts: abbreviation embeddings in SQLite-vec (vector search) and full transcript text in FTS5 (keyword search).                                     |
 | **Channel**         | The communication medium (web, WhatsApp, email). Each channel has its own continuity rules.                                                                                                                    |
 | **Conversation ID** | A stable, unique identifier for each conversation. Format: `conv-{ulid}` (e.g., `conv-01HQXK5J7G8M3N4P5R6S7T8V9W`). Never changes after creation. The display name is a separate property (`title`). |
+| **External Communication** | An exchange between the agent and a third party on a channel. NOT a conversation. Governed by trust tiers and escalation policies. Displayed in a separate UI area, not the conversation sidebar. See `channels.md` §Conversations vs External Communications. |
 
 ### Language Rules
 
@@ -1157,17 +1158,35 @@ Transcript files use stable ULID-based names that **never change**:
 ### Flow 3: WhatsApp Message Arrives
 
 ```
-1. WhatsApp plugin receives message from +1555000000
-2. Event loop looks up active conversation for this contact
-   → Found: append to existing transcript
-   → Not found: create new conversation (whatsapp channel)
-3. Enrich message (entity extraction, graph query)
-4. Forward to brain with conversation context
-5. Brain responds
-   → Append response to transcript
-   → Send via WhatsApp plugin
-6. Conversation continues per WhatsApp continuity rules
+1. WhatsApp plugin receives message from +1555XXXXXX
+2. ChannelManager: dedup → debounce → forward to ChannelMessageHandler
+3. ChannelMessageHandler checks: is sender in owner_identities for this channel?
+
+   → YES (owner): Route to CONVERSATION flow
+     a. Look up active conversation for this channel + owner
+        → Found: append to existing transcript
+        → Not found: create new conversation (whatsapp channel)
+     b. Forward to brain with conversation context
+     c. Brain responds → append to transcript → send via WhatsApp
+     d. Conversation appears in sidebar (read-only in dashboard,
+        source of truth is WhatsApp)
+
+   → NO (external party): Route to EXTERNAL COMMUNICATION flow
+     a. Look up external communication record for this party
+        → Found: append message to existing record
+        → Not found: create new external communication record
+     b. Apply trust tier rules:
+        - Known: respond within scope boundaries
+        - Untrusted: acknowledge receipt, escalate to owner
+     c. External communication appears in separate UI area
+        (NOT in conversation sidebar)
+
+4. Continue per respective flow
 ```
+
+**Note:** The identity check uses normalized phone numbers (digits only, stripped of `@s.whatsapp.net` JID suffix) to avoid format mismatches.
+
+**Note:** External communication flow (trust tiers, escalation, separate UI) is fully implemented in M3-S3. M3-S2 stores non-owner messages in a holding table without brain routing.
 
 ### Flow 4: Searching Past Conversations
 
@@ -1293,6 +1312,55 @@ When a WebSocket connection is established:
 4. Client renders the chat history and sidebar
 
 If no active conversation exists, `conversation_loaded` is sent with `conversation: null` and `turns: []`. The user starts fresh.
+
+---
+
+## External Communications (M3-S3)
+
+External communications share the same channel transport as conversations but use a separate data model and UI. This section defines the concept; full implementation is in M3-S3.
+
+### What They Are
+
+When a third party (not the owner) messages the agent on a dedicated channel, that exchange is an **external communication**, not a conversation. External communications:
+
+- Use the same `ChannelPlugin` send/receive infrastructure
+- Are stored in a separate database table (not `conversations`)
+- Do NOT appear in the conversation sidebar
+- Are displayed in a dedicated "External Communications" UI area
+- Are governed by trust tiers (see `channels.md` §Trust Tiers)
+- May have restricted agent autonomy (escalation to owner for unknowns)
+
+### Relationship to Conversations
+
+| Aspect | Conversation | External Communication |
+|--------|-------------|----------------------|
+| Participants | Owner ↔ Agent | Third party ↔ Agent |
+| Trust level | Full (owner) | Known or Untrusted |
+| Brain routing | Immediate | Trust-dependent |
+| UI location | Sidebar chat list | Separate panel |
+| Dashboard interaction | Read-only for non-web | Read-only always |
+| Auto-respond | Full agent autonomy | Policy-governed |
+
+### Data Flow
+
+```
+Channel message arrives
+  → Identity check (owner_identities)
+    → Owner → Conversation flow (this spec)
+    → External → ExternalCommunication table
+      → Trust tier lookup
+      → Policy-based response or escalation
+```
+
+### Implementation Status
+
+| Component | Sprint | Status |
+|-----------|--------|--------|
+| Identity routing + external store | M3-S2 | Planned |
+| Trust tier enforcement | M3-S3 | Planned |
+| External communications UI | M3-S3 | Planned |
+| Escalation flow | M3-S3 | Planned |
+| Personal channel role | M3-S3 | Planned |
 
 ---
 

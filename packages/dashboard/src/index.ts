@@ -5,6 +5,7 @@ import {
   loadConfig,
   toDisplayStatus,
 } from "@my-agent/core";
+import { createBaileysPlugin } from "@my-agent/channel-whatsapp";
 import { createServer } from "./server.js";
 import {
   ConversationManager,
@@ -79,11 +80,11 @@ async function main() {
   server.conversationManager = conversationManager;
   server.abbreviationQueue = abbreviationQueue;
 
-  // Initialize channel system
+  // Initialize channel system (always when hatched, even with no channels yet)
   let channelManager: ChannelManager | null = null;
   const config = loadConfig();
 
-  if (Object.keys(config.channels).length > 0 && hatched) {
+  if (hatched) {
     channelManager = new ChannelManager();
 
     // Register built-in plugin factories
@@ -91,6 +92,7 @@ async function main() {
       const plugin = new MockChannelPlugin();
       return plugin;
     });
+    channelManager.registerPlugin("baileys", (cfg) => createBaileysPlugin(cfg));
 
     // Wire message handler
     const messageHandler = new ChannelMessageHandler({
@@ -99,6 +101,11 @@ async function main() {
       connectionRegistry,
       sendViaChannel: (channelId, to, message) =>
         channelManager!.send(channelId, to, message),
+      getChannelConfig: (channelId) =>
+        channelManager!.getChannelConfig(channelId),
+      updateChannelConfig: (channelId, update) =>
+        channelManager!.updateChannelConfig(channelId, update),
+      agentDir,
     });
 
     channelManager.onMessage((channelId, messages) => {
@@ -120,12 +127,34 @@ async function main() {
       });
     });
 
-    // Initialize all configured channels
-    await channelManager.initAll(config.channels);
+    // Wire QR code → WS broadcast
+    channelManager.onQrCode((channelId, qrDataUrl) => {
+      connectionRegistry.broadcastToAll({
+        type: "channel_qr_code",
+        channelId,
+        qrDataUrl,
+      });
+    });
+
+    // Wire pairing success → WS broadcast
+    channelManager.onPaired((channelId) => {
+      connectionRegistry.broadcastToAll({
+        type: "channel_paired",
+        channelId,
+      });
+    });
+
+    // Initialize any pre-configured channels
+    const channelCount = Object.keys(config.channels).length;
+    if (channelCount > 0) {
+      await channelManager.initAll(config.channels);
+      console.log(`Channel system initialized with ${channelCount} channel(s)`);
+    } else {
+      console.log("Channel system ready (no channels configured yet)");
+    }
+
     server.channelManager = channelManager;
-    console.log(
-      `Channel system initialized with ${Object.keys(config.channels).length} channel(s)`,
-    );
+    server.channelMessageHandler = messageHandler;
   }
 
   try {

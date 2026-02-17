@@ -58,6 +58,7 @@ export class MockChannelPlugin implements ChannelPlugin {
   on(event: "message", handler: (msg: IncomingMessage) => void): void;
   on(event: "error", handler: (err: Error) => void): void;
   on(event: "status", handler: (status: ChannelStatus) => void): void;
+  on(event: "qr", handler: (qrDataUrl: string) => void): void;
   on(event: string, handler: (...args: any[]) => void): void {
     if (event === "message") this.handlers.message.push(handler as any);
     else if (event === "error") this.handlers.error.push(handler as any);
