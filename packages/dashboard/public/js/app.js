@@ -45,6 +45,9 @@ function chat() {
     deleteTargetId: null,
     deleteTargetTitle: null,
 
+    // Channel state
+    channels: [],
+
     // Image lightbox
     lightboxImage: null,
 
@@ -127,6 +130,9 @@ function chat() {
           }
         })
         .catch(() => {});
+
+      // Load channels
+      this.fetchChannels();
 
       // Configure marked.js
       marked.setOptions({
@@ -680,6 +686,16 @@ function chat() {
           }
           break;
 
+        case "channel_status_changed": {
+          // Update channel status dot in real-time
+          const ch = this.channels.find((c) => c.id === data.channelId);
+          if (ch) {
+            ch.status = data.status;
+            ch.reconnectAttempts = data.reconnectAttempts;
+          }
+          break;
+        }
+
         default:
           console.warn("[App] Unknown message type:", data.type);
       }
@@ -1081,6 +1097,48 @@ function chat() {
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Channel helpers
+    // ─────────────────────────────────────────────────────────────────
+
+    fetchChannels() {
+      fetch("/api/channels")
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            this.channels = data.map((ch) => ({
+              ...ch,
+              reconnectAttempts: ch.statusDetail?.reconnectAttempts ?? 0,
+            }));
+          }
+        })
+        .catch(() => {});
+    },
+
+    channelDotClass(status) {
+      switch (status) {
+        case "connected":
+          return "bg-green-400";
+        case "connecting":
+          return "bg-yellow-400 animate-pulse";
+        case "error":
+          return "bg-red-400";
+        case "logged_out":
+          return "bg-gray-500";
+        case "disconnected":
+        default:
+          return "bg-gray-400";
+      }
+    },
+
+    channelTooltip(ch) {
+      let tip = ch.status || "unknown";
+      if (ch.reconnectAttempts > 0) {
+        tip += ` (attempt ${ch.reconnectAttempts})`;
+      }
+      return tip;
     },
 
     /**

@@ -115,6 +115,36 @@
             <span>New Chat</span>
           </button>
 
+          <!-- Channel list -->
+          <template x-if="channels.length > 0">
+            <div class="mb-3">
+              <div
+                class="text-[10px] text-tokyo-muted uppercase tracking-wide px-2 mb-1"
+              >
+                Channels
+              </div>
+              <template x-for="ch in channels" :key="ch.id">
+                <div
+                  class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-tokyo-text"
+                >
+                  <!-- Channel icon (SVG) -->
+                  <span
+                    class="channel-icon w-4 h-4 shrink-0 text-tokyo-muted"
+                    x-html="ch.icon"
+                  ></span>
+                  <!-- Channel name -->
+                  <span class="truncate flex-1" x-text="ch.identity"></span>
+                  <!-- Status dot -->
+                  <span
+                    class="w-2 h-2 rounded-full shrink-0"
+                    :class="channelDotClass(ch.status)"
+                    :title="channelTooltip(ch)"
+                  ></span>
+                </div>
+              </template>
+            </div>
+          </template>
+
           <!-- Conversation list -->
           <div class="flex-1 overflow-y-auto space-y-1">
             <template x-for="conv in conversations" :key="conv.id">

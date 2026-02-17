@@ -31,14 +31,17 @@ export class ConversationManager {
   /**
    * Create a new conversation
    */
-  async create(channel: "web" | "whatsapp" | "email"): Promise<Conversation> {
+  async create(
+    channel: string,
+    options?: { externalParty?: string; title?: string },
+  ): Promise<Conversation> {
     const now = new Date();
     const conversationId = `conv-${ulid()}`;
 
     const conversation: Conversation = {
       id: conversationId,
       channel,
-      title: null,
+      title: options?.title ?? null,
       topics: [],
       created: now,
       updated: now,
@@ -49,6 +52,7 @@ export class ConversationManager {
       manuallyNamed: false,
       lastRenamedAtTurn: null,
       model: null,
+      externalParty: options?.externalParty ?? null,
     };
 
     // Create transcript file with metadata header
@@ -87,6 +91,16 @@ export class ConversationManager {
    */
   async getMostRecent(channel: string): Promise<Conversation | null> {
     return this.db.getMostRecent(channel);
+  }
+
+  /**
+   * Get conversation by external party (channel + external party identifier)
+   */
+  async getByExternalParty(
+    channel: string,
+    externalParty: string,
+  ): Promise<Conversation | null> {
+    return this.db.getByExternalParty(channel, externalParty);
   }
 
   /**

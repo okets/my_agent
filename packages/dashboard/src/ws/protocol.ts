@@ -41,6 +41,7 @@ export interface ConversationMeta {
   updated: string;
   turnCount: number;
   model: string | null;
+  externalParty: string | null;
 }
 
 // Attachment metadata for display (stored in transcript)
@@ -110,4 +111,10 @@ export type ServerMessage =
   | { type: "conversation_created"; conversation: ConversationMeta }
   | { type: "conversation_updated"; conversationId: string; turn: Turn }
   | { type: "turns_loaded"; turns: Turn[]; hasMore: boolean }
-  | { type: "conversation_deleted"; conversationId: string };
+  | { type: "conversation_deleted"; conversationId: string }
+  | {
+      type: "channel_status_changed";
+      channelId: string;
+      status: string;
+      reconnectAttempts: number;
+    };

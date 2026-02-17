@@ -233,6 +233,13 @@ body {
   margin: 0.4em 0;
 }
 
+/* ── Channel icons (sidebar) ──────────────────────────────────── */
+
+.channel-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
 /* ── Compose box ──────────────────────────────────────────────── */
 
 footer textarea {

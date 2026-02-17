@@ -53,7 +53,8 @@ export class ConversationDatabase {
         abbreviation TEXT,
         needs_abbreviation INTEGER DEFAULT 0,
         manually_named INTEGER DEFAULT 0,
-        last_renamed_at_turn INTEGER DEFAULT NULL
+        last_renamed_at_turn INTEGER DEFAULT NULL,
+        external_party TEXT DEFAULT NULL
       );
     `);
 
@@ -74,6 +75,11 @@ export class ConversationDatabase {
     if (!columns.some((c) => c.name === "model")) {
       this.db.exec(
         "ALTER TABLE conversations ADD COLUMN model TEXT DEFAULT NULL",
+      );
+    }
+    if (!columns.some((c) => c.name === "external_party")) {
+      this.db.exec(
+        "ALTER TABLE conversations ADD COLUMN external_party TEXT DEFAULT NULL",
       );
     }
 
@@ -98,6 +104,12 @@ export class ConversationDatabase {
       CREATE INDEX IF NOT EXISTS idx_conversations_channel
       ON conversations(channel);
     `);
+
+    // Create index on external_party for channel message lookups
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_conversations_external_party
+      ON conversations(channel, external_party);
+    `);
   }
 
   /**
@@ -108,8 +120,8 @@ export class ConversationDatabase {
       INSERT INTO conversations (
         id, channel, title, topics, created, updated,
         turn_count, participants, abbreviation, needs_abbreviation, manually_named,
-        last_renamed_at_turn, model
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        last_renamed_at_turn, model, external_party
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -126,6 +138,7 @@ export class ConversationDatabase {
       conversation.manuallyNamed ? 1 : 0,
       conversation.lastRenamedAtTurn,
       conversation.model,
+      conversation.externalParty,
     );
   }
 
@@ -259,6 +272,11 @@ export class ConversationDatabase {
       values.push(updates.model);
     }
 
+    if (updates.externalParty !== undefined) {
+      fields.push("external_party = ?");
+      values.push(updates.externalParty);
+    }
+
     if (fields.length === 0) {
       return;
     }
@@ -365,7 +383,26 @@ export class ConversationDatabase {
       manuallyNamed: row.manually_named === 1,
       lastRenamedAtTurn: row.last_renamed_at_turn ?? null,
       model: row.model ?? null,
+      externalParty: row.external_party ?? null,
     };
+  }
+
+  /**
+   * Get conversation by external party (channel + external party)
+   */
+  getByExternalParty(
+    channel: string,
+    externalParty: string,
+  ): Conversation | null {
+    const stmt = this.db.prepare(`
+      SELECT * FROM conversations
+      WHERE channel = ? AND external_party = ?
+      ORDER BY updated DESC
+      LIMIT 1
+    `);
+    const row = stmt.get(channel, externalParty) as any;
+    if (!row) return null;
+    return this.rowToConversation(row);
   }
 
   /**

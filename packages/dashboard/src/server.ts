@@ -6,8 +6,10 @@ import fastifyMultipart from "@fastify/multipart";
 import { join } from "node:path";
 import { registerChatWebSocket } from "./ws/chat-handler.js";
 import { registerHatchingRoutes } from "./routes/hatching.js";
+import { registerChannelRoutes } from "./routes/channels.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
+import type { ChannelManager } from "./channels/index.js";
 
 export interface ServerOptions {
   agentDir: string;
@@ -20,6 +22,7 @@ declare module "fastify" {
     isHatched: boolean;
     conversationManager: ConversationManager | null;
     abbreviationQueue: AbbreviationQueue | null;
+    channelManager: ChannelManager | null;
   }
 }
 
@@ -74,12 +77,16 @@ export async function createServer(
   fastify.decorate("isHatched", false); // Will be set by index.ts after checking
   fastify.decorate("conversationManager", null);
   fastify.decorate("abbreviationQueue", null);
+  fastify.decorate("channelManager", null);
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);
 
   // Register hatching routes
   await registerHatchingRoutes(fastify);
+
+  // Register channel routes
+  await registerChannelRoutes(fastify);
 
   return fastify;
 }

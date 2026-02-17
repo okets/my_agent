@@ -22,8 +22,8 @@ const MAX_TITLE_LENGTH = 100;
 const TURNS_PER_PAGE = 50;
 const CONVERSATION_ID_RE = /^conv-[A-Z0-9]{26}$/;
 
-// Global connection registry for multi-tab sync
-const connectionRegistry = new ConnectionRegistry();
+// Global connection registry for multi-tab sync (exported for channel wiring)
+export const connectionRegistry = new ConnectionRegistry();
 
 // Global idle timer manager (lazily initialized on first WS connection)
 let idleTimerManager: IdleTimerManager | null = null;
@@ -31,8 +31,8 @@ let idleTimerManager: IdleTimerManager | null = null;
 // Global naming service (lazily initialized when needed)
 let namingService: NamingService | null = null;
 
-// Global session registry for conversation-bound sessions
-const sessionRegistry = new SessionRegistry(5); // Max 5 concurrent sessions
+// Global session registry for conversation-bound sessions (exported for channel wiring)
+export const sessionRegistry = new SessionRegistry(5); // Max 5 concurrent sessions
 
 // Attachment service (initialized per connection with agentDir)
 let attachmentService: AttachmentService | null = null;
@@ -969,6 +969,7 @@ function toConversationMeta(conv: Conversation): ConversationMeta {
     updated: conv.updated.toISOString(),
     turnCount: conv.turnCount,
     model: conv.model,
+    externalParty: conv.externalParty,
   };
 }
 

@@ -33,3 +33,23 @@ export {
   writeOperatingRules,
 } from './hatching/logic.js'
 export type { IdentityData, PersonalityOption, OperatingRulesData } from './hatching/logic.js'
+
+// Channel types
+export { toDisplayStatus, initialStatus } from './channels/index.js'
+export type {
+  ChannelDisplayStatus,
+  ChannelStatus,
+  ReconnectPolicy,
+  WatchdogConfig,
+  IncomingMessage,
+  OutgoingMessage,
+  ChannelAttachment,
+  ChannelInstanceConfig,
+  ChannelPlugin,
+  PluginFactory,
+  ChannelInfo,
+} from './channels/index.js'
+
+// Utilities
+export { computeBackoff, DEFAULT_BACKOFF, DedupCache, MessageDebouncer } from './utils/index.js'
+export type { DedupOptions, DebouncerOptions, DebouncedMessage } from './utils/index.js'

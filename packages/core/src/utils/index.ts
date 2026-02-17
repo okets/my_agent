@@ -1,0 +1,5 @@
+export { computeBackoff, DEFAULT_BACKOFF } from './backoff.js'
+export { DedupCache } from './dedup.js'
+export type { DedupOptions } from './dedup.js'
+export { MessageDebouncer } from './debounce.js'
+export type { DebouncerOptions, DebouncedMessage } from './debounce.js'

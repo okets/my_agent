@@ -12,8 +12,8 @@ export interface Conversation {
   /** Stable unique ID: conv-{ulid} */
   id: string;
 
-  /** Communication channel */
-  channel: "web" | "whatsapp" | "email";
+  /** Communication channel (supports any channel plugin ID) */
+  channel: string;
 
   /** Haiku display name (null before turn 5) */
   title: string | null;
@@ -47,6 +47,9 @@ export interface Conversation {
 
   /** Model used for this conversation (e.g., claude-sonnet-4-20250514) */
   model: string | null;
+
+  /** External party identifier for channel conversations (phone, email) */
+  externalParty: string | null;
 }
 
 /**
