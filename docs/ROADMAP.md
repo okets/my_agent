@@ -103,8 +103,8 @@ First external channel. Agent owns a phone number, responds immediately. Introdu
 | Sprint | Name                      | Status   | Plan                                                 | Review |
 | ------ | ------------------------- | -------- | ---------------------------------------------------- | ------ |
 | S1     | Channel Infrastructure    | Complete | [plan](sprints/m3-s1-channel-infrastructure/plan.md) | —      |
-| S2     | WhatsApp Plugin + Routing | Complete | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)        | —      |
-| S3     | Slash Commands            | Complete | [plan](sprints/m3-s3-slash-commands/plan.md)         | —      |
+| S2     | WhatsApp Plugin + Routing | Complete | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)        | [review](sprints/m3-s2-whatsapp-plugin/review.md) |
+| S3     | Slash Commands            | Complete | [plan](sprints/m3-s3-slash-commands/plan.md)         | [review](sprints/m3-s3-slash-commands/review.md) |
 | S4     | External Comms & Personal | Planned  | [plan](sprints/m3-s4-external-personal/plan.md)      | —      |
 
 **Design references:**
