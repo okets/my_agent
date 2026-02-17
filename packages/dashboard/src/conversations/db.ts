@@ -54,7 +54,8 @@ export class ConversationDatabase {
         needs_abbreviation INTEGER DEFAULT 0,
         manually_named INTEGER DEFAULT 0,
         last_renamed_at_turn INTEGER DEFAULT NULL,
-        external_party TEXT DEFAULT NULL
+        external_party TEXT DEFAULT NULL,
+        is_pinned INTEGER DEFAULT 1
       );
     `);
 
@@ -80,6 +81,11 @@ export class ConversationDatabase {
     if (!columns.some((c) => c.name === "external_party")) {
       this.db.exec(
         "ALTER TABLE conversations ADD COLUMN external_party TEXT DEFAULT NULL",
+      );
+    }
+    if (!columns.some((c) => c.name === "is_pinned")) {
+      this.db.exec(
+        "ALTER TABLE conversations ADD COLUMN is_pinned INTEGER DEFAULT 1",
       );
     }
 
@@ -120,8 +126,8 @@ export class ConversationDatabase {
       INSERT INTO conversations (
         id, channel, title, topics, created, updated,
         turn_count, participants, abbreviation, needs_abbreviation, manually_named,
-        last_renamed_at_turn, model, external_party
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        last_renamed_at_turn, model, external_party, is_pinned
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -139,6 +145,7 @@ export class ConversationDatabase {
       conversation.lastRenamedAtTurn,
       conversation.model,
       conversation.externalParty,
+      conversation.isPinned !== false ? 1 : 0,
     );
   }
 
@@ -277,6 +284,11 @@ export class ConversationDatabase {
       values.push(updates.externalParty);
     }
 
+    if (updates.isPinned !== undefined) {
+      fields.push("is_pinned = ?");
+      values.push(updates.isPinned ? 1 : 0);
+    }
+
     if (fields.length === 0) {
       return;
     }
@@ -384,11 +396,13 @@ export class ConversationDatabase {
       lastRenamedAtTurn: row.last_renamed_at_turn ?? null,
       model: row.model ?? null,
       externalParty: row.external_party ?? null,
+      isPinned: row.is_pinned !== 0,
     };
   }
 
   /**
-   * Get conversation by external party (channel + external party)
+   * Get conversation by external party (channel + external party).
+   * Only returns pinned conversations — unpinned ones are web-only.
    */
   getByExternalParty(
     channel: string,
@@ -396,13 +410,24 @@ export class ConversationDatabase {
   ): Conversation | null {
     const stmt = this.db.prepare(`
       SELECT * FROM conversations
-      WHERE channel = ? AND external_party = ?
+      WHERE channel = ? AND external_party = ? AND is_pinned = 1
       ORDER BY updated DESC
       LIMIT 1
     `);
     const row = stmt.get(channel, externalParty) as any;
     if (!row) return null;
     return this.rowToConversation(row);
+  }
+
+  /**
+   * Unpin a conversation (marks it as no longer the active channel conversation).
+   * Unpinned conversations can still be viewed/continued via web dashboard.
+   */
+  unpinConversation(id: string): void {
+    const stmt = this.db.prepare(`
+      UPDATE conversations SET is_pinned = 0 WHERE id = ?
+    `);
+    stmt.run(id);
   }
 
   /**

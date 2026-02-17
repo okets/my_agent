@@ -50,6 +50,11 @@ export interface Conversation {
 
   /** External party identifier for channel conversations (phone, email) */
   externalParty: string | null;
+
+  /** Whether this is the pinned (active) conversation for a channel.
+   *  Channel messages always route to the pinned conversation.
+   *  Unpinned conversations can still be viewed/continued via web. */
+  isPinned: boolean;
 }
 
 /**

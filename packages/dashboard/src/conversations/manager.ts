@@ -33,7 +33,7 @@ export class ConversationManager {
    */
   async create(
     channel: string,
-    options?: { externalParty?: string; title?: string },
+    options?: { externalParty?: string; title?: string; model?: string | null },
   ): Promise<Conversation> {
     const now = new Date();
     const conversationId = `conv-${ulid()}`;
@@ -51,8 +51,9 @@ export class ConversationManager {
       needsAbbreviation: false,
       manuallyNamed: false,
       lastRenamedAtTurn: null,
-      model: null,
+      model: options?.model ?? null,
       externalParty: options?.externalParty ?? null,
+      isPinned: true,
     };
 
     // Create transcript file with metadata header
@@ -257,6 +258,15 @@ export class ConversationManager {
    */
   async setModel(id: string, model: string): Promise<void> {
     this.db.updateConversation(id, { model });
+  }
+
+  /**
+   * Unpin a conversation (makes it no longer the active channel conversation).
+   * Unpinned conversations can still be viewed/continued via web dashboard,
+   * but channel messages will no longer route to them.
+   */
+  async unpin(id: string): Promise<void> {
+    this.db.unpinConversation(id);
   }
 
   /**

@@ -98,6 +98,11 @@ export class SessionManager {
     // Use override model if provided, otherwise use config default
     const model = options?.model || this.config!.model;
 
+    // Debug logging to trace model flow
+    console.log(
+      `[SessionManager] options.model: ${options?.model}, config.model: ${this.config!.model}, final: ${model}`,
+    );
+
     // Haiku doesn't support extended thinking — ignore reasoning flag for Haiku
     const isHaiku = model.includes("haiku");
     const reasoning = options?.reasoning && !isHaiku;

@@ -42,6 +42,10 @@ export interface ConversationMeta {
   turnCount: number;
   model: string | null;
   externalParty: string | null;
+  /** Whether this is the pinned (active) conversation for a channel.
+   *  Only pinned channel conversations are read-only in dashboard.
+   *  Unpinned channel conversations can be continued via dashboard. */
+  isPinned?: boolean;
 }
 
 // Attachment metadata for display (stored in transcript)
@@ -129,4 +133,10 @@ export type ServerMessage =
       channelId: string;
       ownerJid: string;
       ownerName: string | null;
+    }
+  | { type: "conversation_unpinned"; conversationId: string }
+  | {
+      type: "conversation_model_changed";
+      conversationId: string;
+      model: string;
     };

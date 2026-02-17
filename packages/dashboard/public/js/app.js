@@ -80,6 +80,11 @@ function chat() {
     get canSend() {
       const hasContent =
         this.inputText.trim().length > 0 || this.attachments.length > 0;
+      // Can't send in read-only channel conversations
+      const conv = this.findConversation(this.currentConversationId);
+      if (conv && this.isReadOnlyConversation(conv)) {
+        return false;
+      }
       return (
         hasContent &&
         this.wsConnected &&
@@ -582,9 +587,17 @@ function chat() {
           }
           break;
 
-        case "conversation_created":
-          // Add to sidebar list
-          this.conversations.unshift(data.conversation);
+        case "conversation_created": {
+          // Route to correct list based on channel and isPinned
+          const isChannelConv =
+            data.conversation.channel && data.conversation.channel !== "web";
+          if (isChannelConv && data.conversation.isPinned !== false) {
+            // Pinned channel conversation → channelConversations
+            this.channelConversations.unshift(data.conversation);
+          } else {
+            // Web conversation OR unpinned channel conversation → conversations
+            this.conversations.unshift(data.conversation);
+          }
 
           // Only switch to it if THIS client created it
           if (
@@ -595,6 +608,7 @@ function chat() {
             this._pendingNewConversation = false;
           }
           break;
+        }
 
         case "conversation_updated": {
           // Update sidebar timestamp for the conversation
@@ -715,10 +729,42 @@ function chat() {
           this.conversations = this.conversations.filter(
             (c) => c.id !== data.conversationId,
           );
+          this.channelConversations = this.channelConversations.filter(
+            (c) => c.id !== data.conversationId,
+          );
           // If it was the current conversation, show empty state
           if (this.currentConversationId === data.conversationId) {
             this.currentConversationId = null;
             this.resetChatState();
+          }
+          break;
+
+        case "conversation_unpinned": {
+          // Move conversation from channelConversations to conversations
+          const unpinnedConv = this.channelConversations.find(
+            (c) => c.id === data.conversationId,
+          );
+          if (unpinnedConv) {
+            unpinnedConv.isPinned = false;
+            this.channelConversations = this.channelConversations.filter(
+              (c) => c.id !== data.conversationId,
+            );
+            this.conversations.unshift(unpinnedConv);
+          }
+          break;
+        }
+
+        case "conversation_model_changed":
+          // Update model if this is current conversation
+          if (data.conversationId === this.currentConversationId) {
+            this.selectedModel = data.model;
+          }
+          // Update in conversation lists
+          const convToUpdateModel =
+            this.conversations.find((c) => c.id === data.conversationId) ||
+            this.channelConversations.find((c) => c.id === data.conversationId);
+          if (convToUpdateModel) {
+            convToUpdateModel.model = data.model;
           }
           break;
 
@@ -1219,9 +1265,11 @@ function chat() {
       return this.channels.find((ch) => ch.id === conv.channel) || null;
     },
 
-    /** Check if a conversation is read-only (from external channel) */
+    /** Check if a conversation is read-only (pinned channel conversations only) */
     isReadOnlyConversation(conv) {
-      return conv.channel && conv.channel !== "web";
+      // Only pinned channel conversations are read-only
+      // Unpinned channel conversations can be continued via dashboard
+      return conv.channel && conv.channel !== "web" && conv.isPinned !== false;
     },
 
     /** Get channel conversations for a specific channel */

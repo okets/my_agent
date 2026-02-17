@@ -86,8 +86,14 @@ export async function* processStream(
           input_tokens?: number;
           output_tokens?: number;
         };
+        modelUsage?: Record<string, unknown>;
         errors?: string[];
       };
+
+      // Log which model was actually used
+      if (result.modelUsage) {
+        console.log(`[Stream] modelUsage: ${JSON.stringify(result.modelUsage)}`);
+      }
 
       if (
         result.subtype &&

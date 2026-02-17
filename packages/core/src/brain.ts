@@ -26,6 +26,9 @@ export type ContentBlock = TextBlock | ImageBlock
 export type PromptContent = string | ContentBlock[]
 
 export function createBrainQuery(prompt: PromptContent, options: BrainSessionOptions): Query {
+  // Debug logging to trace model flow
+  console.log(`[Brain] createBrainQuery model: ${options.model}`)
+
   // Auth is resolved before this point (resolveAuth sets env vars).
   // This is a safety check in case createBrainQuery is called without resolving auth first.
   if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_CODE_OAUTH_TOKEN) {
@@ -39,6 +42,7 @@ export function createBrainQuery(prompt: PromptContent, options: BrainSessionOpt
     systemPrompt: options.systemPrompt,
     permissionMode: 'bypassPermissions',
   }
+  console.log(`[Brain] Full queryOptions: model=${queryOptions.model}`)
   if (options.continue) {
     queryOptions.continue = true
   }

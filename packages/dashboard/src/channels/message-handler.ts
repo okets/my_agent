@@ -224,12 +224,136 @@ export class ChannelMessageHandler {
   ): Promise<void> {
     const first = messages[0];
     const externalParty = first.groupId ?? first.from;
+    const replyTo = first.groupId ?? first.from;
+    const commandText = first.content.trim().toLowerCase();
 
-    // Look up or create conversation
-    let conversation = await this.deps.conversationManager.getByExternalParty(
-      channelId,
-      externalParty,
-    );
+    // Look up existing conversation for slash command context
+    const existingConversation =
+      await this.deps.conversationManager.getByExternalParty(
+        channelId,
+        externalParty,
+      );
+
+    // ── Slash command: /new ───────────────────────────────────────────
+    if (commandText === "/new") {
+      const currentModel = existingConversation?.model ?? null;
+
+      // Unpin current conversation if it exists
+      if (existingConversation) {
+        await this.deps.conversationManager.unpin(existingConversation.id);
+
+        // Broadcast unpin to dashboard
+        this.deps.connectionRegistry.broadcastToAll({
+          type: "conversation_unpinned",
+          conversationId: existingConversation.id,
+        });
+      }
+
+      // Create new pinned conversation (inherits model)
+      const title = first.senderName ?? first.groupName ?? undefined;
+      const newConversation = await this.deps.conversationManager.create(
+        channelId,
+        {
+          externalParty,
+          title,
+          model: currentModel,
+        },
+      );
+
+      // Send confirmation via channel
+      await this.deps.sendViaChannel(channelId, replyTo, {
+        content: "Starting fresh! How can I help?",
+      });
+
+      // Broadcast new conversation to dashboard
+      this.deps.connectionRegistry.broadcastToAll({
+        type: "conversation_created",
+        conversation: {
+          id: newConversation.id,
+          channel: newConversation.channel,
+          title: newConversation.title,
+          topics: newConversation.topics,
+          created: newConversation.created.toISOString(),
+          updated: newConversation.updated.toISOString(),
+          turnCount: newConversation.turnCount,
+          model: newConversation.model,
+          externalParty: newConversation.externalParty,
+          isPinned: newConversation.isPinned,
+        },
+      });
+
+      return; // Don't process as normal message
+    }
+
+    // ── Slash command: /model ─────────────────────────────────────────
+    const modelMatch = commandText.match(/^\/model(?:\s+(\w+))?$/);
+    if (modelMatch) {
+      const modelArg = modelMatch[1]; // undefined, "opus", "sonnet", or "haiku"
+
+      if (!modelArg) {
+        // Show current model and options
+        const currentModel =
+          existingConversation?.model || "claude-sonnet-4-5-20250929";
+        const modelName = currentModel.includes("opus")
+          ? "Opus"
+          : currentModel.includes("haiku")
+            ? "Haiku"
+            : "Sonnet";
+
+        await this.deps.sendViaChannel(channelId, replyTo, {
+          content: `Current model: ${modelName}\n\nAvailable: /model opus, /model sonnet, /model haiku`,
+        });
+        return;
+      }
+
+      // Map shorthand to full model ID
+      const modelMap: Record<string, string> = {
+        opus: "claude-opus-4-6",
+        sonnet: "claude-sonnet-4-5-20250929",
+        haiku: "claude-haiku-4-5-20251001",
+      };
+
+      const newModelId = modelMap[modelArg];
+      if (!newModelId) {
+        await this.deps.sendViaChannel(channelId, replyTo, {
+          content: `Unknown model "${modelArg}". Available: opus, sonnet, haiku`,
+        });
+        return;
+      }
+
+      if (!existingConversation) {
+        await this.deps.sendViaChannel(channelId, replyTo, {
+          content: `No active conversation. Send a message first to start one.`,
+        });
+        return;
+      }
+
+      // Update conversation model
+      await this.deps.conversationManager.setModel(
+        existingConversation.id,
+        newModelId,
+      );
+
+      const modelName = modelArg.charAt(0).toUpperCase() + modelArg.slice(1);
+      await this.deps.sendViaChannel(channelId, replyTo, {
+        content: `Switched to ${modelName}.`,
+      });
+
+      // Broadcast model change to dashboard
+      this.deps.connectionRegistry.broadcastToConversation(
+        existingConversation.id,
+        {
+          type: "conversation_model_changed",
+          conversationId: existingConversation.id,
+          model: newModelId,
+        },
+      );
+
+      return;
+    }
+
+    // ── Normal message processing ─────────────────────────────────────
+    let conversation = existingConversation;
 
     if (!conversation) {
       // Create new conversation for this channel + party
@@ -252,6 +376,7 @@ export class ChannelMessageHandler {
           turnCount: conversation.turnCount,
           model: conversation.model,
           externalParty: conversation.externalParty,
+          isPinned: conversation.isPinned,
         },
       });
     }

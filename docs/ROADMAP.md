@@ -11,7 +11,7 @@
 | ---------------------------- | -------- | ---------------------------- |
 | **M1: Foundation**           | Complete | 4/4 sprints                  |
 | **M2: Web UI**               | Complete | 6/6 sprints                  |
-| **M3: WhatsApp Channel**     | Active   | S1 done, S2 in review        |
+| **M3: WhatsApp Channel**     | Active   | S1-S2 done, S3 in progress   |
 | **M4a: Task System**         | Planned  | Design complete, sprints TBD |
 | **M4b: Memory**              | Planned  | Design complete, sprints TBD |
 | **M5: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -31,9 +31,9 @@ M1 Foundation     M2 Web UI        M3 WhatsApp        M4-M6 Future
 
                   S1 ██ Server + Chat (done)
                   S2 ██ Streaming (done)        S1 ██ Channel Infra (done)
-                  S3 ██ Hatching Wizard (done)  S2 ▓▓ WhatsApp Plugin (in review)
-                  S4 ██ Conversations (done)    S3 ░░ Trust & External Comms
-                  S5 ██ Naming (done)
+                  S3 ██ Hatching Wizard (done)  S2 ██ WhatsApp Plugin (done)
+                  S4 ██ Conversations (done)    S3 ▓▓ Slash Commands (in progress)
+                  S5 ██ Naming (done)           S4 ░░ Trust & External Comms
                   S6 ██ Advanced Chat (done)
 
                                                         M4a Tasks ───┐
@@ -103,8 +103,9 @@ First external channel. Agent owns a phone number, responds immediately. Introdu
 | Sprint | Name                      | Status      | Plan                                                    | Review |
 | ------ | ------------------------- | ----------- | ------------------------------------------------------- | ------ |
 | S1     | Channel Infrastructure    | Complete    | [plan](sprints/m3-s1-channel-infrastructure/plan.md)    | —      |
-| S2     | WhatsApp Plugin + Routing | In Progress | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)           | —      |
-| S3     | Trust & External Comms    | Planned     | —                                                       | —      |
+| S2     | WhatsApp Plugin + Routing | Complete    | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)           | —      |
+| S3     | Slash Commands            | In Progress | [plan](sprints/m3-s3-slash-commands/plan.md)            | —      |
+| S4     | Trust & External Comms    | Planned     | —                                                       | —      |
 
 **Design references:**
 - [channels.md](design/channels.md) — channel architecture, identity-based routing, trust tiers
@@ -114,7 +115,8 @@ First external channel. Agent owns a phone number, responds immediately. Introdu
 
 - *(S1)* Channel plugin interface, manager with resilience (reconnection, dedup, debounce, watchdog), mock plugin
 - *(S2)* Baileys WhatsApp plugin, QR pairing, identity-based routing, owner conversations, settings view
-- *(S3)* Trust tiers enforcement, external communications UI, escalation, personal channel role
+- *(S3)* Slash commands: `/new` (conversation reset with pinning), `/model` (model switching) — works on web + WhatsApp
+- *(S4)* Trust tiers enforcement, external communications UI, escalation, personal channel role
 
 **Dependencies:** M2 (chat infra)
 

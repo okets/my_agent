@@ -395,22 +395,23 @@ export async function registerChatWebSocket(
         });
       }
 
-      // Send web conversations (limited) for sidebar
-      const webConversations = await conversationManager.list({
-        channel: "web",
-        limit: 50,
-      });
-
-      // Send channel conversations separately (no limit — always visible)
+      // Get all conversations and split by pinned status
       const allConversations = await conversationManager.list({});
-      const channelConversations = allConversations.filter(
-        (c) => c.channel !== "web",
+
+      // Pinned channel conversations → show in Channels section (read-only)
+      const pinnedChannelConvs = allConversations.filter(
+        (c) => c.channel !== "web" && c.isPinned,
+      );
+
+      // Web conversations + unpinned channel conversations → regular list
+      const regularConvs = allConversations.filter(
+        (c) => c.channel === "web" || !c.isPinned,
       );
 
       send({
         type: "conversation_list",
-        conversations: webConversations.map(toConversationMeta),
-        channelConversations: channelConversations.map(toConversationMeta),
+        conversations: regularConvs.slice(0, 50).map(toConversationMeta),
+        channelConversations: pinnedChannelConvs.map(toConversationMeta),
       });
     }
 
@@ -645,6 +646,142 @@ export async function registerChatWebSocket(
       model?: string,
       attachments?: Attachment[],
     ): Promise<void> {
+      const textContent = content.trim().toLowerCase();
+
+      // ── Slash command: /new ─────────────────────────────────────────
+      if (textContent === "/new") {
+        // Queue abbreviation for the conversation we're leaving
+        queueAbbreviationForCurrent();
+
+        // Create new conversation
+        const conversation = await conversationManager.create("web");
+
+        currentConversationId = conversation.id;
+        currentTurnNumber = 0;
+
+        // Create session for new conversation
+        sessionManager = await sessionRegistry.getOrCreate(
+          conversation.id,
+          conversationManager,
+        );
+
+        // Update registry
+        connectionRegistry.switchConversation(socket, conversation.id);
+
+        // Build confirmation message as a turn (included in conversation_loaded)
+        const confirmationTurn: Turn = {
+          role: "assistant",
+          content: "Starting fresh! How can I help?",
+          timestamp: new Date().toISOString(),
+          turnNumber: 0,
+        };
+
+        // Send conversation_loaded with the confirmation message included
+        // This resets frontend state AND shows the welcome message in one event
+        send({
+          type: "conversation_loaded",
+          conversation: toConversationMeta(conversation),
+          turns: [confirmationTurn],
+          hasMore: false,
+        });
+
+        // Also send conversation_created to update sidebar for THIS socket
+        send({
+          type: "conversation_created",
+          conversation: toConversationMeta(conversation),
+        });
+
+        // Broadcast to other sockets so their sidebars update
+        connectionRegistry.broadcastToAll(
+          {
+            type: "conversation_created",
+            conversation: toConversationMeta(conversation),
+          },
+          socket,
+        );
+
+        return;
+      }
+
+      // ── Slash command: /model ───────────────────────────────────────
+      const modelMatch = textContent.match(/^\/model(?:\s+(\w+))?$/);
+      if (modelMatch) {
+        const modelArg = modelMatch[1];
+
+        if (!modelArg) {
+          // Show current model and options
+          const conversation = currentConversationId
+            ? await conversationManager.get(currentConversationId)
+            : null;
+          const currentModel =
+            conversation?.model || "claude-sonnet-4-5-20250929";
+          const modelName = currentModel.includes("opus")
+            ? "Opus"
+            : currentModel.includes("haiku")
+              ? "Haiku"
+              : "Sonnet";
+
+          send({ type: "start" });
+          send({
+            type: "text_delta",
+            content: `Current model: ${modelName}\n\nAvailable: /model opus, /model sonnet, /model haiku`,
+          });
+          send({ type: "done" });
+          return;
+        }
+
+        // Map shorthand to full model ID
+        const modelMap: Record<string, string> = {
+          opus: "claude-opus-4-6",
+          sonnet: "claude-sonnet-4-5-20250929",
+          haiku: "claude-haiku-4-5-20251001",
+        };
+
+        const newModelId = modelMap[modelArg];
+        if (!newModelId) {
+          send({ type: "start" });
+          send({
+            type: "text_delta",
+            content: `Unknown model "${modelArg}". Available: opus, sonnet, haiku`,
+          });
+          send({ type: "done" });
+          return;
+        }
+
+        if (!currentConversationId) {
+          send({ type: "start" });
+          send({
+            type: "text_delta",
+            content: `No active conversation. Send a message first to start one.`,
+          });
+          send({ type: "done" });
+          return;
+        }
+
+        // Update conversation model
+        await conversationManager.setModel(currentConversationId, newModelId);
+
+        // Invalidate cached session so next message uses the new model
+        sessionRegistry.remove(currentConversationId);
+        sessionManager = null;
+
+        const modelName = modelArg.charAt(0).toUpperCase() + modelArg.slice(1);
+        send({ type: "start" });
+        send({ type: "text_delta", content: `Switched to ${modelName}.` });
+        send({ type: "done" });
+
+        // Broadcast model change to this and other clients
+        connectionRegistry.broadcastToConversation(currentConversationId, {
+          type: "conversation_model_changed",
+          conversationId: currentConversationId,
+          model: newModelId,
+        });
+
+        return;
+      }
+
+      // ── Normal message processing ───────────────────────────────────
+
       // Create conversation if needed
       if (!currentConversationId) {
         const conversation = await conversationManager.create("web");
@@ -806,6 +943,11 @@ export async function registerChatWebSocket(
       // Get model: prefer message's model, fall back to stored model
       const conversation = await conversationManager.get(currentConversationId);
       const modelOverride = model || conversation?.model || undefined;
+
+      // Debug logging to trace model flow
+      fastify.log.info(
+        `[Model Debug] Message model: ${model}, Conversation model: ${conversation?.model}, Override: ${modelOverride}, ConvId: ${currentConversationId}`,
+      );
 
       // If message specifies model and it differs from stored, persist it
       if (model && model !== conversation?.model) {
@@ -977,6 +1119,7 @@ function toConversationMeta(conv: Conversation): ConversationMeta {
     turnCount: conv.turnCount,
     model: conv.model,
     externalParty: conv.externalParty,
+    isPinned: conv.isPinned,
   };
 }
 
