@@ -80,6 +80,11 @@ function chat() {
     // Theme: 'dark' or 'light'
     theme: "dark",
 
+    // Input history (shell-style up/down arrow)
+    inputHistory: [],
+    historyIndex: -1, // -1 = not browsing, 0 = most recent, etc.
+    inputDraft: "", // Preserves typed text before browsing history
+
     modelOptions: [
       { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5" },
       { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5" },
@@ -161,6 +166,9 @@ function chat() {
 
       // Load UI state from localStorage (tabs, chat width)
       this.loadUIState();
+
+      // Load input history from sessionStorage
+      this.loadInputHistory();
 
       // Initialize theme
       this.initTheme();
@@ -373,6 +381,12 @@ function chat() {
       // Update sidebar timestamp for current conversation
       this.touchCurrentConversation();
 
+      // Save to input history (only non-empty text, avoid duplicates)
+      if (text && this.inputHistory[this.inputHistory.length - 1] !== text) {
+        this.inputHistory.push(text);
+        this.saveInputHistory();
+      }
+
       // Reset compose bar state
       this.inputText = "";
       this.attachments = [];
@@ -380,6 +394,8 @@ function chat() {
       this.composePlaceholder = "";
       this.composePasswordMode = false;
       this.isResponding = true;
+      this.historyIndex = -1;
+      this.inputDraft = "";
 
       // Reset textarea height
       const input = this.$refs.chatInput;
@@ -1223,6 +1239,93 @@ function chat() {
       } else {
         root.classList.add("dark");
         root.classList.remove("light");
+      }
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Input History (shell-style up/down arrows)
+    // ─────────────────────────────────────────────────────────────────
+
+    loadInputHistory() {
+      try {
+        const saved = sessionStorage.getItem("inputHistory");
+        if (saved) {
+          this.inputHistory = JSON.parse(saved);
+        }
+      } catch (e) {
+        console.error("[App] Failed to load input history:", e);
+      }
+    },
+
+    saveInputHistory() {
+      try {
+        // Keep last 100 entries max
+        const toSave = this.inputHistory.slice(-100);
+        sessionStorage.setItem("inputHistory", JSON.stringify(toSave));
+      } catch (e) {
+        console.error("[App] Failed to save input history:", e);
+      }
+    },
+
+    /**
+     * Handle up/down arrow keys for input history navigation.
+     * Only triggers when cursor is on first line (up) or last line (down).
+     */
+    handleInputKeydown(event) {
+      const el = event.target;
+      const text = el.value;
+      const pos = el.selectionStart;
+
+      if (event.key === "ArrowUp") {
+        // Check if cursor is on first line (before first newline or no newlines)
+        const firstNewline = text.indexOf("\n");
+        const onFirstLine = firstNewline === -1 || pos <= firstNewline;
+
+        if (onFirstLine && this.inputHistory.length > 0) {
+          event.preventDefault();
+
+          // Save draft on first up-arrow press
+          if (this.historyIndex === -1) {
+            this.inputDraft = this.inputText;
+            this.historyIndex = 0;
+          } else if (this.historyIndex < this.inputHistory.length - 1) {
+            this.historyIndex++;
+          }
+
+          // Show history entry (newest is at end of array)
+          const idx = this.inputHistory.length - 1 - this.historyIndex;
+          this.inputText = this.inputHistory[idx];
+
+          // Move cursor to end
+          this.$nextTick(() => {
+            el.setSelectionRange(this.inputText.length, this.inputText.length);
+          });
+        }
+      } else if (event.key === "ArrowDown") {
+        // Check if cursor is on last line (after last newline or no newlines)
+        const lastNewline = text.lastIndexOf("\n");
+        const onLastLine = lastNewline === -1 || pos > lastNewline;
+
+        if (onLastLine && this.historyIndex >= 0) {
+          event.preventDefault();
+
+          this.historyIndex--;
+
+          if (this.historyIndex < 0) {
+            // Restore draft
+            this.inputText = this.inputDraft;
+            this.inputDraft = "";
+          } else {
+            // Show history entry
+            const idx = this.inputHistory.length - 1 - this.historyIndex;
+            this.inputText = this.inputHistory[idx];
+          }
+
+          // Move cursor to end
+          this.$nextTick(() => {
+            el.setSelectionRange(this.inputText.length, this.inputText.length);
+          });
+        }
       }
     },
 

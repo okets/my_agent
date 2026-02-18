@@ -1128,9 +1128,7 @@
         </main>
 
         <!-- Compose area -->
-        <footer
-          class="shrink-0 p-3"
-        >
+        <footer class="shrink-0 p-3">
           <!-- Hidden file input for attachments -->
           <input
             type="file"
@@ -1263,6 +1261,8 @@
                   sendMessage();
                 }
               "
+                @keydown.up="handleInputKeydown($event)"
+                @keydown.down="handleInputKeydown($event)"
                 @input="autoResize($refs.chatInput)"
                 @paste="handlePaste($event)"
               ></textarea>
