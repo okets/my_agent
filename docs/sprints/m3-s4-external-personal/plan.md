@@ -1,6 +1,6 @@
 # M3-S4: External Communications & Personal Channels
 
-> **Status:** Planned
+> **Status:** Complete
 > **Date:** 2026-02-17
 > **Depends on:** M3-S3 (Slash Commands)
 
