@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-02-17
+> **Updated:** 2026-02-18
 
 ---
 
@@ -11,11 +11,12 @@
 | ---------------------------- | -------- | ---------------------------- |
 | **M1: Foundation**           | Complete | 4/4 sprints                  |
 | **M2: Web UI**               | Complete | 6/6 sprints                  |
-| **M3: WhatsApp Channel**     | Active   | S1-S3 done, S4 planned       |
-| **M4a: Task System**         | Planned  | Design complete, sprints TBD |
-| **M4b: Memory**              | Planned  | Design complete, sprints TBD |
-| **M5: Operations Dashboard** | Planned  | Design complete, sprints TBD |
-| **M6: Email Channel**        | Planned  | Design complete, sprints TBD |
+| **M3: WhatsApp Channel**     | Active   | S1-S3 done, S4 stashed       |
+| **M4: Notebook System**      | Planned  | 6 sprints planned            |
+| **M5: Task System**          | Planned  | Design complete, sprints TBD |
+| **M6: Memory**               | Planned  | Design complete, sprints TBD |
+| **M7: Operations Dashboard** | Planned  | Design complete, sprints TBD |
+| **M8: Email Channel**        | Planned  | Design complete, sprints TBD |
 
 ---
 
@@ -25,21 +26,22 @@
 2026-02                                          2026-03+
 ├─────────────────────────────────────────────────────────────────────►
 
-M1 Foundation     M2 Web UI        M3 WhatsApp        M4-M6 Future
-[████████████]    [████████████]    [████░░░░░░]        [░░░░░░░░░░]
-   COMPLETE          COMPLETE         ACTIVE               PLANNED
+M1 Foundation     M2 Web UI        M3 WhatsApp     M4 Notebook    M5-M8 Future
+[████████████]    [████████████]    [████░░░░░░]    [░░░░░░░░░░]   [░░░░░░░░░░]
+   COMPLETE          COMPLETE         ACTIVE          PLANNED         PLANNED
 
                   S1 ██ Server + Chat (done)
                   S2 ██ Streaming (done)        S1 ██ Channel Infra (done)
                   S3 ██ Hatching Wizard (done)  S2 ██ WhatsApp Plugin (done)
                   S4 ██ Conversations (done)    S3 ██ Slash Commands (done)
-                  S5 ██ Naming (done)           S4 ░░ External Comms & Personal
+                  S5 ██ Naming (done)           S4 ░░ External Comms (stashed)
                   S6 ██ Advanced Chat (done)
 
-                                                        M4a Tasks ───┐
-                                                        M4b Memory ──┼─► Agent can develop itself
-                                                        M5 Ops Dash ─┘
-                                                        M6 Email
+                                                        M4 Notebook ──► Nina edits config files
+                                                        M5 Tasks ────┐
+                                                        M6 Memory ───┼─► Agent can develop itself
+                                                        M7 Ops Dash ─┘
+                                                        M8 Email
 ```
 
 ---
@@ -100,12 +102,12 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 
 First external channel. Agent owns a phone number, responds immediately. Introduces identity-based routing (conversations vs external communications).
 
-| Sprint | Name                      | Status   | Plan                                                 | Review |
-| ------ | ------------------------- | -------- | ---------------------------------------------------- | ------ |
-| S1     | Channel Infrastructure    | Complete | [plan](sprints/m3-s1-channel-infrastructure/plan.md) | —      |
+| Sprint | Name                      | Status   | Plan                                                 | Review                                            |
+| ------ | ------------------------- | -------- | ---------------------------------------------------- | ------------------------------------------------- |
+| S1     | Channel Infrastructure    | Complete | [plan](sprints/m3-s1-channel-infrastructure/plan.md) | —                                                 |
 | S2     | WhatsApp Plugin + Routing | Complete | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)        | [review](sprints/m3-s2-whatsapp-plugin/review.md) |
-| S3     | Slash Commands            | Complete | [plan](sprints/m3-s3-slash-commands/plan.md)         | [review](sprints/m3-s3-slash-commands/review.md) |
-| S4     | External Comms & Personal | Planned  | [plan](sprints/m3-s4-external-personal/plan.md)      | —      |
+| S3     | Slash Commands            | Complete | [plan](sprints/m3-s3-slash-commands/plan.md)         | [review](sprints/m3-s3-slash-commands/review.md)  |
+| S4     | External Comms & Personal | Stashed  | [plan](sprints/m3-s4-external-personal/plan.md)      | —                                                 |
 
 **Design references:**
 
@@ -125,11 +127,61 @@ First external channel. Agent owns a phone number, responds immediately. Introdu
 
 - Channel-specific conversation naming (contact name + topic instead of haiku). `NamingService` needs a channel-aware prompt. See `docs/design/conversation-system.md` §Conversation Naming.
 
-**Note:** M3 ships standalone. Basic WhatsApp ↔ agent works. Project spawning from WhatsApp ("fix this bug") requires M4a — that's a later enhancement, not a blocker.
+**Note:** M3 ships standalone. Basic WhatsApp ↔ agent works. Project spawning from WhatsApp ("fix this bug") requires M5 — that's a later enhancement, not a blocker.
+
+**⚠️ M3-S4 Implementation Stashed:**
+The M3-S4 external communications implementation was stashed to make way for M4 (Notebook System) which provides a better architecture. To recover:
+
+```bash
+git stash list   # Find stash@{0} and stash@{1}
+# stash@{0}: M3-S4 untracked files (monitoring-config.ts, rules-loader.ts, external.ts)
+# stash@{1}: M3-S4 external communications implementation (all package/ modifications)
+
+# Pop in reverse order when ready:
+git stash pop stash@{1}  # Modified files first
+git stash pop stash@{0}  # Then untracked files
+```
+
+The M4-S4 sprint plan documents how to refactor this stashed code to use the Notebook system.
 
 ---
 
-### M4a: Task System — PLANNED
+### M4: Notebook System — PLANNED
+
+Notebook is Nina's persistent memory — markdown files she can read always and write when talking to her owner. This enables conversational configuration instead of brittle middleware pattern matching.
+
+| Sprint | Name                    | Status  | Plan                                                  | Review |
+| ------ | ----------------------- | ------- | ----------------------------------------------------- | ------ |
+| S1     | Notebook Infrastructure | Planned | [plan](sprints/m4-s1-notebook-infrastructure/plan.md) | —      |
+| S2     | Dashboard Evolution     | Planned | [plan](sprints/m4-s2-dashboard-evolution/plan.md)     | —      |
+| S3     | Notebook Editing Tool   | Planned | [plan](sprints/m4-s3-notebook-editing-tool/plan.md)   | —      |
+| S4     | External Communications | Planned | [plan](sprints/m4-s4-external-communications/plan.md) | —      |
+| S5     | Reminders & Tasks       | Planned | —                                                     | —      |
+| S6     | Dashboard Integration   | Planned | [plan](sprints/m4-s6-dashboard-integration/plan.md)   | —      |
+
+**Architecture:**
+
+| Layer       | Purpose                   | Location             | Nina Access                   |
+| ----------- | ------------------------- | -------------------- | ----------------------------- |
+| **System**  | HOW to use Notebook files | `brain/CLAUDE.md`    | Read-only                     |
+| **Runtime** | Actual rules/data         | `.my_agent/runtime/` | Read always, Write with owner |
+
+**Deliverables:**
+
+- _(S1)_ Notebook file templates, prompt assembly with size limits, system directives
+- _(S2)_ Dashboard workspace layout: tabs on left, permanent chat on right, context awareness
+- _(S3)_ `notebook_edit` tool for section-based file editing, access control, dashboard refresh
+- _(S4)_ Refactor M3-S4 external communications to use Notebook (pop stash, remove middleware)
+- _(S5)_ Reminders pattern: conversational task management via `reminders.md`
+- _(S6)_ REST API for Notebook files, markdown rendering, change tracking
+
+**Dependencies:** M3-S3 (channels working)
+
+**Note:** M4 enables conversational configuration. "Block Sarah" or "I had a fight with Sarah, ignore her" both work because Nina understands intent and uses `notebook_edit` tool — no regex pattern matching.
+
+---
+
+### M5: Task System — PLANNED
 
 Folder-based tasks, Claude Code spawning, scheduled tasks.
 
@@ -146,11 +198,11 @@ Folder-based tasks, Claude Code spawning, scheduled tasks.
 
 **Dependencies:** M2 (dashboard for approvals)
 
-**After M4a:** The agent can develop itself. M4b, M5, M6 become agent projects with human review.
+**After M5:** The agent can develop itself. M6, M7, M8 become agent projects with human review.
 
 ---
 
-### M4b: Memory — PLANNED
+### M6: Memory — PLANNED
 
 Notebook memory with flexible user-defined lists, daily summaries.
 
@@ -166,11 +218,11 @@ Notebook memory with flexible user-defined lists, daily summaries.
 
 **Dependencies:** M2 (conversation search as fallback)
 
-**Note:** M4b could be the agent's first self-development project after M4a unlocks.
+**Note:** M6 could be the agent's first self-development project after M5 unlocks.
 
 ---
 
-### M5: Operations Dashboard — PLANNED
+### M7: Operations Dashboard — PLANNED
 
 Expand web UI with task management and memory viewer.
 
@@ -184,13 +236,13 @@ Expand web UI with task management and memory viewer.
 - Settings: auth, models, channels
 - "Open in VS Code" deep links
 
-**Dependencies:** M4a (task system), M4b (memory)
+**Dependencies:** M5 (task system), M6 (memory)
 
 **Note:** Agent builds this itself with review.
 
 ---
 
-### M6: Email Channel — PLANNED
+### M8: Email Channel — PLANNED
 
 Email plugin with both dedicated and personal roles.
 
@@ -208,7 +260,7 @@ Email plugin with both dedicated and personal roles.
 
 - Channel-specific conversation naming (subject line + thread context). See `docs/design/conversation-system.md` §Conversation Naming.
 
-**Dependencies:** M3 (channel pattern established), M4a (for email-triggered projects)
+**Dependencies:** M3 (channel pattern established), M5 (for email-triggered projects)
 
 ---
 
@@ -218,35 +270,39 @@ Design specs define architecture before implementation. Each spec should be comp
 
 | Spec                 | Status   | Milestones | Path                                                             |
 | -------------------- | -------- | ---------- | ---------------------------------------------------------------- |
-| Channels             | Complete | M3, M6     | [design/channels.md](design/channels.md)                         |
+| Channels             | Complete | M3, M8     | [design/channels.md](design/channels.md)                         |
 | Conversations        | Complete | M2         | [design/conversation-system.md](design/conversation-system.md)   |
-| Task System          | Complete | M4a        | [design/task-system.md](design/task-system.md)                   |
-| Memory               | Complete | M4b        | [design/memory-system.md](design/memory-system.md)               |
-| Operations Dashboard | Complete | M5         | [design/operations-dashboard.md](design/operations-dashboard.md) |
+| Notebook             | Planned  | M4         | [design/notebook.md](design/notebook.md)                         |
+| Task System          | Complete | M5         | [design/task-system.md](design/task-system.md)                   |
+| Memory               | Complete | M6         | [design/memory-system.md](design/memory-system.md)               |
+| Operations Dashboard | Complete | M7         | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
-**Note:** M3 (WhatsApp) and M6 (Email) are covered by `channels.md`. No separate specs needed.
+**Note:** M3 (WhatsApp) and M8 (Email) are covered by `channels.md`. No separate specs needed.
 
 ---
 
 ## Dependencies
 
 ```
-M1 Foundation ───► M2 Web UI ───┬──► M3 WhatsApp (standalone)
-                                │
-                                └──► M4a Tasks
-                                        │
-                                        ├──► M4b Memory
-                                        │
-                                        ├──► M5 Ops Dashboard
-                                        │
-                                        └──► M6 Email
+M1 Foundation ───► M2 Web UI ───┬──► M3 WhatsApp ───► M4 Notebook
+                                │                          │
+                                │                          ▼
+                                └──────────────────► M5 Tasks
+                                                        │
+                                                        ├──► M6 Memory
+                                                        │
+                                                        ├──► M7 Ops Dashboard
+                                                        │
+                                                        └──► M8 Email
 ```
 
-**Critical path:** M1 → M2 → M4a
+**Critical path:** M1 → M2 → M3 → M4 → M5
 
-**After M4a:** Agent self-development. M4b, M5, M6 become agent projects with human review.
+**After M5:** Agent self-development. M6, M7, M8 become agent projects with human review.
 
-**M3 is standalone:** Basic WhatsApp works after M2. Full task integration (project spawning) comes after M4a.
+**M3 is standalone:** Basic WhatsApp works after M2. Full task integration (project spawning) comes after M5.
+
+**M4 enables conversational config:** M3-S4 (External Communications) was stashed and will be refactored in M4-S4 to use Notebook instead of middleware pattern matching.
 
 ---
 
@@ -266,9 +322,9 @@ Requirements that must be complete before public release, regardless of mileston
 
 Ideas that haven't been promoted to design specs yet.
 
-| Idea                         | Status          | Path                                                                         |
-| ---------------------------- | --------------- | ---------------------------------------------------------------------------- |
-| Agent Teams for Ad-hoc Tasks | Deferred to M4a | [ideas/agent-teams-for-adhoc-tasks.md](ideas/agent-teams-for-adhoc-tasks.md) |
+| Idea                         | Status         | Path                                                                         |
+| ---------------------------- | -------------- | ---------------------------------------------------------------------------- |
+| Agent Teams for Ad-hoc Tasks | Deferred to M5 | [ideas/agent-teams-for-adhoc-tasks.md](ideas/agent-teams-for-adhoc-tasks.md) |
 
 ---
 
@@ -357,4 +413,4 @@ After completion:
 
 ---
 
-_Updated: 2026-02-17_
+_Updated: 2026-02-18_
