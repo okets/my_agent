@@ -161,7 +161,11 @@ export async function assembleCalendarContext(
     const events = await repo.getUpcoming(windowHours, maxEvents)
     const content = formatEventsAsMarkdown(events)
 
-    const markdown = `## Upcoming
+    const markdown = `## Calendar
+
+You have access to a local CalDAV calendar system (Radicale). You can view, create, and manage calendar events.
+
+### Upcoming Events
 
 ${content}`
 
@@ -174,9 +178,9 @@ ${content}`
     console.warn(
       `Calendar context unavailable: ${err instanceof Error ? err.message : String(err)}`,
     )
-    return `## Upcoming
+    return `## Calendar
 
-[Calendar offline]`
+You have a local CalDAV calendar system (Radicale), but it is currently offline.`
   }
 }
 

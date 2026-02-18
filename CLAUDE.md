@@ -54,6 +54,31 @@ my_agent/                           # PUBLIC REPO (framework)
 - **Plugins** — channel-agnostic. WhatsApp, Email, Telegram etc. are plugins, not core.
 - **Skills** — markdown files at 3 levels: brain (always on), project (per-task), framework (generic).
 - **Hooks** — safety guards + audit at event loop and per-project levels.
+- **Self-evolving infrastructure** — APIs that serve agents, maintained by agents. See below.
+
+## Self-Evolving Infrastructure
+
+> *"The API is for agents, maintained by agents."*
+
+**Philosophy:** When agents (Claude Code, QA agents, dev agents) need capabilities that don't exist, they should document the need, implement the solution, and continue working. Humans review in sprint review.
+
+**Pattern:** Every sprint team includes a QA agent that:
+1. Tests changes using the Debug/Admin API
+2. Documents missing capabilities in `WISHLIST.md`
+3. Spawns subagents to implement missing endpoints
+4. Continues testing with new capabilities
+
+**Why:** Agents discover needs faster than humans can anticipate. Let agents solve their own problems, under human review.
+
+**Design doc:** `docs/design/self-evolving-infrastructure.md`
+**API spec:** `docs/design/debug-api.md`
+
+**Trust gradient:**
+| Agent | Use API | Extend API | Modify Core |
+|-------|---------|------------|-------------|
+| QA Agent | ✓ | ✓ (subagent) | ✗ |
+| Dev Agent | ✓ | ✓ | ✓ (reviewed) |
+| Brain | ✓ (limited) | ✗ | ✗ |
 
 ## References
 
@@ -62,6 +87,8 @@ my_agent/                           # PUBLIC REPO (framework)
 | Roadmap | `docs/ROADMAP.md` | **Source of truth** for milestones, sprints, work breakdown |
 | Design doc | `docs/design.md` | Full architecture, flows, decisions |
 | Design specs | `docs/design/*.md` | Detailed specs (channels, conversations, etc.) |
+| Self-evolving infra | `docs/design/self-evolving-infrastructure.md` | Philosophy: APIs for agents, by agents |
+| Debug API | `docs/design/debug-api.md` | Debug/Admin API specification |
 | Procedures | `docs/procedures/*.md` | Team workflows (overnight sprints, etc.) |
 | References | `.my_agent/docs/references.md` | OpenClaw source paths, vision docs, SDK links (private) |
 | Agent SDK docs | https://platform.claude.com/docs/en/agent-sdk/overview | Official docs |
@@ -127,4 +154,4 @@ The roadmap contains:
 ---
 
 *Created: 2026-02-12*
-*Updated: 2026-02-13 — M1 complete, M2 planning*
+*Updated: 2026-02-18 — Added self-evolving infrastructure philosophy*
