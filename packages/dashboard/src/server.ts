@@ -8,6 +8,7 @@ import { readFile } from "node:fs/promises";
 import { registerChatWebSocket } from "./ws/chat-handler.js";
 import { registerHatchingRoutes } from "./routes/hatching.js";
 import { registerChannelRoutes } from "./routes/channels.js";
+import { registerCalendarRoutes } from "./routes/calendar.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
@@ -91,6 +92,9 @@ export async function createServer(
 
   // Register channel routes
   await registerChannelRoutes(fastify);
+
+  // Register calendar routes
+  await registerCalendarRoutes(fastify);
 
   // Notebook API - read runtime files
   fastify.get<{ Params: { name: string } }>(

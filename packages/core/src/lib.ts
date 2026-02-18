@@ -53,3 +53,28 @@ export type {
 // Utilities
 export { computeBackoff, DEFAULT_BACKOFF, DedupCache, MessageDebouncer } from './utils/index.js'
 export type { DedupOptions, DebouncerOptions, DebouncedMessage } from './utils/index.js'
+
+// Calendar system
+export {
+  assembleCalendarContext,
+  invalidateCalendarContextCache,
+  loadCalendarConfig,
+  loadCalendarCredentials,
+  getRadicaleUrl,
+  initializeCalendars,
+  checkRadicaleHealth,
+  createCalDAVClient,
+  CalDAVClient,
+} from './calendar/index.js'
+export type {
+  CalendarEvent,
+  CreateEventInput,
+  UpdateEventInput,
+  Calendar,
+  RecurringEditMode,
+  CalendarRepository,
+  CalendarHealth,
+  CalendarConfig,
+  CalendarCredentials,
+} from './calendar/index.js'
+export type { AssemblePromptOptions } from './prompt.js'

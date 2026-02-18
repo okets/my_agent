@@ -1296,9 +1296,9 @@ function chat() {
           const idx = this.inputHistory.length - 1 - this.historyIndex;
           this.inputText = this.inputHistory[idx];
 
-          // Move cursor to end
+          // Move cursor to start (so next up arrow navigates history, not text)
           this.$nextTick(() => {
-            el.setSelectionRange(this.inputText.length, this.inputText.length);
+            el.setSelectionRange(0, 0);
           });
         }
       } else if (event.key === "ArrowDown") {

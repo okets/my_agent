@@ -57,7 +57,15 @@ async function loadSkillDescriptions(skillsDirs: string[]): Promise<string | nul
   return `## Available Commands\n\n${commands.join('\n')}`
 }
 
-export async function assembleSystemPrompt(brainDir: string): Promise<string> {
+export interface AssemblePromptOptions {
+  /** Pre-assembled calendar context (from assembleCalendarContext) */
+  calendarContext?: string
+}
+
+export async function assembleSystemPrompt(
+  brainDir: string,
+  options: AssemblePromptOptions = {},
+): Promise<string> {
   const sections: string[] = []
 
   for (const { rel, header } of BRAIN_FILES) {
@@ -89,6 +97,11 @@ export async function assembleSystemPrompt(brainDir: string): Promise<string> {
       }
       sections.push(`${header}\n\n${content.trim()}`)
     }
+  }
+
+  // Add calendar context if provided (replaces static reminders.md)
+  if (options.calendarContext) {
+    sections.push(options.calendarContext)
   }
 
   const skillsDirs = [FRAMEWORK_SKILLS_DIR, path.join(brainDir, 'skills')]

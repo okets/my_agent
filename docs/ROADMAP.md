@@ -13,7 +13,7 @@
 | **M2: Web UI**               | Complete | 6/6 sprints                  |
 | **M3: WhatsApp Channel**     | Active   | S1-S3 done, S4 stashed       |
 | **M4: Notebook System**      | Active   | S1-S2 done, S3-S4 planned    |
-| **M4.5: Calendar System**    | Planned  | Design complete, prototype approved |
+| **M4.5: Calendar System**    | Active   | S1 done, S2-S3 planned              |
 | **M5: Task System**          | Planned  | Design complete, sprints TBD |
 | **M6: Memory**               | Planned  | Design complete, sprints TBD |
 | **M7: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -188,11 +188,11 @@ Unified calendar replaces scattered time-aware concepts (reminders.md, cron sche
 
 **Design spec:** [calendar-system.md](design/calendar-system.md)
 
-| Sprint | Name                    | Status  | Plan | Review |
-| ------ | ----------------------- | ------- | ---- | ------ |
-| S1     | CalDAV Infrastructure   | Planned | —    | —      |
-| S2     | Calendar Dashboard      | Planned | —    | —      |
-| S3     | MCP Tools + Scheduler   | Planned | —    | —      |
+| Sprint | Name                    | Status   | Plan                                              | Review                                              |
+| ------ | ----------------------- | -------- | ------------------------------------------------- | --------------------------------------------------- |
+| S1     | CalDAV Infrastructure   | Complete | [plan](sprints/m4.5-s1-caldav-infrastructure/plan.md) | [review](sprints/m4.5-s1-caldav-infrastructure/review.md) |
+| S2     | Calendar Dashboard      | Planned  | —                                                 | —                                                   |
+| S3     | MCP Tools + Scheduler   | Planned  | —                                                 | —                                                   |
 
 **Deliverables:**
 
