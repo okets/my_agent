@@ -12,7 +12,7 @@
 | **M1: Foundation**           | Complete | 4/4 sprints                  |
 | **M2: Web UI**               | Complete | 6/6 sprints                  |
 | **M3: WhatsApp Channel**     | Active   | S1-S3 done, S4 stashed       |
-| **M4: Notebook System**      | Planned  | 6 sprints planned            |
+| **M4: Notebook System**      | Active   | S1 done, S2-S6 planned       |
 | **M5: Task System**          | Planned  | Design complete, sprints TBD |
 | **M6: Memory**               | Planned  | Design complete, sprints TBD |
 | **M7: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -27,8 +27,8 @@
 ├─────────────────────────────────────────────────────────────────────►
 
 M1 Foundation     M2 Web UI        M3 WhatsApp     M4 Notebook    M5-M8 Future
-[████████████]    [████████████]    [████░░░░░░]    [░░░░░░░░░░]   [░░░░░░░░░░]
-   COMPLETE          COMPLETE         ACTIVE          PLANNED         PLANNED
+[████████████]    [████████████]    [████░░░░░░]    [██░░░░░░░░]   [░░░░░░░░░░]
+   COMPLETE          COMPLETE         ACTIVE          ACTIVE          PLANNED
 
                   S1 ██ Server + Chat (done)
                   S2 ██ Streaming (done)        S1 ██ Channel Infra (done)
@@ -36,7 +36,9 @@ M1 Foundation     M2 Web UI        M3 WhatsApp     M4 Notebook    M5-M8 Future
                   S4 ██ Conversations (done)    S3 ██ Slash Commands (done)
                   S5 ██ Naming (done)           S4 ░░ External Comms (stashed)
                   S6 ██ Advanced Chat (done)
-
+                                                                        S1 ██ Infrastructure (done)
+                                                                        S2 ░░ Dashboard Evolution
+                                                                        S3 ░░ Notebook Editing Tool
                                                         M4 Notebook ──► Nina edits config files
                                                         M5 Tasks ────┐
                                                         M6 Memory ───┼─► Agent can develop itself
@@ -146,13 +148,13 @@ The M4-S4 sprint plan documents how to refactor this stashed code to use the Not
 
 ---
 
-### M4: Notebook System — PLANNED
+### M4: Notebook System — IN PROGRESS
 
 Notebook is Nina's persistent memory — markdown files she can read always and write when talking to her owner. This enables conversational configuration instead of brittle middleware pattern matching.
 
 | Sprint | Name                    | Status  | Plan                                                  | Review |
 | ------ | ----------------------- | ------- | ----------------------------------------------------- | ------ |
-| S1     | Notebook Infrastructure | Planned | [plan](sprints/m4-s1-notebook-infrastructure/plan.md) | —      |
+| S1     | Notebook Infrastructure | Complete | [plan](sprints/m4-s1-notebook-infrastructure/plan.md) | [review](sprints/m4-s1-notebook-infrastructure/review.md) |
 | S2     | Dashboard Evolution     | Planned | [plan](sprints/m4-s2-dashboard-evolution/plan.md)     | —      |
 | S3     | Notebook Editing Tool   | Planned | [plan](sprints/m4-s3-notebook-editing-tool/plan.md)   | —      |
 | S4     | External Communications | Planned | [plan](sprints/m4-s4-external-communications/plan.md) | —      |
@@ -272,7 +274,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | -------------------- | -------- | ---------- | ---------------------------------------------------------------- |
 | Channels             | Complete | M3, M8     | [design/channels.md](design/channels.md)                         |
 | Conversations        | Complete | M2         | [design/conversation-system.md](design/conversation-system.md)   |
-| Notebook             | Planned  | M4         | [design/notebook.md](design/notebook.md)                         |
+| Notebook             | Complete | M4         | [design/notebook.md](design/notebook.md)                         |
 | Task System          | Complete | M5         | [design/task-system.md](design/task-system.md)                   |
 | Memory               | Complete | M6         | [design/memory-system.md](design/memory-system.md)               |
 | Operations Dashboard | Complete | M7         | [design/operations-dashboard.md](design/operations-dashboard.md) |

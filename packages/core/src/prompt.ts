@@ -15,6 +15,16 @@ const BRAIN_FILES = [
   { rel: 'memory/core/preferences.md', header: '## Preferences' },
 ]
 
+// Notebook files from runtime directory (editable by agent during owner conversations)
+const NOTEBOOK_FILES = [
+  { rel: '../runtime/external-communications.md', header: '## External Communications Rules' },
+  { rel: '../runtime/reminders.md', header: '## Reminders' },
+  { rel: '../runtime/standing-orders.md', header: '## Standing Orders' },
+]
+
+// Per-file token limit to prevent prompt bloat (~4 chars per token)
+const MAX_NOTEBOOK_CHARS = 8000
+
 async function readOptionalFile(filePath: string): Promise<string | null> {
   try {
     return await readFile(filePath, 'utf-8')
@@ -64,6 +74,21 @@ export async function assembleSystemPrompt(brainDir: string): Promise<string> {
   if (sections.length === 0) {
     const fallback = await readOptionalFile(DEFAULT_PERSONALITY_PATH)
     sections.push(fallback?.trim() ?? 'You are a helpful AI assistant.')
+  }
+
+  // Load Notebook files from runtime directory
+  for (const { rel, header } of NOTEBOOK_FILES) {
+    let content = await readOptionalFile(path.join(brainDir, rel))
+    if (content) {
+      // Truncate if too large to prevent prompt bloat
+      if (content.length > MAX_NOTEBOOK_CHARS) {
+        console.warn(
+          `[Prompt] Notebook file ${rel} exceeds ${MAX_NOTEBOOK_CHARS} chars, truncating`,
+        )
+        content = content.substring(0, MAX_NOTEBOOK_CHARS) + '\n\n[... truncated ...]'
+      }
+      sections.push(`${header}\n\n${content.trim()}`)
+    }
   }
 
   const skillsDirs = [FRAMEWORK_SKILLS_DIR, path.join(brainDir, 'skills')]
