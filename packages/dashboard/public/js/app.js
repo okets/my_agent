@@ -77,6 +77,9 @@ function chat() {
     // Image lightbox
     lightboxImage: null,
 
+    // Theme: 'dark' or 'light'
+    theme: "dark",
+
     modelOptions: [
       { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5" },
       { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5" },
@@ -158,6 +161,9 @@ function chat() {
 
       // Load UI state from localStorage (tabs, chat width)
       this.loadUIState();
+
+      // Initialize theme
+      this.initTheme();
 
       // Load agent name and check hatching status
       fetch("/api/hatching/status")
@@ -1188,6 +1194,35 @@ function chat() {
         }
       } catch (e) {
         console.error("[App] Failed to load UI state:", e);
+      }
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Theme
+    // ─────────────────────────────────────────────────────────────────
+
+    initTheme() {
+      const saved = localStorage.getItem("theme");
+      if (saved === "light" || saved === "dark") {
+        this.theme = saved;
+      }
+      this.applyTheme();
+    },
+
+    setTheme(value) {
+      this.theme = value;
+      localStorage.setItem("theme", value);
+      this.applyTheme();
+    },
+
+    applyTheme() {
+      const root = document.documentElement;
+      if (this.theme === "light") {
+        root.classList.add("light");
+        root.classList.remove("dark");
+      } else {
+        root.classList.add("dark");
+        root.classList.remove("light");
       }
     },
 

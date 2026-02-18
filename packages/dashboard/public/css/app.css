@@ -22,6 +22,72 @@
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-muted: rgba(255, 255, 255, 0.1);
   --border-accent: rgba(122, 162, 247, 0.3);
+
+  /* Glass backgrounds */
+  --glass-bg: rgba(30, 30, 46, 0.6);
+  --glass-bg-strong: rgba(30, 30, 46, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-border-strong: rgba(255, 255, 255, 0.08);
+
+  /* Chat bubbles */
+  --bubble-assistant: rgba(255, 255, 255, 0.03);
+  --bubble-user: rgba(122, 162, 247, 0.12);
+
+  /* Theme colors - Catppuccin Mocha (dark) defaults */
+  --color-bg: #1e1e2e;
+  --color-surface: #181825;
+  --color-crust: #11111b;
+  --color-panel: #313244;
+  --color-card: #45475a;
+  --color-text: #cdd6f4;
+  --color-muted: #6c7086;
+  --color-gray: #7f849c;
+  --color-blue: #89b4fa;
+  --color-purple: #cba6f7;
+  --color-green: #a6e3a1;
+  --color-red: #f38ba8;
+  --color-orange: #fab387;
+  --color-cyan: #89dceb;
+}
+
+/* Catppuccin Latte (light) overrides - soft lavender tones */
+:root.light {
+  --color-bg: #faf8fc;
+  --color-surface: #f3eef7;
+  --color-crust: #ebe4f0;
+  --color-panel: #e8e0f0;
+  --color-card: #ddd4e8;
+  --color-text: #4c4f69;
+  --color-muted: #8c8fa1;
+  --color-gray: #9ca0b0;
+  --color-blue: #1e66f5;
+  --color-purple: #8839ef;
+  --color-green: #40a02b;
+  --color-red: #d20f39;
+  --color-orange: #fe640b;
+  --color-cyan: #04a5e5;
+
+  /* Light mode shadows - softer */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-glow-blue: 0 0 20px rgba(30, 102, 245, 0.15);
+  --shadow-glow-purple: 0 0 20px rgba(136, 57, 239, 0.15);
+
+  /* Light mode borders */
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-muted: rgba(0, 0, 0, 0.1);
+  --border-accent: rgba(30, 102, 245, 0.3);
+
+  /* Light mode glass - soft lavender */
+  --glass-bg: rgba(232, 224, 240, 0.6);
+  --glass-bg-strong: rgba(221, 212, 232, 0.85);
+  --glass-border: rgba(136, 57, 239, 0.08);
+  --glass-border-strong: rgba(136, 57, 239, 0.12);
+
+  /* Light mode chat bubbles - solid colors for visibility */
+  --bubble-assistant: #e2d5f0;
+  --bubble-user: #d4e4fc;
 }
 
 /* ── Alpine cloak ─────────────────────────────────────────────── */
@@ -53,8 +119,17 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* ── Divider utilities ─────────────────────────────────────────── */
+.divider-top {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.divider-bottom {
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────── */
@@ -69,33 +144,33 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #45475a;
+  background: var(--color-card);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: var(--color-muted);
 }
 
 /* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent;
+  scrollbar-color: var(--color-card) transparent;
 }
 
 /* ── Glass utilities ──────────────────────────────────────────── */
 .glass {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
 }
 
 .glass-strong {
-  background: rgba(30, 30, 46, 0.8);
+  background: var(--glass-bg-strong);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border-strong);
 }
 
 /* ── Chat markdown rendering (.chat-md) ──────────────────────── */
@@ -123,8 +198,8 @@ body {
 
 /* Code blocks */
 .chat-md pre {
-  background: #1e1e2e;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--color-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: 0.5rem;
   padding: 0.75rem 1rem;
   overflow-x: auto;
@@ -196,11 +271,11 @@ body {
 
 /* Blockquotes */
 .chat-md blockquote {
-  border-left: 3px solid #7aa2f7;
+  border-left: 3px solid var(--color-blue);
   padding: 0.25em 0 0.25em 0.75em;
   margin: 0.5em 0;
   font-style: italic;
-  color: #a9b1d6;
+  color: var(--color-muted);
 }
 
 /* Links */
@@ -269,7 +344,7 @@ footer textarea {
 }
 
 footer textarea::placeholder {
-  color: #6c7086;
+  color: var(--color-muted);
 }
 
 /* Remove default textarea focus ring (outline-none is in HTML,
@@ -284,7 +359,7 @@ footer textarea:focus {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #6c7086;
+  background: var(--color-muted);
   animation: typingBounce 1.4s ease-in-out infinite both;
 }
 
@@ -331,12 +406,12 @@ footer textarea:focus {
 
 /* ── Assistant message bubble ───────────────────────────────────── */
 .assistant-bubble {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bubble-assistant);
 }
 
 /* ── User message bubble ────────────────────────────────────────── */
 .user-bubble {
-  background: rgba(122, 162, 247, 0.12);
+  background: var(--bubble-user);
 }
 
 /* ── Thinking block ──────────────────────────────────────────── */
@@ -365,9 +440,9 @@ footer textarea:focus {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: #cdd6f4;
+  border: 1px solid var(--border-muted);
+  background: var(--glass-bg);
+  color: var(--color-text);
 }
 
 .chat-control-btn:hover {
@@ -434,12 +509,12 @@ footer textarea:focus {
 .chat-control-card .card-label {
   font-weight: 500;
   font-size: 0.8125rem;
-  color: #cdd6f4;
+  color: var(--color-text);
 }
 
 .chat-control-card .card-desc {
   font-size: 0.75rem;
-  color: #6c7086;
+  color: var(--color-muted);
   margin-top: 0.125rem;
   line-height: 1.4;
 }
@@ -479,7 +554,7 @@ footer input[type="password"] {
 }
 
 footer input[type="password"]::placeholder {
-  color: #6c7086;
+  color: var(--color-muted);
 }
 
 footer input[type="password"]:focus {
@@ -600,14 +675,14 @@ body.sidebar-resizing {
 
 /* Compose box wrapper — V1 style with stronger border */
 .compose-box {
-  background: #1e1e2e;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--color-bg);
+  border: 1px solid var(--border-muted);
   border-radius: 0.75rem;
   transition: border-color 0.15s;
 }
 
 .compose-box:focus-within {
-  border-color: rgba(255, 255, 255, 0.35);
+  border-color: var(--color-muted);
 }
 
 .action-bar {
@@ -779,8 +854,8 @@ body.sidebar-resizing {
 
 /* Tab bar */
 .tab-bar {
-  background: #181825;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--color-crust);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 /* Chat panel resize handle */
@@ -790,7 +865,7 @@ body.sidebar-resizing {
 }
 
 .resize-handle:hover {
-  background: rgba(122, 162, 247, 0.3);
+  background: var(--border-accent);
 }
 
 /* Prevent text selection while resizing chat panel */
@@ -805,7 +880,7 @@ body.chat-resizing * {
 
 /* Chat panel border */
 .chat-panel {
-  background: #1e1e2e;
+  background: var(--color-bg);
 }
 
 /* ── Enhanced interactions ────────────────────────────────────── */
@@ -910,7 +985,8 @@ textarea:focus-visible {
 }
 
 .assistant-bubble:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bubble-assistant);
+  filter: brightness(0.95);
 }
 
 /* ── Compose box enhancements ─────────────────────────────────── */
@@ -957,7 +1033,8 @@ textarea:focus-visible {
 }
 
 @keyframes pulse-yellow {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 4px rgba(250, 204, 21, 0.4);
   }
   50% {
@@ -984,6 +1061,16 @@ textarea:focus-visible {
   transition:
     border-color var(--duration-normal) var(--ease-out),
     background-color var(--duration-normal) var(--ease-out);
+}
+
+/* Light mode: make white borders visible */
+:root.light [class*="border-white/5"],
+:root.light [class*="border-white/10"] {
+  border-color: rgba(136, 57, 239, 0.15);
+}
+
+:root.light .border-l {
+  border-left-color: rgba(136, 57, 239, 0.12);
 }
 
 /* ── Resize handles ───────────────────────────────────────────── */

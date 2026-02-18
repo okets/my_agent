@@ -33,19 +33,20 @@
             },
             colors: {
               tokyo: {
-                bg: "#1e1e2e",
-                panel: "#313244",
-                card: "#45475a",
-                surface: "#181825",
-                text: "#cdd6f4",
-                muted: "#6c7086",
-                gray: "#7f849c",
-                blue: "#89b4fa",
-                purple: "#cba6f7",
-                green: "#a6e3a1",
-                red: "#f38ba8",
-                orange: "#fab387",
-                cyan: "#89dceb",
+                bg: "var(--color-bg)",
+                panel: "var(--color-panel)",
+                card: "var(--color-card)",
+                surface: "var(--color-surface)",
+                crust: "var(--color-crust)",
+                text: "var(--color-text)",
+                muted: "var(--color-muted)",
+                gray: "var(--color-gray)",
+                blue: "var(--color-blue)",
+                purple: "var(--color-purple)",
+                green: "var(--color-green)",
+                red: "var(--color-red)",
+                orange: "var(--color-orange)",
+                cyan: "var(--color-cyan)",
               },
             },
           },
@@ -98,9 +99,7 @@
         <!-- Tab bar -->
         <div
           class="tab-bar flex items-end gap-0 h-9 shrink-0"
-          style="
-            background: #11111b;
-          "
+          style="background: var(--color-crust)"
         >
           <!-- Open tabs -->
           <template x-for="tab in openTabs" :key="tab.id">
@@ -282,8 +281,46 @@
               <div>
                 <h2 class="text-lg font-semibold text-tokyo-text">Settings</h2>
                 <p class="text-sm text-tokyo-muted mt-1">
-                  Manage channels and configuration
+                  Manage appearance and channels
                 </p>
+              </div>
+
+              <!-- Appearance section -->
+              <div class="glass-strong rounded-xl p-5">
+                <h3
+                  class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class="w-4 h-4 text-tokyo-purple"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M2.5 4A1.5 1.5 0 0 0 1 5.5V6h18v-.5A1.5 1.5 0 0 0 17.5 4h-15ZM19 8.5H1v6A1.5 1.5 0 0 0 2.5 16h15a1.5 1.5 0 0 0 1.5-1.5v-6ZM3 13.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5h-1.5a.75.75 0 0 1-.75-.75Zm4.75-.75a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5h-3.5Z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  Appearance
+                </h3>
+
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm text-tokyo-text">Theme</p>
+                    <p class="text-xs text-tokyo-muted mt-0.5">
+                      Choose your color scheme
+                    </p>
+                  </div>
+                  <select
+                    x-model="theme"
+                    @change="setTheme($event.target.value)"
+                    class="bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text focus:outline-none focus:border-tokyo-purple/50 transition-colors cursor-pointer"
+                  >
+                    <option value="dark">Catppuccin Mocha (Dark)</option>
+                    <option value="light">Catppuccin Latte (Light)</option>
+                  </select>
+                </div>
               </div>
 
               <!-- Channels section -->
@@ -638,8 +675,7 @@
       >
         <!-- Chat header: conversation dropdown + rename -->
         <header
-          class="flex items-center gap-2 px-3 h-12 shrink-0"
-          style="border-bottom: 1px solid rgba(255, 255, 255, 0.06)"
+          class="flex items-center gap-2 px-3 h-12 shrink-0 divider-bottom"
         >
           <!-- Agent avatar -->
           <div
@@ -752,7 +788,9 @@
 
               <div class="max-h-80 overflow-y-auto">
                 <!-- Active channel conversations (single section) -->
-                <template x-if="channels.some(ch => getChannelConversations(ch.id).length > 0)">
+                <template
+                  x-if="channels.some(ch => getChannelConversations(ch.id).length > 0)"
+                >
                   <div class="border-b border-white/5">
                     <div
                       class="px-3 py-1.5 text-[10px] text-tokyo-muted uppercase tracking-wide"
@@ -1092,7 +1130,6 @@
         <!-- Compose area -->
         <footer
           class="shrink-0 p-3"
-          style="border-top: 1px solid rgba(255, 255, 255, 0.06)"
         >
           <!-- Hidden file input for attachments -->
           <input
