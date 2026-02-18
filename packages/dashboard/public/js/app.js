@@ -1296,9 +1296,10 @@ function chat() {
           const idx = this.inputHistory.length - 1 - this.historyIndex;
           this.inputText = this.inputHistory[idx];
 
-          // Move cursor to start (so next up arrow navigates history, not text)
+          // Move cursor to start and resize textarea
           this.$nextTick(() => {
             el.setSelectionRange(0, 0);
+            this.autoResize(el);
           });
         }
       } else if (event.key === "ArrowDown") {
@@ -1321,9 +1322,10 @@ function chat() {
             this.inputText = this.inputHistory[idx];
           }
 
-          // Move cursor to end
+          // Move cursor to end and resize textarea
           this.$nextTick(() => {
             el.setSelectionRange(this.inputText.length, this.inputText.length);
+            this.autoResize(el);
           });
         }
       }
