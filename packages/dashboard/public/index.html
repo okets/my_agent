@@ -33,18 +33,19 @@
             },
             colors: {
               tokyo: {
-                bg: "#1a1b26",
-                panel: "#1f2335",
-                card: "#24283b",
-                text: "#c0caf5",
-                muted: "#565f89",
-                gray: "#6b7280",
-                blue: "#7aa2f7",
-                purple: "#bb9af7",
-                green: "#9ece6a",
-                red: "#f7768e",
-                orange: "#ff9e64",
-                cyan: "#7dcfff",
+                bg: "#1e1e2e",
+                panel: "#313244",
+                card: "#45475a",
+                surface: "#181825",
+                text: "#cdd6f4",
+                muted: "#6c7086",
+                gray: "#7f849c",
+                blue: "#89b4fa",
+                purple: "#cba6f7",
+                green: "#a6e3a1",
+                red: "#f38ba8",
+                orange: "#fab387",
+                cyan: "#89dceb",
               },
             },
           },
@@ -85,185 +86,562 @@
 
   <body class="bg-tokyo-bg text-tokyo-text antialiased">
     <!-- ================================================================== -->
-    <!-- Main app shell — full viewport, no body scroll                     -->
+    <!-- Main app shell — Workspace Layout                                  -->
+    <!-- Left: Tab bar + content area                                       -->
+    <!-- Right: Permanent chat with conversation dropdown                   -->
     <!-- ================================================================== -->
     <div x-data="chat()" class="flex h-screen w-full">
       <!-- ============================================================== -->
-      <!-- Sidebar                                                        -->
+      <!-- Left Panel: Workspace (Tabs + Content)                         -->
       <!-- ============================================================== -->
-      <aside
-        class="sidebar-panel glass-strong shrink-0 overflow-y-auto"
-        :class="sidebarOpen ? 'sidebar-open' : 'sidebar-closed'"
-        :style="sidebarOpen ? 'width:' + sidebarWidth + 'px' : ''"
-      >
-        <div class="p-3 flex flex-col h-full">
-          <!-- New conversation button -->
-          <button
-            @click="createNewConversation()"
-            class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-opacity text-sm font-medium mb-3"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              class="w-4 h-4"
+      <div class="flex-1 flex flex-col min-w-0">
+        <!-- Tab bar -->
+        <div
+          class="tab-bar flex items-end gap-0 h-9 shrink-0"
+          style="
+            background: #11111b;
+          "
+        >
+          <!-- Open tabs -->
+          <template x-for="tab in openTabs" :key="tab.id">
+            <button
+              @click="switchTab(tab.id)"
+              class="flex items-center gap-1.5 px-3 h-full text-xs font-medium transition-colors border-b-2"
+              :class="
+                activeTab === tab.id
+                  ? 'bg-tokyo-bg text-tokyo-text border-tokyo-blue'
+                  : 'text-tokyo-muted hover:text-tokyo-text bg-transparent border-transparent hover:bg-white/5'
+              "
             >
-              <path
-                d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"
-              />
-            </svg>
-            <span>New Chat</span>
-          </button>
-
-          <!-- Channel list -->
-          <template x-if="channels.length > 0">
-            <div class="mb-3 space-y-1">
-              <div
-                class="text-[10px] text-tokyo-muted uppercase tracking-wide px-2 mb-1"
+              <span x-text="tab.icon" class="text-sm"></span>
+              <span x-text="tab.title" class="max-w-24 truncate"></span>
+              <!-- Close button (only for closeable tabs) -->
+              <span
+                x-show="tab.closeable"
+                @click.stop="closeTab(tab.id)"
+                class="ml-1 w-4 h-4 rounded flex items-center justify-center hover:bg-tokyo-red/20 hover:text-tokyo-red transition-colors"
               >
-                Channels
-              </div>
-              <template x-for="ch in channels" :key="ch.id">
-                <template
-                  x-for="conv in getChannelConversations(ch.id)"
-                  :key="conv.id"
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  class="w-3 h-3"
                 >
-                  <!-- Unified channel conversation card -->
-                  <button
-                    @click="switchConversation(conv.id)"
-                    class="w-full text-left px-3 py-2 rounded-lg transition-colors"
-                    :class="
-                      currentConversationId === conv.id
-                        ? 'bg-tokyo-blue/15 text-tokyo-blue'
-                        : 'hover:bg-white/5 text-tokyo-text'
-                    "
-                  >
-                    <div class="flex items-center gap-2">
-                      <!-- Channel icon -->
-                      <span
-                        class="channel-icon w-4 h-4 shrink-0 text-tokyo-muted"
-                        x-html="ch.icon"
-                      ></span>
-                      <!-- Conversation title + read-only badge -->
-                      <span
-                        class="text-sm font-medium truncate flex-1"
-                        x-text="conv.title || ch.identity"
-                      ></span>
-                      <span
-                        class="text-[9px] px-1.5 py-0.5 rounded bg-tokyo-muted/10 text-tokyo-muted shrink-0"
-                        >read-only</span
-                      >
-                      <!-- Status dot -->
-                      <span
-                        class="w-2 h-2 rounded-full shrink-0"
-                        :class="channelDotClass(ch.status)"
-                        :title="channelTooltip(ch)"
-                      ></span>
-                    </div>
-                  </button>
-                </template>
-              </template>
-            </div>
+                  <path
+                    d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z"
+                  />
+                </svg>
+              </span>
+            </button>
           </template>
+        </div>
 
-          <!-- Conversation list -->
-          <div class="flex-1 overflow-y-auto space-y-1">
-            <template x-for="conv in conversations" :key="conv.id">
-              <div class="group relative">
-                <button
-                  @click="switchConversation(conv.id)"
-                  class="w-full text-left px-3 py-2 rounded-lg transition-colors"
-                  :class="
-                    currentConversationId === conv.id
-                      ? 'bg-tokyo-blue/15 text-tokyo-blue'
-                      : 'hover:bg-white/5 text-tokyo-text'
-                  "
+        <!-- Content area -->
+        <div class="flex-1 overflow-auto">
+          <!-- ======================================================== -->
+          <!-- Home Tab                                                 -->
+          <!-- ======================================================== -->
+          <div x-show="activeTab === 'home'" class="p-6" x-cloak>
+            <h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+
+            <!-- Quick actions -->
+            <h2
+              class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
+            >
+              Notebook
+            </h2>
+            <div class="grid grid-cols-3 gap-3 mb-8">
+              <button
+                @click="openNotebookTab('external-communications')"
+                class="p-4 rounded-xl glass-strong hover:bg-tokyo-card/80 transition-colors text-left"
+              >
+                <div class="text-lg mb-1">📋</div>
+                <div class="text-sm font-medium">External Rules</div>
+                <div class="text-xs text-tokyo-muted mt-1">
+                  Communication guidelines
+                </div>
+              </button>
+              <button
+                @click="openNotebookTab('reminders')"
+                class="p-4 rounded-xl glass-strong hover:bg-tokyo-card/80 transition-colors text-left"
+              >
+                <div class="text-lg mb-1">✅</div>
+                <div class="text-sm font-medium">Reminders</div>
+                <div class="text-xs text-tokyo-muted mt-1">
+                  Tasks &amp; to-dos
+                </div>
+              </button>
+              <button
+                @click="openNotebookTab('standing-orders')"
+                class="p-4 rounded-xl glass-strong hover:bg-tokyo-card/80 transition-colors text-left"
+              >
+                <div class="text-lg mb-1">📜</div>
+                <div class="text-sm font-medium">Standing Orders</div>
+                <div class="text-xs text-tokyo-muted mt-1">
+                  Persistent instructions
+                </div>
+              </button>
+            </div>
+
+            <!-- Channel status -->
+            <h2
+              class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
+            >
+              Channels
+            </h2>
+            <div class="space-y-2">
+              <template x-for="channel in channels" :key="channel.id">
+                <div
+                  class="flex items-center justify-between p-3 rounded-xl glass-strong"
                 >
-                  <div class="flex flex-col gap-1 pr-6">
-                    <div class="flex items-center gap-1.5">
-                      <!-- Channel icon for unpinned channel conversations -->
-                      <span
-                        x-show="getConversationChannel(conv)"
-                        class="channel-icon w-4 h-4 shrink-0 text-tokyo-muted"
-                        x-html="getConversationChannel(conv)?.icon || ''"
-                      ></span>
-                      <span
-                        class="text-sm font-medium truncate"
-                        x-text="conv.title || 'New conversation'"
-                      ></span>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                      <span
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="w-8 h-8 rounded-lg bg-tokyo-panel flex items-center justify-center text-tokyo-muted channel-icon"
+                      x-html="channel.icon"
+                    ></div>
+                    <div>
+                      <div
+                        class="text-sm font-medium"
+                        x-text="channel.id"
+                      ></div>
+                      <div
                         class="text-xs text-tokyo-muted"
-                        x-text="formatRelativeTime(conv.updated)"
-                      ></span>
+                        x-text="channel.identity"
+                      ></div>
                     </div>
                   </div>
-                </button>
-                <!-- Delete button (visible on hover) -->
-                <button
-                  @click.stop="confirmDeleteConversation(conv.id, conv.title)"
-                  class="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-tokyo-muted hover:text-tokyo-red hover:bg-tokyo-red/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Delete conversation"
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="w-2 h-2 rounded-full"
+                      :class="channelDotClass(channel.status)"
+                    ></span>
+                    <span
+                      class="text-xs"
+                      :class="{
+                        'text-green-400': channel.status === 'connected',
+                        'text-yellow-400': channel.status === 'connecting',
+                        'text-red-400': channel.status === 'error',
+                        'text-tokyo-muted': channel.status === 'disconnected' || channel.status === 'logged_out'
+                      }"
+                      x-text="channel.status"
+                    ></span>
+                  </div>
+                </div>
+              </template>
+
+              <!-- No channels state -->
+              <template x-if="channels.length === 0">
+                <div class="text-sm text-tokyo-muted p-3 text-center">
+                  No channels configured. Go to Settings to add one.
+                </div>
+              </template>
+            </div>
+
+            <!-- External conversations -->
+            <template x-if="channelConversations.length > 0">
+              <div class="mt-8">
+                <h2
+                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                    class="w-4 h-4"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                </button>
+                  <span x-text="agentName"></span>'s Chats
+                </h2>
+                <div class="space-y-2">
+                  <template x-for="conv in channelConversations" :key="conv.id">
+                    <button
+                      @click="openConversationTab(conv)"
+                      class="w-full flex items-center justify-between p-3 rounded-xl glass-strong hover:bg-tokyo-card/80 transition-colors text-left"
+                    >
+                      <div class="flex items-center gap-3">
+                        <span
+                          class="channel-icon w-5 h-5 text-tokyo-muted"
+                          x-html="getConversationChannel(conv)?.icon || ''"
+                        ></span>
+                        <span
+                          class="text-sm font-medium"
+                          x-text="conv.title"
+                        ></span>
+                      </div>
+                      <span
+                        class="text-[9px] px-1.5 py-0.5 rounded bg-tokyo-muted/10 text-tokyo-muted"
+                      >
+                        read-only
+                      </span>
+                    </button>
+                  </template>
+                </div>
               </div>
             </template>
           </div>
-        </div>
-      </aside>
 
-      <!-- Drag handle for sidebar resize -->
+          <!-- ======================================================== -->
+          <!-- Settings Tab                                             -->
+          <!-- ======================================================== -->
+          <div x-show="activeTab === 'settings'" class="p-6" x-cloak>
+            <div class="max-w-2xl mx-auto space-y-6">
+              <!-- Settings header -->
+              <div>
+                <h2 class="text-lg font-semibold text-tokyo-text">Settings</h2>
+                <p class="text-sm text-tokyo-muted mt-1">
+                  Manage channels and configuration
+                </p>
+              </div>
+
+              <!-- Channels section -->
+              <div class="glass-strong rounded-xl p-5">
+                <h3
+                  class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class="w-4 h-4 text-tokyo-blue"
+                  >
+                    <path
+                      d="M3.505 2.365A41.369 41.369 0 0 1 9 2c1.863 0 3.697.124 5.495.365 1.247.167 2.18 1.108 2.435 2.268a4.45 4.45 0 0 0-.577-.069 43.141 43.141 0 0 0-4.706 0C9.229 4.696 7.5 6.727 7.5 8.998v2.24c0 1.413.67 2.735 1.76 3.562l-2.98 2.98A.75.75 0 0 1 5 17.25v-3.443c-.501-.048-1-.106-1.495-.172C2.033 13.438 1 12.162 1 10.72V5.28c0-1.441 1.033-2.717 2.505-2.914Z"
+                    />
+                    <path
+                      d="M14 6c.762 0 1.52.02 2.271.062C17.226 6.175 18 7.049 18 8.068v2.652c0 1.02-.773 1.893-1.729 2.006A40.88 40.88 0 0 1 14 12.798v2.452a.75.75 0 0 1-1.28.53l-1.92-1.92A40.56 40.56 0 0 1 9 13.563c-.34 0-.68.005-1.017.016-.14-.122-.27-.254-.39-.394A3.59 3.59 0 0 1 6.5 11.238v-2.24C6.5 7.205 8.24 5.672 10.353 5.564 11.545 5.505 12.76 5.46 14 5.46V6Z"
+                    />
+                  </svg>
+                  Channels
+                </h3>
+
+                <!-- Add Channel button -->
+                <div class="flex justify-end mb-3" x-show="!showAddChannel">
+                  <button
+                    @click="showAddChannel = true"
+                    class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+                    style="background: rgba(224, 122, 95, 0.15); color: #e07a5f"
+                    onmouseover="
+                      this.style.background = 'rgba(224,122,95,0.25)'
+                    "
+                    onmouseout="this.style.background = 'rgba(224,122,95,0.15)'"
+                  >
+                    + Add Channel
+                  </button>
+                </div>
+
+                <!-- Add Channel form -->
+                <div
+                  x-show="showAddChannel"
+                  x-transition
+                  class="bg-tokyo-card/50 rounded-lg p-4 border border-white/5 mb-3"
+                >
+                  <h4 class="text-xs font-semibold text-tokyo-text mb-3">
+                    New WhatsApp Channel
+                  </h4>
+                  <div class="space-y-3">
+                    <div>
+                      <label
+                        class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
+                        >Channel Name</label
+                      >
+                      <input
+                        type="text"
+                        x-model="newChannel.id"
+                        placeholder="e.g. whatsapp_main"
+                        class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text placeholder-tokyo-muted/50 focus:outline-none focus:border-purple-500/50 transition-colors"
+                      />
+                    </div>
+                    <div class="flex items-center gap-2 pt-1">
+                      <button
+                        @click="addChannel()"
+                        :disabled="!newChannel.id || addingChannel"
+                        class="text-xs px-4 py-2 rounded-lg font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        style="background: #e07a5f; color: white"
+                        :style="(!newChannel.id || addingChannel) ? {} : { boxShadow: '0 0 12px rgba(224,122,95,0.3)' }"
+                      >
+                        <span x-show="!addingChannel">Create &amp; Pair</span>
+                        <span x-show="addingChannel">Creating...</span>
+                      </button>
+                      <button
+                        @click="showAddChannel = false; addChannelError = null"
+                        class="text-xs px-3 py-2 rounded-lg font-medium text-tokyo-muted hover:text-tokyo-text transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p
+                      x-show="addChannelError"
+                      x-text="addChannelError"
+                      class="text-xs text-red-400 mt-1"
+                    ></p>
+                  </div>
+                </div>
+
+                <!-- No channels state -->
+                <template x-if="channels.length === 0 && !showAddChannel">
+                  <p class="text-sm text-tokyo-muted">
+                    No channels configured yet. Click "Add Channel" above to get
+                    started.
+                  </p>
+                </template>
+
+                <!-- Channel cards -->
+                <div class="space-y-3">
+                  <template x-for="ch in channels" :key="ch.id">
+                    <div
+                      class="bg-tokyo-card/50 rounded-lg p-4 border border-white/5"
+                    >
+                      <div class="flex items-center gap-3">
+                        <!-- Channel icon -->
+                        <div
+                          class="w-8 h-8 rounded-lg bg-tokyo-panel flex items-center justify-center text-tokyo-muted shrink-0 channel-icon"
+                          x-html="ch.icon"
+                        ></div>
+
+                        <!-- Channel info -->
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2">
+                            <span
+                              class="text-sm font-medium text-tokyo-text"
+                              x-text="ch.id"
+                            ></span>
+                            <span
+                              class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 font-medium"
+                              x-text="ch.role"
+                            ></span>
+                          </div>
+                          <div
+                            class="text-xs text-tokyo-muted mt-0.5"
+                            x-text="ch.identity"
+                          ></div>
+                        </div>
+
+                        <!-- Status -->
+                        <div class="flex items-center gap-2 shrink-0">
+                          <span
+                            class="w-2 h-2 rounded-full"
+                            :class="channelDotClass(ch.status)"
+                          ></span>
+                          <span
+                            class="text-xs"
+                            :class="{
+                              'text-green-400': ch.status === 'connected',
+                              'text-yellow-400': ch.status === 'connecting',
+                              'text-red-400': ch.status === 'error',
+                              'text-tokyo-muted': ch.status === 'disconnected' || ch.status === 'logged_out'
+                            }"
+                            x-text="ch.status"
+                          ></span>
+                        </div>
+                      </div>
+
+                      <!-- Channel actions -->
+                      <div
+                        class="flex items-center gap-2 mt-3 pt-3 border-t border-white/5"
+                      >
+                        <!-- Pair button (for disconnected/logged_out channels) -->
+                        <template
+                          x-if="ch.status !== 'connected' && ch.status !== 'connecting'"
+                        >
+                          <button
+                            @click="pairChannel(ch.id)"
+                            class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+                            style="
+                              background: rgba(224, 122, 95, 0.15);
+                              color: #e07a5f;
+                            "
+                            :class="{ 'hover:bg-[rgba(224,122,95,0.25)]': true }"
+                          >
+                            Pair
+                          </button>
+                        </template>
+
+                        <!-- Authorize button (for connected channels without a token yet) -->
+                        <template
+                          x-if="ch.status === 'connected' && !authTokens[ch.id]"
+                        >
+                          <button
+                            @click="requestAuthToken(ch.id)"
+                            class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+                            style="
+                              background: rgba(224, 122, 95, 0.15);
+                              color: #e07a5f;
+                            "
+                            onmouseover="
+                              this.style.background = 'rgba(224,122,95,0.25)'
+                            "
+                            onmouseout="
+                              this.style.background = 'rgba(224,122,95,0.15)'
+                            "
+                          >
+                            Authorize Owner
+                          </button>
+                        </template>
+
+                        <!-- Disconnect button (for connected channels) -->
+                        <template x-if="ch.status === 'connected'">
+                          <button
+                            @click="disconnectChannel(ch.id)"
+                            class="text-xs px-3 py-1.5 rounded-lg font-medium text-tokyo-muted hover:text-tokyo-red hover:bg-tokyo-red/10 transition-colors"
+                          >
+                            Disconnect
+                          </button>
+                        </template>
+
+                        <!-- Reconnect attempts info -->
+                        <template x-if="ch.reconnectAttempts > 0">
+                          <span class="text-[10px] text-tokyo-muted ml-auto">
+                            Reconnect attempt
+                            <span x-text="ch.reconnectAttempts"></span>
+                          </span>
+                        </template>
+                      </div>
+
+                      <!-- QR Code display (shown when pairing is active for this channel) -->
+                      <template
+                        x-if="pairingChannelId === ch.id && qrCodeDataUrl"
+                      >
+                        <div
+                          class="mt-3 pt-3 border-t border-white/5 flex flex-col items-center gap-2"
+                        >
+                          <p class="text-xs text-tokyo-muted">
+                            Scan this QR code with WhatsApp
+                          </p>
+                          <img
+                            :src="qrCodeDataUrl"
+                            alt="QR Code"
+                            class="w-48 h-48 rounded-lg bg-white p-2"
+                          />
+                          <p class="text-[10px] text-tokyo-muted">
+                            QR code expires in 3 minutes
+                          </p>
+                        </div>
+                      </template>
+
+                      <!-- Authorization token (shown after pairing, before owner is verified) -->
+                      <template
+                        x-if="authTokens[ch.id] && ch.status === 'connected'"
+                      >
+                        <div
+                          class="mt-3 pt-3 border-t border-white/5 flex flex-col items-center gap-3"
+                        >
+                          <div class="flex items-center gap-2">
+                            <span
+                              class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"
+                            ></span>
+                            <p class="text-xs text-amber-400 font-medium">
+                              Authorization Required
+                            </p>
+                          </div>
+                          <p class="text-xs text-tokyo-muted text-center">
+                            Send this code to the agent's WhatsApp number to
+                            verify you're the owner:
+                          </p>
+                          <div
+                            class="px-6 py-3 rounded-lg bg-white/5 border border-white/10 font-mono text-2xl tracking-[0.3em] text-tokyo-text text-center select-all"
+                            x-text="authTokens[ch.id]"
+                          ></div>
+                          <p class="text-[10px] text-tokyo-muted">
+                            Token expires in 10 minutes
+                          </p>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Future sections placeholder -->
+              <div class="glass-strong rounded-xl p-5 opacity-50">
+                <h3 class="text-sm font-semibold text-tokyo-muted">
+                  More settings coming soon
+                </h3>
+                <p class="text-xs text-tokyo-muted mt-1">
+                  Authentication, models, and more.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ======================================================== -->
+          <!-- Notebook Tab (dynamic)                                   -->
+          <!-- ======================================================== -->
+          <template
+            x-for="tab in openTabs.filter(t => t.type === 'notebook')"
+            :key="tab.id"
+          >
+            <div x-show="activeTab === tab.id" class="p-6" x-cloak>
+              <div class="max-w-2xl mx-auto">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="text-lg font-semibold" x-text="tab.title"></h2>
+                  <span
+                    class="text-xs text-tokyo-muted px-2 py-1 rounded bg-tokyo-card"
+                  >
+                    read-only (M4-S3 will add editing)
+                  </span>
+                </div>
+                <div class="glass-strong rounded-xl p-5">
+                  <template x-if="tab.data?.content">
+                    <div class="prose prose-invert prose-sm max-w-none">
+                      <pre
+                        class="whitespace-pre-wrap text-sm text-tokyo-text"
+                        x-text="tab.data.content"
+                      ></pre>
+                    </div>
+                  </template>
+                  <template x-if="!tab.data?.content">
+                    <p class="text-sm text-tokyo-muted italic">
+                      File is empty or not found.
+                    </p>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ======================================================== -->
+          <!-- Conversation Tab (external, read-only)                   -->
+          <!-- ======================================================== -->
+          <template
+            x-for="tab in openTabs.filter(t => t.type === 'conversation')"
+            :key="tab.id"
+          >
+            <div x-show="activeTab === tab.id" class="p-6" x-cloak>
+              <div class="max-w-2xl mx-auto">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="text-lg font-semibold" x-text="tab.title"></h2>
+                  <span
+                    class="text-xs text-tokyo-muted px-2 py-1 rounded bg-tokyo-card"
+                  >
+                    read-only
+                  </span>
+                </div>
+                <p class="text-sm text-tokyo-muted">
+                  External conversation view will be implemented in a future
+                  sprint.
+                </p>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ============================================================== -->
+      <!-- Resize Handle                                                  -->
+      <!-- ============================================================== -->
       <div
-        x-show="sidebarOpen"
-        @mousedown="startSidebarDrag($event)"
-        class="sidebar-drag-handle shrink-0"
-        :class="sidebarDragging ? 'active' : ''"
+        @mousedown="startChatResize($event)"
+        class="resize-handle w-1 shrink-0 cursor-col-resize hover:bg-tokyo-blue/30 transition-colors"
+        :class="chatResizing ? 'bg-tokyo-blue/50' : 'bg-transparent'"
       ></div>
 
-      <!-- Main chat area -->
-      <div class="flex flex-col flex-1 min-w-0 max-w-3xl mx-auto w-full">
-        <!-- ============================================================== -->
-        <!-- Header                                                         -->
-        <!-- ============================================================== -->
+      <!-- ============================================================== -->
+      <!-- Right Panel: Permanent Chat                                    -->
+      <!-- ============================================================== -->
+      <div
+        class="chat-panel flex flex-col shrink-0 border-l border-white/5"
+        :style="{ width: chatWidth + 'px' }"
+        style="min-width: 300px; max-width: 85vw"
+      >
+        <!-- Chat header: conversation dropdown + rename -->
         <header
-          class="flex items-center gap-3 px-4 h-12 shrink-0"
-          style="
-            background: #1a1b26;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-          "
+          class="flex items-center gap-2 px-3 h-12 shrink-0"
+          style="border-bottom: 1px solid rgba(255, 255, 255, 0.06)"
         >
-          <!-- Sidebar toggle button -->
-          <button
-            @click="sidebarOpen = !sidebarOpen"
-            class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-tokyo-card transition-colors shrink-0"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              class="w-5 h-5"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75ZM2 10a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 10Zm0 5.25a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z"
-                clip-rule="evenodd"
-              />
-            </svg>
-          </button>
-          <!-- Agent avatar (small) -->
+          <!-- Agent avatar -->
           <div
             class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold text-white"
             style="background: linear-gradient(135deg, #a855f7, #ec4899)"
@@ -272,63 +650,228 @@
             A
           </div>
 
-          <!-- Name + status -->
-          <div class="flex flex-col leading-tight">
-            <span
-              class="text-sm font-semibold"
-              style="
-                background: linear-gradient(135deg, #a855f7, #ec4899);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-              "
-              x-text="headerName"
-              >My Agent</span
-            >
-            <span class="flex items-center gap-1" style="font-size: 11px">
-              <span
-                class="inline-block w-1.5 h-1.5 rounded-full bg-tokyo-green"
-              ></span>
-              <span class="text-tokyo-muted">Online</span>
-            </span>
-          </div>
-
-          <!-- Conversation title (editable) -->
-          <div class="flex-1 min-w-0 ml-3">
-            <!-- Display mode -->
+          <!-- Conversation dropdown + editable title -->
+          <div
+            class="relative flex-1 min-w-0"
+            x-data="{ convDropdownOpen: false }"
+          >
+            <!-- Title display (click to open dropdown) -->
             <div
               x-show="!editingTitle"
-              @click="startTitleEdit()"
-              class="conversation-title-display text-sm text-tokyo-muted cursor-pointer hover:text-tokyo-text transition-colors truncate"
-              x-text="currentTitle || 'New conversation'"
-            ></div>
+              class="flex items-center gap-1.5 min-w-0"
+            >
+              <button
+                @click="convDropdownOpen = !convDropdownOpen"
+                @click.outside="convDropdownOpen = false"
+                class="flex-1 flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-tokyo-card/50 transition-colors text-left min-w-0"
+                title="Click to switch conversations"
+              >
+                <span
+                  class="text-sm font-medium truncate flex-1"
+                  x-text="currentTitle || 'New conversation'"
+                ></span>
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  class="w-3 h-3 text-tokyo-muted shrink-0"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <!-- Rename pencil button -->
+              <button
+                @click="startTitleEdit()"
+                x-show="currentConversationId && !isCurrentConversationReadOnly"
+                class="w-6 h-6 flex items-center justify-center rounded-md text-tokyo-muted hover:text-tokyo-text hover:bg-tokyo-card/50 transition-colors shrink-0"
+                title="Rename conversation"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  class="w-3.5 h-3.5"
+                >
+                  <path
+                    d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L3.25 10.276a.75.75 0 0 0-.198.34l-.764 2.673a.75.75 0 0 0 .932.932l2.673-.764a.75.75 0 0 0 .34-.198l7.763-7.763a1.75 1.75 0 0 0 0-2.475L13.488 2.513Z"
+                  />
+                </svg>
+              </button>
+            </div>
 
-            <!-- Edit mode -->
+            <!-- Title edit mode -->
             <input
               x-show="editingTitle"
               x-ref="titleInput"
               x-model="editTitleValue"
               type="text"
-              class="conversation-title-input text-sm text-tokyo-text bg-transparent border-none outline-none w-full"
+              class="w-full text-sm text-tokyo-text bg-tokyo-card/50 border border-tokyo-blue/30 rounded-md px-2 py-1 outline-none focus:border-tokyo-blue"
               placeholder="Conversation title"
               @keydown.enter="confirmTitleEdit()"
               @keydown.escape="cancelTitleEdit()"
-              @blur="cancelTitleEdit()"
+              @blur="confirmTitleEdit()"
             />
+
+            <!-- Dropdown menu (wider, percent-based) -->
+            <div
+              x-show="convDropdownOpen"
+              x-transition:enter="transition ease-out duration-200"
+              x-transition:enter-start="opacity-0 -translate-y-2"
+              x-transition:enter-end="opacity-100 translate-y-0"
+              x-transition:leave="transition ease-in duration-150"
+              x-transition:leave-start="opacity-100 translate-y-0"
+              x-transition:leave-end="opacity-0 -translate-y-2"
+              class="absolute top-full left-0 mt-1 rounded-lg bg-tokyo-panel border border-tokyo-muted/20 shadow-lg overflow-hidden z-50 transform"
+              style="
+                width: calc(100% + 2rem);
+                min-width: 280px;
+                max-width: 90vw;
+              "
+              x-cloak
+            >
+              <!-- New conversation button -->
+              <button
+                @click="createNewConversation(); convDropdownOpen = false"
+                class="w-full text-left px-3 py-2 text-xs text-tokyo-blue hover:bg-tokyo-card/50 transition-colors flex items-center gap-2 border-b border-white/5"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  class="w-3 h-3"
+                >
+                  <path
+                    d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z"
+                  />
+                </svg>
+                New conversation
+              </button>
+
+              <div class="max-h-80 overflow-y-auto">
+                <!-- Active channel conversations (single section) -->
+                <template x-if="channels.some(ch => getChannelConversations(ch.id).length > 0)">
+                  <div class="border-b border-white/5">
+                    <div
+                      class="px-3 py-1.5 text-[10px] text-tokyo-muted uppercase tracking-wide"
+                    >
+                      Active Channels
+                    </div>
+                    <template x-for="ch in channels" :key="ch.id">
+                      <template
+                        x-for="conv in getChannelConversations(ch.id)"
+                        :key="conv.id"
+                      >
+                        <div class="group relative">
+                          <button
+                            @click="switchConversation(conv.id); convDropdownOpen = false"
+                            class="w-full text-left px-3 pr-8 py-2 text-xs transition-colors flex items-center gap-2"
+                            :class="
+                              currentConversationId === conv.id
+                                ? 'bg-tokyo-blue/15 text-tokyo-blue'
+                                : 'text-tokyo-text hover:bg-tokyo-card/50'
+                            "
+                          >
+                            <!-- Channel icon -->
+                            <span
+                              class="channel-icon w-3.5 h-3.5 shrink-0 text-tokyo-muted"
+                              x-html="ch.icon"
+                            ></span>
+                            <!-- Connection dot -->
+                            <span
+                              class="w-1.5 h-1.5 rounded-full shrink-0"
+                              :class="channelDotClass(ch.status)"
+                            ></span>
+                            <span
+                              class="truncate flex-1"
+                              x-text="conv.title || 'Chat'"
+                            ></span>
+                            <span
+                              class="text-[9px] px-1 py-0.5 rounded bg-tokyo-muted/10 text-tokyo-muted shrink-0"
+                              >read-only</span
+                            >
+                          </button>
+                        </div>
+                      </template>
+                    </template>
+                  </div>
+                </template>
+
+                <!-- All conversations (web + unpinned channel) -->
+                <div
+                  class="px-3 py-1.5 text-[10px] text-tokyo-muted uppercase tracking-wide"
+                >
+                  Conversations
+                </div>
+                <template x-for="conv in conversations" :key="conv.id">
+                  <div class="group relative">
+                    <button
+                      @click="switchConversation(conv.id); convDropdownOpen = false"
+                      class="w-full text-left px-3 pr-8 py-2 text-xs transition-colors flex items-center gap-2"
+                      :class="
+                        currentConversationId === conv.id
+                          ? 'bg-tokyo-blue/15 text-tokyo-blue'
+                          : 'text-tokyo-text hover:bg-tokyo-card/50'
+                      "
+                    >
+                      <!-- Channel icon (for unpinned channel conversations) or spacer -->
+                      <template x-if="conv.channel && conv.channel !== 'web'">
+                        <span
+                          class="channel-icon w-3.5 h-3.5 shrink-0 text-tokyo-muted"
+                          x-html="getConversationChannel(conv)?.icon || ''"
+                        ></span>
+                      </template>
+                      <template x-if="!conv.channel || conv.channel === 'web'">
+                        <span class="w-3.5 h-3.5 shrink-0"></span>
+                      </template>
+                      <span
+                        class="truncate flex-1"
+                        x-text="conv.title || 'New conversation'"
+                      ></span>
+                      <span
+                        class="text-tokyo-muted text-[10px] shrink-0"
+                        x-text="formatRelativeTime(conv.updated)"
+                      ></span>
+                    </button>
+                    <!-- Delete button (hover) -->
+                    <button
+                      @click.stop="confirmDeleteConversation(conv.id, conv.title); convDropdownOpen = false"
+                      class="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-tokyo-muted hover:text-tokyo-red hover:bg-tokyo-red/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        class="w-3 h-3"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5Z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </template>
+              </div>
+            </div>
           </div>
 
-          <!-- Settings gear icon (right side of header) -->
+          <!-- Settings button -->
           <button
-            @click="currentView = currentView === 'settings' ? 'chat' : 'settings'"
-            class="ml-auto w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0"
-            :class="currentView === 'settings' ? 'bg-tokyo-blue/15 text-tokyo-blue' : 'hover:bg-tokyo-card text-tokyo-muted hover:text-tokyo-text'"
+            @click="openTab({ id: 'settings', type: 'settings', title: 'Settings', icon: '⚙️', closeable: true })"
+            class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0"
+            :class="activeTab === 'settings' ? 'bg-tokyo-blue/15 text-tokyo-blue' : 'hover:bg-tokyo-card text-tokyo-muted hover:text-tokyo-text'"
             title="Settings"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 20 20"
               fill="currentColor"
-              class="w-5 h-5"
+              class="w-4 h-4"
             >
               <path
                 fill-rule="evenodd"
@@ -339,17 +882,12 @@
           </button>
         </header>
 
-        <!-- ============================================================== -->
-        <!-- Messages area                                                  -->
-        <!-- ============================================================== -->
+        <!-- Chat messages -->
         <main
           x-ref="messagesContainer"
-          x-show="currentView === 'chat'"
           class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
         >
-          <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
-          <!-- Welcome state (no messages)                              -->
-          <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+          <!-- Welcome state (no messages) -->
           <template x-if="messages.length === 0">
             <div
               class="flex flex-col items-center justify-center h-full select-none"
@@ -380,14 +918,12 @@
             </div>
           </template>
 
-          <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
-          <!-- Message list                                             -->
-          <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+          <!-- Message list -->
           <template x-for="msg in messages" :key="msg.id">
             <div class="msg-enter">
-              <!-- ── Assistant message ────────────────────────────── -->
+              <!-- Assistant message -->
               <template x-if="msg.role === 'assistant'">
-                <div class="flex items-start gap-2.5 max-w-[85%]">
+                <div class="flex items-start gap-2.5 max-w-full">
                   <!-- Avatar -->
                   <div
                     class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold text-white mt-0.5"
@@ -401,7 +937,7 @@
 
                   <!-- Bubble -->
                   <div
-                    class="assistant-bubble rounded-xl rounded-tl-none px-3 py-2"
+                    class="assistant-bubble rounded-xl rounded-tl-none px-3 py-2 max-w-[calc(100%-3rem)]"
                   >
                     <div
                       class="chat-md text-sm leading-relaxed"
@@ -453,7 +989,7 @@
                 </div>
               </template>
 
-              <!-- ── User message ─────────────────────────────────── -->
+              <!-- User message -->
               <template x-if="msg.role === 'user'">
                 <div class="flex justify-end">
                   <div
@@ -518,9 +1054,7 @@
             </div>
           </template>
 
-          <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
-          <!-- Typing indicator                                         -->
-          <!-- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+          <!-- Typing indicator -->
           <div
             x-show="isResponding && !currentAssistantMessage"
             x-cloak
@@ -555,20 +1089,8 @@
           </div>
         </main>
 
-        <!-- ============================================================== -->
-        <!-- Compose area                                                   -->
-        <!-- ============================================================== -->
-        <!-- Read-only banner for channel conversations -->
-        <div
-          x-show="currentView === 'chat' && isReadOnlyConversation(findConversation(currentConversationId) || {})"
-          class="shrink-0 px-4 py-3 text-center text-xs text-tokyo-muted"
-          style="border-top: 1px solid rgba(255, 255, 255, 0.06)"
-        >
-          This conversation is read-only. Reply via WhatsApp.
-        </div>
-
+        <!-- Compose area -->
         <footer
-          x-show="currentView === 'chat'"
           class="shrink-0 p-3"
           style="border-top: 1px solid rgba(255, 255, 255, 0.06)"
         >
@@ -694,12 +1216,12 @@
                 x-model="inputText"
                 x-show="!composePasswordMode"
                 rows="1"
-                :placeholder="isReadOnlyConversation(findConversation(currentConversationId) || {}) ? 'Reply via WhatsApp' : currentPlaceholder"
-                :disabled="isReadOnlyConversation(findConversation(currentConversationId) || {})"
+                :placeholder="isCurrentConversationReadOnly ? 'This conversation is read-only' : currentPlaceholder"
+                :disabled="isCurrentConversationReadOnly"
                 class="w-full bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted resize-none outline-none leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
                 style="max-height: 7.5rem"
                 @keydown.enter="
-                if (!$event.shiftKey) {
+                if (!$event.shiftKey && !isCurrentConversationReadOnly) {
                   $event.preventDefault();
                   sendMessage();
                 }
@@ -715,23 +1237,20 @@
                 x-show="composePasswordMode"
                 type="password"
                 :placeholder="currentPlaceholder"
-                class="w-full bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted outline-none leading-relaxed"
-                @keydown.enter="$event.preventDefault(); sendMessage();"
+                :disabled="isCurrentConversationReadOnly"
+                class="w-full bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted outline-none leading-relaxed disabled:opacity-50 disabled:cursor-not-allowed"
+                @keydown.enter="if (!isCurrentConversationReadOnly) { $event.preventDefault(); sendMessage(); }"
               />
             </div>
 
             <!-- Action bar -->
-            <div
-              class="action-bar flex items-center gap-1 px-2 py-1.5"
-              :class="{ 'opacity-60': isReadOnlyConversation(findConversation(currentConversationId) || {}) }"
-            >
+            <div class="action-bar flex items-center gap-1 px-2 py-1.5">
               <!-- Model selector dropdown -->
               <div class="relative" x-data="{ modelOpen: false }">
                 <button
-                  @click="!isReadOnlyConversation(findConversation(currentConversationId) || {}) && (modelOpen = !modelOpen)"
+                  @click="modelOpen = !modelOpen"
                   @click.outside="modelOpen = false"
                   class="model-badge"
-                  :class="{ 'cursor-default': isReadOnlyConversation(findConversation(currentConversationId) || {}) }"
                 >
                   <span class="model-name" x-text="modelDisplayName"></span>
                   <!-- Capability icons -->
@@ -783,13 +1302,13 @@
                 <!-- Dropdown menu -->
                 <div
                   x-show="modelOpen"
-                  x-transition:enter="transition ease-out duration-100"
-                  x-transition:enter-start="opacity-0 scale-95"
-                  x-transition:enter-end="opacity-100 scale-100"
-                  x-transition:leave="transition ease-in duration-75"
-                  x-transition:leave-start="opacity-100 scale-100"
-                  x-transition:leave-end="opacity-0 scale-95"
-                  class="absolute bottom-full left-0 mb-1 w-40 rounded-lg bg-tokyo-panel border border-tokyo-muted/20 shadow-lg overflow-hidden z-50"
+                  x-transition:enter="transition ease-out duration-200"
+                  x-transition:enter-start="opacity-0 translate-y-2"
+                  x-transition:enter-end="opacity-100 translate-y-0"
+                  x-transition:leave="transition ease-in duration-150"
+                  x-transition:leave-start="opacity-100 translate-y-0"
+                  x-transition:leave-end="opacity-0 translate-y-2"
+                  class="absolute bottom-full left-0 mb-1 w-40 rounded-lg bg-tokyo-panel border border-tokyo-muted/20 shadow-lg overflow-hidden z-50 transform"
                   x-cloak
                 >
                   <template x-for="model in modelOptions" :key="model.id">
@@ -827,6 +1346,35 @@
                 </svg>
                 <span>Reasoning</span>
               </label>
+
+              <!-- Context tag (shows what user is viewing) -->
+              <template x-if="chatContext">
+                <div
+                  class="flex items-center gap-1 px-2 py-1 rounded-md bg-tokyo-purple/10 text-tokyo-purple text-[11px]"
+                >
+                  <span x-text="chatContext?.icon" class="text-xs"></span>
+                  <span
+                    x-text="chatContext?.title"
+                    class="max-w-24 truncate"
+                  ></span>
+                  <button
+                    @click="clearChatContext()"
+                    class="w-3.5 h-3.5 rounded flex items-center justify-center hover:bg-tokyo-purple/20 transition-colors"
+                    title="Remove context"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                      class="w-2.5 h-2.5"
+                    >
+                      <path
+                        d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </template>
 
               <!-- Spacer -->
               <div class="flex-1"></div>
@@ -890,291 +1438,6 @@
             </div>
           </div>
         </footer>
-
-        <!-- ============================================================== -->
-        <!-- Settings view                                                  -->
-        <!-- ============================================================== -->
-        <div
-          x-show="currentView === 'settings'"
-          class="flex-1 overflow-y-auto p-6"
-          x-cloak
-        >
-          <div class="max-w-2xl mx-auto space-y-6">
-            <!-- Settings header -->
-            <div>
-              <h2 class="text-lg font-semibold text-tokyo-text">Settings</h2>
-              <p class="text-sm text-tokyo-muted mt-1">
-                Manage channels and configuration
-              </p>
-            </div>
-
-            <!-- Channels section -->
-            <div class="glass-strong rounded-xl p-5">
-              <h3
-                class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  class="w-4 h-4 text-tokyo-blue"
-                >
-                  <path
-                    d="M3.505 2.365A41.369 41.369 0 0 1 9 2c1.863 0 3.697.124 5.495.365 1.247.167 2.18 1.108 2.435 2.268a4.45 4.45 0 0 0-.577-.069 43.141 43.141 0 0 0-4.706 0C9.229 4.696 7.5 6.727 7.5 8.998v2.24c0 1.413.67 2.735 1.76 3.562l-2.98 2.98A.75.75 0 0 1 5 17.25v-3.443c-.501-.048-1-.106-1.495-.172C2.033 13.438 1 12.162 1 10.72V5.28c0-1.441 1.033-2.717 2.505-2.914Z"
-                  />
-                  <path
-                    d="M14 6c.762 0 1.52.02 2.271.062C17.226 6.175 18 7.049 18 8.068v2.652c0 1.02-.773 1.893-1.729 2.006A40.88 40.88 0 0 1 14 12.798v2.452a.75.75 0 0 1-1.28.53l-1.92-1.92A40.56 40.56 0 0 1 9 13.563c-.34 0-.68.005-1.017.016-.14-.122-.27-.254-.39-.394A3.59 3.59 0 0 1 6.5 11.238v-2.24C6.5 7.205 8.24 5.672 10.353 5.564 11.545 5.505 12.76 5.46 14 5.46V6Z"
-                  />
-                </svg>
-                Channels
-              </h3>
-
-              <!-- Add Channel button -->
-              <div class="flex justify-end mb-3" x-show="!showAddChannel">
-                <button
-                  @click="showAddChannel = true"
-                  class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
-                  style="background: rgba(224, 122, 95, 0.15); color: #e07a5f"
-                  onmouseover="this.style.background = 'rgba(224,122,95,0.25)'"
-                  onmouseout="this.style.background = 'rgba(224,122,95,0.15)'"
-                >
-                  + Add Channel
-                </button>
-              </div>
-
-              <!-- Add Channel form -->
-              <div
-                x-show="showAddChannel"
-                x-transition
-                class="bg-tokyo-card/50 rounded-lg p-4 border border-white/5 mb-3"
-              >
-                <h4 class="text-xs font-semibold text-tokyo-text mb-3">
-                  New WhatsApp Channel
-                </h4>
-                <div class="space-y-3">
-                  <div>
-                    <label
-                      class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
-                      >Channel Name</label
-                    >
-                    <input
-                      type="text"
-                      x-model="newChannel.id"
-                      placeholder="e.g. whatsapp_main"
-                      class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text placeholder-tokyo-muted/50 focus:outline-none focus:border-purple-500/50 transition-colors"
-                    />
-                  </div>
-                  <div class="flex items-center gap-2 pt-1">
-                    <button
-                      @click="addChannel()"
-                      :disabled="!newChannel.id || addingChannel"
-                      class="text-xs px-4 py-2 rounded-lg font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      style="background: #e07a5f; color: white"
-                      :style="(!newChannel.id || addingChannel) ? {} : { boxShadow: '0 0 12px rgba(224,122,95,0.3)' }"
-                    >
-                      <span x-show="!addingChannel">Create &amp; Pair</span>
-                      <span x-show="addingChannel">Creating...</span>
-                    </button>
-                    <button
-                      @click="showAddChannel = false; addChannelError = null"
-                      class="text-xs px-3 py-2 rounded-lg font-medium text-tokyo-muted hover:text-tokyo-text transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  <p
-                    x-show="addChannelError"
-                    x-text="addChannelError"
-                    class="text-xs text-red-400 mt-1"
-                  ></p>
-                </div>
-              </div>
-
-              <!-- No channels state -->
-              <template x-if="channels.length === 0 && !showAddChannel">
-                <p class="text-sm text-tokyo-muted">
-                  No channels configured yet. Click "Add Channel" above to get
-                  started.
-                </p>
-              </template>
-
-              <!-- Channel cards -->
-              <div class="space-y-3">
-                <template x-for="ch in channels" :key="ch.id">
-                  <div
-                    class="bg-tokyo-card/50 rounded-lg p-4 border border-white/5"
-                  >
-                    <div class="flex items-center gap-3">
-                      <!-- Channel icon -->
-                      <div
-                        class="w-8 h-8 rounded-lg bg-tokyo-panel flex items-center justify-center text-tokyo-muted shrink-0 channel-icon"
-                        x-html="ch.icon"
-                      ></div>
-
-                      <!-- Channel info -->
-                      <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                          <span
-                            class="text-sm font-medium text-tokyo-text"
-                            x-text="ch.id"
-                          ></span>
-                          <span
-                            class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 font-medium"
-                            x-text="ch.role"
-                          ></span>
-                        </div>
-                        <div
-                          class="text-xs text-tokyo-muted mt-0.5"
-                          x-text="ch.identity"
-                        ></div>
-                      </div>
-
-                      <!-- Status -->
-                      <div class="flex items-center gap-2 shrink-0">
-                        <span
-                          class="w-2 h-2 rounded-full"
-                          :class="channelDotClass(ch.status)"
-                        ></span>
-                        <span
-                          class="text-xs"
-                          :class="{
-                            'text-green-400': ch.status === 'connected',
-                            'text-yellow-400': ch.status === 'connecting',
-                            'text-red-400': ch.status === 'error',
-                            'text-tokyo-muted': ch.status === 'disconnected' || ch.status === 'logged_out'
-                          }"
-                          x-text="ch.status"
-                        ></span>
-                      </div>
-                    </div>
-
-                    <!-- Channel actions -->
-                    <div
-                      class="flex items-center gap-2 mt-3 pt-3 border-t border-white/5"
-                    >
-                      <!-- Pair button (for disconnected/logged_out channels) -->
-                      <template
-                        x-if="ch.status !== 'connected' && ch.status !== 'connecting'"
-                      >
-                        <button
-                          @click="pairChannel(ch.id)"
-                          class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
-                          style="
-                            background: rgba(224, 122, 95, 0.15);
-                            color: #e07a5f;
-                          "
-                          :class="{ 'hover:bg-[rgba(224,122,95,0.25)]': true }"
-                        >
-                          Pair
-                        </button>
-                      </template>
-
-                      <!-- Authorize button (for connected channels without a token yet) -->
-                      <template
-                        x-if="ch.status === 'connected' && !authTokens[ch.id]"
-                      >
-                        <button
-                          @click="requestAuthToken(ch.id)"
-                          class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
-                          style="
-                            background: rgba(224, 122, 95, 0.15);
-                            color: #e07a5f;
-                          "
-                          onmouseover="
-                            this.style.background = 'rgba(224,122,95,0.25)'
-                          "
-                          onmouseout="
-                            this.style.background = 'rgba(224,122,95,0.15)'
-                          "
-                        >
-                          Authorize Owner
-                        </button>
-                      </template>
-
-                      <!-- Disconnect button (for connected channels) -->
-                      <template x-if="ch.status === 'connected'">
-                        <button
-                          @click="disconnectChannel(ch.id)"
-                          class="text-xs px-3 py-1.5 rounded-lg font-medium text-tokyo-muted hover:text-tokyo-red hover:bg-tokyo-red/10 transition-colors"
-                        >
-                          Disconnect
-                        </button>
-                      </template>
-
-                      <!-- Reconnect attempts info -->
-                      <template x-if="ch.reconnectAttempts > 0">
-                        <span class="text-[10px] text-tokyo-muted ml-auto">
-                          Reconnect attempt
-                          <span x-text="ch.reconnectAttempts"></span>
-                        </span>
-                      </template>
-                    </div>
-
-                    <!-- QR Code display (shown when pairing is active for this channel) -->
-                    <template
-                      x-if="pairingChannelId === ch.id && qrCodeDataUrl"
-                    >
-                      <div
-                        class="mt-3 pt-3 border-t border-white/5 flex flex-col items-center gap-2"
-                      >
-                        <p class="text-xs text-tokyo-muted">
-                          Scan this QR code with WhatsApp
-                        </p>
-                        <img
-                          :src="qrCodeDataUrl"
-                          alt="QR Code"
-                          class="w-48 h-48 rounded-lg bg-white p-2"
-                        />
-                        <p class="text-[10px] text-tokyo-muted">
-                          QR code expires in 3 minutes
-                        </p>
-                      </div>
-                    </template>
-
-                    <!-- Authorization token (shown after pairing, before owner is verified) -->
-                    <template
-                      x-if="authTokens[ch.id] && ch.status === 'connected'"
-                    >
-                      <div
-                        class="mt-3 pt-3 border-t border-white/5 flex flex-col items-center gap-3"
-                      >
-                        <div class="flex items-center gap-2">
-                          <span
-                            class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"
-                          ></span>
-                          <p class="text-xs text-amber-400 font-medium">
-                            Authorization Required
-                          </p>
-                        </div>
-                        <p class="text-xs text-tokyo-muted text-center">
-                          Send this code to the agent's WhatsApp number to
-                          verify you're the owner:
-                        </p>
-                        <div
-                          class="px-6 py-3 rounded-lg bg-white/5 border border-white/10 font-mono text-2xl tracking-[0.3em] text-tokyo-text text-center select-all"
-                          x-text="authTokens[ch.id]"
-                        ></div>
-                        <p class="text-[10px] text-tokyo-muted">
-                          Token expires in 10 minutes
-                        </p>
-                      </div>
-                    </template>
-                  </div>
-                </template>
-              </div>
-            </div>
-
-            <!-- Future sections placeholder -->
-            <div class="glass-strong rounded-xl p-5 opacity-50">
-              <h3 class="text-sm font-semibold text-tokyo-muted">
-                More settings coming soon
-              </h3>
-              <p class="text-xs text-tokyo-muted mt-1">
-                Authentication, models, and more.
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- ============================================================== -->

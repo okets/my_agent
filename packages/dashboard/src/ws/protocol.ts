@@ -69,6 +69,15 @@ export interface Turn {
   attachments?: AttachmentMeta[];
 }
 
+// Context from dashboard (what user is currently viewing)
+export interface ViewContext {
+  type: "notebook" | "conversation" | "settings";
+  title: string;
+  icon?: string;
+  file?: string; // For notebook tabs
+  conversationId?: string; // For external conversation tabs
+}
+
 // Client → Server messages
 export type ClientMessage =
   | {
@@ -77,6 +86,7 @@ export type ClientMessage =
       reasoning?: boolean;
       model?: string;
       attachments?: Attachment[];
+      context?: ViewContext | null; // What user is viewing in dashboard
     }
   | { type: "abort" }
   | { type: "control_response"; controlId: string; value: string }

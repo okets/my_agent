@@ -46,19 +46,23 @@ Key patterns to adapt:
 
 **New:**
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  [Home] [external-comms.md] [reminders.md] [WhatsApp: Sarah] ...│
-├────────────────────────────────────────┬────────────────────────┤
-│                                        │                        │
-│         Active Tab Content             │   Owner ↔ Nina Chat    │
-│                                        │   (permanent, resumable)│
-│  • Home dashboard                      │                        │
-│  • Notebook file editor                │   Context badge shows  │
-│  • Contact conversation view           │   active tab title     │
-│  • Settings panel                      │                        │
-│                                        │                        │
-└────────────────────────────────────────┴────────────────────────┘
+┌──────────────────────────────────────────┬───────────────────────────┐
+│  [Home] [external-comms.md] [Settings]   │ [▼ Conversation dropdown] │
+├──────────────────────────────────────────┼───────────────────────────┤
+│                                          │                           │
+│         Active Tab Content               │   Owner ↔ Nina Chat       │
+│                                          │   (permanent, always on)  │
+│  • Home (quick actions, channels)        │                           │
+│  • Notebook files (read-only for now)    │   Context badge shows     │
+│  • External conversations (read-only)    │   active tab title        │
+│  • Settings panel                        │                           │
+│                                          │                           │
+└──────────────────────────────────────────┴───────────────────────────┘
 ```
+
+**Key distinction:**
+- **Owner ↔ Nina conversations** — Primary interface, accessed via dropdown above chat. Not managed like objects.
+- **Tabs** — For browsing/managing content: Notebook files, external conversations, settings.
 
 ---
 
@@ -99,7 +103,11 @@ Restructure HTML:
 
   <!-- Right: Permanent chat -->
   <div class="chat-panel flex flex-col" :style="{ width: chatWidth + 'px' }">
-    <!-- Context badge -->
+    <!-- Header: conversation dropdown + context badge -->
+    <div class="chat-header">
+      <!-- Conversation dropdown (owner ↔ Nina conversations) -->
+      <!-- Context badge showing active tab -->
+    </div>
     <!-- Chat messages -->
     <!-- Compose area -->
   </div>
@@ -317,10 +325,10 @@ Create Home tab content:
 
 ### T8: Migrate Existing Views
 
-Migrate current views to tab content:
-- Conversations list → stays in left panel (clicking opens conversation tab)
-- External messages → becomes link to open external-communications.md
-- Settings → opens as tab
+Migrate current views to new layout:
+- **Owner conversations** → Dropdown above right-panel chat (not tabs, these are primary interface)
+- **Channel/external conversations** → Clicking in Home tab opens as read-only tab
+- **Settings** → Opens as tab in left panel
 
 ---
 

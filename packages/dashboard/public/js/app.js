@@ -28,9 +28,6 @@ function chat() {
     conversations: [],
     channelConversations: [],
     currentConversationId: null,
-    sidebarOpen: true,
-    sidebarWidth: 260,
-    sidebarDragging: false,
 
     // Title editing
     editingTitle: false,
@@ -49,8 +46,20 @@ function chat() {
     // Channel state
     channels: [],
 
-    // Settings view
-    currentView: "chat", // 'chat' | 'settings'
+    // ─────────────────────────────────────────────────────────────────
+    // Tab system (workspace layout)
+    // ─────────────────────────────────────────────────────────────────
+    openTabs: [
+      { id: "home", type: "home", title: "Home", icon: "🏠", closeable: false },
+    ],
+    activeTab: "home",
+
+    // Chat context (pinned tab context, sent to Nina with messages)
+    chatContext: null, // { type, title, icon, file?, conversationId? }
+
+    // Chat panel (right side)
+    chatWidth: 400,
+    chatResizing: false,
 
     // QR pairing state
     pairingChannelId: null,
@@ -120,6 +129,12 @@ function chat() {
       return this.selectedModel.includes("haiku");
     },
 
+    get isCurrentConversationReadOnly() {
+      if (!this.currentConversationId) return false;
+      const conv = this.findConversation(this.currentConversationId);
+      return conv ? this.isReadOnlyConversation(conv) : false;
+    },
+
     // ─────────────────────────────────────────────────────────────────
     // Lifecycle
     // ─────────────────────────────────────────────────────────────────
@@ -140,6 +155,9 @@ function chat() {
 
     init() {
       console.log("[App] Initializing chat component...");
+
+      // Load UI state from localStorage (tabs, chat width)
+      this.loadUIState();
 
       // Load agent name and check hatching status
       fetch("/api/hatching/status")
@@ -331,11 +349,14 @@ function chat() {
         const reasoning =
           this.reasoningEnabled && !this.selectedModel.includes("haiku");
         // Include model so server can set it on new conversations
+        // Include context so Nina knows what user is viewing
+        const context = this.getCurrentTabContext();
         const msg = {
           type: "message",
           content: text,
           reasoning,
           model: this.selectedModel,
+          context, // { type, title, file?, conversationId? } or null
         };
         if (wsAttachments) {
           msg.attachments = wsAttachments;
@@ -978,25 +999,196 @@ function chat() {
     },
 
     // ─────────────────────────────────────────────────────────────────
-    // Sidebar resize
+    // Tab system methods
     // ─────────────────────────────────────────────────────────────────
-    startSidebarDrag(e) {
-      if (!this.sidebarOpen) return;
+
+    switchTab(id) {
+      this.activeTab = id;
+
+      // Clear context when switching to Home or Settings tabs
+      if (id === "home" || id === "settings") {
+        this.chatContext = null;
+      }
+      // Auto-set chat context when switching to content tabs
+      else {
+        const tab = this.openTabs.find((t) => t.id === id);
+        if (tab) {
+          this.chatContext = {
+            type: tab.type,
+            title: tab.title,
+            icon: tab.icon,
+            file: tab.data?.file,
+            conversationId: tab.data?.conversationId,
+          };
+        }
+      }
+
+      this.saveUIState();
+    },
+
+    clearChatContext() {
+      this.chatContext = null;
+    },
+
+    openTab(tab) {
+      // Check if tab already exists
+      const existing = this.openTabs.find((t) => t.id === tab.id);
+      if (existing) {
+        this.switchTab(tab.id);
+        return;
+      }
+      this.openTabs.push(tab);
+      this.switchTab(tab.id);
+      this.saveUIState();
+    },
+
+    closeTab(id) {
+      const tab = this.openTabs.find((t) => t.id === id);
+      if (!tab || !tab.closeable) return;
+
+      // Check for unsaved changes (future use)
+      if (tab.contentChanged && !confirm("Discard unsaved changes?")) {
+        return;
+      }
+
+      this.openTabs = this.openTabs.filter((t) => t.id !== id);
+
+      // If closing active tab, switch to last remaining tab
+      if (this.activeTab === id) {
+        this.activeTab = this.openTabs[this.openTabs.length - 1]?.id || "home";
+      }
+      this.saveUIState();
+    },
+
+    async openNotebookTab(name) {
+      const tabId = `notebook-${name}`;
+      const titles = {
+        "external-communications": "External Rules",
+        reminders: "Reminders",
+        "standing-orders": "Standing Orders",
+      };
+
+      // Load file content from server
+      let content = "";
+      try {
+        const res = await fetch(`/api/notebook/${name}`);
+        if (res.ok) {
+          const data = await res.json();
+          content = data.content || "";
+        }
+      } catch (err) {
+        console.error(`[App] Failed to load notebook file ${name}:`, err);
+      }
+
+      this.openTab({
+        id: tabId,
+        type: "notebook",
+        title: titles[name] || name,
+        icon: "📝",
+        closeable: true,
+        data: {
+          file: name,
+          content,
+        },
+      });
+    },
+
+    openConversationTab(conv) {
+      this.openTab({
+        id: `conv-${conv.id}`,
+        type: "conversation",
+        title: conv.title || "External Chat",
+        icon: "💬",
+        closeable: true,
+        data: {
+          conversationId: conv.id,
+        },
+      });
+    },
+
+    getCurrentTabContext() {
+      // Return pinned chat context (set when user views a tab)
+      return this.chatContext;
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Chat panel resize
+    // ─────────────────────────────────────────────────────────────────
+
+    startChatResize(e) {
       e.preventDefault();
-      this.sidebarDragging = true;
-      document.body.classList.add("sidebar-resizing");
+      this.chatResizing = true;
+      document.body.classList.add("chat-resizing");
       const onMove = (ev) => {
-        const x = ev.clientX;
-        this.sidebarWidth = Math.min(Math.max(x, 180), 500);
+        const newWidth = window.innerWidth - ev.clientX;
+        // Allow chat panel to grow up to 85% of viewport width
+        const maxWidth = Math.floor(window.innerWidth * 0.85);
+        this.chatWidth = Math.max(300, Math.min(maxWidth, newWidth));
       };
       const onUp = () => {
-        this.sidebarDragging = false;
-        document.body.classList.remove("sidebar-resizing");
+        this.chatResizing = false;
+        document.body.classList.remove("chat-resizing");
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        this.saveUIState();
       };
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // UI State persistence (localStorage for preferences)
+    // ─────────────────────────────────────────────────────────────────
+
+    saveUIState() {
+      const state = {
+        openTabs: this.openTabs.map((t) => ({
+          id: t.id,
+          type: t.type,
+          title: t.title,
+          icon: t.icon,
+          closeable: t.closeable,
+          data: t.data,
+        })),
+        activeTab: this.activeTab,
+        chatWidth: this.chatWidth,
+      };
+      localStorage.setItem("dashboardUIState", JSON.stringify(state));
+    },
+
+    loadUIState() {
+      const saved = localStorage.getItem("dashboardUIState");
+      if (!saved) return;
+
+      try {
+        const state = JSON.parse(saved);
+        if (state.openTabs && Array.isArray(state.openTabs)) {
+          // Ensure home tab always exists
+          const hasHome = state.openTabs.some((t) => t.id === "home");
+          if (!hasHome) {
+            state.openTabs.unshift({
+              id: "home",
+              type: "home",
+              title: "Home",
+              icon: "🏠",
+              closeable: false,
+            });
+          }
+          this.openTabs = state.openTabs;
+        }
+        if (state.activeTab) {
+          // Verify active tab exists in openTabs
+          if (this.openTabs.some((t) => t.id === state.activeTab)) {
+            this.activeTab = state.activeTab;
+          }
+        }
+        if (state.chatWidth) {
+          const maxWidth = Math.floor(window.innerWidth * 0.85);
+          this.chatWidth = Math.max(300, Math.min(maxWidth, state.chatWidth));
+        }
+      } catch (e) {
+        console.error("[App] Failed to load UI state:", e);
+      }
     },
 
     // ─────────────────────────────────────────────────────────────────

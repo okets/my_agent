@@ -4,6 +4,7 @@ import fastifyCors from "@fastify/cors";
 import fastifyWebSocket from "@fastify/websocket";
 import fastifyMultipart from "@fastify/multipart";
 import { join } from "node:path";
+import { readFile } from "node:fs/promises";
 import { registerChatWebSocket } from "./ws/chat-handler.js";
 import { registerHatchingRoutes } from "./routes/hatching.js";
 import { registerChannelRoutes } from "./routes/channels.js";
@@ -90,6 +91,33 @@ export async function createServer(
 
   // Register channel routes
   await registerChannelRoutes(fastify);
+
+  // Notebook API - read runtime files
+  fastify.get<{ Params: { name: string } }>(
+    "/api/notebook/:name",
+    async (request, reply) => {
+      const { name } = request.params;
+
+      // Only allow specific notebook files (security)
+      const allowedFiles = [
+        "external-communications",
+        "reminders",
+        "standing-orders",
+      ];
+      if (!allowedFiles.includes(name)) {
+        return reply.code(404).send({ error: "File not found" });
+      }
+
+      const filePath = join(agentDir, "runtime", `${name}.md`);
+      try {
+        const content = await readFile(filePath, "utf-8");
+        return { content };
+      } catch {
+        // Return empty content if file doesn't exist
+        return { content: "" };
+      }
+    },
+  );
 
   return fastify;
 }

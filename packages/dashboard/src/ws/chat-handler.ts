@@ -15,6 +15,7 @@ import type {
   ServerMessage,
   ConversationMeta,
   Turn,
+  ViewContext,
 } from "./protocol.js";
 
 const MAX_MESSAGE_LENGTH = 10000;
@@ -297,6 +298,7 @@ export async function registerChatWebSocket(
             msg.reasoning,
             msg.model,
             msg.attachments,
+            msg.context,
           );
         }
       } catch (err) {
@@ -645,7 +647,14 @@ export async function registerChatWebSocket(
       reasoning?: boolean,
       model?: string,
       attachments?: Attachment[],
+      context?: ViewContext | null,
     ): Promise<void> {
+      // Log context if user is viewing something specific
+      if (context) {
+        fastify.log.info(
+          `[Context] User viewing: ${context.title} (${context.type}${context.file ? `, file: ${context.file}` : ""})`,
+        );
+      }
       const textContent = content.trim().toLowerCase();
 
       // ── Slash command: /new ─────────────────────────────────────────

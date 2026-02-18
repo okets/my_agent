@@ -2,6 +2,28 @@
    app.css — Tokyo Night chat interface
    ================================================================ */
 
+/* ── Design tokens ───────────────────────────────────────────── */
+:root {
+  /* Animation timings - soft, natural feel */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Shadows - subtle depth */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
+  --shadow-glow-blue: 0 0 20px rgba(122, 162, 247, 0.15);
+  --shadow-glow-purple: 0 0 20px rgba(187, 154, 247, 0.15);
+
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-muted: rgba(255, 255, 255, 0.1);
+  --border-accent: rgba(122, 162, 247, 0.3);
+}
+
 /* ── Alpine cloak ─────────────────────────────────────────────── */
 [x-cloak] {
   display: none !important;
@@ -31,8 +53,8 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: #1a1b26;
-  color: #c0caf5;
+  background: #1e1e2e;
+  color: #cdd6f4;
 }
 
 /* ── Scrollbar ────────────────────────────────────────────────── */
@@ -47,7 +69,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: #45475a;
   border-radius: 3px;
 }
 
@@ -101,7 +123,7 @@ body {
 
 /* Code blocks */
 .chat-md pre {
-  background: #1a1b26;
+  background: #1e1e2e;
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 0.5rem;
   padding: 0.75rem 1rem;
@@ -247,7 +269,7 @@ footer textarea {
 }
 
 footer textarea::placeholder {
-  color: #565f89;
+  color: #6c7086;
 }
 
 /* Remove default textarea focus ring (outline-none is in HTML,
@@ -262,7 +284,7 @@ footer textarea:focus {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #565f89;
+  background: #6c7086;
   animation: typingBounce 1.4s ease-in-out infinite both;
 }
 
@@ -345,7 +367,7 @@ footer textarea:focus {
   transition: all 0.15s;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.05);
-  color: #c0caf5;
+  color: #cdd6f4;
 }
 
 .chat-control-btn:hover {
@@ -412,12 +434,12 @@ footer textarea:focus {
 .chat-control-card .card-label {
   font-weight: 500;
   font-size: 0.8125rem;
-  color: #c0caf5;
+  color: #cdd6f4;
 }
 
 .chat-control-card .card-desc {
   font-size: 0.75rem;
-  color: #565f89;
+  color: #6c7086;
   margin-top: 0.125rem;
   line-height: 1.4;
 }
@@ -457,7 +479,7 @@ footer input[type="password"] {
 }
 
 footer input[type="password"]::placeholder {
-  color: #565f89;
+  color: #6c7086;
 }
 
 footer input[type="password"]:focus {
@@ -751,4 +773,345 @@ body.sidebar-resizing {
 .settings-channel-icon svg {
   width: 100%;
   height: 100%;
+}
+
+/* ── Workspace layout (M4-S2) ────────────────────────────────────── */
+
+/* Tab bar */
+.tab-bar {
+  background: #181825;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Chat panel resize handle */
+.resize-handle {
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.resize-handle:hover {
+  background: rgba(122, 162, 247, 0.3);
+}
+
+/* Prevent text selection while resizing chat panel */
+body.chat-resizing {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
+body.chat-resizing * {
+  cursor: col-resize !important;
+}
+
+/* Chat panel border */
+.chat-panel {
+  background: #1e1e2e;
+}
+
+/* ── Enhanced interactions ────────────────────────────────────── */
+
+/* Universal transition for interactive elements */
+button,
+a,
+input,
+textarea,
+select,
+[role="button"] {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out),
+    color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    opacity var(--duration-normal) var(--ease-out);
+}
+
+/* ── Tab bar polish ───────────────────────────────────────────── */
+.tab-bar button {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    color var(--duration-normal) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.tab-bar button:active {
+  transform: scale(0.97);
+}
+
+/* Active tab subtle glow */
+.tab-bar button[class*="bg-tokyo-card"] {
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Card hover effects ───────────────────────────────────────── */
+.glass-strong {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
+}
+
+.glass-strong:hover {
+  border-color: var(--border-muted);
+  box-shadow: var(--shadow-md);
+}
+
+/* Notebook cards - subtle lift on hover */
+[class*="rounded-xl"].glass-strong:hover {
+  transform: translateY(-1px);
+}
+
+/* ── Dropdown animations ──────────────────────────────────────── */
+[x-transition\\:enter] {
+  transition:
+    opacity var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out) !important;
+}
+
+[x-transition\\:leave] {
+  transition:
+    opacity var(--duration-fast) var(--ease-in-out),
+    transform var(--duration-fast) var(--ease-in-out) !important;
+}
+
+/* Dropdown menu polish */
+.max-h-80 {
+  scrollbar-gutter: stable;
+}
+
+/* Dropdown items */
+.max-h-80 button {
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+/* ── Focus states ─────────────────────────────────────────────── */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(122, 162, 247, 0.5);
+  outline-offset: 2px;
+}
+
+/* ── Message bubbles ──────────────────────────────────────────── */
+.user-bubble,
+.assistant-bubble {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
+}
+
+/* Subtle hover feedback on messages */
+.user-bubble:hover {
+  background: rgba(122, 162, 247, 0.15);
+}
+
+.assistant-bubble:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ── Compose box enhancements ─────────────────────────────────── */
+.compose-box {
+  transition:
+    border-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.compose-box:focus-within {
+  box-shadow: var(--shadow-glow-blue);
+}
+
+/* Send button press effect */
+.send-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+/* ── Channel cards ────────────────────────────────────────────── */
+[class*="bg-tokyo-card/50"] {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
+}
+
+[class*="bg-tokyo-card/50"]:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Connection status dots ───────────────────────────────────── */
+.w-2.h-2.rounded-full,
+.w-1\\.5.h-1\\.5.rounded-full {
+  transition: box-shadow var(--duration-slow) var(--ease-out);
+}
+
+/* Glowing dots for connected state */
+.bg-green-400 {
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+}
+
+.bg-yellow-400 {
+  animation: pulse-yellow 2s var(--ease-in-out) infinite;
+}
+
+@keyframes pulse-yellow {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(250, 204, 21, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(250, 204, 21, 0.7);
+  }
+}
+
+/* ── Avatar hover ─────────────────────────────────────────────── */
+[class*="rounded-full"][class*="bg-gradient"] {
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+[class*="rounded-full"][class*="bg-gradient"]:hover {
+  transform: scale(1.05);
+}
+
+/* ── Smooth scrolling ─────────────────────────────────────────── */
+.overflow-y-auto {
+  scroll-behavior: smooth;
+}
+
+/* ── Settings panel cards ─────────────────────────────────────── */
+[class*="border-white/5"] {
+  transition:
+    border-color var(--duration-normal) var(--ease-out),
+    background-color var(--duration-normal) var(--ease-out);
+}
+
+/* ── Resize handles ───────────────────────────────────────────── */
+.resize-handle,
+.sidebar-drag-handle {
+  transition: background-color var(--duration-normal) var(--ease-out);
+}
+
+.resize-handle:hover,
+.sidebar-drag-handle:hover {
+  background: rgba(122, 162, 247, 0.4);
+}
+
+/* ── Delete button reveal ─────────────────────────────────────── */
+.group:hover .opacity-0 {
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+/* ── Model dropdown ───────────────────────────────────────────── */
+.model-badge {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.model-badge:hover {
+  box-shadow: var(--shadow-glow-purple);
+}
+
+/* ── Reasoning toggle ─────────────────────────────────────────── */
+.reasoning-toggle {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out),
+    color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.reasoning-toggle.active {
+  box-shadow: var(--shadow-glow-purple);
+}
+
+/* ── Chat control buttons ─────────────────────────────────────── */
+.chat-control-btn {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.chat-control-btn:hover:not(:disabled) {
+  box-shadow: var(--shadow-sm);
+}
+
+.chat-control-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* ── Chat control cards ───────────────────────────────────────── */
+.chat-control-card {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    border-color var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.chat-control-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.chat-control-card:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ── Thinking block ───────────────────────────────────────────── */
+.thinking-block {
+  transition:
+    border-color var(--duration-slow) var(--ease-out),
+    opacity var(--duration-normal) var(--ease-out);
+  animation: thinking-fade-in var(--duration-slow) var(--ease-out);
+}
+
+@keyframes thinking-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── Pencil/edit button ───────────────────────────────────────── */
+button[title="Rename conversation"] {
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+button[title="Rename conversation"]:hover {
+  transform: scale(1.1);
+}
+
+button[title="Rename conversation"]:active {
+  transform: scale(0.95);
+}
+
+/* ── Context tag ──────────────────────────────────────────────── */
+[class*="bg-tokyo-purple/10"] {
+  transition:
+    background-color var(--duration-normal) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+  animation: context-tag-in var(--duration-normal) var(--ease-out);
+}
+
+@keyframes context-tag-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
