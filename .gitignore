@@ -23,3 +23,8 @@ Thumbs.db
 # IDE
 .vscode/settings.json
 .idea/
+
+# Calendar prototype
+prototypes/calendar/radicale-venv/
+prototypes/calendar/radicale-data/
+prototypes/calendar/node_modules/

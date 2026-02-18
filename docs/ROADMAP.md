@@ -12,7 +12,8 @@
 | **M1: Foundation**           | Complete | 4/4 sprints                  |
 | **M2: Web UI**               | Complete | 6/6 sprints                  |
 | **M3: WhatsApp Channel**     | Active   | S1-S3 done, S4 stashed       |
-| **M4: Notebook System**      | Active   | S1 done, S2-S6 planned       |
+| **M4: Notebook System**      | Active   | S1-S2 done, S3-S4 planned    |
+| **M4.5: Calendar System**    | Planned  | Design complete, prototype approved |
 | **M5: Task System**          | Planned  | Design complete, sprints TBD |
 | **M6: Memory**               | Planned  | Design complete, sprints TBD |
 | **M7: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -152,14 +153,14 @@ The M4-S4 sprint plan documents how to refactor this stashed code to use the Not
 
 Notebook is Nina's persistent memory — markdown files she can read always and write when talking to her owner. This enables conversational configuration instead of brittle middleware pattern matching.
 
-| Sprint | Name                    | Status  | Plan                                                  | Review |
-| ------ | ----------------------- | ------- | ----------------------------------------------------- | ------ |
+| Sprint | Name                    | Status   | Plan                                                  | Review |
+| ------ | ----------------------- | -------- | ----------------------------------------------------- | ------ |
 | S1     | Notebook Infrastructure | Complete | [plan](sprints/m4-s1-notebook-infrastructure/plan.md) | [review](sprints/m4-s1-notebook-infrastructure/review.md) |
-| S2     | Dashboard Evolution     | Planned | [plan](sprints/m4-s2-dashboard-evolution/plan.md)     | —      |
-| S3     | Notebook Editing Tool   | Planned | [plan](sprints/m4-s3-notebook-editing-tool/plan.md)   | —      |
-| S4     | External Communications | Planned | [plan](sprints/m4-s4-external-communications/plan.md) | —      |
-| S5     | Reminders & Tasks       | Planned | —                                                     | —      |
-| S6     | Dashboard Integration   | Planned | [plan](sprints/m4-s6-dashboard-integration/plan.md)   | —      |
+| S2     | Dashboard Evolution     | Complete | [plan](sprints/m4-s2-dashboard-evolution/plan.md)     | —      |
+| S3     | Notebook Editing Tool   | Planned  | [plan](sprints/m4-s3-notebook-editing-tool/plan.md)   | —      |
+| S4     | External Communications | Planned  | [plan](sprints/m4-s4-external-communications/plan.md) | —      |
+
+**Note:** M4-S5 (Reminders & Tasks) and M4-S6 (Dashboard Integration) have been superseded by M4.5 Calendar System.
 
 **Architecture:**
 
@@ -174,12 +175,50 @@ Notebook is Nina's persistent memory — markdown files she can read always and 
 - _(S2)_ Dashboard workspace layout: tabs on left, permanent chat on right, context awareness
 - _(S3)_ `notebook_edit` tool for section-based file editing, access control, dashboard refresh
 - _(S4)_ Refactor M3-S4 external communications to use Notebook (pop stash, remove middleware)
-- _(S5)_ Reminders pattern: conversational task management via `reminders.md`
-- _(S6)_ REST API for Notebook files, markdown rendering, change tracking
 
 **Dependencies:** M3-S3 (channels working)
 
 **Note:** M4 enables conversational configuration. "Block Sarah" or "I had a fight with Sarah, ignore her" both work because Nina understands intent and uses `notebook_edit` tool — no regex pattern matching.
+
+---
+
+### M4.5: Calendar System — PLANNED
+
+Unified calendar replaces scattered time-aware concepts (reminders.md, cron schedules, task deadlines). Everything with a time dimension becomes a calendar event.
+
+**Design spec:** [calendar-system.md](design/calendar-system.md)
+
+| Sprint | Name                    | Status  | Plan | Review |
+| ------ | ----------------------- | ------- | ---- | ------ |
+| S1     | CalDAV Infrastructure   | Planned | —    | —      |
+| S2     | Calendar Dashboard      | Planned | —    | —      |
+| S3     | MCP Tools + Scheduler   | Planned | —    | —      |
+
+**Deliverables:**
+
+- _(S1)_ Radicale setup, CalendarRepository interface, tsdav client, health checks
+- _(S2)_ FullCalendar tab in dashboard, multi-calendar display, event CRUD UI
+- _(S3)_ calendar_* MCP tools for Nina, CalendarScheduler for event triggers, prompt context
+
+**Tech Stack:**
+
+| Component | Choice |
+|-----------|--------|
+| CalDAV server | Radicale (self-hosted) |
+| CalDAV client | tsdav (cal.com maintained) |
+| RRULE expansion | ical-expander |
+| Frontend | FullCalendar v6 (MIT, CDN) |
+
+**Key Design Decisions:**
+
+- Everything time-based is a calendar event (reminders, deadlines, recurring tasks)
+- Multi-calendar from day one (agent calendar + subscribed calendars)
+- External calendars modeled as channel plugins (Google, Apple, Outlook)
+- `reminders.md` retired; `external-communications.md` and `standing-orders.md` remain as Notebook files
+
+**Dependencies:** M4-S2 (dashboard workspace layout)
+
+**Prototype:** Validated 2026-02-18. Radicale + tsdav + ical-expander + FullCalendar stack works. See `prototypes/calendar/`.
 
 ---
 
@@ -275,6 +314,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Channels             | Complete | M3, M8     | [design/channels.md](design/channels.md)                         |
 | Conversations        | Complete | M2         | [design/conversation-system.md](design/conversation-system.md)   |
 | Notebook             | Complete | M4         | [design/notebook.md](design/notebook.md)                         |
+| Calendar System      | Complete | M4.5       | [design/calendar-system.md](design/calendar-system.md)           |
 | Task System          | Complete | M5         | [design/task-system.md](design/task-system.md)                   |
 | Memory               | Complete | M6         | [design/memory-system.md](design/memory-system.md)               |
 | Operations Dashboard | Complete | M7         | [design/operations-dashboard.md](design/operations-dashboard.md) |
@@ -286,25 +326,27 @@ Design specs define architecture before implementation. Each spec should be comp
 ## Dependencies
 
 ```
-M1 Foundation ───► M2 Web UI ───┬──► M3 WhatsApp ───► M4 Notebook
-                                │                          │
-                                │                          ▼
-                                └──────────────────► M5 Tasks
-                                                        │
-                                                        ├──► M6 Memory
-                                                        │
-                                                        ├──► M7 Ops Dashboard
-                                                        │
-                                                        └──► M8 Email
+M1 Foundation ───► M2 Web UI ───┬──► M3 WhatsApp ───► M4 Notebook ───► M4.5 Calendar
+                                │                                            │
+                                │                                            ▼
+                                └────────────────────────────────────► M5 Tasks
+                                                                          │
+                                                                          ├──► M6 Memory
+                                                                          │
+                                                                          ├──► M7 Ops Dashboard
+                                                                          │
+                                                                          └──► M8 Email
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M5
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5
 
 **After M5:** Agent self-development. M6, M7, M8 become agent projects with human review.
 
 **M3 is standalone:** Basic WhatsApp works after M2. Full task integration (project spawning) comes after M5.
 
 **M4 enables conversational config:** M3-S4 (External Communications) was stashed and will be refactored in M4-S4 to use Notebook instead of middleware pattern matching.
+
+**M4.5 unifies time concepts:** Reminders, deadlines, scheduled tasks all become calendar events. M5 scheduled tasks depend on M4.5 calendar infrastructure.
 
 ---
 
@@ -327,6 +369,19 @@ Ideas that haven't been promoted to design specs yet.
 | Idea                         | Status         | Path                                                                         |
 | ---------------------------- | -------------- | ---------------------------------------------------------------------------- |
 | Agent Teams for Ad-hoc Tasks | Deferred to M5 | [ideas/agent-teams-for-adhoc-tasks.md](ideas/agent-teams-for-adhoc-tasks.md) |
+
+---
+
+## Future Wishlist
+
+Long-term features beyond the current milestone plan. Not scheduled, not designed — just captured for future consideration.
+
+| Feature | Description | Notes |
+|---------|-------------|-------|
+| **External Calendar Channels** | Google Calendar, Apple iCloud, Outlook as channel plugins | Each with own OAuth/auth flow, modeled like WhatsApp/Email channels |
+| **Mobile Dashboard** | Responsive web UI optimized for mobile browsers | Calendar list view, chat interface, quick actions |
+| **iOS App** | Native iOS app for Nina | Push notifications, Siri integration, widget support |
+| **Claude Code CLI Streaming** | Stream terminal output from task folders to web UI | Watch agent work in real-time, intervention controls |
 
 ---
 

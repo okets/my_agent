@@ -1,0 +1,46 @@
+{
+  "fetchedAt": "2026-02-18T18:59:06.495Z",
+  "windowDays": 30,
+  "totalEvents": 5,
+  "events": [
+    {
+      "uid": "dentist-6b69b9f5-c243-4589-9dc6-9b19f2c339da@my_agent",
+      "summary": "Dentist appointment",
+      "start": "2026-02-19T13:00:00.000Z",
+      "end": "2026-02-19T14:00:00.000Z",
+      "isRecurring": false
+    },
+    {
+      "uid": "standup-027eb8c5-c802-43e0-b6b6-a32882cbdd5f@my_agent",
+      "summary": "Weekly standup",
+      "start": "2026-02-23T07:00:00.000Z",
+      "end": "2026-02-23T07:30:00.000Z",
+      "isRecurring": true,
+      "occurrenceIndex": 1
+    },
+    {
+      "uid": "standup-027eb8c5-c802-43e0-b6b6-a32882cbdd5f@my_agent",
+      "summary": "Weekly standup",
+      "start": "2026-03-02T07:00:00.000Z",
+      "end": "2026-03-02T07:30:00.000Z",
+      "isRecurring": true,
+      "occurrenceIndex": 2
+    },
+    {
+      "uid": "standup-027eb8c5-c802-43e0-b6b6-a32882cbdd5f@my_agent",
+      "summary": "Weekly standup",
+      "start": "2026-03-09T07:00:00.000Z",
+      "end": "2026-03-09T07:30:00.000Z",
+      "isRecurring": true,
+      "occurrenceIndex": 3
+    },
+    {
+      "uid": "standup-027eb8c5-c802-43e0-b6b6-a32882cbdd5f@my_agent",
+      "summary": "Weekly standup",
+      "start": "2026-03-16T07:00:00.000Z",
+      "end": "2026-03-16T07:30:00.000Z",
+      "isRecurring": true,
+      "occurrenceIndex": 4
+    }
+  ]
+}

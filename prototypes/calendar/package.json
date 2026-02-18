@@ -1,0 +1,21 @@
+{
+  "name": "calendar-prototype",
+  "version": "1.0.0",
+  "description": "CalDAV calendar prototype using tsdav and Radicale",
+  "type": "module",
+  "scripts": {
+    "test": "tsx src/calendar-test.ts"
+  },
+  "dependencies": {
+    "ical-expander": "^3.1.0",
+    "ical.js": "^2.0.1",
+    "luxon": "^3.5.0",
+    "tsdav": "^2.1.1"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.13.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,433 @@
+/* Catppuccin Mocha Color Tokens */
+:root {
+  /* Base colors */
+  --ctp-rosewater: #f5e0dc;
+  --ctp-flamingo: #f2cdcd;
+  --ctp-pink: #f5c2e7;
+  --ctp-mauve: #cba6f7;
+  --ctp-red: #f38ba8;
+  --ctp-maroon: #eba0ac;
+  --ctp-peach: #fab387;
+  --ctp-yellow: #f9e2af;
+  --ctp-green: #a6e3a1;
+  --ctp-teal: #94e2d5;
+  --ctp-sky: #89dceb;
+  --ctp-sapphire: #74c7ec;
+  --ctp-blue: #89b4fa;
+  --ctp-lavender: #b4befe;
+
+  /* Surface colors */
+  --ctp-text: #cdd6f4;
+  --ctp-subtext1: #bac2de;
+  --ctp-subtext0: #a6adc8;
+  --ctp-overlay2: #9399b2;
+  --ctp-overlay1: #7f849c;
+  --ctp-overlay0: #6c7086;
+  --ctp-surface2: #585b70;
+  --ctp-surface1: #45475a;
+  --ctp-surface0: #313244;
+  --ctp-base: #1e1e2e;
+  --ctp-mantle: #181825;
+  --ctp-crust: #11111b;
+
+  /* Calendar-specific colors */
+  --cal-work: var(--ctp-blue);
+  --cal-personal: var(--ctp-mauve);
+
+  /* Glass effect */
+  --glass-bg: rgba(30, 30, 46, 0.85);
+  --glass-border: rgba(69, 71, 90, 0.5);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Reset & Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: var(--ctp-crust);
+  color: var(--ctp-text);
+  min-height: 100vh;
+}
+
+/* App Layout */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Glass Panel Effect */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Sidebar */
+.sidebar {
+  width: 200px;
+  padding: 1.5rem;
+  border-right: 1px solid var(--ctp-surface0);
+  flex-shrink: 0;
+}
+
+.sidebar-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ctp-subtext0);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+}
+
+.calendar-list {
+  list-style: none;
+}
+
+.calendar-item {
+  margin-bottom: 0.5rem;
+}
+
+.calendar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.calendar-toggle:hover {
+  background: var(--ctp-surface0);
+}
+
+.calendar-toggle input {
+  display: none;
+}
+
+.calendar-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--dot-color);
+  transition: opacity 0.2s;
+}
+
+.calendar-toggle input:not(:checked) + .calendar-dot {
+  opacity: 0.3;
+}
+
+.calendar-name {
+  font-size: 0.9375rem;
+  color: var(--ctp-text);
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  padding: 1.5rem;
+  overflow: auto;
+}
+
+/* FullCalendar Theme Overrides */
+.fc {
+  --fc-border-color: var(--ctp-surface1);
+  --fc-button-bg-color: var(--ctp-surface0);
+  --fc-button-border-color: var(--ctp-surface1);
+  --fc-button-text-color: var(--ctp-text);
+  --fc-button-hover-bg-color: var(--ctp-surface1);
+  --fc-button-hover-border-color: var(--ctp-surface2);
+  --fc-button-active-bg-color: var(--ctp-surface2);
+  --fc-button-active-border-color: var(--ctp-overlay0);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--ctp-surface0);
+  --fc-list-event-hover-bg-color: var(--ctp-surface1);
+  --fc-today-bg-color: rgba(137, 180, 250, 0.1);
+  --fc-now-indicator-color: var(--ctp-red);
+  --fc-event-bg-color: var(--ctp-blue);
+  --fc-event-border-color: transparent;
+  --fc-event-text-color: var(--ctp-crust);
+}
+
+.fc .fc-toolbar-title {
+  color: var(--ctp-text);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.fc .fc-col-header-cell-cushion {
+  color: var(--ctp-subtext0);
+  font-weight: 500;
+}
+
+.fc .fc-timegrid-slot-label-cushion {
+  color: var(--ctp-overlay1);
+  font-size: 0.75rem;
+}
+
+.fc .fc-daygrid-day-number {
+  color: var(--ctp-text);
+}
+
+.fc .fc-day-today .fc-daygrid-day-number {
+  background: var(--ctp-blue);
+  color: var(--ctp-crust);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fc .fc-button {
+  border-radius: 6px;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  transition: all 0.2s;
+}
+
+.fc .fc-button-group > .fc-button {
+  border-radius: 0;
+}
+
+.fc .fc-button-group > .fc-button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.fc .fc-button-group > .fc-button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.fc .fc-event {
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.fc .fc-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.fc .fc-timegrid-event {
+  border-radius: 6px;
+}
+
+/* Custom toolbar button for New Event */
+.fc-newEvent-button {
+  background: var(--ctp-blue) !important;
+  color: var(--ctp-crust) !important;
+  border-color: var(--ctp-blue) !important;
+}
+
+.fc-newEvent-button:hover {
+  background: var(--ctp-sapphire) !important;
+  border-color: var(--ctp-sapphire) !important;
+}
+
+/* Event Popover */
+.popover {
+  position: fixed;
+  z-index: 1000;
+  min-width: 250px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--ctp-surface1);
+}
+
+.popover-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ctp-text);
+}
+
+.popover-close {
+  background: none;
+  border: none;
+  color: var(--ctp-overlay1);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.popover-close:hover {
+  color: var(--ctp-text);
+}
+
+.popover-body {
+  padding: 1rem;
+}
+
+.popover-body p {
+  margin-bottom: 0.5rem;
+  color: var(--ctp-subtext1);
+  font-size: 0.875rem;
+}
+
+.popover-body p:last-child {
+  margin-bottom: 0;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal {
+  width: 100%;
+  max-width: 400px;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--ctp-surface1);
+}
+
+.modal-header h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--ctp-text);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--ctp-overlay1);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.modal-close:hover {
+  color: var(--ctp-text);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ctp-subtext1);
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--ctp-surface0);
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 8px;
+  color: var(--ctp-text);
+  font-size: 0.9375rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--ctp-blue);
+  box-shadow: 0 0 0 3px rgba(137, 180, 250, 0.2);
+}
+
+.form-group input::placeholder {
+  color: var(--ctp-overlay0);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+/* Buttons */
+.btn {
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn-primary {
+  background: var(--ctp-blue);
+  color: var(--ctp-crust);
+}
+
+.btn-primary:hover {
+  background: var(--ctp-sapphire);
+}
+
+.btn-secondary {
+  background: var(--ctp-surface1);
+  color: var(--ctp-text);
+}
+
+.btn-secondary:hover {
+  background: var(--ctp-surface2);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ctp-mantle);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ctp-surface1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ctp-surface2);
+}
