@@ -182,9 +182,9 @@ Notebook is Nina's persistent memory — markdown files she can read always and 
 
 ---
 
-### M4.5: Calendar System — IN PROGRESS
+### M4.5: Calendar System — COMPLETE
 
-Unified calendar replaces scattered time-aware concepts (reminders.md, cron schedules, task deadlines). Everything with a time dimension becomes a calendar event.
+Unified calendar replaces scattered time-aware concepts (reminders.md, cron schedules, task deadlines). Everything with a time dimension becomes a scheduled task.
 
 **Design spec:** [calendar-system.md](design/calendar-system.md)
 
@@ -215,10 +215,15 @@ Unified calendar replaces scattered time-aware concepts (reminders.md, cron sche
 
 **Key Design Decisions:**
 
-- Everything time-based is a calendar event (reminders, deadlines, recurring tasks)
+- Everything time-based is a "scheduled task" (reminders, deadlines, recurring tasks)
 - Multi-calendar from day one (agent calendar + subscribed calendars)
 - External calendars modeled as channel plugins (Google, Apple, Outlook)
 - `reminders.md` retired; `external-communications.md` and `standing-orders.md` remain as Notebook files
+- Scheduler fires → brain query spawned → response logged to "Scheduled Events" conversation
+
+**Future Work (M5 integration):**
+- Show task execution history in calendar detail view (conversation at bottom of task panel)
+- Unified task visibility across scheduled tasks, inbox, and projects
 
 **Dependencies:** M4-S2 (dashboard workspace layout)
 
