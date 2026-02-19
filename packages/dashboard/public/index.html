@@ -240,7 +240,7 @@
               </template>
             </div>
 
-            <!-- Upcoming Events (Mini Calendar) -->
+            <!-- Upcoming Tasks (Mini Calendar) -->
             <div class="mt-8">
               <div class="flex items-center justify-between mb-3">
                 <h2
@@ -261,7 +261,7 @@
                 <div x-ref="miniCalendarEl" class="mini-calendar"></div>
               </div>
 
-              <!-- Today's events list -->
+              <!-- Today's tasks list -->
               <div class="space-y-2">
                 <template x-for="event in todayEvents" :key="event.id">
                   <button
@@ -709,7 +709,7 @@
           </template>
 
           <!-- ======================================================== -->
-          <!-- Event Detail Tab (Outlook-style appointment view)        -->
+          <!-- Task Detail Tab (Outlook-style appointment view)          -->
           <!-- ======================================================== -->
           <template
             x-if="openTabs.find(t => t.id === activeTab)?.type === 'event'"
@@ -729,7 +729,7 @@
                     <div class="min-w-0 flex-1">
                       <h1
                         class="text-2xl font-bold text-tokyo-text truncate"
-                        x-text="getCurrentEvent()?.title || 'Event'"
+                        x-text="getCurrentEvent()?.title || 'Task'"
                       ></h1>
                       <!-- Calendar source -->
                       <p
@@ -754,7 +754,7 @@
                         type="text"
                         x-model="eventEditForm.title"
                         class="w-full text-2xl font-bold bg-tokyo-bg border border-tokyo-muted/30 rounded-lg px-3 py-1.5 text-tokyo-text focus:border-tokyo-blue focus:outline-none"
-                        placeholder="Event title"
+                        placeholder="Task title"
                       />
                       <!-- Calendar source (read-only in edit mode) -->
                       <p
@@ -1091,7 +1091,7 @@
                 </div>
               </div>
 
-              <!-- New Event button -->
+              <!-- New Task button -->
               <button
                 @click="openEventModal()"
                 class="w-full cal-action-btn cal-action-btn-cta justify-center text-sm"
@@ -1107,7 +1107,7 @@
                 >
                   <path d="M10 4v12M4 10h12" />
                 </svg>
-                <span>New Event</span>
+                <span>New Task</span>
               </button>
             </div>
 
@@ -1946,7 +1946,7 @@
       </div>
 
       <!-- ============================================================== -->
-      <!-- Event Modal (Create/Edit)                                      -->
+      <!-- Task Modal (Create/Edit)                                        -->
       <!-- ============================================================== -->
       <div
         x-show="eventModalOpen"
@@ -1972,7 +1972,7 @@
         >
           <h3
             class="text-lg font-semibold text-tokyo-text mb-4"
-            x-text="editingEvent ? 'Edit Event' : 'New Event'"
+            x-text="editingEvent ? 'Edit Task' : 'New Task'"
           ></h3>
 
           <div class="space-y-4">
@@ -1985,7 +1985,7 @@
               <input
                 x-model="eventForm.title"
                 type="text"
-                placeholder="Event title"
+                placeholder="What needs to happen?"
                 class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text placeholder-tokyo-muted/50 focus:outline-none focus:border-tokyo-blue/50 transition-colors"
                 x-ref="eventTitleInput"
               />

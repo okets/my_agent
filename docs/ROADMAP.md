@@ -182,7 +182,7 @@ Notebook is Nina's persistent memory — markdown files she can read always and 
 
 ---
 
-### M4.5: Calendar System — PLANNED
+### M4.5: Calendar System — IN PROGRESS
 
 Unified calendar replaces scattered time-aware concepts (reminders.md, cron schedules, task deadlines). Everything with a time dimension becomes a calendar event.
 
@@ -192,13 +192,17 @@ Unified calendar replaces scattered time-aware concepts (reminders.md, cron sche
 | ------ | ----------------------- | -------- | ------------------------------------------------- | --------------------------------------------------- |
 | S1     | CalDAV Infrastructure   | Complete | [plan](sprints/m4.5-s1-caldav-infrastructure/plan.md) | [review](sprints/m4.5-s1-caldav-infrastructure/review.md) |
 | S2     | Calendar Dashboard      | Complete | [plan](sprints/m4.5-s2-calendar-dashboard/plan.md) | [review](sprints/m4.5-s2-calendar-dashboard/review.md) |
-| S3     | MCP Tools + Scheduler   | Planned  | —                                                 | —                                                   |
+| S3     | API Discovery + Scheduler | Complete | [plan](sprints/m4.5-s3-scheduler/plan.md) | [review](sprints/m4.5-s3-scheduler/review.md) |
+| S4     | Event Dispatch          | Complete | [plan](sprints/m4.5-s4-event-dispatch/plan.md) | [review](sprints/m4.5-s4-event-dispatch/review.md) |
+| S5     | Terminology Refactor    | Complete | — | — |
 
 **Deliverables:**
 
 - _(S1)_ Radicale setup, CalendarRepository interface, tsdav client, health checks
 - _(S2)_ FullCalendar tab in dashboard, multi-calendar display, event CRUD UI
-- _(S3)_ calendar_* MCP tools for Nina, CalendarScheduler for event triggers, prompt context
+- _(S3)_ API discovery endpoint, CalendarScheduler for polling, prompt context with Quick Actions
+- _(S4)_ Event dispatch: scheduler fires → spawn brain query → Nina responds
+- _(S5)_ "Scheduled task" terminology throughout code and docs
 
 **Tech Stack:**
 

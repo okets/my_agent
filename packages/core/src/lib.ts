@@ -89,4 +89,4 @@ export type {
   SchedulerStatus,
   FiredEventRecord,
 } from './calendar/index.js'
-export type { AssemblePromptOptions } from './prompt.js'
+export type { AssemblePromptOptions, ScheduledTaskContext } from './prompt.js'

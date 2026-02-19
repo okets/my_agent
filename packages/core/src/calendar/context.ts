@@ -1,7 +1,7 @@
 /**
  * Calendar Context for System Prompt
  *
- * Assembles a markdown summary of upcoming events for inclusion
+ * Assembles a markdown summary of scheduled tasks for inclusion
  * in the agent's system prompt.
  */
 
@@ -73,7 +73,7 @@ function formatEvent(event: CalendarEvent): string {
  */
 function formatEventsAsMarkdown(events: CalendarEvent[]): string {
   if (events.length === 0) {
-    return 'No upcoming events.'
+    return 'No scheduled tasks.'
   }
 
   const now = DateTime.now()
@@ -163,9 +163,9 @@ export async function assembleCalendarContext(
 
     const markdown = `## Calendar
 
-You have access to a local CalDAV calendar system (Radicale). You can view, create, and manage calendar events.
+You have access to a local CalDAV calendar system (Radicale). You can view, create, and manage scheduled tasks.
 
-### Upcoming Events
+### Scheduled Tasks
 
 ${content}
 

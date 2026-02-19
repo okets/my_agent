@@ -43,10 +43,10 @@ The context below the command tells you which mode.
 
 | Method | Path | Required Fields | Description |
 |--------|------|-----------------|-------------|
-| GET | /api/calendar/events | — | List all events |
-| POST | /api/calendar/events | calendarId, title, start | Create event |
-| PUT | /api/calendar/events/:uid | — | Update event |
-| DELETE | /api/calendar/events/:uid | — | Delete event |
+| GET | /api/calendar/events | — | List all scheduled tasks |
+| POST | /api/calendar/events | calendarId, title, start | Create scheduled task |
+| PUT | /api/calendar/events/:uid | — | Update scheduled task |
+| DELETE | /api/calendar/events/:uid | — | Delete scheduled task |
 
 ## API Reference
 

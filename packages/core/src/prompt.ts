@@ -25,6 +25,38 @@ const NOTEBOOK_FILES = [
 // Per-file token limit to prevent prompt bloat (~4 chars per token)
 const MAX_NOTEBOOK_CHARS = 8000
 
+/**
+ * Format scheduled task context for inclusion in system prompt.
+ * Used when CalendarScheduler fires a scheduled task.
+ */
+function formatScheduledTaskContext(task: ScheduledTaskContext): string {
+  const lines = [
+    '## Triggered Scheduled Task',
+    '',
+    'A scheduled task just fired. Review and take appropriate action.',
+    '',
+    `**Task:** ${task.title}`,
+    `**Time:** ${task.start}${task.end ? ` - ${task.end}` : ''}`,
+    `**Calendar:** ${task.calendarId}`,
+  ]
+
+  if (task.description) {
+    lines.push(`**Description:** ${task.description}`)
+  }
+
+  if (task.action) {
+    lines.push(`**Action:** ${task.action}`)
+  }
+
+  lines.push('')
+  lines.push(
+    'Respond naturally. If this is a reminder, acknowledge it. ' +
+      'If it has an action field, handle it appropriately.',
+  )
+
+  return lines.join('\n')
+}
+
 async function readOptionalFile(filePath: string): Promise<string | null> {
   try {
     return await readFile(filePath, 'utf-8')
@@ -57,9 +89,21 @@ async function loadSkillDescriptions(skillsDirs: string[]): Promise<string | nul
   return `## Available Commands\n\n${commands.join('\n')}`
 }
 
+/** Scheduled task context for scheduler-triggered queries */
+export interface ScheduledTaskContext {
+  title: string
+  start: string
+  end?: string
+  calendarId: string
+  description?: string
+  action?: string
+}
+
 export interface AssemblePromptOptions {
   /** Pre-assembled calendar context (from assembleCalendarContext) */
   calendarContext?: string
+  /** Scheduled task that triggered this query (from CalendarScheduler) */
+  scheduledTaskContext?: ScheduledTaskContext
 }
 
 export async function assembleSystemPrompt(
@@ -102,6 +146,11 @@ export async function assembleSystemPrompt(
   // Add calendar context if provided (replaces static reminders.md)
   if (options.calendarContext) {
     sections.push(options.calendarContext)
+  }
+
+  // Add triggered scheduled task context (from CalendarScheduler)
+  if (options.scheduledTaskContext) {
+    sections.push(formatScheduledTaskContext(options.scheduledTaskContext))
   }
 
   const skillsDirs = [FRAMEWORK_SKILLS_DIR, path.join(brainDir, 'skills')]

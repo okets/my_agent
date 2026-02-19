@@ -5,11 +5,11 @@ import {
   loadConfig,
   toDisplayStatus,
   CalendarScheduler,
-  defaultEventHandler,
   createCalDAVClient,
   loadCalendarConfig,
   loadCalendarCredentials,
 } from "@my-agent/core";
+import { createEventHandler } from "./scheduler/event-handler.js";
 import { createBaileysPlugin } from "@my-agent/channel-whatsapp";
 import { createServer } from "./server.js";
 import {
@@ -173,10 +173,16 @@ async function main() {
       if (calConfig && credentials) {
         const caldavClient = createCalDAVClient(calConfig, credentials);
 
+        // Create event handler that spawns brain queries
+        const eventHandler = createEventHandler({
+          conversationManager,
+          agentDir,
+        });
+
         calendarScheduler = new CalendarScheduler(caldavClient, {
           pollIntervalMs: 60_000, // 1 minute
           lookAheadMinutes: 5,
-          onEventFired: defaultEventHandler,
+          onEventFired: eventHandler,
           firedEventsPath: `${agentDir}/runtime/fired-events.json`,
         });
 
