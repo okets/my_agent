@@ -1,24 +1,25 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-02-19
+> **Updated:** 2026-02-20
 
 ---
 
 ## Quick Status
 
-| Milestone                    | Status   | Progress                     |
-| ---------------------------- | -------- | ---------------------------- |
-| **M1: Foundation**           | Complete | 4/4 sprints                  |
-| **M2: Web UI**               | Complete | 6/6 sprints                  |
-| **M3: WhatsApp Channel**     | Active   | S1-S3 done, S4 stashed       |
-| **M4: Notebook System**      | Active   | S1-S2 done, S3-S4 planned    |
-| **M4.5: Calendar System**    | Complete | 5/5 sprints                         |
-| **M5: Task System**          | Planned  | Design complete, sprints TBD |
-| **M6: Memory**               | Planned  | Design complete, sprints TBD |
-| **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
-| **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
-| **M9: Email Channel**        | Planned  | Design complete, sprints TBD |
+| Milestone                     | Status   | Progress                     |
+| ----------------------------- | -------- | ---------------------------- |
+| **M1: Foundation**            | Complete | 4/4 sprints                  |
+| **M2: Web UI**                | Complete | 6/6 sprints                  |
+| **M3: WhatsApp Channel**      | Complete | 3/3 sprints                  |
+| **M4: Notebook System**       | Complete | 2/2 sprints                  |
+| **M4.5: Calendar System**     | Complete | 5/5 sprints                  |
+| **M5: Task System**           | Planned  | Design complete, sprints TBD |
+| **M6: Memory**                | Planned  | Design complete, sprints TBD |
+| **M7: Coding Projects**       | Planned  | Design complete, sprints TBD |
+| **M8: Operations Dashboard**  | Planned  | Design complete, sprints TBD |
+| **M9: Email Channel**         | Planned  | Design complete, sprints TBD |
+| **M10: External Comms**       | Planned  | Deferred from M3/M4          |
 
 ---
 
@@ -28,25 +29,16 @@
 2026-02                                          2026-03+
 ├─────────────────────────────────────────────────────────────────────►
 
-M1 Foundation     M2 Web UI        M3 WhatsApp     M4 Notebook    M5-M9 Future
-[████████████]    [████████████]    [████░░░░░░]    [██░░░░░░░░]   [░░░░░░░░░░]
-   COMPLETE          COMPLETE         ACTIVE          ACTIVE          PLANNED
+M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5+ Future
+[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [░░░░░░░░░░]
+   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         PLANNED
 
-                  S1 ██ Server + Chat (done)
-                  S2 ██ Streaming (done)        S1 ██ Channel Infra (done)
-                  S3 ██ Hatching Wizard (done)  S2 ██ WhatsApp Plugin (done)
-                  S4 ██ Conversations (done)    S3 ██ Slash Commands (done)
-                  S5 ██ Naming (done)           S4 ░░ External Comms (stashed)
-                  S6 ██ Advanced Chat (done)
-                                                                        S1 ██ Infrastructure (done)
-                                                                        S2 ░░ Dashboard Evolution
-                                                                        S3 ░░ Notebook Editing Tool
-                                                        M4 Notebook ──► Nina edits config files
-                                                        M5 Tasks
-                                                        M6 Memory
-                                                        M7 Coding Projects
-                                                        M8 Ops Dashboard
-                                                        M9 Email
+                                                                                    M5 Tasks
+                                                                                    M6 Memory
+                                                                                    M7 Coding Projects
+                                                                                    M8 Ops Dashboard
+                                                                                    M9 Email
+                                                                                    M10 External Comms
 ```
 
 ---
@@ -103,66 +95,40 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 
 ---
 
-### M3: WhatsApp Channel — IN PROGRESS
+### M3: WhatsApp Channel — COMPLETE
 
-First external channel. Agent owns a phone number, responds immediately. Introduces identity-based routing (conversations vs external communications).
+First external channel. Agent owns a phone number, responds immediately.
 
 | Sprint | Name                      | Status   | Plan                                                 | Review                                            |
 | ------ | ------------------------- | -------- | ---------------------------------------------------- | ------------------------------------------------- |
 | S1     | Channel Infrastructure    | Complete | [plan](sprints/m3-s1-channel-infrastructure/plan.md) | —                                                 |
 | S2     | WhatsApp Plugin + Routing | Complete | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)        | [review](sprints/m3-s2-whatsapp-plugin/review.md) |
 | S3     | Slash Commands            | Complete | [plan](sprints/m3-s3-slash-commands/plan.md)         | [review](sprints/m3-s3-slash-commands/review.md)  |
-| S4     | External Comms & Personal | Stashed  | [plan](sprints/m3-s4-external-personal/plan.md)      | —                                                 |
 
 **Design references:**
 
 - [channels.md](design/channels.md) — channel architecture, identity-based routing, ruleset model
-- [conversation-system.md](design/conversation-system.md) — conversation persistence, external communications concept
 
 **Deliverables:**
 
 - _(S1)_ Channel plugin interface, manager with resilience (reconnection, dedup, debounce, watchdog), mock plugin
 - _(S2)_ Baileys WhatsApp plugin, QR pairing, identity-based routing, owner conversations, settings view
 - _(S3)_ Slash commands: `/new` (conversation reset with pinning), `/model` (model switching) — works on web + WhatsApp
-- _(S4)_ External communications UI with ruleset model (including rule evolution via conversation), personal channel role with monitoring gate, approval flow for drafts
 
 **Dependencies:** M2 (chat infra)
 
-**Includes:**
-
-- Channel-specific conversation naming (contact name + topic instead of haiku). `NamingService` needs a channel-aware prompt. See `docs/design/conversation-system.md` §Conversation Naming.
-
-**Note:** M3 ships standalone. Basic WhatsApp ↔ agent works. Project spawning from WhatsApp ("fix this bug") requires M5 — that's a later enhancement, not a blocker.
-
-**⚠️ M3-S4 Implementation Stashed:**
-The M3-S4 external communications implementation was stashed to make way for M4 (Notebook System) which provides a better architecture. To recover:
-
-```bash
-git stash list   # Find stash@{0} and stash@{1}
-# stash@{0}: M3-S4 untracked files (monitoring-config.ts, rules-loader.ts, external.ts)
-# stash@{1}: M3-S4 external communications implementation (all package/ modifications)
-
-# Pop in reverse order when ready:
-git stash pop stash@{1}  # Modified files first
-git stash pop stash@{0}  # Then untracked files
-```
-
-The M4-S4 sprint plan documents how to refactor this stashed code to use the Notebook system.
+**Note:** External communications (personal channel role, ruleset model, approval flow) deferred to M10.
 
 ---
 
-### M4: Notebook System — IN PROGRESS
+### M4: Notebook System — COMPLETE
 
-Notebook is Nina's persistent memory — markdown files she can read always and write when talking to her owner. This enables conversational configuration instead of brittle middleware pattern matching.
+Notebook is Nina's persistent memory — markdown files she can read always and write when talking to her owner.
 
 | Sprint | Name                    | Status   | Plan                                                  | Review |
 | ------ | ----------------------- | -------- | ----------------------------------------------------- | ------ |
 | S1     | Notebook Infrastructure | Complete | [plan](sprints/m4-s1-notebook-infrastructure/plan.md) | [review](sprints/m4-s1-notebook-infrastructure/review.md) |
-| S2     | Dashboard Evolution     | Complete | [plan](sprints/m4-s2-dashboard-evolution/plan.md)     | —      |
-| S3     | Notebook Editing Tool   | Planned  | [plan](sprints/m4-s3-notebook-editing-tool/plan.md)   | —      |
-| S4     | External Communications | Planned  | [plan](sprints/m4-s4-external-communications/plan.md) | —      |
-
-**Note:** M4-S5 (Reminders & Tasks) and M4-S6 (Dashboard Integration) have been superseded by M4.5 Calendar System.
+| S2     | Dashboard Evolution     | Complete | [plan](sprints/m4-s2-dashboard-evolution/plan.md)     | [review](sprints/m4-s2-dashboard-evolution/review.md) |
 
 **Architecture:**
 
@@ -175,12 +141,10 @@ Notebook is Nina's persistent memory — markdown files she can read always and 
 
 - _(S1)_ Notebook file templates, prompt assembly with size limits, system directives
 - _(S2)_ Dashboard workspace layout: tabs on left, permanent chat on right, context awareness
-- _(S3)_ `notebook_edit` tool for section-based file editing, access control, dashboard refresh
-- _(S4)_ Refactor M3-S4 external communications to use Notebook (pop stash, remove middleware)
 
 **Dependencies:** M3-S3 (channels working)
 
-**Note:** M4 enables conversational configuration. "Block Sarah" or "I had a fight with Sarah, ignore her" both work because Nina understands intent and uses `notebook_edit` tool — no regex pattern matching.
+**Note:** `notebook_edit` tool moved to M5 (needed for standing orders). External communications deferred to M10. M4-S5/S6 superseded by M4.5 Calendar System.
 
 ---
 
@@ -235,7 +199,7 @@ Unified calendar replaces scattered time-aware concepts (reminders.md, cron sche
 
 ### M5: Task System — PLANNED
 
-Tasks as first-class entities with execution logs, autonomous work alongside interactive conversations.
+Tasks as first-class entities with execution logs, autonomous work alongside interactive conversations. Includes `notebook_edit` tool for Nina to manage her own standing orders.
 
 **Design specs:**
 - [task-system.md](design/task-system.md) — Architecture, folder structure, Comms MCP, autonomy modes
@@ -244,13 +208,20 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 **Deliverables:**
 
 - Task entity in agent.db (renamed from conversations.db)
-- Task classification (trivial / ad-hoc / project / ongoing)
-- Folder creation with CLAUDE.md + task.md
 - TaskManager + TaskExecutor with session continuity
-- Comms MCP server (notify, request_review, escalate, ask_quick)
-- Execution logs (JSONL, compression)
 - CalDAV integration (scheduled tasks create Task entities)
+- Execution logs (JSONL, compression)
+- `notebook_edit` tool for section-based file editing (standing orders, preferences)
+- Comms MCP server (notify, request_input, escalate) — tools Nina uses during task execution
+- Notification routing that respects standing orders
 - Dashboard: execution history in task detail, "Needs attention" section
+
+**Philosophy:**
+- **High autonomy:** Act, don't ask. If Nina can solve it, she solves it.
+- **Real-time summaries:** Notify on task completion. User sees what got done.
+- **Proportional effort:** Don't over-engineer for minor issues. If fix > problem, escalate.
+- **Escalate rarely:** Only interrupt for things that truly need user judgment.
+- **Learnable:** User feedback ("stop notifying about X") → standing order → behavior adapts.
 
 **Dependencies:** M2 (dashboard), M4.5 (calendar scheduler)
 
@@ -336,51 +307,88 @@ Email plugin with both dedicated and personal roles.
 
 ---
 
+### M10: External Communications — PLANNED
+
+Cross-channel external communications: personal channel role, ruleset model, approval flows.
+
+**Design references:**
+
+- [channels.md](design/channels.md) — identity-based routing, ruleset model, personal channel role
+- [conversation-system.md](design/conversation-system.md) — external communications concept
+
+**Deliverables:**
+
+- Personal channel role (agent monitors user's accounts, on-demand only)
+- Ruleset model with rule evolution via conversation
+- External communications UI with approval flow for drafts
+
+**Dependencies:** M5 (task system, notebook_edit tool)
+
+**Note:** This milestone consolidates deferred work from M3-S4 and M4-S3/S4. Requires solid agentic flow from M5 before implementation.
+
+**⚠️ Stashed Code:**
+M3-S4 external communications implementation is stashed. To recover when ready:
+
+```bash
+git stash list   # Find stash@{0} and stash@{1}
+# stash@{0}: M3-S4 untracked files (monitoring-config.ts, rules-loader.ts, external.ts)
+# stash@{1}: M3-S4 external communications implementation (all package/ modifications)
+
+# Pop in reverse order:
+git stash pop stash@{1}  # Modified files first
+git stash pop stash@{0}  # Then untracked files
+```
+
+---
+
 ## Design Specs
 
 Design specs define architecture before implementation. Each spec should be complete before sprints begin.
 
 | Spec                 | Status   | Milestones | Path                                                             |
 | -------------------- | -------- | ---------- | ---------------------------------------------------------------- |
-| Channels             | Complete | M3, M9     | [design/channels.md](design/channels.md)                         |
+| Channels             | Complete | M3, M9, M10 | [design/channels.md](design/channels.md)                        |
 | Conversations        | Complete | M2         | [design/conversation-system.md](design/conversation-system.md)   |
-| Notebook             | Complete | M4         | [design/notebook.md](design/notebook.md)                         |
+| Notebook             | Complete | M4, M5, M10 | [design/notebook.md](design/notebook.md)                        |
 | Calendar System      | Complete | M4.5       | [design/calendar-system.md](design/calendar-system.md)           |
 | Task System          | Complete | M5         | [design/task-system.md](design/task-system.md)                   |
 | Memory               | Complete | M6         | [design/memory-system.md](design/memory-system.md)               |
 | Coding Projects      | Complete | M7         | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Complete | M8         | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
-**Note:** M3 (WhatsApp) and M9 (Email) are covered by `channels.md`. No separate specs needed.
+**Note:** M3 (WhatsApp), M9 (Email), and M10 (External Comms) are covered by `channels.md`. No separate specs needed.
 
 ---
 
 ## Dependencies
 
 ```
-M1 Foundation ───► M2 Web UI ───┬──► M3 WhatsApp ───► M4 Notebook ───► M4.5 Calendar
-                                │                                            │
-                                │                                            ▼
-                                └────────────────────────────────────► M5 Tasks
+M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 Notebook ───► M4.5 Calendar
+      (done)          (done)         (done)           (done)            (done)
                                                                           │
-                                                                          ├──► M6 Memory
+                                                                          ▼
+                                                                      M5 Tasks
                                                                           │
-                                                                          ├──► M7 Coding Projects
+                                                   ┌──────────────────────┼──────────────────────┐
+                                                   │                      │                      │
+                                                   ▼                      ▼                      ▼
+                                               M6 Memory          M7 Coding Projects      M8 Ops Dashboard
+                                                                                                 │
+                                                   │                      │                      │
+                                                   └──────────────────────┼──────────────────────┘
                                                                           │
-                                                                          ├──► M8 Ops Dashboard
+                                                                          ▼
+                                                                      M9 Email
                                                                           │
-                                                                          └──► M9 Email
+                                                                          ▼
+                                                                 M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete through M4.5)
 
-**M5 unlocks autonomy:** M6-M9 all depend on M5 (task system + Comms MCP). Order within M6-M9 is flexible.
+**M5 unlocks autonomy:** M6-M10 all depend on M5 (task system + Comms MCP). Order within M6-M9 is flexible.
 
-**M3 is standalone:** Basic WhatsApp works after M2. Full task integration (project spawning) comes after M5.
-
-**M4 enables conversational config:** M3-S4 (External Communications) was stashed and will be refactored in M4-S4 to use Notebook instead of middleware pattern matching.
-
-**M4.5 unifies time concepts:** Reminders, deadlines, scheduled tasks all become calendar events. M5 scheduled tasks depend on M4.5 calendar infrastructure.
+**M10 requires M5:** External communications needs solid agentic flow (Comms MCP) before implementation.
 
 **M7 requires prototyping:** Coding Projects Sprint 1 validates key assumptions (folder-scoped resume, stream-json, concurrent sessions). Results shape the architecture.
 
@@ -506,4 +514,4 @@ After completion:
 
 ---
 
-_Updated: 2026-02-18_
+_Updated: 2026-02-20_
