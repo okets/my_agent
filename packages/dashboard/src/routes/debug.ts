@@ -748,4 +748,44 @@ export async function registerDebugRoutes(
 
     return scheduler.getStatus();
   });
+
+  // POST /test-notification - Create test notification (M5-S4)
+  fastify.post<{
+    Body: {
+      type?: "notify" | "request_input" | "escalate";
+      message?: string;
+      importance?: "info" | "warning" | "success" | "error";
+      question?: string;
+      options?: string[];
+      problem?: string;
+      severity?: "low" | "medium" | "high" | "critical";
+    };
+  }>("/test-notification", async (request) => {
+    const service = fastify.notificationService;
+    if (!service) {
+      return { error: "Notification service not available" };
+    }
+
+    const { type = "notify", message, importance, question, options, problem, severity } = request.body || {};
+
+    switch (type) {
+      case "notify":
+        return service.notify({
+          message: message || "Test notification from debug API",
+          importance: importance || "info",
+        });
+      case "request_input":
+        return service.requestInput({
+          question: question || "Test question from debug API?",
+          options: options || ["Yes", "No", "Maybe"],
+        });
+      case "escalate":
+        return service.escalate({
+          problem: problem || "Test escalation from debug API",
+          severity: severity || "medium",
+        });
+      default:
+        return { error: "Unknown notification type" };
+    }
+  });
 }
