@@ -1,21 +1,16 @@
 /**
  * Scheduled Task Handler for CalendarScheduler
  *
- * Spawns brain queries when scheduled tasks fire.
- * This closes the loop: scheduled task fires → brain responds.
+ * Creates Task entities and executes them when calendar events fire.
+ * This closes the loop: scheduled event fires → Task created → TaskExecutor runs.
+ *
+ * M5-S2: Updated to use TaskManager/TaskExecutor instead of direct brain queries.
  */
 
-import {
-  createBrainQuery,
-  loadConfig,
-  assembleSystemPrompt,
-  assembleCalendarContext,
-  createCalDAVClient,
-  loadCalendarConfig,
-  loadCalendarCredentials,
-} from "@my-agent/core";
-import type { CalendarEvent, ScheduledTaskContext } from "@my-agent/core";
+import type { CalendarEvent } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
+import { TaskManager, TaskLogStorage, TaskExecutor } from "../tasks/index.js";
+import type { CreateTaskInput } from "../tasks/index.js";
 
 const SCHEDULER_CHANNEL = "system";
 const SCHEDULER_CONVERSATION_TITLE = "Scheduled Events";
@@ -25,26 +20,14 @@ const SCHEDULER_CONVERSATION_TITLE = "Scheduled Events";
  */
 interface EventHandlerConfig {
   conversationManager: ConversationManager;
+  taskManager: TaskManager;
+  logStorage: TaskLogStorage;
   agentDir: string;
 }
 
 /**
- * Convert CalendarEvent to ScheduledTaskContext for prompt injection.
- */
-function toScheduledTaskContext(event: CalendarEvent): ScheduledTaskContext {
-  return {
-    title: event.title,
-    start: event.start.toISOString(),
-    end: event.end?.toISOString(),
-    calendarId: event.calendarId,
-    description: event.description,
-    action: event.action,
-  };
-}
-
-/**
  * Get or create the scheduler conversation.
- * Uses a consistent ID so all scheduler events go to the same conversation.
+ * Used to log task execution summaries for user visibility.
  */
 async function getSchedulerConversation(
   manager: ConversationManager,
@@ -69,103 +52,140 @@ async function getSchedulerConversation(
 }
 
 /**
- * Spawn a brain query for a fired scheduled task.
+ * Check if an event is recurring and generate a recurrence ID.
+ * Groups all occurrences of the same recurring event.
  *
- * The brain receives the scheduled task context in its system prompt and
- * responds appropriately (acknowledge reminder, execute action, etc.)
+ * For recurring events (has rrule), we use the event UID as the recurrence ID
+ * since all occurrences share the same UID.
+ */
+function getRecurrenceId(event: CalendarEvent): string | undefined {
+  if (!event.rrule) {
+    return undefined;
+  }
+  // Use calendar ID + UID to ensure uniqueness across calendars
+  return `${event.calendarId}:${event.uid}`;
+}
+
+/**
+ * Generate the occurrence date key for a recurring event.
+ */
+function getOccurrenceDate(event: CalendarEvent): string {
+  return event.start.toISOString().split("T")[0]; // YYYY-MM-DD
+}
+
+/**
+ * Build task instructions from calendar event.
+ */
+function buildInstructions(event: CalendarEvent): string {
+  let instructions = `Calendar event fired: "${event.title}"`;
+
+  if (event.description) {
+    instructions += `\n\nDescription: ${event.description}`;
+  }
+
+  if (event.action) {
+    instructions += `\n\nAction: ${event.action}`;
+  }
+
+  return instructions;
+}
+
+/**
+ * Handle a fired calendar event by creating/resuming a Task and executing it.
  */
 export async function spawnEventQuery(
   event: CalendarEvent,
   config: EventHandlerConfig,
 ): Promise<string> {
-  const { conversationManager, agentDir } = config;
+  const { conversationManager, taskManager, logStorage, agentDir } = config;
 
   console.log(`[EventHandler] Processing event: "${event.title}"`);
 
-  // Get or create scheduler conversation
+  // Build task input
+  const recurrenceId = getRecurrenceId(event);
+  const occurrenceDate = getOccurrenceDate(event);
+
+  let task;
+  let created: boolean;
+
+  // Store calendarId:uid as sourceRef so executor can extract calendarId
+  const sourceRef = `${event.calendarId}:${event.uid}`;
+
+  if (recurrenceId) {
+    // Recurring event: find existing or create new with shared session
+    const result = taskManager.findOrCreateForOccurrence({
+      type: "scheduled",
+      sourceType: "caldav",
+      sourceRef,
+      title: event.title,
+      instructions: buildInstructions(event),
+      createdBy: "scheduler",
+      scheduledFor: event.start,
+      recurrenceId,
+      occurrenceDate,
+    });
+    task = result.task;
+    created = result.created;
+
+    if (created) {
+      console.log(
+        `[EventHandler] Created task for recurring event: ${task.id}`,
+      );
+    } else {
+      console.log(`[EventHandler] Resuming recurring task: ${task.id}`);
+    }
+  } else {
+    // One-time event: create new task
+    const taskInput: CreateTaskInput = {
+      type: "scheduled",
+      sourceType: "caldav",
+      sourceRef,
+      title: event.title,
+      instructions: buildInstructions(event),
+      createdBy: "scheduler",
+      scheduledFor: event.start,
+    };
+    task = taskManager.create(taskInput);
+    created = true;
+
+    console.log(`[EventHandler] Created task for one-time event: ${task.id}`);
+  }
+
+  // Create executor and run
+  const executor = new TaskExecutor({
+    taskManager,
+    logStorage,
+    agentDir,
+  });
+
+  const result = await executor.run(task);
+
+  // Log execution summary to scheduler conversation
   const conversationId = await getSchedulerConversation(conversationManager);
 
-  // Load brain configuration
-  const brainConfig = loadConfig();
-
-  // Try to assemble calendar context (for awareness of other events)
-  let calendarContext: string | undefined;
   try {
-    const calConfig = loadCalendarConfig(agentDir);
-    const credentials = loadCalendarCredentials(agentDir);
-
-    if (calConfig && credentials) {
-      const calendarRepo = createCalDAVClient(calConfig, credentials);
-      calendarContext = await assembleCalendarContext(calendarRepo);
-    }
-  } catch (err) {
-    console.warn(
-      `[EventHandler] Calendar context unavailable: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  // Assemble system prompt with scheduled task context
-  const scheduledTaskContext = toScheduledTaskContext(event);
-  const systemPrompt = await assembleSystemPrompt(brainConfig.brainDir, {
-    calendarContext,
-    scheduledTaskContext,
-  });
-
-  // Build the user message
-  const userMessage = `Calendar event fired: "${event.title}"${
-    event.description ? `\n\nDescription: ${event.description}` : ""
-  }${event.action ? `\n\nAction: ${event.action}` : ""}`;
-
-  // Spawn brain query
-  const query = createBrainQuery(userMessage, {
-    model: brainConfig.model,
-    systemPrompt,
-    continue: false,
-    includePartialMessages: false, // We want complete messages
-  });
-
-  // Collect response
-  let response = "";
-  try {
-    for await (const msg of query) {
-      if (msg.type === "assistant") {
-        const textBlocks = msg.message.content.filter(
-          (block: { type: string }) => block.type === "text",
-        );
-        for (const block of textBlocks) {
-          if ("text" in block) {
-            response += block.text;
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error(`[EventHandler] Error querying brain:`, err);
-    response = `[Error: ${err instanceof Error ? err.message : String(err)}]`;
-  }
-
-  // Log the response
-  console.log(`[EventHandler] Brain response for "${event.title}":`);
-  console.log(response);
-
-  // Record turn in conversation transcript
-  try {
-    // Get current conversation to determine turn number
     const conversation = await conversationManager.get(conversationId);
     const turnNumber = (conversation?.turnCount ?? 0) + 1;
     const timestamp = new Date().toISOString();
 
+    // User turn: task trigger
     await conversationManager.appendTurn(conversationId, {
       type: "turn",
       role: "user",
-      content: userMessage,
+      content: `[Task: ${task.id}] ${task.title}`,
       timestamp,
       turnNumber,
     });
+
+    // Assistant turn: execution result
+    const summary = result.success
+      ? result.response
+      : `[Error: ${result.error}]`;
+
     await conversationManager.appendTurn(conversationId, {
       type: "turn",
       role: "assistant",
-      content: response,
+      content: summary,
       timestamp: new Date().toISOString(),
       turnNumber,
     });
@@ -173,14 +193,14 @@ export async function spawnEventQuery(
     console.warn(`[EventHandler] Failed to record turn:`, err);
   }
 
-  return response;
+  return result.response;
 }
 
 /**
  * Create an event handler function for use with CalendarScheduler.
  *
  * Usage:
- *   const handler = createEventHandler({ conversationManager, agentDir });
+ *   const handler = createEventHandler({ conversationManager, taskManager, logStorage, agentDir });
  *   scheduler = new CalendarScheduler(caldavClient, { onEventFired: handler });
  */
 export function createEventHandler(

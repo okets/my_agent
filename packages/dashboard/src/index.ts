@@ -21,6 +21,7 @@ import {
   MockChannelPlugin,
   ChannelMessageHandler,
 } from "./channels/index.js";
+import { TaskManager, TaskLogStorage } from "./tasks/index.js";
 import { connectionRegistry, sessionRegistry } from "./ws/chat-handler.js";
 
 // Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
@@ -162,10 +163,22 @@ async function main() {
     server.channelMessageHandler = messageHandler;
   }
 
+  // Initialize task system (only if hatched)
+  let taskManager: TaskManager | null = null;
+  let logStorage: TaskLogStorage | null = null;
+
+  if (hatched) {
+    // TaskManager needs the database from ConversationManager
+    const db = conversationManager.getDb();
+    taskManager = new TaskManager(db, agentDir);
+    logStorage = new TaskLogStorage(agentDir);
+    console.log("Task system initialized");
+  }
+
   // Initialize calendar scheduler (only if hatched)
   let calendarScheduler: CalendarScheduler | null = null;
 
-  if (hatched) {
+  if (hatched && taskManager && logStorage) {
     try {
       const calConfig = loadCalendarConfig(agentDir);
       const credentials = loadCalendarCredentials(agentDir);
@@ -173,9 +186,11 @@ async function main() {
       if (calConfig && credentials) {
         const caldavClient = createCalDAVClient(calConfig, credentials);
 
-        // Create event handler that spawns brain queries
+        // Create event handler that spawns task executions (M5-S2)
         const eventHandler = createEventHandler({
           conversationManager,
+          taskManager,
+          logStorage,
           agentDir,
         });
 
@@ -200,6 +215,8 @@ async function main() {
   }
 
   server.calendarScheduler = calendarScheduler;
+  server.taskManager = taskManager;
+  server.logStorage = logStorage;
 
   try {
     await server.listen({ port, host: "0.0.0.0" });

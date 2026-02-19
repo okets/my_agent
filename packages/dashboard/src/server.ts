@@ -15,6 +15,7 @@ import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
 import type { ChannelMessageHandler } from "./channels/message-handler.js";
+import type { TaskManager, TaskLogStorage } from "./tasks/index.js";
 import type { CalendarScheduler } from "@my-agent/core";
 
 export interface ServerOptions {
@@ -30,6 +31,8 @@ declare module "fastify" {
     abbreviationQueue: AbbreviationQueue | null;
     channelManager: ChannelManager | null;
     channelMessageHandler: ChannelMessageHandler | null;
+    taskManager: TaskManager | null;
+    logStorage: TaskLogStorage | null;
     calendarScheduler: CalendarScheduler | null;
   }
 }
@@ -87,6 +90,8 @@ export async function createServer(
   fastify.decorate("abbreviationQueue", null);
   fastify.decorate("channelManager", null);
   fastify.decorate("channelMessageHandler", null);
+  fastify.decorate("taskManager", null);
+  fastify.decorate("logStorage", null);
   fastify.decorate("calendarScheduler", null);
 
   // Register WebSocket chat route
