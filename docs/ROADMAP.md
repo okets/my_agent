@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-02-18
+> **Updated:** 2026-02-19
 
 ---
 
@@ -13,11 +13,12 @@
 | **M2: Web UI**               | Complete | 6/6 sprints                  |
 | **M3: WhatsApp Channel**     | Active   | S1-S3 done, S4 stashed       |
 | **M4: Notebook System**      | Active   | S1-S2 done, S3-S4 planned    |
-| **M4.5: Calendar System**    | Active   | S1-S2 done, S3 planned              |
+| **M4.5: Calendar System**    | Complete | 5/5 sprints                         |
 | **M5: Task System**          | Planned  | Design complete, sprints TBD |
 | **M6: Memory**               | Planned  | Design complete, sprints TBD |
-| **M7: Operations Dashboard** | Planned  | Design complete, sprints TBD |
-| **M8: Email Channel**        | Planned  | Design complete, sprints TBD |
+| **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
+| **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
+| **M9: Email Channel**        | Planned  | Design complete, sprints TBD |
 
 ---
 
@@ -27,7 +28,7 @@
 2026-02                                          2026-03+
 ├─────────────────────────────────────────────────────────────────────►
 
-M1 Foundation     M2 Web UI        M3 WhatsApp     M4 Notebook    M5-M8 Future
+M1 Foundation     M2 Web UI        M3 WhatsApp     M4 Notebook    M5-M9 Future
 [████████████]    [████████████]    [████░░░░░░]    [██░░░░░░░░]   [░░░░░░░░░░]
    COMPLETE          COMPLETE         ACTIVE          ACTIVE          PLANNED
 
@@ -41,10 +42,11 @@ M1 Foundation     M2 Web UI        M3 WhatsApp     M4 Notebook    M5-M8 Future
                                                                         S2 ░░ Dashboard Evolution
                                                                         S3 ░░ Notebook Editing Tool
                                                         M4 Notebook ──► Nina edits config files
-                                                        M5 Tasks ────┐
-                                                        M6 Memory ───┼─► Agent can develop itself
-                                                        M7 Ops Dash ─┘
-                                                        M8 Email
+                                                        M5 Tasks
+                                                        M6 Memory
+                                                        M7 Coding Projects
+                                                        M8 Ops Dashboard
+                                                        M9 Email
 ```
 
 ---
@@ -233,22 +235,24 @@ Unified calendar replaces scattered time-aware concepts (reminders.md, cron sche
 
 ### M5: Task System — PLANNED
 
-Folder-based tasks, Claude Code spawning, scheduled tasks.
+Tasks as first-class entities with execution logs, autonomous work alongside interactive conversations.
 
-**Design spec:** [task-system.md](design/task-system.md)
+**Design specs:**
+- [task-system.md](design/task-system.md) — Architecture, folder structure, Comms MCP, autonomy modes
+- [Task System Design (approved)](plans/2026-02-19-task-system-design.md) — Task entity, agent.db, session continuity
 
 **Deliverables:**
 
-- Task classification (ad-hoc / project / ongoing)
+- Task entity in agent.db (renamed from conversations.db)
+- Task classification (trivial / ad-hoc / project / ongoing)
 - Folder creation with CLAUDE.md + task.md
-- Claude Code session spawning (`claude` CLI)
-- Comms MCP server (notify, request_review, escalate)
-- Resume flow (`claude --continue`)
-- Scheduled tasks (cron-based)
+- TaskManager + TaskExecutor with session continuity
+- Comms MCP server (notify, request_review, escalate, ask_quick)
+- Execution logs (JSONL, compression)
+- CalDAV integration (scheduled tasks create Task entities)
+- Dashboard: execution history in task detail, "Needs attention" section
 
-**Dependencies:** M2 (dashboard for approvals)
-
-**After M5:** The agent can develop itself. M6, M7, M8 become agent projects with human review.
+**Dependencies:** M2 (dashboard), M4.5 (calendar scheduler)
 
 ---
 
@@ -268,11 +272,31 @@ Notebook memory with flexible user-defined lists, daily summaries.
 
 **Dependencies:** M2 (conversation search as fallback)
 
-**Note:** M6 could be the agent's first self-development project after M5 unlocks.
+---
+
+### M7: Coding Projects — PLANNED
+
+Autonomous coding: internal self-development projects + user code session relay.
+
+**Design spec:** [coding-projects.md](design/coding-projects.md)
+
+**Deliverables:**
+
+- Internal Projects: folder templates, efficiency principles, autonomous Claude Code sessions
+- User's Code Projects: dashboard spawns session on user's repo, streams to tab, summarize + "what next?"
+- Active session streaming (stream-json via WebSocket, 100-event rolling buffer)
+- Process supervision (non-LLM): alive/dead/blocked checks, crash recovery
+- systemd watchdog with exponential backoff for internet/API recovery
+- /whats-next deterministic self-sync skill
+- Comms MCP integration for escalation routing
+
+**Dependencies:** M5 (task system, Comms MCP)
+
+**Note:** Sprint 1 must validate prototype checklist (folder-scoped --continue, stream-json format, concurrent sessions, SIGINT behavior, Comms MCP). Results shape the architecture.
 
 ---
 
-### M7: Operations Dashboard — PLANNED
+### M8: Operations Dashboard — PLANNED
 
 Expand web UI with task management and memory viewer.
 
@@ -288,11 +312,9 @@ Expand web UI with task management and memory viewer.
 
 **Dependencies:** M5 (task system), M6 (memory)
 
-**Note:** Agent builds this itself with review.
-
 ---
 
-### M8: Email Channel — PLANNED
+### M9: Email Channel — PLANNED
 
 Email plugin with both dedicated and personal roles.
 
@@ -320,15 +342,16 @@ Design specs define architecture before implementation. Each spec should be comp
 
 | Spec                 | Status   | Milestones | Path                                                             |
 | -------------------- | -------- | ---------- | ---------------------------------------------------------------- |
-| Channels             | Complete | M3, M8     | [design/channels.md](design/channels.md)                         |
+| Channels             | Complete | M3, M9     | [design/channels.md](design/channels.md)                         |
 | Conversations        | Complete | M2         | [design/conversation-system.md](design/conversation-system.md)   |
 | Notebook             | Complete | M4         | [design/notebook.md](design/notebook.md)                         |
 | Calendar System      | Complete | M4.5       | [design/calendar-system.md](design/calendar-system.md)           |
 | Task System          | Complete | M5         | [design/task-system.md](design/task-system.md)                   |
 | Memory               | Complete | M6         | [design/memory-system.md](design/memory-system.md)               |
-| Operations Dashboard | Complete | M7         | [design/operations-dashboard.md](design/operations-dashboard.md) |
+| Coding Projects      | Complete | M7         | [design/coding-projects.md](design/coding-projects.md)           |
+| Operations Dashboard | Complete | M8         | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
-**Note:** M3 (WhatsApp) and M8 (Email) are covered by `channels.md`. No separate specs needed.
+**Note:** M3 (WhatsApp) and M9 (Email) are covered by `channels.md`. No separate specs needed.
 
 ---
 
@@ -342,20 +365,24 @@ M1 Foundation ───► M2 Web UI ───┬──► M3 WhatsApp ───
                                                                           │
                                                                           ├──► M6 Memory
                                                                           │
-                                                                          ├──► M7 Ops Dashboard
+                                                                          ├──► M7 Coding Projects
                                                                           │
-                                                                          └──► M8 Email
+                                                                          ├──► M8 Ops Dashboard
+                                                                          │
+                                                                          └──► M9 Email
 ```
 
 **Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5
 
-**After M5:** Agent self-development. M6, M7, M8 become agent projects with human review.
+**M5 unlocks autonomy:** M6-M9 all depend on M5 (task system + Comms MCP). Order within M6-M9 is flexible.
 
 **M3 is standalone:** Basic WhatsApp works after M2. Full task integration (project spawning) comes after M5.
 
 **M4 enables conversational config:** M3-S4 (External Communications) was stashed and will be refactored in M4-S4 to use Notebook instead of middleware pattern matching.
 
 **M4.5 unifies time concepts:** Reminders, deadlines, scheduled tasks all become calendar events. M5 scheduled tasks depend on M4.5 calendar infrastructure.
+
+**M7 requires prototyping:** Coding Projects Sprint 1 validates key assumptions (folder-scoped resume, stream-json, concurrent sessions). Results shape the architecture.
 
 ---
 
@@ -390,7 +417,7 @@ Long-term features beyond the current milestone plan. Not scheduled, not designe
 | **External Calendar Channels** | Google Calendar, Apple iCloud, Outlook as channel plugins | Each with own OAuth/auth flow, modeled like WhatsApp/Email channels |
 | **Mobile Dashboard** | Responsive web UI optimized for mobile browsers | Calendar list view, chat interface, quick actions |
 | **iOS App** | Native iOS app for Nina | Push notifications, Siri integration, widget support |
-| **Claude Code CLI Streaming** | Stream terminal output from task folders to web UI | Watch agent work in real-time, intervention controls |
+| **Mid-session Intervention** | Send input to running Claude Code sessions | Depends on Claude Code supporting message injection (steer) |
 
 ---
 
