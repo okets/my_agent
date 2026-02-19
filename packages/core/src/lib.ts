@@ -102,3 +102,16 @@ export type {
   ListTasksFilter,
   GetLogOptions,
 } from './tasks/types.js'
+
+// Tools
+export {
+  NotebookEditor,
+  initializeStandingOrders,
+  getStandingOrdersTemplate,
+} from './tools/index.js'
+export type {
+  NotebookOperation,
+  NotebookEditParams,
+  NotebookEditResult,
+  NotebookEditorConfig,
+} from './tools/index.js'
