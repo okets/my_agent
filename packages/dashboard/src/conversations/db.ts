@@ -11,7 +11,10 @@ import fs from "node:fs";
 import type { Conversation } from "./types.js";
 
 /**
- * SQLite database manager for conversation metadata and FTS
+ * SQLite database manager for agent data (conversations, tasks)
+ *
+ * Renamed from conversations.db to agent.db in M5-S1 to reflect
+ * expanded scope including tasks and future entity types.
  */
 export class ConversationDatabase {
   private db: Database.Database;
@@ -24,8 +27,28 @@ export class ConversationDatabase {
       fs.mkdirSync(conversationsDir, { recursive: true });
     }
 
-    const dbPath = path.join(conversationsDir, "conversations.db");
-    this.db = new Database(dbPath);
+    // Migration: rename conversations.db to agent.db
+    const oldPath = path.join(conversationsDir, "conversations.db");
+    const newPath = path.join(conversationsDir, "agent.db");
+
+    if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
+      // Migrate: rename the database file
+      fs.renameSync(oldPath, newPath);
+
+      // Also migrate WAL and SHM files if they exist
+      const oldWal = oldPath + "-wal";
+      const oldShm = oldPath + "-shm";
+      if (fs.existsSync(oldWal)) {
+        fs.renameSync(oldWal, newPath + "-wal");
+      }
+      if (fs.existsSync(oldShm)) {
+        fs.renameSync(oldShm, newPath + "-shm");
+      }
+
+      console.log("[DB] Migrated conversations.db → agent.db");
+    }
+
+    this.db = new Database(newPath);
 
     this.initialize();
   }
@@ -115,6 +138,49 @@ export class ConversationDatabase {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_conversations_external_party
       ON conversations(channel, external_party);
+    `);
+
+    // Create tasks table (M5-S1)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        source_ref TEXT,
+        title TEXT NOT NULL,
+        instructions TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        session_id TEXT NOT NULL,
+        recurrence_id TEXT,
+        occurrence_date TEXT,
+        scheduled_for TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        created_by TEXT NOT NULL,
+        log_path TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+
+    // Task indexes
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_tasks_status
+      ON tasks(status);
+    `);
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_tasks_recurrence
+      ON tasks(recurrence_id);
+    `);
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_tasks_source
+      ON tasks(source_type, source_ref);
+    `);
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_tasks_scheduled
+      ON tasks(scheduled_for);
     `);
   }
 

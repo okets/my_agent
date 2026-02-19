@@ -90,3 +90,15 @@ export type {
   FiredEventRecord,
 } from './calendar/index.js'
 export type { AssemblePromptOptions, ScheduledTaskContext } from './prompt.js'
+
+// Task types
+export type {
+  Task,
+  TaskStatus,
+  TaskType,
+  SourceType,
+  CreatedBy,
+  CreateTaskInput,
+  ListTasksFilter,
+  GetLogOptions,
+} from './tasks/types.js'
