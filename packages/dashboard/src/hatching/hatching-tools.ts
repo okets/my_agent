@@ -192,11 +192,11 @@ export function createHatchingSession(
     async (args) => {
       try {
         // Update config with agent name
-        await writeMinimalConfig(agentDir, args.agentName);
+        await writeMinimalConfig(agentDir, { nickname: args.agentName });
 
         // Write identity
         await writeIdentity(agentDir, {
-          name: args.userName,
+          nickname: args.userName,
           purpose: args.purpose,
         });
 

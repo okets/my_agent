@@ -440,6 +440,240 @@ export async function registerDebugRoutes(
   });
 
   /**
+   * GET /api-spec
+   *
+   * Machine-readable API specification for agent discovery.
+   * Agents can call this to learn what APIs are available.
+   */
+  fastify.get("/api-spec", async () => {
+    return {
+      version: "1.0.0",
+      description:
+        "my_agent REST API specification. Use these endpoints via curl or fetch.",
+      calendar: {
+        base: "/api/calendar",
+        description: "Calendar management (CalDAV-backed)",
+        endpoints: [
+          {
+            method: "GET",
+            path: "/events",
+            description: "List calendar events",
+            query: [
+              { name: "start", required: false, description: "ISO date start" },
+              { name: "end", required: false, description: "ISO date end" },
+              {
+                name: "calendars",
+                required: false,
+                description: "Comma-separated calendar IDs",
+              },
+            ],
+            response: "Array of FullCalendar events",
+          },
+          {
+            method: "GET",
+            path: "/events/today",
+            description: "Get today's events",
+            query: [],
+            response: "Array of today's events",
+          },
+          {
+            method: "POST",
+            path: "/events",
+            description: "Create a new event",
+            body: [
+              {
+                name: "calendarId",
+                required: true,
+                description: "Target calendar (user or system)",
+              },
+              { name: "title", required: true, description: "Event title" },
+              {
+                name: "start",
+                required: true,
+                description: "ISO 8601 start datetime",
+              },
+              {
+                name: "end",
+                required: false,
+                description: "ISO 8601 end datetime (default: start + 1 hour)",
+              },
+              {
+                name: "description",
+                required: false,
+                description: "Event description/notes",
+              },
+              {
+                name: "location",
+                required: false,
+                description: "Event location",
+              },
+              {
+                name: "allDay",
+                required: false,
+                description: "Boolean for all-day events",
+              },
+              {
+                name: "rrule",
+                required: false,
+                description: "RRULE for recurring events",
+              },
+            ],
+            response: "Created event object",
+          },
+          {
+            method: "PUT",
+            path: "/events/:uid",
+            description: "Update an existing event",
+            body: [
+              { name: "title", required: false, description: "New title" },
+              { name: "start", required: false, description: "New start time" },
+              { name: "end", required: false, description: "New end time" },
+              {
+                name: "description",
+                required: false,
+                description: "New description",
+              },
+              {
+                name: "location",
+                required: false,
+                description: "New location",
+              },
+            ],
+            response: "Updated event object",
+          },
+          {
+            method: "DELETE",
+            path: "/events/:uid",
+            description: "Delete an event",
+            query: [
+              {
+                name: "calendarId",
+                required: false,
+                description: "Calendar ID (auto-detected if not provided)",
+              },
+            ],
+            response: "{ success: true }",
+          },
+          {
+            method: "GET",
+            path: "/config",
+            description: "Get calendar configuration",
+            query: [],
+            response: "Calendar list with colors and visibility",
+          },
+          {
+            method: "GET",
+            path: "/health",
+            description: "Check calendar system health",
+            query: [],
+            response: "Health status with Radicale reachability",
+          },
+        ],
+        examples: {
+          createEvent: `curl -X POST http://localhost:4321/api/calendar/events \\
+  -H "Content-Type: application/json" \\
+  -d '{"calendarId": "user", "title": "Meeting", "start": "2026-02-20T14:00:00"}'`,
+          listEvents: `curl http://localhost:4321/api/calendar/events`,
+          deleteEvent: `curl -X DELETE http://localhost:4321/api/calendar/events/EVENT_UID?calendarId=user`,
+        },
+      },
+      conversations: {
+        base: "/api",
+        description: "Conversation management (via WebSocket for chat)",
+        note: "Most conversation operations use WebSocket at /api/chat/ws",
+        endpoints: [],
+      },
+      debug: {
+        base: "/api/debug",
+        description: "Read-only inspection endpoints (localhost-only)",
+        endpoints: [
+          {
+            method: "GET",
+            path: "/brain/status",
+            description: "Agent status overview",
+          },
+          {
+            method: "GET",
+            path: "/brain/prompt",
+            description: "Assembled system prompt",
+          },
+          {
+            method: "GET",
+            path: "/brain/caches",
+            description: "Cache configuration",
+          },
+          {
+            method: "GET",
+            path: "/brain/files",
+            description: "List brain files",
+          },
+          {
+            method: "GET",
+            path: "/brain/skills",
+            description: "List available skills",
+          },
+          {
+            method: "GET",
+            path: "/calendar/events",
+            description: "Raw calendar events",
+          },
+          {
+            method: "GET",
+            path: "/api-spec",
+            description: "This endpoint (API discovery)",
+          },
+          {
+            method: "GET",
+            path: "/scheduler/status",
+            description: "Calendar scheduler status",
+          },
+        ],
+      },
+      admin: {
+        base: "/api/admin",
+        description: "Mutating operations (localhost-only)",
+        endpoints: [
+          {
+            method: "POST",
+            path: "/caches/:name/invalidate",
+            description: "Invalidate a cache",
+          },
+          {
+            method: "POST",
+            path: "/hatching/reset",
+            description: "Reset hatching state (destructive)",
+          },
+          {
+            method: "POST",
+            path: "/conversation/:id/delete",
+            description: "Delete conversation",
+          },
+          {
+            method: "POST",
+            path: "/conversation/:id/rename",
+            description: "Rename conversation",
+          },
+          {
+            method: "POST",
+            path: "/notebook/:name/write",
+            description: "Write to notebook file",
+          },
+          {
+            method: "POST",
+            path: "/inject-message",
+            description: "Inject message into conversation",
+          },
+          {
+            method: "POST",
+            path: "/channel/:id/simulate-message",
+            description: "Simulate channel message",
+          },
+        ],
+      },
+    };
+  });
+
+  /**
    * GET /conversation/:id/context
    *
    * Full context being sent to model for a specific conversation
@@ -490,4 +724,28 @@ export async function registerDebugRoutes(
       };
     },
   );
+
+  /**
+   * GET /scheduler/status
+   *
+   * Calendar scheduler status for monitoring
+   */
+  fastify.get("/scheduler/status", async () => {
+    const scheduler = fastify.calendarScheduler;
+
+    if (!scheduler) {
+      return {
+        running: false,
+        error: "Scheduler not initialized",
+        pollIntervalMs: 0,
+        lookAheadMinutes: 0,
+        firedCount: 0,
+        lastPollAt: null,
+        nextPollAt: null,
+        recentlyFired: [],
+      };
+    }
+
+    return scheduler.getStatus();
+  });
 }

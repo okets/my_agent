@@ -1,6 +1,10 @@
 # Scheduling
 
-Manage time-based instructions through natural conversation.
+Manage time-based entries through natural conversation.
+
+## API Discovery
+
+For full API documentation: `curl http://localhost:4321/api/debug/api-spec | jq .calendar`
 
 ## Modes
 
@@ -35,6 +39,15 @@ The context below the command tells you which mode.
   - "At this time: Research X and prepare summary"
   - "When triggered: Draft email to Y about Z"
 
+## Endpoints
+
+| Method | Path | Required Fields | Description |
+|--------|------|-----------------|-------------|
+| GET | /api/calendar/events | — | List all events |
+| POST | /api/calendar/events | calendarId, title, start | Create event |
+| PUT | /api/calendar/events/:uid | — | Update event |
+| DELETE | /api/calendar/events/:uid | — | Delete event |
+
 ## API Reference
 
 **Create:**
@@ -54,6 +67,11 @@ curl -s -X PUT http://localhost:4321/api/calendar/events/EVENT_UID \
 **Delete:**
 ```bash
 curl -s -X DELETE "http://localhost:4321/api/calendar/events/EVENT_UID?calendarId=user"
+```
+
+**List:**
+```bash
+curl -s http://localhost:4321/api/calendar/events
 ```
 
 Format dates as ISO 8601 (YYYY-MM-DDTHH:MM:SS). Default duration is 1 hour if end omitted.

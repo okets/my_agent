@@ -72,6 +72,8 @@ export {
   checkRadicaleHealth,
   createCalDAVClient,
   CalDAVClient,
+  CalendarScheduler,
+  defaultEventHandler,
 } from './calendar/index.js'
 export type {
   CalendarEvent,
@@ -83,5 +85,8 @@ export type {
   CalendarHealth,
   CalendarConfig,
   CalendarCredentials,
+  SchedulerConfig,
+  SchedulerStatus,
+  FiredEventRecord,
 } from './calendar/index.js'
 export type { AssemblePromptOptions } from './prompt.js'

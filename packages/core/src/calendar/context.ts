@@ -167,7 +167,18 @@ You have access to a local CalDAV calendar system (Radicale). You can view, crea
 
 ### Upcoming Events
 
-${content}`
+${content}
+
+### Quick Actions
+
+To manage calendar entries, use these REST API endpoints:
+
+- **Create:** \`POST /api/calendar/events\` with \`{calendarId: "user", title, start}\`
+- **Update:** \`PUT /api/calendar/events/{uid}\` with fields to change
+- **Delete:** \`DELETE /api/calendar/events/{uid}?calendarId=user\`
+- **List:** \`GET /api/calendar/events\`
+
+For full API spec: \`curl http://localhost:4321/api/debug/api-spec | jq .calendar\``
 
     // Update cache
     cachedContext = markdown

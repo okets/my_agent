@@ -4,6 +4,11 @@ import {
   isHatched,
   loadConfig,
   toDisplayStatus,
+  CalendarScheduler,
+  defaultEventHandler,
+  createCalDAVClient,
+  loadCalendarConfig,
+  loadCalendarCredentials,
 } from "@my-agent/core";
 import { createBaileysPlugin } from "@my-agent/channel-whatsapp";
 import { createServer } from "./server.js";
@@ -157,6 +162,39 @@ async function main() {
     server.channelMessageHandler = messageHandler;
   }
 
+  // Initialize calendar scheduler (only if hatched)
+  let calendarScheduler: CalendarScheduler | null = null;
+
+  if (hatched) {
+    try {
+      const calConfig = loadCalendarConfig(agentDir);
+      const credentials = loadCalendarCredentials(agentDir);
+
+      if (calConfig && credentials) {
+        const caldavClient = createCalDAVClient(calConfig, credentials);
+
+        calendarScheduler = new CalendarScheduler(caldavClient, {
+          pollIntervalMs: 60_000, // 1 minute
+          lookAheadMinutes: 5,
+          onEventFired: defaultEventHandler,
+          firedEventsPath: `${agentDir}/runtime/fired-events.json`,
+        });
+
+        await calendarScheduler.start();
+        console.log("Calendar scheduler started (polling every 60s)");
+      } else {
+        console.log("Calendar not configured - scheduler not started");
+      }
+    } catch (err) {
+      console.warn(
+        "Failed to initialize calendar scheduler:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  server.calendarScheduler = calendarScheduler;
+
   try {
     await server.listen({ port, host: "0.0.0.0" });
     console.log(`\nDashboard running at http://localhost:${port}`);
@@ -170,6 +208,12 @@ async function main() {
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} received, shutting down gracefully...`);
     try {
+      // Stop calendar scheduler
+      if (calendarScheduler) {
+        calendarScheduler.stop();
+        console.log("Calendar scheduler stopped.");
+      }
+
       // Disconnect all channels first (clears reconnect + watchdog timers)
       if (channelManager) {
         await channelManager.disconnectAll();

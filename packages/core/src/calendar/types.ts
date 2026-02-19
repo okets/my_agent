@@ -212,3 +212,71 @@ export interface CalendarCredentials {
   username: string
   password: string
 }
+
+// ─── Scheduler Types ───
+
+/**
+ * Configuration for the CalendarScheduler.
+ */
+export interface SchedulerConfig {
+  /** Polling interval in milliseconds (default: 60000 = 1 minute) */
+  pollIntervalMs: number
+
+  /** How many minutes ahead to look for events to fire (default: 5) */
+  lookAheadMinutes: number
+
+  /** Callback when an event fires */
+  onEventFired: (event: CalendarEvent) => Promise<void>
+
+  /** Path to persist fired events (for restart recovery) */
+  firedEventsPath?: string
+}
+
+/**
+ * Record of a fired event (for persistence and debugging).
+ */
+export interface FiredEventRecord {
+  /** Event UID */
+  uid: string
+
+  /** Calendar ID */
+  calendarId: string
+
+  /** Event title (for logs) */
+  title: string
+
+  /** When the event was scheduled to start */
+  scheduledStart: string
+
+  /** When the scheduler fired the event */
+  firedAt: string
+
+  /** Action field if present */
+  action?: string
+}
+
+/**
+ * Scheduler status for monitoring.
+ */
+export interface SchedulerStatus {
+  /** Whether the scheduler is running */
+  running: boolean
+
+  /** Polling interval in ms */
+  pollIntervalMs: number
+
+  /** Look-ahead window in minutes */
+  lookAheadMinutes: number
+
+  /** Number of events fired since startup */
+  firedCount: number
+
+  /** Time of last poll */
+  lastPollAt: string | null
+
+  /** Time of next scheduled poll */
+  nextPollAt: string | null
+
+  /** Recently fired events (last 10) */
+  recentlyFired: FiredEventRecord[]
+}
