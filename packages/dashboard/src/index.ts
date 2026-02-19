@@ -8,6 +8,7 @@ import {
   createCalDAVClient,
   loadCalendarConfig,
   loadCalendarCredentials,
+  NotificationService,
 } from "@my-agent/core";
 import { createEventHandler } from "./scheduler/event-handler.js";
 import { createBaileysPlugin } from "@my-agent/channel-whatsapp";
@@ -166,14 +167,50 @@ async function main() {
   // Initialize task system (only if hatched)
   let taskManager: TaskManager | null = null;
   let logStorage: TaskLogStorage | null = null;
+  let notificationService: NotificationService | null = null;
 
   if (hatched) {
     // TaskManager needs the database from ConversationManager
     const db = conversationManager.getDb();
     taskManager = new TaskManager(db, agentDir);
     logStorage = new TaskLogStorage(agentDir);
+
+    // Initialize notification service
+    notificationService = new NotificationService();
+
+    // Wire notification events to WebSocket broadcasts
+    notificationService.on("notification", (event) => {
+      const notification = event.notification;
+      connectionRegistry.broadcastToAll({
+        type: "notification",
+        notification: {
+          id: notification.id,
+          type: notification.type,
+          taskId: notification.taskId,
+          created: notification.created.toISOString(),
+          status: notification.status,
+          ...(notification.type === "notify" && {
+            message: notification.message,
+            importance: notification.importance,
+          }),
+          ...(notification.type === "request_input" && {
+            question: notification.question,
+            options: notification.options,
+            response: notification.response,
+            respondedAt: notification.respondedAt?.toISOString(),
+          }),
+          ...(notification.type === "escalate" && {
+            problem: notification.problem,
+            severity: notification.severity,
+          }),
+        },
+      });
+    });
+
     console.log("Task system initialized");
   }
+
+  server.notificationService = notificationService;
 
   // Initialize calendar scheduler (only if hatched)
   let calendarScheduler: CalendarScheduler | null = null;

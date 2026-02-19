@@ -96,7 +96,16 @@ export type ClientMessage =
   | { type: "rename_conversation"; title: string }
   | { type: "load_more_turns"; before: string }
   | { type: "delete_conversation"; conversationId: string }
-  | { type: "set_model"; model: string };
+  | { type: "set_model"; model: string }
+  // Notification interactions
+  | { type: "get_notifications" }
+  | { type: "notification_read"; notificationId: string }
+  | {
+      type: "notification_respond";
+      notificationId: string;
+      response: string;
+    }
+  | { type: "notification_dismiss"; notificationId: string };
 
 // Server → Client messages
 export type ServerMessage =
@@ -149,4 +158,34 @@ export type ServerMessage =
       type: "conversation_model_changed";
       conversationId: string;
       model: string;
+    }
+  // Notification events
+  | {
+      type: "notification";
+      notification: NotificationPayload;
+    }
+  | {
+      type: "notification_list";
+      notifications: NotificationPayload[];
+      pendingCount: number;
     };
+
+// Notification payload for WebSocket transport
+export interface NotificationPayload {
+  id: string;
+  type: "notify" | "request_input" | "escalate";
+  taskId?: string;
+  created: string;
+  status: "pending" | "delivered" | "read" | "dismissed";
+  // For notify
+  message?: string;
+  importance?: "info" | "warning" | "success" | "error";
+  // For request_input
+  question?: string;
+  options?: Array<{ label: string; value: string }>;
+  response?: string;
+  respondedAt?: string;
+  // For escalate
+  problem?: string;
+  severity?: "low" | "medium" | "high" | "critical";
+}

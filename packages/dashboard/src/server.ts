@@ -11,12 +11,13 @@ import { registerChannelRoutes } from "./routes/channels.js";
 import { registerCalendarRoutes } from "./routes/calendar.js";
 import { registerDebugRoutes } from "./routes/debug.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { registerNotificationRoutes } from "./routes/notifications.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
 import type { ChannelMessageHandler } from "./channels/message-handler.js";
 import type { TaskManager, TaskLogStorage } from "./tasks/index.js";
-import type { CalendarScheduler } from "@my-agent/core";
+import type { CalendarScheduler, NotificationService } from "@my-agent/core";
 
 export interface ServerOptions {
   agentDir: string;
@@ -34,6 +35,7 @@ declare module "fastify" {
     taskManager: TaskManager | null;
     logStorage: TaskLogStorage | null;
     calendarScheduler: CalendarScheduler | null;
+    notificationService: NotificationService | null;
   }
 }
 
@@ -93,6 +95,7 @@ export async function createServer(
   fastify.decorate("taskManager", null);
   fastify.decorate("logStorage", null);
   fastify.decorate("calendarScheduler", null);
+  fastify.decorate("notificationService", null);
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);
@@ -105,6 +108,9 @@ export async function createServer(
 
   // Register calendar routes
   await registerCalendarRoutes(fastify);
+
+  // Register notification routes
+  await registerNotificationRoutes(fastify);
 
   // Register debug API routes (localhost-only)
   await fastify.register(

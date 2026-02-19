@@ -294,6 +294,64 @@ export async function registerChatWebSocket(
             await handleSetModel(msg.model);
             return;
           }
+
+          // Handle notification interactions
+          if (msg.type === "get_notifications") {
+            const service = fastify.notificationService;
+            if (service) {
+              const notifications = service.getAll().map((n) => ({
+                id: n.id,
+                type: n.type,
+                taskId: n.taskId,
+                created: n.created.toISOString(),
+                status: n.status,
+                ...(n.type === "notify" && {
+                  message: n.message,
+                  importance: n.importance,
+                }),
+                ...(n.type === "request_input" && {
+                  question: n.question,
+                  options: n.options,
+                  response: n.response,
+                  respondedAt: n.respondedAt?.toISOString(),
+                }),
+                ...(n.type === "escalate" && {
+                  problem: n.problem,
+                  severity: n.severity,
+                }),
+              }));
+              send({
+                type: "notification_list",
+                notifications,
+                pendingCount: service.getPending().length,
+              });
+            }
+            return;
+          }
+
+          if (msg.type === "notification_read") {
+            const service = fastify.notificationService;
+            if (service) {
+              service.markRead(msg.notificationId);
+            }
+            return;
+          }
+
+          if (msg.type === "notification_respond") {
+            const service = fastify.notificationService;
+            if (service) {
+              service.respond(msg.notificationId, msg.response);
+            }
+            return;
+          }
+
+          if (msg.type === "notification_dismiss") {
+            const service = fastify.notificationService;
+            if (service) {
+              service.dismiss(msg.notificationId);
+            }
+            return;
+          }
         }
 
         // Handle regular messages

@@ -115,3 +115,22 @@ export type {
   NotebookEditResult,
   NotebookEditorConfig,
 } from './tools/index.js'
+
+// Notifications
+export { NotificationService } from './notifications/index.js'
+export type {
+  NotificationServiceConfig,
+  NotificationImportance,
+  EscalationSeverity,
+  NotificationStatus,
+  NotificationType,
+  Notification,
+  InputOption,
+  InputRequest,
+  Escalation,
+  AnyNotification,
+  NotifyInput,
+  RequestInputInput,
+  EscalateInput,
+  NotificationEvent,
+} from './notifications/index.js'

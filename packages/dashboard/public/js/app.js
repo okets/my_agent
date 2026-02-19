@@ -117,6 +117,13 @@ function chat() {
       description: "",
     },
 
+    // ─────────────────────────────────────────────────────────────────
+    // Notification state (M5-S4)
+    // ─────────────────────────────────────────────────────────────────
+    notifications: [], // All notifications
+    pendingNotificationCount: 0, // Count of pending notifications
+    showNotificationPanel: false, // Toggle notification panel visibility
+
     // Calendar view range (for context)
     calendarViewStart: null,
     calendarViewEnd: null,
@@ -949,9 +956,100 @@ function chat() {
           break;
         }
 
+        // Notification events (M5-S4)
+        case "notification": {
+          // New or updated notification
+          const notification = data.notification;
+          const existing = this.notifications.findIndex(
+            (n) => n.id === notification.id,
+          );
+          if (existing >= 0) {
+            this.notifications[existing] = notification;
+          } else {
+            this.notifications.unshift(notification);
+          }
+          this.updatePendingCount();
+          break;
+        }
+
+        case "notification_list": {
+          // Full notification list (on request)
+          this.notifications = data.notifications;
+          this.pendingNotificationCount = data.pendingCount;
+          break;
+        }
+
         default:
           console.warn("[App] Unknown message type:", data.type);
       }
+    },
+
+    // Notification methods (M5-S4)
+    updatePendingCount() {
+      this.pendingNotificationCount = this.notifications.filter(
+        (n) => n.status === "pending" || n.status === "delivered",
+      ).length;
+    },
+
+    requestNotifications() {
+      if (this.ws && this.wsConnected) {
+        this.ws.send(JSON.stringify({ type: "get_notifications" }));
+      }
+    },
+
+    markNotificationRead(notificationId) {
+      if (this.ws && this.wsConnected) {
+        this.ws.send(
+          JSON.stringify({ type: "notification_read", notificationId }),
+        );
+      }
+      // Optimistic update
+      const notification = this.notifications.find(
+        (n) => n.id === notificationId,
+      );
+      if (notification) {
+        notification.status = "read";
+        this.updatePendingCount();
+      }
+    },
+
+    respondToNotification(notificationId, response) {
+      if (this.ws && this.wsConnected) {
+        this.ws.send(
+          JSON.stringify({ type: "notification_respond", notificationId, response }),
+        );
+      }
+      // Optimistic update
+      const notification = this.notifications.find(
+        (n) => n.id === notificationId,
+      );
+      if (notification) {
+        notification.response = response;
+        notification.status = "read";
+        this.updatePendingCount();
+      }
+    },
+
+    dismissNotification(notificationId) {
+      if (this.ws && this.wsConnected) {
+        this.ws.send(
+          JSON.stringify({ type: "notification_dismiss", notificationId }),
+        );
+      }
+      // Optimistic update
+      const notification = this.notifications.find(
+        (n) => n.id === notificationId,
+      );
+      if (notification) {
+        notification.status = "dismissed";
+        this.updatePendingCount();
+      }
+    },
+
+    getPendingNotifications() {
+      return this.notifications.filter(
+        (n) => n.status === "pending" || n.status === "delivered",
+      );
     },
 
     renderMarkdown(text) {
