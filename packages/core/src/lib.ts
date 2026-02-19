@@ -9,7 +9,14 @@ export type {
 } from './brain.js'
 export type { Query } from '@anthropic-ai/claude-agent-sdk'
 
-export { loadConfig, findAgentDir, loadAgentName, saveChannelToConfig } from './config.js'
+export {
+  loadConfig,
+  findAgentDir,
+  loadAgentName,
+  loadAgentNickname,
+  loadAgentFullName,
+  saveChannelToConfig,
+} from './config.js'
 export type { BrainConfig } from './types.js'
 
 export { assembleSystemPrompt } from './prompt.js'

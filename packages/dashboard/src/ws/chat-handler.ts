@@ -1,4 +1,6 @@
 import type { FastifyInstance } from "fastify";
+import { readFile } from "node:fs/promises";
+import * as path from "node:path";
 import { SessionRegistry } from "../agent/session-registry.js";
 import type { SessionManager } from "../agent/session-manager.js";
 import { ScriptedHatchingEngine } from "../hatching/scripted-engine.js";
@@ -17,6 +19,50 @@ import type {
   Turn,
   ViewContext,
 } from "./protocol.js";
+
+// Framework skills directory (relative to packages/dashboard/src/ws/)
+const FRAMEWORK_SKILLS_DIR = path.resolve(
+  import.meta.dirname,
+  "../../../core/skills",
+);
+
+/**
+ * Load skill content for /my-agent:* commands
+ * Returns null if skill not found
+ */
+async function loadSkillContent(skillName: string): Promise<string | null> {
+  const skillPath = path.join(FRAMEWORK_SKILLS_DIR, skillName, "SKILL.md");
+  try {
+    return await readFile(skillPath, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Expand /my-agent:* commands in message content
+ * Returns expanded content with skill instructions prepended
+ */
+async function expandSkillCommand(content: string): Promise<string> {
+  const match = content.match(/^\/my-agent:(\S+)/);
+  if (!match) return content;
+
+  const skillName = match[1];
+  const skillContent = await loadSkillContent(skillName);
+
+  if (!skillContent) {
+    // Skill not found, return original
+    return content;
+  }
+
+  // Extract context (everything after the command line)
+  const lines = content.split("\n");
+  const contextLines = lines.slice(1); // Skip command line
+  const context = contextLines.join("\n").trim();
+
+  // Build expanded message: skill content + context
+  return `[SKILL: ${skillName}]\n\n${skillContent.trim()}\n\n---\n\n${context}`;
+}
 
 const MAX_MESSAGE_LENGTH = 10000;
 const MAX_TITLE_LENGTH = 100;
@@ -791,6 +837,13 @@ export async function registerChatWebSocket(
 
       // ── Normal message processing ───────────────────────────────────
 
+      // Expand /my-agent:* skill commands (inject skill content)
+      const expandedContent = await expandSkillCommand(content);
+      const isSkillCommand = expandedContent !== content;
+      if (isSkillCommand) {
+        fastify.log.info(`Expanded skill command in message`);
+      }
+
       // Create conversation if needed
       if (!currentConversationId) {
         const conversation = await conversationManager.create("web");
@@ -858,8 +911,9 @@ export async function registerChatWebSocket(
         contentBlocks = [];
 
         // Add text content first if present, or a placeholder for image-only messages
-        if (content.trim()) {
-          contentBlocks.push({ type: "text", text: content });
+        // Use expandedContent for brain (includes skill instructions if any)
+        if (expandedContent.trim()) {
+          contentBlocks.push({ type: "text", text: expandedContent });
         } else {
           // Image-only message — add minimal context for Claude
           contentBlocks.push({ type: "text", text: "What is this?" });
@@ -965,7 +1019,8 @@ export async function registerChatWebSocket(
 
       try {
         // Use content blocks if we have attachments, otherwise plain text
-        const messageContent = contentBlocks || content;
+        // For brain: use expandedContent (with skill instructions)
+        const messageContent = contentBlocks || expandedContent;
         fastify.log.info(
           `Sending message with ${Array.isArray(messageContent) ? messageContent.length + " content blocks" : "text"}`,
         );

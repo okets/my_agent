@@ -17,14 +17,20 @@ export async function createDirectoryStructure(agentDir: string): Promise<void> 
   }
 }
 
-export async function writeMinimalConfig(agentDir: string, agentName?: string): Promise<void> {
+export async function writeMinimalConfig(
+  agentDir: string,
+  agentIdentity?: { nickname: string; fullName?: string },
+): Promise<void> {
   const config: Record<string, unknown> = {
     brain: {
       model: 'claude-sonnet-4-5-20250929',
     },
   }
-  if (agentName) {
-    config.agent = { name: agentName }
+  if (agentIdentity) {
+    config.agent = {
+      nickname: agentIdentity.nickname,
+      fullName: agentIdentity.fullName ?? agentIdentity.nickname,
+    }
   }
   await writeFile(path.join(agentDir, 'config.yaml'), stringify(config), 'utf-8')
 }
@@ -40,16 +46,18 @@ export async function writeHatchedMarker(agentDir: string): Promise<void> {
 // ── Identity ──
 
 export interface IdentityData {
-  name: string
+  nickname: string // Short name for casual use (e.g., "Alex")
+  fullName?: string // Full name for formal use (e.g., "Alex Johnson"), defaults to nickname
   purpose: string
   contacts?: string // comma-separated
 }
 
-function buildIdentityMd(userName: string, purpose: string): string {
+function buildIdentityMd(nickname: string, fullName: string, purpose: string): string {
   return `# Identity
 
 ## User
-- **Name:** ${userName}
+- **Nickname:** ${nickname}
+- **Full Name:** ${fullName}
 - **Purpose:** ${purpose}
 
 ## Agent
@@ -69,9 +77,10 @@ export async function writeIdentity(agentDir: string, data: IdentityData): Promi
   const coreDir = path.join(agentDir, 'brain', 'memory', 'core')
   await mkdir(coreDir, { recursive: true })
 
+  const fullName = data.fullName ?? data.nickname
   await writeFile(
     path.join(coreDir, 'identity.md'),
-    buildIdentityMd(data.name, data.purpose),
+    buildIdentityMd(data.nickname, fullName, data.purpose),
     'utf-8',
   )
 

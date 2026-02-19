@@ -81,8 +81,12 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 
+    <!-- FullCalendar (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
     <!-- App styles -->
     <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/calendar.css" />
   </head>
 
   <body class="bg-tokyo-bg text-tokyo-text antialiased">
@@ -234,6 +238,56 @@
                   No channels configured. Go to Settings to add one.
                 </div>
               </template>
+            </div>
+
+            <!-- Upcoming Events (Mini Calendar) -->
+            <div class="mt-8">
+              <div class="flex items-center justify-between mb-3">
+                <h2
+                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide"
+                >
+                  Upcoming
+                </h2>
+                <button
+                  @click="openCalendar()"
+                  class="text-xs text-tokyo-blue hover:underline"
+                >
+                  View calendar
+                </button>
+              </div>
+
+              <!-- Mini month calendar -->
+              <div class="glass-strong rounded-xl p-3 mb-3">
+                <div x-ref="miniCalendarEl" class="mini-calendar"></div>
+              </div>
+
+              <!-- Today's events list -->
+              <div class="space-y-2">
+                <template x-for="event in todayEvents" :key="event.id">
+                  <button
+                    @click="openEventFromList(event)"
+                    class="w-full flex items-center gap-3 p-2.5 rounded-lg glass-strong hover:bg-tokyo-card/80 text-left transition-colors"
+                  >
+                    <span
+                      class="w-2 h-2 rounded-full shrink-0"
+                      :style="{ background: event.color }"
+                    ></span>
+                    <span
+                      class="text-xs text-tokyo-muted w-12 shrink-0"
+                      x-text="formatEventTimeShort(event)"
+                    ></span>
+                    <span
+                      class="text-sm truncate flex-1"
+                      x-text="event.title"
+                    ></span>
+                  </button>
+                </template>
+                <template x-if="todayEvents.length === 0">
+                  <p class="text-sm text-tokyo-muted text-center py-3">
+                    No events today
+                  </p>
+                </template>
+              </div>
             </div>
 
             <!-- External conversations -->
@@ -653,6 +707,415 @@
               </div>
             </div>
           </template>
+
+          <!-- ======================================================== -->
+          <!-- Event Detail Tab (Outlook-style appointment view)        -->
+          <!-- ======================================================== -->
+          <template
+            x-if="openTabs.find(t => t.id === activeTab)?.type === 'event'"
+          >
+            <div class="h-full flex flex-col p-6 overflow-auto">
+              <!-- Header: Title + Actions -->
+              <div class="flex items-start justify-between gap-4 mb-6">
+                <!-- READ MODE: Title and buttons -->
+                <template x-if="!isEditingEvent">
+                  <div class="flex items-start gap-4 min-w-0 flex-1">
+                    <!-- Color indicator -->
+                    <div
+                      class="w-4 h-4 rounded-full shrink-0 mt-1.5"
+                      :style="{ background: getCurrentEvent()?.color || '#89b4fa' }"
+                    ></div>
+                    <!-- Title -->
+                    <div class="min-w-0 flex-1">
+                      <h1
+                        class="text-2xl font-bold text-tokyo-text truncate"
+                        x-text="getCurrentEvent()?.title || 'Event'"
+                      ></h1>
+                      <!-- Calendar source -->
+                      <p
+                        class="text-sm text-tokyo-muted mt-1"
+                        x-text="calendarList.find(c => c.id === getCurrentEvent()?.extendedProps?.calendarId)?.name || 'Calendar'"
+                      ></p>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- EDIT MODE: Title input -->
+                <template x-if="isEditingEvent">
+                  <div class="flex items-start gap-4 min-w-0 flex-1">
+                    <!-- Color indicator -->
+                    <div
+                      class="w-4 h-4 rounded-full shrink-0 mt-2.5"
+                      :style="{ background: getCurrentEvent()?.color || '#89b4fa' }"
+                    ></div>
+                    <!-- Title input -->
+                    <div class="min-w-0 flex-1">
+                      <input
+                        type="text"
+                        x-model="eventEditForm.title"
+                        class="w-full text-2xl font-bold bg-tokyo-bg border border-tokyo-muted/30 rounded-lg px-3 py-1.5 text-tokyo-text focus:border-tokyo-blue focus:outline-none"
+                        placeholder="Event title"
+                      />
+                      <!-- Calendar source (read-only in edit mode) -->
+                      <p
+                        class="text-sm text-tokyo-muted mt-1"
+                        x-text="calendarList.find(c => c.id === getCurrentEvent()?.extendedProps?.calendarId)?.name || 'Calendar'"
+                      ></p>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- READ MODE: Action buttons -->
+                <template x-if="!isEditingEvent">
+                  <div class="flex items-center gap-2 shrink-0">
+                    <!-- Ask Agent button (sparkly) -->
+                    <button
+                      @click="askAgentToEditEvent()"
+                      class="cal-action-btn cal-action-btn-ai hover:scale-105"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M10 2 L10.9 6.7 L15 5 L12 8.5 L17 9.5 L12.3 11 L15 15 L10.5 12 L10 18 L9.2 12 L5 15 L7.8 11 L3 9.5 L7.8 8.5 L5 5 L9.2 6.7 Z"
+                        />
+                      </svg>
+                      <span x-text="'Ask ' + agentFirstName"></span>
+                    </button>
+                    <!-- Edit button -->
+                    <button
+                      @click="editCurrentEvent()"
+                      class="cal-action-btn cal-action-btn-ghost"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M14.846 1.403a2.5 2.5 0 0 1 3.535 0l.216.216a2.5 2.5 0 0 1 0 3.535L8.22 15.53a2 2 0 0 1-.86.5l-3.36.96a.75.75 0 0 1-.932-.932l.96-3.36a2 2 0 0 1 .5-.86L14.846 1.403Z"
+                        />
+                        <path d="M12.5 3.5 L16.5 7.5" />
+                      </svg>
+                      <span>Edit</span>
+                    </button>
+                    <!-- Delete button -->
+                    <button
+                      @click="deleteCurrentEvent()"
+                      class="cal-action-btn cal-action-btn-danger"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M2.5 5h15M6.5 5V3.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5V5m2 0v11.5a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 5 16.5V5"
+                        />
+                        <path d="M8.5 9v5M11.5 9v5" />
+                      </svg>
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                </template>
+
+                <!-- EDIT MODE: Save/Cancel buttons -->
+                <template x-if="isEditingEvent">
+                  <div class="flex items-center gap-2 shrink-0">
+                    <!-- Save button -->
+                    <button
+                      @click="saveInlineEventEdit()"
+                      class="cal-action-btn cal-action-btn-success"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polyline points="4 10 8 14 16 6" />
+                      </svg>
+                      <span>Save</span>
+                    </button>
+                    <!-- Cancel button -->
+                    <button
+                      @click="cancelInlineEventEdit()"
+                      class="cal-action-btn cal-action-btn-ghost"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M5 5 L15 15 M15 5 L5 15" />
+                      </svg>
+                      <span>Cancel</span>
+                    </button>
+                    <!-- Delete button -->
+                    <button
+                      @click="deleteCurrentEvent()"
+                      class="cal-action-btn cal-action-btn-danger"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M2.5 5h15M6.5 5V3.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5V5m2 0v11.5a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 5 16.5V5"
+                        />
+                        <path d="M8.5 9v5M11.5 9v5" />
+                      </svg>
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Date/Time info -->
+              <div class="glass-strong rounded-xl p-4 mb-6">
+                <!-- READ MODE: Date/time display -->
+                <template x-if="!isEditingEvent">
+                  <div class="flex items-center gap-3 text-tokyo-text">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      class="w-5 h-5 text-tokyo-muted shrink-0"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                    <span
+                      x-text="formatEventDateTime(getCurrentEvent())"
+                    ></span>
+                    <template x-if="getCurrentEvent()?.allDay">
+                      <span
+                        class="ml-2 px-2 py-0.5 text-xs rounded-full bg-tokyo-purple/20 text-tokyo-purple"
+                      >
+                        All day
+                      </span>
+                    </template>
+                  </div>
+                </template>
+
+                <!-- EDIT MODE: Date/time inputs -->
+                <template x-if="isEditingEvent">
+                  <div class="flex flex-col gap-3">
+                    <label
+                      class="flex items-center gap-2 text-sm text-tokyo-text"
+                    >
+                      <input
+                        type="checkbox"
+                        x-model="eventEditForm.allDay"
+                        class="w-4 h-4 rounded border-tokyo-muted/30 bg-tokyo-bg text-tokyo-blue focus:ring-tokyo-blue"
+                      />
+                      <span>All day</span>
+                    </label>
+                    <div class="flex items-center gap-3">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        class="w-5 h-5 text-tokyo-muted shrink-0"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                      <input
+                        type="datetime-local"
+                        x-model="eventEditForm.start"
+                        class="bg-tokyo-bg border border-tokyo-muted/30 rounded-lg px-3 py-1.5 text-tokyo-text focus:border-tokyo-blue focus:outline-none text-sm"
+                      />
+                      <span class="text-tokyo-muted">to</span>
+                      <input
+                        type="datetime-local"
+                        x-model="eventEditForm.end"
+                        class="bg-tokyo-bg border border-tokyo-muted/30 rounded-lg px-3 py-1.5 text-tokyo-text focus:border-tokyo-blue focus:outline-none text-sm"
+                      />
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Instructions (main content) -->
+              <div class="flex-1">
+                <h2
+                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
+                >
+                  Instructions
+                </h2>
+
+                <!-- READ MODE: Instructions display -->
+                <template x-if="!isEditingEvent">
+                  <div class="glass-strong rounded-xl p-5 min-h-[200px]">
+                    <template
+                      x-if="getCurrentEvent()?.extendedProps?.description"
+                    >
+                      <div
+                        class="prose prose-invert prose-sm max-w-none"
+                        x-html="DOMPurify.sanitize(marked.parse(getCurrentEvent().extendedProps.description || ''))"
+                      ></div>
+                    </template>
+                    <template
+                      x-if="!getCurrentEvent()?.extendedProps?.description"
+                    >
+                      <p class="text-tokyo-muted italic">
+                        No instructions for this entry. Click Edit to add
+                        instructions that Nina will execute when this time
+                        triggers.
+                      </p>
+                    </template>
+                  </div>
+                </template>
+
+                <!-- EDIT MODE: Instructions textarea -->
+                <template x-if="isEditingEvent">
+                  <div class="glass-strong rounded-xl p-4 min-h-[200px]">
+                    <textarea
+                      x-model="eventEditForm.description"
+                      rows="8"
+                      class="w-full h-full bg-tokyo-bg border border-tokyo-muted/30 rounded-lg p-3 text-tokyo-text focus:border-tokyo-blue focus:outline-none resize-none text-sm font-mono"
+                      placeholder="Instructions for Nina when this entry triggers...&#10;&#10;Example: At this time: Research Q3 forecast numbers and prepare a summary for Hanan."
+                    ></textarea>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Event metadata footer -->
+              <div class="mt-6 pt-4 border-t border-white/5">
+                <div class="flex items-center gap-6 text-xs text-tokyo-muted">
+                  <span>
+                    ID:
+                    <code
+                      class="px-1.5 py-0.5 rounded bg-white/5"
+                      x-text="getCurrentEvent()?.id?.slice(0, 8) + '...'"
+                    ></code>
+                  </span>
+                  <template x-if="getCurrentEvent()?.extendedProps?.rrule">
+                    <span class="flex items-center gap-1">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        class="w-3.5 h-3.5"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M13.836 2.477a.75.75 0 0 1 .75.75v3.182a.75.75 0 0 1-.75.75h-3.182a.75.75 0 0 1 0-1.5h1.37l-.84-.841a4.5 4.5 0 0 0-7.08.932.75.75 0 0 1-1.3-.75 6 6 0 0 1 9.44-1.242l.842.84V3.227a.75.75 0 0 1 .75-.75Zm-.911 7.5A.75.75 0 0 1 13.199 11a6 6 0 0 1-9.44 1.241l-.84-.84v1.371a.75.75 0 0 1-1.5 0V9.591a.75.75 0 0 1 .75-.75H5.35a.75.75 0 0 1 0 1.5H3.98l.841.841a4.5 4.5 0 0 0 7.08-.932.75.75 0 0 1 1.025-.274Z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                      Recurring
+                    </span>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ======================================================== -->
+          <!-- Calendar Tab                                             -->
+          <!-- ======================================================== -->
+          <div
+            x-show="activeTab === 'calendar'"
+            x-init="$watch('activeTab', (val, oldVal) => { if (val === 'calendar') $nextTick(() => initCalendarView()) })"
+            class="h-full flex"
+            x-cloak
+          >
+            <!-- Sidebar: Calendar toggles -->
+            <div
+              class="w-48 shrink-0 p-4 border-r border-white/5 flex flex-col gap-4"
+            >
+              <div>
+                <h3
+                  class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
+                >
+                  Calendars
+                </h3>
+                <div class="space-y-1">
+                  <template x-for="cal in calendarList" :key="cal.id">
+                    <label
+                      class="flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer hover:bg-white/5 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        x-model="calendarVisibility[cal.id]"
+                        @change="refreshCalendar()"
+                        class="w-3.5 h-3.5 rounded border-0"
+                        :style="{ accentColor: cal.color }"
+                      />
+                      <span
+                        class="w-2 h-2 rounded-full shrink-0"
+                        :style="{ background: cal.color }"
+                      ></span>
+                      <span class="text-sm" x-text="cal.name"></span>
+                    </label>
+                  </template>
+                  <template x-if="calendarList.length === 0">
+                    <p class="text-xs text-tokyo-muted py-2">
+                      No calendars configured
+                    </p>
+                  </template>
+                </div>
+              </div>
+
+              <!-- New Event button -->
+              <button
+                @click="openEventModal()"
+                class="w-full cal-action-btn cal-action-btn-cta justify-center text-sm"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M10 4v12M4 10h12" />
+                </svg>
+                <span>New Event</span>
+              </button>
+            </div>
+
+            <!-- Main: FullCalendar -->
+            <div class="flex-1 p-4 overflow-hidden">
+              <div x-ref="calendarEl" class="h-full"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1281,9 +1744,11 @@
             </div>
 
             <!-- Action bar -->
-            <div class="action-bar flex items-center gap-1 px-2 py-1.5">
+            <div
+              class="action-bar flex items-center gap-1 px-2 py-1.5 min-w-0 overflow-hidden"
+            >
               <!-- Model selector dropdown -->
-              <div class="relative" x-data="{ modelOpen: false }">
+              <div class="relative shrink-0" x-data="{ modelOpen: false }">
                 <button
                   @click="modelOpen = !modelOpen"
                   @click.outside="modelOpen = false"
@@ -1365,7 +1830,7 @@
 
               <!-- Reasoning toggle (disabled for Haiku) -->
               <label
-                class="reasoning-toggle"
+                class="reasoning-toggle shrink-0"
                 :class="{ 'active': reasoningEnabled, 'disabled': isHaikuModel }"
                 :title="isHaikuModel ? 'Reasoning not supported with Haiku' : 'Enable extended thinking'"
               >
@@ -1414,12 +1879,12 @@
               </template>
 
               <!-- Spacer -->
-              <div class="flex-1"></div>
+              <div class="flex-1 min-w-0"></div>
 
               <!-- Attachment button (right-aligned, before slash) -->
               <button
                 @click="$refs.fileInput.click()"
-                class="action-bar-btn flex items-center justify-center w-7 h-7 rounded-md text-tokyo-muted hover:text-tokyo-text hover:bg-tokyo-card/50 transition-colors"
+                class="action-bar-btn shrink-0 flex items-center justify-center w-7 h-7 rounded-md text-tokyo-muted hover:text-tokyo-text hover:bg-tokyo-card/50 transition-colors"
                 title="Attach file (images, text files)"
               >
                 <svg
@@ -1437,7 +1902,9 @@
               </button>
 
               <!-- Slash divider -->
-              <span class="text-tokyo-muted/40 text-sm select-none">/</span>
+              <span class="shrink-0 text-tokyo-muted/40 text-sm select-none"
+                >/</span
+              >
 
               <!-- Send button (solid coral V1 style) -->
               <button
@@ -1478,6 +1945,175 @@
       </div>
 
       <!-- ============================================================== -->
+      <!-- Event Modal (Create/Edit)                                      -->
+      <!-- ============================================================== -->
+      <div
+        x-show="eventModalOpen"
+        x-transition:enter="transition ease-out duration-150"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-100"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+        @click.self="closeEventModal()"
+        x-cloak
+      >
+        <div
+          x-show="eventModalOpen"
+          x-transition:enter="transition ease-out duration-150"
+          x-transition:enter-start="opacity-0 scale-95"
+          x-transition:enter-end="opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-100"
+          x-transition:leave-start="opacity-100 scale-100"
+          x-transition:leave-end="opacity-0 scale-95"
+          class="glass-strong rounded-xl p-5 w-96 max-w-[90vw] shadow-xl"
+        >
+          <h3
+            class="text-lg font-semibold text-tokyo-text mb-4"
+            x-text="editingEvent ? 'Edit Event' : 'New Event'"
+          ></h3>
+
+          <div class="space-y-4">
+            <!-- Title -->
+            <div>
+              <label
+                class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
+                >Title</label
+              >
+              <input
+                x-model="eventForm.title"
+                type="text"
+                placeholder="Event title"
+                class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text placeholder-tokyo-muted/50 focus:outline-none focus:border-tokyo-blue/50 transition-colors"
+                x-ref="eventTitleInput"
+              />
+            </div>
+
+            <!-- Date/Time -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label
+                  class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
+                  >Start</label
+                >
+                <input
+                  x-model="eventForm.start"
+                  type="datetime-local"
+                  class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text focus:outline-none focus:border-tokyo-blue/50 transition-colors"
+                />
+              </div>
+              <div>
+                <label
+                  class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
+                  >End</label
+                >
+                <input
+                  x-model="eventForm.end"
+                  type="datetime-local"
+                  class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text focus:outline-none focus:border-tokyo-blue/50 transition-colors"
+                />
+              </div>
+            </div>
+
+            <!-- All day toggle -->
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                x-model="eventForm.allDay"
+                class="w-4 h-4 rounded"
+              />
+              <span class="text-sm text-tokyo-text">All day</span>
+            </label>
+
+            <!-- Calendar selection -->
+            <div>
+              <label
+                class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
+                >Calendar</label
+              >
+              <select
+                x-model="eventForm.calendarId"
+                class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text focus:outline-none focus:border-tokyo-blue/50 transition-colors"
+              >
+                <template
+                  x-for="cal in calendarList.filter(c => c.role === 'owned')"
+                  :key="cal.id"
+                >
+                  <option :value="cal.id" x-text="cal.name"></option>
+                </template>
+              </select>
+            </div>
+
+            <!-- Description -->
+            <div>
+              <label
+                class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
+                >Description</label
+              >
+              <textarea
+                x-model="eventForm.description"
+                placeholder="Optional notes..."
+                rows="2"
+                class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text placeholder-tokyo-muted/50 focus:outline-none focus:border-tokyo-blue/50 transition-colors resize-none"
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex justify-between items-center gap-3 mt-5">
+            <!-- Ask Agent button (sparkly) -->
+            <button
+              @click="askAgentToCreateEvent()"
+              class="cal-action-btn cal-action-btn-ai hover:scale-105 text-sm"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M10 2 L10.9 6.7 L15 5 L12 8.5 L17 9.5 L12.3 11 L15 15 L10.5 12 L10 18 L9.2 12 L5 15 L7.8 11 L3 9.5 L7.8 8.5 L5 5 L9.2 6.7 Z"
+                />
+              </svg>
+              <span x-text="'Ask ' + agentFirstName"></span>
+            </button>
+
+            <div class="flex gap-3">
+              <button
+                @click="closeEventModal()"
+                class="cal-action-btn cal-action-btn-ghost text-sm text-tokyo-muted"
+              >
+                Cancel
+              </button>
+              <button
+                @click="saveEvent()"
+                :disabled="!eventForm.title"
+                class="cal-action-btn cal-action-btn-cta-solid text-sm"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="4 10 8 14 16 6" />
+                </svg>
+                <span x-text="editingEvent ? 'Save' : 'Create'"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================== -->
       <!-- Delete Confirmation Dialog                                     -->
       <!-- ============================================================== -->
       <div
@@ -1512,15 +2148,29 @@
           <div class="flex justify-end gap-3">
             <button
               @click="cancelDelete()"
-              class="px-4 py-2 rounded-lg text-sm font-medium text-tokyo-text hover:bg-white/5 transition-colors"
+              class="cal-action-btn cal-action-btn-ghost text-sm"
             >
               Cancel
             </button>
             <button
               @click="executeDelete()"
-              class="px-4 py-2 rounded-lg text-sm font-medium bg-tokyo-red/20 text-tokyo-red hover:bg-tokyo-red/30 transition-colors"
+              class="cal-action-btn cal-action-btn-danger text-sm"
             >
-              Delete
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M2.5 5h15M6.5 5V3.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5V5m2 0v11.5a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 5 16.5V5"
+                />
+                <path d="M8.5 9v5M11.5 9v5" />
+              </svg>
+              <span>Delete</span>
             </button>
           </div>
         </div>
@@ -1554,6 +2204,7 @@
     <!-- App logic (must load before Alpine processes x-data) -->
     <script src="js/ws-client.js"></script>
     <script src="js/chat-controls.js"></script>
+    <script src="js/calendar.js"></script>
     <script src="js/app.js"></script>
   </body>
 </html>

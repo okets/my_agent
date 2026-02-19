@@ -53,11 +53,15 @@ export class SessionManager {
     let calendarContext: string | undefined;
     try {
       const agentDir = this.config.brainDir.replace(/\/brain$/, "");
-      console.log(`[SessionManager] Loading calendar from agentDir: ${agentDir}`);
+      console.log(
+        `[SessionManager] Loading calendar from agentDir: ${agentDir}`,
+      );
       const calendarConfig = loadCalendarConfig(agentDir);
       const credentials = loadCalendarCredentials(agentDir);
 
-      console.log(`[SessionManager] Calendar config loaded: ${!!calendarConfig}, credentials: ${!!credentials}`);
+      console.log(
+        `[SessionManager] Calendar config loaded: ${!!calendarConfig}, credentials: ${!!credentials}`,
+      );
 
       if (calendarConfig && credentials) {
         const calendarRepo = await createCalDAVClient(
@@ -65,7 +69,9 @@ export class SessionManager {
           credentials,
         );
         calendarContext = await assembleCalendarContext(calendarRepo);
-        console.log(`[SessionManager] Calendar context assembled (${calendarContext?.length ?? 0} chars)`);
+        console.log(
+          `[SessionManager] Calendar context assembled (${calendarContext?.length ?? 0} chars)`,
+        );
       }
     } catch (err) {
       console.warn(
@@ -76,7 +82,9 @@ export class SessionManager {
     this.baseSystemPrompt = await assembleSystemPrompt(this.config.brainDir, {
       calendarContext,
     });
-    console.log(`[SessionManager] System prompt assembled (${this.baseSystemPrompt?.length ?? 0} chars), has calendar: ${!!calendarContext}`);
+    console.log(
+      `[SessionManager] System prompt assembled (${this.baseSystemPrompt?.length ?? 0} chars), has calendar: ${!!calendarContext}`,
+    );
   }
 
   /**

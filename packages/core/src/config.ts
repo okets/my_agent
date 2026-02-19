@@ -46,7 +46,9 @@ const CONFIG_FILENAME = 'config.yaml'
 
 interface YamlConfig {
   agent?: {
-    name?: string
+    name?: string // Legacy field for backward compatibility
+    nickname?: string
+    fullName?: string
   }
   brain?: {
     model?: string
@@ -164,10 +166,32 @@ function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInst
   return result
 }
 
-export function loadAgentName(agentDir?: string): string {
+/**
+ * Load the agent's nickname (short name for casual use).
+ * Falls back to legacy `name` field, then to 'Agent'.
+ */
+export function loadAgentNickname(agentDir?: string): string {
   const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
   const yaml = loadYamlConfig(dir)
-  return yaml?.agent?.name ?? 'Agent'
+  return yaml?.agent?.nickname ?? yaml?.agent?.name ?? 'Agent'
+}
+
+/**
+ * Load the agent's full name (for formal use).
+ * Falls back to nickname, then legacy `name`, then 'Agent'.
+ */
+export function loadAgentFullName(agentDir?: string): string {
+  const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
+  const yaml = loadYamlConfig(dir)
+  return yaml?.agent?.fullName ?? yaml?.agent?.nickname ?? yaml?.agent?.name ?? 'Agent'
+}
+
+/**
+ * Load agent name (backward compatibility alias for fullName).
+ * @deprecated Use loadAgentFullName() or loadAgentNickname() instead.
+ */
+export function loadAgentName(agentDir?: string): string {
+  return loadAgentFullName(agentDir)
 }
 
 export function loadConfig(): BrainConfig {

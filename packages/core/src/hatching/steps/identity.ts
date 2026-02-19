@@ -3,11 +3,12 @@ import * as path from 'node:path'
 import { mkdir, writeFile } from 'node:fs/promises'
 import type { HatchingStep } from '../index.js'
 
-function buildIdentityMd(userName: string, purpose: string): string {
+function buildIdentityMd(nickname: string, fullName: string, purpose: string): string {
   return `# Identity
 
 ## User
-- **Name:** ${userName}
+- **Nickname:** ${nickname}
+- **Full Name:** ${fullName}
 - **Purpose:** ${purpose}
 
 ## Agent
@@ -30,13 +31,16 @@ export const identityStep: HatchingStep = {
   async run(rl: readline.Interface, agentDir: string): Promise<void> {
     console.log('\n--- Identity Setup ---\n')
 
-    let userName = ''
-    while (!userName.trim()) {
-      userName = await rl.question("What's your name? ")
-      if (!userName.trim()) {
-        console.log('Name is required, please try again.')
+    let nickname = ''
+    while (!nickname.trim()) {
+      nickname = await rl.question('What should I call you? (nickname) ')
+      if (!nickname.trim()) {
+        console.log('Nickname is required, please try again.')
       }
     }
+    const fullNameInput = await rl.question('And your full name? (or press Enter to use nickname) ')
+    const fullName = fullNameInput.trim() || nickname.trim()
+
     const purposeInput = await rl.question(
       'What do you mainly need help with? (work, personal, both, something specific?) ',
     )
@@ -50,7 +54,7 @@ export const identityStep: HatchingStep = {
 
     await writeFile(
       path.join(coreDir, 'identity.md'),
-      buildIdentityMd(userName.trim(), purpose),
+      buildIdentityMd(nickname.trim(), fullName, purpose),
       'utf-8',
     )
 

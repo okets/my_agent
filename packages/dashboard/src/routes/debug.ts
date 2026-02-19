@@ -187,8 +187,38 @@ export async function registerDebugRoutes(
     const agentDir = fastify.agentDir;
     const brainDir = join(agentDir, "brain");
 
-    // Assemble full system prompt
-    const systemPrompt = await assembleSystemPrompt(brainDir);
+    // Load calendar context (same pattern as SessionManager)
+    let calendarContext: string | undefined;
+    try {
+      console.log(
+        `[Debug] Loading calendar context from agentDir: ${agentDir}`,
+      );
+      const calendarConfig = loadCalendarConfig(agentDir);
+      const credentials = loadCalendarCredentials(agentDir);
+      console.log(
+        `[Debug] Config: ${!!calendarConfig}, Credentials: ${!!credentials}`,
+      );
+      if (calendarConfig && credentials) {
+        const calendarRepo = await createCalDAVClient(
+          calendarConfig,
+          credentials,
+        );
+        calendarContext = await assembleCalendarContext(calendarRepo);
+        console.log(
+          `[Debug] Calendar context: ${calendarContext?.length ?? 0} chars`,
+        );
+        console.log(
+          `[Debug] Calendar context preview: ${calendarContext?.slice(0, 100)?.replace(/\n/g, "\\n")}`,
+        );
+      }
+    } catch (err) {
+      console.warn(`[Debug] Calendar context error: ${err}`);
+    }
+
+    // Assemble full system prompt with calendar context
+    const systemPrompt = await assembleSystemPrompt(brainDir, {
+      calendarContext,
+    });
 
     // Load individual components for breakdown
     const components: Record<string, { source: string; chars: number } | null> =

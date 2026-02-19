@@ -92,7 +92,9 @@ export async function* processStream(
 
       // Log which model was actually used
       if (result.modelUsage) {
-        console.log(`[Stream] modelUsage: ${JSON.stringify(result.modelUsage)}`);
+        console.log(
+          `[Stream] modelUsage: ${JSON.stringify(result.modelUsage)}`,
+        );
       }
 
       if (

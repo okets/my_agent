@@ -41,6 +41,9 @@ export function createBrainQuery(prompt: PromptContent, options: BrainSessionOpt
     model: options.model,
     systemPrompt: options.systemPrompt,
     permissionMode: 'bypassPermissions',
+    allowDangerouslySkipPermissions: true,
+    // Explicitly allow Bash and other tools for calendar operations
+    allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
   }
   console.log(`[Brain] Full queryOptions: model=${queryOptions.model}`)
   if (options.continue) {

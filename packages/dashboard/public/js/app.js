@@ -15,7 +15,8 @@ function chat() {
     currentAssistantMessage: null, // Track the message being streamed
     currentThinkingText: "", // Accumulates thinking deltas for current message
     isThinking: false, // True while thinking block is active
-    agentName: "Agent", // Loaded from server in init()
+    agentName: "Agent", // Full name, loaded from server in init()
+    agentNickname: "Agent", // Short name for casual use (e.g., buttons)
     isHatching: false, // True during hatching flow
     pendingControlMsgId: null, // Message ID that has active controls
 
@@ -85,6 +86,42 @@ function chat() {
     historyIndex: -1, // -1 = not browsing, 0 = most recent, etc.
     inputDraft: "", // Preserves typed text before browsing history
 
+    // ─────────────────────────────────────────────────────────────────
+    // Calendar state
+    // ─────────────────────────────────────────────────────────────────
+    calendar: null, // FullCalendar instance
+    miniCalendar: null, // Mini calendar instance
+    calendarList: [], // Available calendars from config
+    calendarVisibility: {}, // { calendarId: boolean }
+    todayEvents: [], // Events for today (mini calendar list)
+
+    // Event modal
+    eventModalOpen: false,
+    editingEvent: null, // Event being edited (null = creating new)
+    eventForm: {
+      title: "",
+      start: "",
+      end: "",
+      allDay: false,
+      calendarId: "user",
+      description: "",
+    },
+
+    // Inline event editing (event detail tab)
+    isEditingEvent: false,
+    eventEditForm: {
+      title: "",
+      start: "",
+      end: "",
+      allDay: false,
+      description: "",
+    },
+
+    // Calendar view range (for context)
+    calendarViewStart: null,
+    calendarViewEnd: null,
+    calendarViewType: null, // 'dayGridMonth', 'timeGridWeek', 'timeGridDay', 'listWeek'
+
     modelOptions: [
       { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5" },
       { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5" },
@@ -126,6 +163,13 @@ function chat() {
       return (
         words[0].charAt(0).toUpperCase() + words[1].charAt(0).toUpperCase()
       );
+    },
+
+    get agentFirstName() {
+      // Use nickname if available, otherwise parse first name from full name
+      return this.agentNickname !== "Agent"
+        ? this.agentNickname
+        : this.agentName.split(/\s+/)[0];
     },
 
     get modelDisplayName() {
@@ -179,6 +223,7 @@ function chat() {
         .then((data) => {
           if (data.hatched && data.agentName) {
             this.agentName = data.agentName;
+            this.agentNickname = data.agentNickname || data.agentName;
           } else {
             this.isHatching = true;
           }
@@ -187,6 +232,10 @@ function chat() {
 
       // Load channels
       this.fetchChannels();
+
+      // Load calendar config and today's events
+      this.loadCalendarConfig();
+      this.loadTodayEvents();
 
       // Configure marked.js
       marked.setOptions({
@@ -234,6 +283,22 @@ function chat() {
       window.addEventListener("control-submit", (e) => {
         const { controlId, value, displayValue } = e.detail;
         this.submitControl(controlId, value, displayValue);
+      });
+
+      // Initialize calendars after DOM is ready
+      // Use requestAnimationFrame to ensure layout is complete
+      this.$nextTick(() => {
+        requestAnimationFrame(() => {
+          // Initialize mini calendar on Home tab (always visible initially or after restore)
+          if (this.activeTab === "home") {
+            this.initMiniCalendarView();
+          }
+          // Initialize main calendar if it was the active tab on refresh
+          if (this._pendingCalendarInit) {
+            this._pendingCalendarInit = false;
+            this.initCalendarView();
+          }
+        });
       });
     },
 
@@ -515,6 +580,7 @@ function chat() {
         case "hatching_complete":
           // Transition from hatching to normal chat
           this.agentName = data.agentName;
+          this.agentNickname = data.agentNickname || data.agentName;
           this.isHatching = false;
           this.isResponding = false;
           this.currentAssistantMessage = null;
@@ -556,6 +622,12 @@ function chat() {
               lastMsg.usage = data.usage;
               lastMsg.cost = data.cost;
             }
+          }
+          // Auto-refresh calendar after agent completes calendar-related response
+          if (this._isCalendarConversation && this.calendar) {
+            console.log("[App] Calendar conversation done, refreshing events");
+            this.calendar.refetchEvents();
+            if (this.miniCalendar) this.miniCalendar.refetchEvents();
           }
           this.$nextTick(() => {
             this.scrollToBottom();
@@ -649,6 +721,13 @@ function chat() {
           ) {
             this.currentConversationId = data.conversation.id;
             this._pendingNewConversation = false;
+
+            // If there's a pending event prompt, send it now
+            if (this._pendingEventPrompt) {
+              this.inputText = this._pendingEventPrompt;
+              this._pendingEventPrompt = null;
+              this.$nextTick(() => this.sendMessage());
+            }
           }
           break;
         }
@@ -857,6 +936,19 @@ function chat() {
           break;
         }
 
+        case "calendar_refresh": {
+          // Calendar was modified (e.g., Nina created an event)
+          console.log("[App] Calendar refresh triggered");
+          if (this.calendar) {
+            this.calendar.refetchEvents();
+          }
+          if (this.miniCalendar) {
+            this.miniCalendar.refetchEvents();
+          }
+          this.loadTodayEvents();
+          break;
+        }
+
         default:
           console.warn("[App] Unknown message type:", data.type);
       }
@@ -1031,7 +1123,15 @@ function chat() {
       if (id === "home" || id === "settings") {
         this.chatContext = null;
       }
-      // Auto-set chat context when switching to content tabs
+      // Calendar tab: use date range context
+      else if (id === "calendar") {
+        // Context will be set by updateCalendarContext after calendar initializes
+        // If calendar already initialized, update context immediately
+        if (this.calendar && this.calendarViewStart) {
+          this.updateCalendarContext();
+        }
+      }
+      // Auto-set chat context for other content tabs
       else {
         const tab = this.openTabs.find((t) => t.id === id);
         if (tab) {
@@ -1043,6 +1143,15 @@ function chat() {
             conversationId: tab.data?.conversationId,
           };
         }
+      }
+
+      // Initialize calendar when switching to calendar tab
+      if (id === "calendar") {
+        this.$nextTick(() => this.initCalendarView());
+      }
+      // Initialize mini calendar when switching to home tab
+      else if (id === "home") {
+        this.$nextTick(() => this.initMiniCalendarView());
       }
 
       this.saveUIState();
@@ -1185,7 +1294,7 @@ function chat() {
       try {
         const state = JSON.parse(saved);
         if (state.openTabs && Array.isArray(state.openTabs)) {
-          // Ensure home tab always exists
+          // Ensure home tab always exists (only home is permanent)
           const hasHome = state.openTabs.some((t) => t.id === "home");
           if (!hasHome) {
             state.openTabs.unshift({
@@ -1196,12 +1305,24 @@ function chat() {
               closeable: false,
             });
           }
+          // Migrate: Calendar tab should now be closeable
+          state.openTabs = state.openTabs.map((t) => {
+            if (t.id === "calendar") {
+              return { ...t, closeable: true };
+            }
+            return t;
+          });
           this.openTabs = state.openTabs;
         }
         if (state.activeTab) {
           // Verify active tab exists in openTabs
           if (this.openTabs.some((t) => t.id === state.activeTab)) {
             this.activeTab = state.activeTab;
+            // Schedule calendar initialization after DOM is ready
+            // This handles the case when page is refreshed while calendar tab was active
+            if (state.activeTab === "calendar") {
+              this._pendingCalendarInit = true;
+            }
           }
         }
         if (state.chatWidth) {
@@ -1722,6 +1843,698 @@ function chat() {
         url: `/attachments/${att.localPath}`,
         size: att.size,
       }));
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Calendar methods
+    // ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Load calendar configuration and set up visibility defaults
+     */
+    async loadCalendarConfig() {
+      try {
+        const config = await CalendarModule.fetchCalendarConfig();
+        this.calendarList = config.calendars || [];
+
+        // Set default visibility
+        for (const cal of this.calendarList) {
+          if (!(cal.id in this.calendarVisibility)) {
+            this.calendarVisibility[cal.id] = cal.defaultVisible;
+          }
+        }
+      } catch (err) {
+        console.error("[App] Failed to load calendar config:", err);
+      }
+    },
+
+    /**
+     * Load today's events for the Home tab mini calendar
+     */
+    async loadTodayEvents() {
+      try {
+        this.todayEvents = await CalendarModule.fetchTodayEvents();
+      } catch (err) {
+        console.error("[App] Failed to load today's events:", err);
+        this.todayEvents = [];
+      }
+    },
+
+    /**
+     * Initialize main calendar view (called when Calendar tab becomes active)
+     */
+    initCalendarView() {
+      const el = this.$refs.calendarEl;
+      if (!el) {
+        console.error("[App] Calendar element not found");
+        return;
+      }
+
+      // If already initialized, refresh and update size (handles window resize on refresh)
+      if (this.calendar) {
+        this.calendar.updateSize();
+        this.calendar.refetchEvents();
+        return;
+      }
+
+      // Ensure the element is visible and has dimensions before initializing
+      // FullCalendar needs a properly sized container
+      if (el.offsetWidth === 0 || el.offsetHeight === 0) {
+        // Element not visible yet, retry after a short delay
+        console.log("[App] Calendar element not sized yet, deferring init");
+        requestAnimationFrame(() => this.initCalendarView());
+        return;
+      }
+
+      // Get visible calendars
+      const visibleCalendars = Object.entries(this.calendarVisibility)
+        .filter(([_, visible]) => visible)
+        .map(([id]) => id);
+
+      this.calendar = CalendarModule.initCalendar(el, {
+        visibleCalendars,
+        onEventClick: (event, el) => {
+          this.openEventTab(event);
+        },
+        onDateSelect: (selection) => {
+          this.openEventModal(selection);
+        },
+        onEventDrop: async (event) => {
+          return await this.updateEventFromDrag(event);
+        },
+        onEventResize: async (event) => {
+          return await this.updateEventFromDrag(event);
+        },
+        onDatesSet: (dateInfo) => {
+          // Track visible date range and view type for context
+          this.calendarViewStart = dateInfo.start;
+          this.calendarViewEnd = dateInfo.end;
+          this.calendarViewType = dateInfo.view.type;
+          // Update context if calendar tab is active
+          if (this.activeTab === "calendar") {
+            this.updateCalendarContext();
+          }
+        },
+      });
+
+      // Set initial view range
+      if (this.calendar) {
+        const view = this.calendar.view;
+        this.calendarViewStart = view.activeStart;
+        this.calendarViewEnd = view.activeEnd;
+        this.calendarViewType = view.type;
+        this.updateCalendarContext();
+      }
+    },
+
+    /**
+     * Initialize mini calendar on Home tab
+     */
+    initMiniCalendarView() {
+      const el = this.$refs.miniCalendarEl;
+      if (!el) return;
+
+      // If already initialized, just update size
+      if (this.miniCalendar) {
+        this.miniCalendar.updateSize();
+        return;
+      }
+
+      // Ensure the element is visible and has dimensions before initializing
+      if (el.offsetWidth === 0) {
+        // Element not visible yet, retry after a short delay
+        console.log(
+          "[App] Mini calendar element not sized yet, deferring init",
+        );
+        requestAnimationFrame(() => this.initMiniCalendarView());
+        return;
+      }
+
+      this.miniCalendar = CalendarModule.initMiniCalendar(el, (date) => {
+        // Open calendar tab and navigate to that date
+        this.openCalendar(date);
+      });
+    },
+
+    /**
+     * Open the Calendar tab (create if needed) and optionally navigate to a date
+     */
+    openCalendar(date = null) {
+      // Check if calendar tab exists
+      const existing = this.openTabs.find((t) => t.id === "calendar");
+      if (existing) {
+        this.switchTab("calendar");
+      } else {
+        // Create calendar tab
+        this.openTab({
+          id: "calendar",
+          type: "calendar",
+          title: "Calendar",
+          icon: "📅",
+          closeable: true,
+        });
+      }
+
+      // Navigate to date after tab is ready
+      if (date) {
+        this.$nextTick(() => {
+          if (this.calendar) {
+            this.calendar.gotoDate(date);
+          }
+        });
+      }
+    },
+
+    /**
+     * Update chat context with calendar view range
+     */
+    updateCalendarContext() {
+      if (!this.calendarViewStart || !this.calendarViewEnd) return;
+
+      const start = this.calendarViewStart;
+      const end = new Date(this.calendarViewEnd);
+      // FullCalendar end is exclusive, so subtract 1 day for display
+      end.setDate(end.getDate() - 1);
+
+      let rangeText;
+
+      // Month view: show "February 2026" (the month containing most visible days)
+      if (this.calendarViewType === "dayGridMonth") {
+        // Use the 15th of the range to get the primary month
+        const midDate = new Date(start);
+        midDate.setDate(midDate.getDate() + 15);
+        rangeText = midDate.toLocaleDateString(undefined, {
+          month: "long",
+          year: "numeric",
+        });
+      } else {
+        const opts = { month: "short", day: "numeric" };
+
+        // Check if it's a single day view
+        const isSingleDay =
+          start.toDateString() === end.toDateString() ||
+          (end.getTime() - start.getTime() < 2 * 24 * 60 * 60 * 1000 &&
+            start.getDate() === end.getDate());
+
+        if (isSingleDay) {
+          // Single day: "Feb 19"
+          rangeText = start.toLocaleDateString(undefined, opts);
+        } else if (start.getMonth() === end.getMonth()) {
+          // Same month: "Feb 15-21"
+          rangeText = `${start.toLocaleDateString(undefined, opts)}-${end.getDate()}`;
+        } else {
+          // Different months: "Feb 28 - Mar 6"
+          rangeText = `${start.toLocaleDateString(undefined, opts)} - ${end.toLocaleDateString(undefined, opts)}`;
+        }
+      }
+
+      this.chatContext = {
+        type: "calendar",
+        title: rangeText,
+        icon: "📅",
+        dateRange: {
+          start: this.calendarViewStart.toISOString(),
+          end: this.calendarViewEnd.toISOString(),
+        },
+      };
+    },
+
+    /**
+     * Refresh calendar when visibility changes
+     */
+    refreshCalendar() {
+      if (!this.calendar) return;
+
+      const visibleCalendars = Object.entries(this.calendarVisibility)
+        .filter(([_, visible]) => visible)
+        .map(([id]) => id);
+
+      // Update event source with new filter
+      this.calendar.getEventSources().forEach((s) => s.remove());
+      this.calendar.addEventSource({
+        url: "/api/calendar/events",
+        method: "GET",
+        extraParams: {
+          calendars: visibleCalendars.join(","),
+        },
+      });
+    },
+
+    /**
+     * Open event modal for creating/editing
+     */
+    openEventModal(selection = null) {
+      this.editingEvent = null;
+
+      // Default to user calendar if available
+      const defaultCalendar =
+        this.calendarList.find((c) => c.id === "user") ||
+        this.calendarList.find((c) => c.role === "owned") ||
+        this.calendarList[0];
+
+      if (selection) {
+        // Pre-fill from date selection
+        this.eventForm = {
+          title: "",
+          start: this.toDateTimeLocal(selection.start),
+          end: this.toDateTimeLocal(selection.end),
+          allDay: selection.allDay,
+          calendarId: defaultCalendar?.id || "user",
+          description: "",
+        };
+      } else {
+        // Default: start now, end in 1 hour
+        const now = new Date();
+        const end = new Date(now.getTime() + 60 * 60 * 1000);
+        this.eventForm = {
+          title: "",
+          start: this.toDateTimeLocal(now),
+          end: this.toDateTimeLocal(end),
+          allDay: false,
+          calendarId: defaultCalendar?.id || "user",
+          description: "",
+        };
+      }
+
+      this.eventModalOpen = true;
+      this.$nextTick(() => {
+        this.$refs.eventTitleInput?.focus();
+      });
+    },
+
+    /**
+     * Close event modal
+     */
+    closeEventModal() {
+      this.eventModalOpen = false;
+      this.editingEvent = null;
+    },
+
+    /**
+     * Save event (create or update)
+     */
+    async saveEvent() {
+      if (!this.eventForm.title) return;
+
+      const eventData = {
+        calendarId: this.eventForm.calendarId,
+        title: this.eventForm.title,
+        start: new Date(this.eventForm.start).toISOString(),
+        end: this.eventForm.end
+          ? new Date(this.eventForm.end).toISOString()
+          : null,
+        allDay: this.eventForm.allDay,
+        description: this.eventForm.description || undefined,
+      };
+
+      if (this.editingEvent) {
+        // Update existing event
+        const result = await CalendarModule.updateCalendarEvent(
+          this.editingEvent.id,
+          eventData,
+        );
+        if (result) {
+          this.calendar?.refetchEvents();
+          this.loadTodayEvents();
+        }
+      } else {
+        // Create new event
+        const result = await CalendarModule.createCalendarEvent(eventData);
+        if (result) {
+          this.calendar?.refetchEvents();
+          this.loadTodayEvents();
+        }
+      }
+
+      this.closeEventModal();
+    },
+
+    /**
+     * Update event after drag-drop or resize
+     */
+    async updateEventFromDrag(event) {
+      const updates = {
+        start: event.start.toISOString(),
+        end: event.end ? event.end.toISOString() : event.start.toISOString(),
+        allDay: event.allDay,
+      };
+
+      const result = await CalendarModule.updateCalendarEvent(
+        event.id,
+        updates,
+      );
+      if (result) {
+        this.loadTodayEvents();
+      }
+      return !!result;
+    },
+
+    /**
+     * Open event in a dedicated tab (Outlook-style appointment view)
+     */
+    openEventTab(event) {
+      // Normalize event data (FullCalendar event or raw API format)
+      const eventData = {
+        id: event.id,
+        title: event.title,
+        start:
+          event.start instanceof Date ? event.start : new Date(event.start),
+        end: event.end
+          ? event.end instanceof Date
+            ? event.end
+            : new Date(event.end)
+          : null,
+        allDay: event.allDay,
+        color: event.color || event.backgroundColor,
+        extendedProps: event.extendedProps || {},
+      };
+
+      const tabId = `event-${eventData.id}`;
+
+      // Check if tab already open
+      const existing = this.openTabs.find((t) => t.id === tabId);
+      if (existing) {
+        this.switchTab(tabId);
+        return;
+      }
+
+      // Open new event tab
+      this.openTab({
+        id: tabId,
+        type: "event",
+        title: eventData.title,
+        icon: "📅",
+        closeable: true,
+        data: { event: eventData },
+      });
+    },
+
+    /**
+     * Open event tab from Home page today's events list
+     */
+    openEventFromList(event) {
+      this.openEventTab(event);
+    },
+
+    /**
+     * Get the currently viewed event (for tab content)
+     */
+    getCurrentEvent() {
+      const tab = this.openTabs.find((t) => t.id === this.activeTab);
+      return tab?.type === "event" ? tab.data?.event : null;
+    },
+
+    /**
+     * Edit event from its tab (inline mode)
+     */
+    editCurrentEvent() {
+      this.startInlineEventEdit();
+    },
+
+    /**
+     * Enter inline edit mode for current event
+     */
+    startInlineEventEdit() {
+      const tab = this.openTabs.find((t) => t.id === this.activeTab);
+      if (!tab?.data?.event) return;
+
+      const event = tab.data.event;
+      this.eventEditForm = {
+        title: event.title,
+        start: this.toDateTimeLocal(event.start),
+        end: event.end ? this.toDateTimeLocal(event.end) : "",
+        allDay: event.allDay || false,
+        description: event.extendedProps?.description || "",
+      };
+      this.isEditingEvent = true;
+    },
+
+    /**
+     * Cancel inline edit and revert to read mode
+     */
+    cancelInlineEventEdit() {
+      this.isEditingEvent = false;
+      this.eventEditForm = {
+        title: "",
+        start: "",
+        end: "",
+        allDay: false,
+        description: "",
+      };
+    },
+
+    /**
+     * Save inline edits via API
+     */
+    async saveInlineEventEdit() {
+      const tab = this.openTabs.find((t) => t.id === this.activeTab);
+      if (!tab?.data?.event) return;
+
+      try {
+        await CalendarModule.updateCalendarEvent(tab.data.event.id, {
+          title: this.eventEditForm.title,
+          start: this.eventEditForm.start,
+          end: this.eventEditForm.end || undefined,
+          allDay: this.eventEditForm.allDay,
+          description: this.eventEditForm.description,
+        });
+
+        // Update cached event in tab
+        const evt = tab.data.event;
+        evt.title = this.eventEditForm.title;
+        evt.start = this.eventEditForm.start;
+        evt.end = this.eventEditForm.end;
+        evt.allDay = this.eventEditForm.allDay;
+        evt.extendedProps = {
+          ...evt.extendedProps,
+          description: this.eventEditForm.description,
+        };
+        tab.title = this.eventEditForm.title;
+
+        // Refresh calendar
+        this.calendar?.refetchEvents();
+        this.miniCalendar?.refetchEvents();
+
+        this.isEditingEvent = false;
+      } catch (err) {
+        console.error("Failed to save event:", err);
+      }
+    },
+
+    /**
+     * Delete event from its tab
+     */
+    async deleteCurrentEvent() {
+      const event = this.getCurrentEvent();
+      if (!event) return;
+
+      const confirmed = confirm(`Delete "${event.title}"?`);
+      if (!confirmed) return;
+
+      const calendarId = event.extendedProps?.calendarId;
+      const success = await CalendarModule.deleteCalendarEvent(
+        event.id,
+        calendarId,
+      );
+
+      if (success) {
+        // Close the event tab
+        this.closeTab(this.activeTab);
+        // Refresh calendars
+        this.refreshCalendar();
+        this.loadTodayEvents();
+      }
+    },
+
+    /**
+     * Ask agent to help create an event (from modal)
+     */
+    askAgentToCreateEvent() {
+      // Capture timeframe from form before closing
+      const start = this.eventForm.start;
+      const end = this.eventForm.end;
+      const allDay = this.eventForm.allDay;
+
+      this.closeEventModal();
+      this.startEventConversation("create", { start, end, allDay });
+    },
+
+    /**
+     * Ask agent to help edit current event (from event tab)
+     */
+    askAgentToEditEvent() {
+      const event = this.getCurrentEvent();
+      if (!event) return;
+
+      this.startEventConversation("edit", {
+        uid: event.id,
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        allDay: event.allDay,
+        description: event.extendedProps?.description,
+      });
+    },
+
+    /**
+     * Start a new conversation with event context
+     */
+    startEventConversation(mode, eventData) {
+      // Create new conversation (don't interrupt current)
+      this.createNewConversation();
+
+      // Build clean slash command prompt (skill has full instructions)
+      let prompt;
+      if (mode === "create") {
+        const timeInfo = this.formatEventDateTime(eventData);
+        const startISO = new Date(eventData.start).toISOString().slice(0, 19);
+        const endISO = eventData.end
+          ? new Date(eventData.end).toISOString().slice(0, 19)
+          : "";
+        prompt = `/my-agent:calendar
+
+**Create new entry**
+Time: ${timeInfo}
+Start: ${startISO}${endISO ? `\nEnd: ${endISO}` : ""}${eventData.allDay ? "\nAll day: yes" : ""}`;
+      } else {
+        // Edit mode
+        prompt = `/my-agent:calendar
+
+**Edit existing entry**
+Title: ${eventData.title}
+UID: ${eventData.uid}
+Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\nNotes: ${eventData.description}` : ""}`;
+      }
+
+      // Queue to send once conversation is created
+      this._pendingEventPrompt = prompt;
+      // Track that this is a calendar conversation (for auto-refresh)
+      this._isCalendarConversation = true;
+    },
+
+    /**
+     * Edit event from popover
+     */
+    editEventFromPopover() {
+      if (!this.selectedEvent) return;
+
+      this.editingEvent = this.selectedEvent;
+      this.eventForm = {
+        title: this.selectedEvent.title,
+        start: this.toDateTimeLocal(this.selectedEvent.start),
+        end: this.selectedEvent.end
+          ? this.toDateTimeLocal(this.selectedEvent.end)
+          : "",
+        allDay: this.selectedEvent.allDay,
+        calendarId: this.selectedEvent.extendedProps?.calendarId || "user",
+        description: this.selectedEvent.extendedProps?.description || "",
+      };
+
+      this.closeEventPopover();
+      this.eventModalOpen = true;
+      this.$nextTick(() => {
+        this.$refs.eventTitleInput?.focus();
+      });
+    },
+
+    /**
+     * Delete event from popover
+     */
+    async deleteEventFromPopover() {
+      if (!this.selectedEvent) return;
+
+      const confirmed = confirm(`Delete "${this.selectedEvent.title}"?`);
+      if (!confirmed) return;
+
+      const calendarId = this.selectedEvent.extendedProps?.calendarId;
+      const success = await CalendarModule.deleteCalendarEvent(
+        this.selectedEvent.id,
+        calendarId,
+      );
+
+      if (success) {
+        this.calendar?.refetchEvents();
+        this.loadTodayEvents();
+      }
+
+      this.closeEventPopover();
+    },
+
+    /**
+     * Set chat context to selected event and focus chat
+     */
+    askNinaAboutEvent() {
+      if (!this.selectedEvent) return;
+
+      this.chatContext = {
+        type: "event",
+        icon: "📅",
+        title: this.selectedEvent.title,
+        data: {
+          uid: this.selectedEvent.id,
+          calendarId: this.selectedEvent.extendedProps?.calendarId,
+        },
+      };
+
+      this.closeEventPopover();
+      this.$nextTick(() => {
+        this.$refs.chatInput?.focus();
+      });
+    },
+
+    /**
+     * Format event date/time for popover display
+     */
+    formatEventDateTime(event) {
+      if (!event) return "";
+
+      // Ensure we have Date objects (may be strings from localStorage)
+      const start =
+        event.start instanceof Date ? event.start : new Date(event.start);
+      const end = event.end
+        ? event.end instanceof Date
+          ? event.end
+          : new Date(event.end)
+        : null;
+
+      if (event.allDay) {
+        const opts = { weekday: "short", month: "short", day: "numeric" };
+        return start.toLocaleDateString(undefined, opts);
+      }
+
+      const dateOpts = { weekday: "short", month: "short", day: "numeric" };
+      const timeOpts = { hour: "2-digit", minute: "2-digit" };
+
+      const dateStr = start.toLocaleDateString(undefined, dateOpts);
+      const startTime = start.toLocaleTimeString(undefined, timeOpts);
+      const endTime = end ? end.toLocaleTimeString(undefined, timeOpts) : "";
+
+      return endTime
+        ? `${dateStr}, ${startTime} - ${endTime}`
+        : `${dateStr}, ${startTime}`;
+    },
+
+    /**
+     * Format event time for mini calendar list
+     */
+    formatEventTimeShort(event) {
+      if (!event) return "";
+      if (event.allDay) return "All day";
+
+      const start = new Date(event.start);
+      const hours = start.getHours().toString().padStart(2, "0");
+      const minutes = start.getMinutes().toString().padStart(2, "0");
+      return `${hours}:${minutes}`;
+    },
+
+    /**
+     * Convert Date to datetime-local input format
+     */
+    toDateTimeLocal(date) {
+      const d = new Date(date);
+      const offset = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - offset * 60 * 1000);
+      return local.toISOString().slice(0, 16);
     },
   };
 }

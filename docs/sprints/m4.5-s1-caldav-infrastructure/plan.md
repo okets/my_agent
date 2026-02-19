@@ -1,6 +1,6 @@
 # M4.5-S1: CalDAV Infrastructure
 
-> **Status:** Planning
+> **Status:** Complete
 > **Dependencies:** M4-S2 (Dashboard Workspace Layout) — Complete
 > **Design spec:** [calendar-system.md](../../design/calendar-system.md)
 > **Prototype:** `prototypes/calendar/` — Validated 2026-02-18
