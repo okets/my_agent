@@ -213,8 +213,9 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 | S3     | Notebook Tools            | Complete | [plan](sprints/m5-s3-notebook-tools/plan.md)            | [review](sprints/m5-s3-notebook-tools/review.md)            |
 | S4     | Notification System       | Complete | [plan](sprints/m5-s4-notifications-ui/plan.md)          | [review](sprints/m5-s4-notifications-ui/review.md)          |
 | S5     | Task-Conversation Linking | Complete | [plan](sprints/m5-s5-task-conversation-linking/plan.md) | [review](sprints/m5-s5-task-conversation-linking/review.md) |
-| S6     | Task UI                   | Planned  | [plan](sprints/m5-s6-task-ui/plan.md)                   | —                                                           |
-| S7     | Request/Input Blocking    | Planned  | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
+| S6     | Task UI                   | Complete | [plan](sprints/m5-s6-task-ui/plan.md)                   | —                                                           |
+| S7     | Request/Input Blocking    | Deferred | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
+| S8     | E2E Task Flow             | Planned  | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | —                                                           |
 
 **Deliverables:**
 
@@ -224,7 +225,8 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 - _(S4)_ NotificationService (notify, request_input, escalate), notification routing, dashboard UI
 - _(S5)_ Soft delete for tasks, task_conversations junction table, full Task REST API (CRUD + link queries), conversationId in brain system prompt, brain documentation for task API
 - _(S6)_ Task list screen, task detail tab, shared components (StatusBadge, DetailHeader, etc.), entity tags in chat, create task form
-- _(S7)_ D2 fix (immediate execution bypass), TaskExecutor pause/resume, NotificationService-driven blocking with resolution flow
+- _(S7)_ _(Deferred)_ Request/input blocking for interactive task execution
+- _(S8)_ Brain skill loading fix, TaskProcessor (immediate), TaskScheduler (scheduled), result delivery to conversation
 
 **Philosophy:**
 
