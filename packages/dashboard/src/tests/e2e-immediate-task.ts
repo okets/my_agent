@@ -37,30 +37,29 @@ export async function testImmediateTask(): Promise<TestResult> {
   const ws = new WebSocket(WS_URL);
   await waitForOpen(ws);
 
-  // Switch to our conversation
+  // Connect to our conversation first
   ws.send(
     JSON.stringify({
-      type: "conversation:switch",
+      type: "connect",
       conversationId,
     }),
   );
 
-  // Wait a bit for switch to complete
-  await new Promise((r) => setTimeout(r, 500));
+  // Wait for conversation_loaded
+  await waitForMessage(ws, "conversation_loaded", 10_000);
 
   console.log("  Sending test message...");
   ws.send(
     JSON.stringify({
-      type: "chat:send",
-      conversationId,
-      message:
+      type: "message",
+      content:
         "We are traveling to Bangkok with a 3 and a 5 YO girls. research must see places to see with kids. send me the list.",
     }),
   );
 
-  // 3. Wait for brain response (acknowledgment)
+  // 3. Wait for brain response (done event)
   console.log("  Waiting for brain response...");
-  const brainResponse = await waitForMessage(ws, "chat:complete", 60_000);
+  const brainResponse = await waitForMessage(ws, "done", 90_000);
   assert(brainResponse, "Brain should respond");
   console.log("  Brain responded");
 

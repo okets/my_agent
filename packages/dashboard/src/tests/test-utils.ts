@@ -97,13 +97,13 @@ export function assert(condition: any, message: string): asserts condition {
 }
 
 /**
- * Create a test conversation
+ * Create a test conversation via admin API
  */
 export async function createConversation(baseUrl: string): Promise<string> {
-  const res = await fetch(`${baseUrl}/api/conversations`, {
+  const res = await fetch(`${baseUrl}/api/admin/conversations`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ channel: "web", title: "E2E Test" }),
   });
 
   if (!res.ok) {
@@ -115,13 +115,15 @@ export async function createConversation(baseUrl: string): Promise<string> {
 }
 
 /**
- * Get conversation details
+ * Get conversation details including turns via admin API
  */
 export async function getConversation(
   baseUrl: string,
   conversationId: string,
 ): Promise<any> {
-  const res = await fetch(`${baseUrl}/api/conversations/${conversationId}`);
+  const res = await fetch(
+    `${baseUrl}/api/admin/conversations/${conversationId}`,
+  );
   if (!res.ok) {
     throw new Error(`Failed to get conversation: ${res.status}`);
   }

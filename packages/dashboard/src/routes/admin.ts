@@ -165,6 +165,83 @@ export async function registerAdminRoutes(
   });
 
   /**
+   * POST /conversations
+   *
+   * Create a new conversation (for E2E testing)
+   */
+  fastify.post<{ Body: { channel?: string; title?: string } }>(
+    "/conversations",
+    async (request, reply) => {
+      const conversationManager = fastify.conversationManager;
+
+      if (!conversationManager) {
+        return reply
+          .code(503)
+          .send({ error: "Conversation manager not initialized" });
+      }
+
+      const { channel = "web", title } = request.body || {};
+
+      const conversation = await conversationManager.create(channel, { title });
+      fastify.log.info(
+        `[Admin] Created conversation ${conversation.id} on channel ${channel}`,
+      );
+
+      return {
+        id: conversation.id,
+        channel: conversation.channel,
+        title: conversation.title,
+        created: conversation.created.toISOString(),
+      };
+    },
+  );
+
+  /**
+   * GET /conversations/:id
+   *
+   * Get conversation details including turns (for E2E testing)
+   */
+  fastify.get<{ Params: { id: string } }>(
+    "/conversations/:id",
+    async (request, reply) => {
+      const { id } = request.params;
+      const conversationManager = fastify.conversationManager;
+
+      if (!conversationManager) {
+        return reply
+          .code(503)
+          .send({ error: "Conversation manager not initialized" });
+      }
+
+      const conversation = await conversationManager.get(id);
+      if (!conversation) {
+        return reply.code(404).send({ error: "Conversation not found" });
+      }
+
+      const turns = await conversationManager.getTurns(id);
+
+      return {
+        id: conversation.id,
+        channel: conversation.channel,
+        title: conversation.title,
+        created: conversation.created.toISOString(),
+        updated: conversation.updated.toISOString(),
+        turnCount: conversation.turnCount,
+        turns: turns.map((t) => ({
+          type: t.type,
+          role: t.role,
+          content:
+            typeof t.content === "string"
+              ? t.content
+              : JSON.stringify(t.content),
+          timestamp: t.timestamp,
+          turnNumber: t.turnNumber,
+        })),
+      };
+    },
+  );
+
+  /**
    * POST /conversation/:id/delete
    *
    * Delete a conversation
@@ -399,6 +476,48 @@ export async function registerAdminRoutes(
       return reply.code(500).send({
         error:
           err instanceof Error ? err.message : "Failed to simulate message",
+      });
+    }
+  });
+
+  /**
+   * POST /channel/:id/send
+   *
+   * Send a message to a user via a channel (for testing/debugging)
+   */
+  fastify.post<{
+    Params: { id: string };
+    Body: { to: string; content: string };
+  }>("/channel/:id/send", async (request, reply) => {
+    const { id } = request.params;
+    const { to, content } = request.body || {};
+
+    if (!to || !content) {
+      return reply.code(400).send({ error: "to and content are required" });
+    }
+
+    const channelManager = fastify.channelManager;
+    if (!channelManager) {
+      return reply.code(503).send({ error: "Channel manager not initialized" });
+    }
+
+    // Check channel exists
+    const channels = channelManager.getChannelInfos();
+    const channelInfo = channels.find((c) => c.id === id);
+    if (!channelInfo) {
+      return reply.code(404).send({ error: `Channel not found: ${id}` });
+    }
+
+    try {
+      // Send via channel manager
+      await channelManager.send(id, to, { content });
+      fastify.log.info(`[Admin] Sent message to ${to} via channel ${id}`);
+
+      return { ok: true, channelId: id, to };
+    } catch (err) {
+      fastify.log.error(err, `[Admin] Failed to send message via channel ${id}`);
+      return reply.code(500).send({
+        error: err instanceof Error ? err.message : "Failed to send message",
       });
     }
   });
