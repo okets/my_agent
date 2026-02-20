@@ -22,7 +22,13 @@ import {
   MockChannelPlugin,
   ChannelMessageHandler,
 } from "./channels/index.js";
-import { TaskManager, TaskLogStorage } from "./tasks/index.js";
+import {
+  TaskManager,
+  TaskLogStorage,
+  TaskExecutor,
+  TaskProcessor,
+  TaskScheduler,
+} from "./tasks/index.js";
 import { connectionRegistry, sessionRegistry } from "./ws/chat-handler.js";
 
 // Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
@@ -167,6 +173,9 @@ async function main() {
   // Initialize task system (only if hatched)
   let taskManager: TaskManager | null = null;
   let logStorage: TaskLogStorage | null = null;
+  let taskExecutor: TaskExecutor | null = null;
+  let taskProcessor: TaskProcessor | null = null;
+  let taskScheduler: TaskScheduler | null = null;
   let notificationService: NotificationService | null = null;
 
   if (hatched) {
@@ -174,6 +183,31 @@ async function main() {
     const db = conversationManager.getDb();
     taskManager = new TaskManager(db, agentDir);
     logStorage = new TaskLogStorage(agentDir);
+
+    // Initialize task executor
+    taskExecutor = new TaskExecutor({
+      taskManager,
+      logStorage,
+      agentDir,
+    });
+
+    // Initialize task processor (handles immediate task execution)
+    taskProcessor = new TaskProcessor({
+      taskManager,
+      executor: taskExecutor,
+      conversationManager,
+      connectionRegistry,
+    });
+
+    // Initialize task scheduler (polls for due scheduled tasks)
+    taskScheduler = new TaskScheduler({
+      taskManager,
+      processor: taskProcessor,
+      pollIntervalMs: 30_000, // 30 seconds
+    });
+
+    // Start the task scheduler
+    taskScheduler.start();
 
     // Initialize notification service
     notificationService = new NotificationService();
@@ -207,7 +241,7 @@ async function main() {
       });
     });
 
-    console.log("Task system initialized");
+    console.log("Task system initialized with processor and scheduler");
   }
 
   server.notificationService = notificationService;
@@ -254,6 +288,8 @@ async function main() {
   server.calendarScheduler = calendarScheduler;
   server.taskManager = taskManager;
   server.logStorage = logStorage;
+  server.taskProcessor = taskProcessor;
+  server.taskScheduler = taskScheduler;
 
   try {
     await server.listen({ port, host: "0.0.0.0" });
@@ -268,6 +304,12 @@ async function main() {
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} received, shutting down gracefully...`);
     try {
+      // Stop task scheduler
+      if (taskScheduler) {
+        taskScheduler.stop();
+        console.log("Task scheduler stopped.");
+      }
+
       // Stop calendar scheduler
       if (calendarScheduler) {
         calendarScheduler.stop();

@@ -252,6 +252,13 @@ export async function registerTaskRoutes(
       taskManager.linkTaskToConversation(task.id, conversationId);
     }
 
+    // Trigger task processor for immediate execution
+    const taskProcessor = fastify.taskProcessor;
+    if (taskProcessor) {
+      // Fire and forget - don't block the API response
+      taskProcessor.onTaskCreated(task);
+    }
+
     return reply.code(201).send(toResponse(task));
   });
 

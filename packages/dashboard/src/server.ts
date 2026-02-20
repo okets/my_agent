@@ -17,7 +17,12 @@ import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
 import type { ChannelMessageHandler } from "./channels/message-handler.js";
-import type { TaskManager, TaskLogStorage } from "./tasks/index.js";
+import type {
+  TaskManager,
+  TaskLogStorage,
+  TaskProcessor,
+  TaskScheduler,
+} from "./tasks/index.js";
 import type { CalendarScheduler, NotificationService } from "@my-agent/core";
 
 export interface ServerOptions {
@@ -35,6 +40,8 @@ declare module "fastify" {
     channelMessageHandler: ChannelMessageHandler | null;
     taskManager: TaskManager | null;
     logStorage: TaskLogStorage | null;
+    taskProcessor: TaskProcessor | null;
+    taskScheduler: TaskScheduler | null;
     calendarScheduler: CalendarScheduler | null;
     notificationService: NotificationService | null;
   }
@@ -95,6 +102,8 @@ export async function createServer(
   fastify.decorate("channelMessageHandler", null);
   fastify.decorate("taskManager", null);
   fastify.decorate("logStorage", null);
+  fastify.decorate("taskProcessor", null);
+  fastify.decorate("taskScheduler", null);
   fastify.decorate("calendarScheduler", null);
   fastify.decorate("notificationService", null);
 
