@@ -235,7 +235,9 @@ export class TaskManager {
    */
   update(
     id: string,
-    changes: Partial<Pick<Task, "status" | "startedAt" | "completedAt">>,
+    changes: Partial<
+      Pick<Task, "status" | "startedAt" | "completedAt" | "deletedAt">
+    >,
   ): void {
     const fields: string[] = [];
     const values: any[] = [];
@@ -255,6 +257,11 @@ export class TaskManager {
       values.push(changes.completedAt.toISOString());
     }
 
+    if (changes.deletedAt !== undefined) {
+      fields.push("deleted_at = ?");
+      values.push(changes.deletedAt.toISOString());
+    }
+
     if (fields.length === 0) {
       return;
     }
@@ -268,11 +275,18 @@ export class TaskManager {
 
   /**
    * List tasks with optional filtering
+   *
+   * By default, excludes soft-deleted tasks. Set includeDeleted: true to include them.
    */
   list(filter?: ListTasksFilter): Task[] {
     let sql = "SELECT * FROM tasks";
     const conditions: string[] = [];
     const params: any[] = [];
+
+    // Exclude deleted tasks by default
+    if (!filter?.includeDeleted) {
+      conditions.push("status != 'deleted'");
+    }
 
     if (filter?.status) {
       if (Array.isArray(filter.status)) {
@@ -341,18 +355,18 @@ export class TaskManager {
   }
 
   /**
-   * Delete a task
+   * Soft-delete a task
+   *
+   * Sets status to 'deleted' and records deletedAt timestamp.
+   * The task and its log file are preserved for audit trail.
    */
   delete(id: string): void {
-    const task = this.findById(id);
+    const now = new Date();
 
-    const stmt = this.db.prepare("DELETE FROM tasks WHERE id = ?");
-    stmt.run(id);
-
-    // Also delete the log file if it exists
-    if (task?.logPath && fs.existsSync(task.logPath)) {
-      fs.unlinkSync(task.logPath);
-    }
+    this.update(id, {
+      status: "deleted",
+      deletedAt: now,
+    });
   }
 
   /**
@@ -373,9 +387,76 @@ export class TaskManager {
       scheduledFor: row.scheduled_for ? new Date(row.scheduled_for) : undefined,
       startedAt: row.started_at ? new Date(row.started_at) : undefined,
       completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+      deletedAt: row.deleted_at ? new Date(row.deleted_at) : undefined,
       created: new Date(row.created_at),
       createdBy: row.created_by,
       logPath: row.log_path,
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Task-Conversation Linking (M5-S5)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Link a task to a conversation
+   *
+   * Creates a soft reference in the junction table. Idempotent: if the link
+   * already exists, this is a no-op.
+   */
+  linkTaskToConversation(taskId: string, conversationId: string): void {
+    const stmt = this.db.prepare(`
+      INSERT OR IGNORE INTO task_conversations (task_id, conversation_id, linked_at)
+      VALUES (?, ?, ?)
+    `);
+    stmt.run(taskId, conversationId, new Date().toISOString());
+  }
+
+  /**
+   * Get all conversations linked to a task
+   *
+   * Returns conversation IDs, ordered by link time (most recent first).
+   */
+  getConversationsForTask(
+    taskId: string,
+  ): Array<{ conversationId: string; linkedAt: Date }> {
+    const stmt = this.db.prepare(`
+      SELECT conversation_id, linked_at
+      FROM task_conversations
+      WHERE task_id = ?
+      ORDER BY linked_at DESC
+    `);
+    const rows = stmt.all(taskId) as Array<{
+      conversation_id: string;
+      linked_at: string;
+    }>;
+    return rows.map((row) => ({
+      conversationId: row.conversation_id,
+      linkedAt: new Date(row.linked_at),
+    }));
+  }
+
+  /**
+   * Get all tasks linked to a conversation
+   *
+   * Returns task IDs, ordered by link time (most recent first).
+   */
+  getTasksForConversation(
+    conversationId: string,
+  ): Array<{ taskId: string; linkedAt: Date }> {
+    const stmt = this.db.prepare(`
+      SELECT task_id, linked_at
+      FROM task_conversations
+      WHERE conversation_id = ?
+      ORDER BY linked_at DESC
+    `);
+    const rows = stmt.all(conversationId) as Array<{
+      task_id: string;
+      linked_at: string;
+    }>;
+    return rows.map((row) => ({
+      taskId: row.task_id,
+      linkedAt: new Date(row.linked_at),
+    }));
   }
 }

@@ -146,7 +146,7 @@ A long-running Agent SDK session that IS the agent. It has:
 The brain checks autonomy mode before executing actions. Enforcement happens at the tool level:
 
 - MCP tools (send_email, send_whatsapp) check autonomy mode before executing
-- Comms MCP server respects autonomy when sessions call notify/escalate
+- NotificationService respects autonomy when sessions call notify/escalate
 - Claude Code sessions inherit autonomy mode from task.md
 - Channel routing — responds via the correct channel
 - Memory management — saves insights, updates contacts, creates summaries
@@ -325,10 +325,10 @@ Hooks run at lifecycle points for safety, audit, and control.
 
 ### 7. Communication Between Brain and Project Sessions
 
-Project sessions communicate back via a **Comms MCP server** configured in each project:
+Project sessions communicate back via **NotificationService** available in each project:
 
-**Tools provided:**
-| Tool | Behavior |
+**Methods provided:**
+| Method | Behavior |
 |---|---|
 | `notify(message)` | Fire-and-forget status update. Session continues. |
 | `request_review(plan)` | Saves state to task.md, notifies brain/Hanan, exits cleanly. |
@@ -864,7 +864,7 @@ Folder creation, Claude Code spawning, task lifecycle, **scheduled tasks**.
 - Task classification (ad-hoc / project / ongoing)
 - Folder creation with CLAUDE.md + task.md + .claude/ setup
 - Claude Code session spawning via `claude` CLI
-- Comms MCP server (notify, request_review, escalate)
+- NotificationService (notify, request_review, escalate)
 - Resume flow (`claude --continue` on approval)
 - **Scheduled tasks**: cron-based recurring work (e.g., "summarize my inbox every morning")
 - Verification: send "fix a bug in X" → project folder created → Claude Code works → requests review → approve → completes

@@ -96,6 +96,12 @@ export class SessionManager {
   private buildPromptWithHistory(): string {
     let prompt = this.baseSystemPrompt!;
 
+    // Inject conversation ID for task-conversation linking (M5-S5)
+    // Brain can use this when calling task APIs to create links
+    if (this.conversationId) {
+      prompt += `\n\n[Session Context]\nCurrent conversation ID: ${this.conversationId}\n[End Session Context]`;
+    }
+
     // Add cold-start context injection (abbreviation + older turns from transcript)
     if (this.contextInjection) {
       prompt += `\n\n${this.contextInjection}`;

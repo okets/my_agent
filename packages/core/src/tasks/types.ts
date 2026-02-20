@@ -8,7 +8,7 @@
 /**
  * Task execution status
  */
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'paused'
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'paused' | 'deleted'
 
 /**
  * Task type: how it was triggered
@@ -68,6 +68,9 @@ export interface Task {
   /** When execution completed */
   completedAt?: Date
 
+  /** When the task was soft-deleted */
+  deletedAt?: Date
+
   /** When the task was created */
   created: Date
 
@@ -108,6 +111,9 @@ export interface ListTasksFilter {
 
   /** Filter by recurrence ID (get all instances of a recurring task) */
   recurrenceId?: string
+
+  /** Include soft-deleted tasks (default: false) */
+  includeDeleted?: boolean
 
   /** Maximum number of results */
   limit?: number

@@ -129,6 +129,20 @@ function chat() {
     calendarViewEnd: null,
     calendarViewType: null, // 'dayGridMonth', 'timeGridWeek', 'timeGridDay', 'listWeek'
 
+    // ─────────────────────────────────────────────────────────────────
+    // Task state (M5-S6)
+    // ─────────────────────────────────────────────────────────────────
+    tasks: [], // All tasks (loaded from API)
+    tasksLoading: false, // Loading indicator
+    tasksFilter: { status: null, type: null }, // Active filters
+    showCreateTaskForm: false, // Create task modal
+    createTaskForm: {
+      title: "",
+      instructions: "",
+      type: "immediate",
+      scheduledFor: "",
+    },
+
     modelOptions: [
       { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5" },
       { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5" },
@@ -243,6 +257,9 @@ function chat() {
       // Load calendar config and today's events
       this.loadCalendarConfig();
       this.loadTodayEvents();
+
+      // Load tasks (M5-S6)
+      this.loadTasks();
 
       // Configure marked.js
       marked.setOptions({
@@ -979,6 +996,26 @@ function chat() {
           break;
         }
 
+        // Task events (M5-S6)
+        case "task:created":
+        case "task:updated":
+        case "task:completed":
+        case "task:deleted": {
+          // Refresh task list when tasks change
+          this.loadTasks();
+
+          // Update task in open tab if applicable
+          if (data.task) {
+            const tabId = `task-${data.task.id}`;
+            const tab = this.openTabs.find((t) => t.id === tabId);
+            if (tab) {
+              tab.data.task = data.task;
+              tab.title = data.task.title;
+            }
+          }
+          break;
+        }
+
         default:
           console.warn("[App] Unknown message type:", data.type);
       }
@@ -1016,7 +1053,11 @@ function chat() {
     respondToNotification(notificationId, response) {
       if (this.ws && this.wsConnected) {
         this.ws.send(
-          JSON.stringify({ type: "notification_respond", notificationId, response }),
+          JSON.stringify({
+            type: "notification_respond",
+            notificationId,
+            response,
+          }),
         );
       }
       // Optimistic update
@@ -1282,9 +1323,11 @@ function chat() {
 
       this.openTabs = this.openTabs.filter((t) => t.id !== id);
 
-      // If closing active tab, switch to last remaining tab
+      // If closing active tab, switch to last remaining tab (also updates chatContext)
       if (this.activeTab === id) {
-        this.activeTab = this.openTabs[this.openTabs.length - 1]?.id || "home";
+        const newActiveTab =
+          this.openTabs[this.openTabs.length - 1]?.id || "home";
+        this.switchTab(newActiveTab);
       }
       this.saveUIState();
     },
@@ -2633,6 +2676,245 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       const offset = d.getTimezoneOffset();
       const local = new Date(d.getTime() - offset * 60 * 1000);
       return local.toISOString().slice(0, 16);
+    },
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Task Methods (M5-S6)
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Load tasks from API
+     */
+    async loadTasks() {
+      this.tasksLoading = true;
+      try {
+        let url = "/api/tasks?";
+        const params = [];
+
+        if (this.tasksFilter.status) {
+          params.push(`status=${this.tasksFilter.status}`);
+        }
+        if (this.tasksFilter.type) {
+          params.push(`type=${this.tasksFilter.type}`);
+        }
+
+        url += params.join("&");
+
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          this.tasks = data.tasks || [];
+        }
+      } catch (err) {
+        console.error("[App] Failed to load tasks:", err);
+      } finally {
+        this.tasksLoading = false;
+      }
+    },
+
+    /**
+     * Get filtered tasks for display
+     */
+    get filteredTasks() {
+      return this.tasks;
+    },
+
+    /**
+     * Open task in a detail tab
+     */
+    openTaskTab(task) {
+      const tabId = `task-${task.id}`;
+
+      // Check if already open
+      const existing = this.openTabs.find((t) => t.id === tabId);
+      if (existing) {
+        this.switchTab(tabId);
+        return;
+      }
+
+      // Open new task tab
+      this.openTab({
+        id: tabId,
+        type: "task",
+        title: task.title,
+        icon: "📋",
+        closeable: true,
+        data: { task },
+      });
+
+      // Set chat context to this task
+      this.chatContext = {
+        type: "task",
+        icon: "📋",
+        title: task.title,
+        taskId: task.id,
+      };
+    },
+
+    /**
+     * Get current task from active tab
+     */
+    getCurrentTask() {
+      const tab = this.openTabs.find((t) => t.id === this.activeTab);
+      return tab?.type === "task" ? tab.data?.task : null;
+    },
+
+    /**
+     * Mark task as completed
+     */
+    async completeTask(taskId) {
+      try {
+        const body = {};
+        if (this.currentConversationId) {
+          body.conversationId = this.currentConversationId;
+        }
+
+        const res = await fetch(`/api/tasks/${taskId}/complete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (res.ok) {
+          // Refresh tasks list
+          await this.loadTasks();
+
+          // Update task in tab if open
+          const tab = this.openTabs.find((t) => t.id === `task-${taskId}`);
+          if (tab?.data?.task) {
+            const updated = await res.json();
+            tab.data.task = updated;
+          }
+        }
+      } catch (err) {
+        console.error("[App] Failed to complete task:", err);
+      }
+    },
+
+    /**
+     * Delete task (soft delete)
+     */
+    async deleteTask(taskId) {
+      const task = this.tasks.find((t) => t.id === taskId);
+      const confirmed = confirm(`Delete "${task?.title || "this task"}"?`);
+      if (!confirmed) return;
+
+      try {
+        const res = await fetch(`/api/tasks/${taskId}`, {
+          method: "DELETE",
+        });
+
+        if (res.ok) {
+          // Refresh tasks list
+          await this.loadTasks();
+
+          // Close task tab if open
+          this.closeTab(`task-${taskId}`);
+        }
+      } catch (err) {
+        console.error("[App] Failed to delete task:", err);
+      }
+    },
+
+    /**
+     * Open create task form
+     */
+    openCreateTaskForm() {
+      this.createTaskForm = {
+        title: "",
+        instructions: "",
+        type: "immediate",
+        scheduledFor: "",
+      };
+      this.showCreateTaskForm = true;
+    },
+
+    /**
+     * Close create task form
+     */
+    closeCreateTaskForm() {
+      this.showCreateTaskForm = false;
+    },
+
+    /**
+     * Create a new task
+     */
+    async createTask() {
+      if (!this.createTaskForm.title || !this.createTaskForm.instructions) {
+        alert("Title and instructions are required");
+        return;
+      }
+
+      try {
+        const body = {
+          type: this.createTaskForm.type,
+          sourceType: "manual",
+          title: this.createTaskForm.title,
+          instructions: this.createTaskForm.instructions,
+          createdBy: "user",
+        };
+
+        if (
+          this.createTaskForm.type === "scheduled" &&
+          this.createTaskForm.scheduledFor
+        ) {
+          body.scheduledFor = new Date(
+            this.createTaskForm.scheduledFor,
+          ).toISOString();
+        }
+
+        // Note: Manual task creation does NOT auto-link to current conversation.
+        // Only brain-created tasks or explicit user actions should create links.
+
+        const res = await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (res.ok) {
+          const task = await res.json();
+          await this.loadTasks();
+          this.closeCreateTaskForm();
+
+          // Open the new task
+          this.openTaskTab(task);
+        }
+      } catch (err) {
+        console.error("[App] Failed to create task:", err);
+      }
+    },
+
+    /**
+     * Load conversations linked to a task
+     */
+    async loadTaskConversations(taskId) {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/conversations`);
+        if (res.ok) {
+          const data = await res.json();
+          return data.conversations || [];
+        }
+      } catch (err) {
+        console.error("[App] Failed to load task conversations:", err);
+      }
+      return [];
+    },
+
+    /**
+     * Set filter for tasks
+     */
+    setTasksFilter(key, value) {
+      this.tasksFilter[key] = value;
+      this.loadTasks();
+    },
+
+    /**
+     * Clear all task filters
+     */
+    clearTasksFilter() {
+      this.tasksFilter = { status: null, type: null };
+      this.loadTasks();
     },
   };
 }

@@ -324,6 +324,122 @@
                 </div>
               </div>
             </template>
+
+            <!-- Tasks Section (M5-S6) -->
+            <div class="mt-8">
+              <div class="flex items-center justify-between mb-3">
+                <h2
+                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide"
+                >
+                  Tasks
+                </h2>
+                <button
+                  @click="openCreateTaskForm()"
+                  class="text-xs text-tokyo-blue hover:underline flex items-center gap-1"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    class="w-3 h-3"
+                  >
+                    <path
+                      d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z"
+                    />
+                  </svg>
+                  New task
+                </button>
+              </div>
+
+              <!-- Filter buttons -->
+              <div class="flex gap-1 mb-3">
+                <button
+                  @click="clearTasksFilter()"
+                  class="px-2 py-1 text-xs rounded-full transition-colors"
+                  :class="!tasksFilter.status && !tasksFilter.type ? 'bg-tokyo-blue/20 text-tokyo-blue' : 'bg-white/5 text-tokyo-muted hover:bg-white/10'"
+                >
+                  All
+                </button>
+                <button
+                  @click="setTasksFilter('status', 'pending')"
+                  class="px-2 py-1 text-xs rounded-full transition-colors"
+                  :class="tasksFilter.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-white/5 text-tokyo-muted hover:bg-white/10'"
+                >
+                  Pending
+                </button>
+                <button
+                  @click="setTasksFilter('status', 'running')"
+                  class="px-2 py-1 text-xs rounded-full transition-colors"
+                  :class="tasksFilter.status === 'running' ? 'bg-tokyo-blue/20 text-tokyo-blue' : 'bg-white/5 text-tokyo-muted hover:bg-white/10'"
+                >
+                  Running
+                </button>
+                <button
+                  @click="setTasksFilter('status', 'completed')"
+                  class="px-2 py-1 text-xs rounded-full transition-colors"
+                  :class="tasksFilter.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-white/5 text-tokyo-muted hover:bg-white/10'"
+                >
+                  Done
+                </button>
+                <button
+                  @click="setTasksFilter('status', 'failed')"
+                  class="px-2 py-1 text-xs rounded-full transition-colors"
+                  :class="tasksFilter.status === 'failed' ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-tokyo-muted hover:bg-white/10'"
+                >
+                  Failed
+                </button>
+              </div>
+
+              <!-- Task list -->
+              <div class="space-y-2">
+                <template x-if="tasksLoading">
+                  <p class="text-sm text-tokyo-muted text-center py-3">
+                    Loading tasks...
+                  </p>
+                </template>
+
+                <template x-if="!tasksLoading && filteredTasks.length === 0">
+                  <p class="text-sm text-tokyo-muted text-center py-3">
+                    No tasks found
+                  </p>
+                </template>
+
+                <template x-for="task in filteredTasks" :key="task.id">
+                  <button
+                    @click="openTaskTab(task)"
+                    class="w-full flex items-center gap-3 p-3 rounded-xl glass-strong hover:bg-tokyo-card/80 text-left transition-colors"
+                  >
+                    <!-- Status dot -->
+                    <span
+                      class="w-2 h-2 rounded-full shrink-0"
+                      :class="UIComponents.getStatusDotClass(task.status)"
+                    ></span>
+
+                    <!-- Task info -->
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="text-sm font-medium truncate"
+                          x-text="task.title"
+                        ></span>
+                        <span
+                          x-html="UIComponents.renderTypeBadge(task.type)"
+                        ></span>
+                      </div>
+                      <div
+                        class="text-xs text-tokyo-muted mt-0.5"
+                        x-text="UIComponents.formatDate(task.created, { relative: true })"
+                      ></div>
+                    </div>
+
+                    <!-- Status badge -->
+                    <span
+                      x-html="UIComponents.renderStatusBadge(task.status)"
+                    ></span>
+                  </button>
+                </template>
+              </div>
+            </div>
           </div>
 
           <!-- ======================================================== -->
@@ -709,7 +825,248 @@
           </template>
 
           <!-- ======================================================== -->
-          <!-- Task Detail Tab (Outlook-style appointment view)          -->
+          <!-- Task Detail Tab (M5-S6)                                   -->
+          <!-- ======================================================== -->
+          <template
+            x-if="openTabs.find(t => t.id === activeTab)?.type === 'task'"
+          >
+            <div class="h-full flex flex-col p-6 overflow-auto">
+              <!-- Header: Title + Status + Actions -->
+              <div class="flex items-start justify-between gap-4 mb-6">
+                <div class="flex items-start gap-4 min-w-0 flex-1">
+                  <!-- Status indicator -->
+                  <div
+                    class="w-4 h-4 rounded-full shrink-0 mt-1.5"
+                    :class="UIComponents.getStatusDotClass(getCurrentTask()?.status)"
+                  ></div>
+                  <!-- Title and badges -->
+                  <div class="min-w-0 flex-1">
+                    <h1
+                      class="text-2xl font-bold text-tokyo-text truncate"
+                      x-text="getCurrentTask()?.title || 'Task'"
+                    ></h1>
+                    <div class="flex items-center gap-2 mt-1">
+                      <span
+                        x-html="UIComponents.renderStatusBadge(getCurrentTask()?.status)"
+                      ></span>
+                      <span
+                        x-html="UIComponents.renderTypeBadge(getCurrentTask()?.type)"
+                      ></span>
+                      <span
+                        x-html="UIComponents.renderSourceBadge(getCurrentTask()?.sourceType)"
+                      ></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="flex items-center gap-2 shrink-0">
+                  <!-- Complete button (if not completed) -->
+                  <template
+                    x-if="getCurrentTask()?.status !== 'completed' && getCurrentTask()?.status !== 'deleted'"
+                  >
+                    <button
+                      @click="completeTask(getCurrentTask()?.id)"
+                      class="cal-action-btn cal-action-btn-success"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polyline points="4 10 8 14 16 6" />
+                      </svg>
+                      <span>Complete</span>
+                    </button>
+                  </template>
+
+                  <!-- Delete button -->
+                  <button
+                    @click="deleteTask(getCurrentTask()?.id)"
+                    class="cal-action-btn cal-action-btn-danger"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path
+                        d="M2.5 5h15M6.5 5V3.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5V5m2 0v11.5a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 5 16.5V5"
+                      />
+                      <path d="M8.5 9v5M11.5 9v5" />
+                    </svg>
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Metadata section -->
+              <div class="glass-strong rounded-xl p-4 mb-6">
+                <div class="divide-y divide-white/5">
+                  <!-- Created -->
+                  <div
+                    x-html="UIComponents.renderMetadataRow({
+                      icon: UIComponents.ICONS.calendar,
+                      label: 'Created',
+                      value: UIComponents.formatDate(getCurrentTask()?.created)
+                    })"
+                  ></div>
+
+                  <!-- Created by -->
+                  <div
+                    x-html="UIComponents.renderMetadataRow({
+                      icon: UIComponents.ICONS.user,
+                      label: 'Created by',
+                      value: UIComponents.SOURCE_LABELS[getCurrentTask()?.createdBy] || getCurrentTask()?.createdBy
+                    })"
+                  ></div>
+
+                  <!-- Scheduled for (if scheduled) -->
+                  <template x-if="getCurrentTask()?.scheduledFor">
+                    <div
+                      x-html="UIComponents.renderMetadataRow({
+                        icon: UIComponents.ICONS.clock,
+                        label: 'Scheduled for',
+                        value: UIComponents.formatDate(getCurrentTask()?.scheduledFor)
+                      })"
+                    ></div>
+                  </template>
+
+                  <!-- Started at (if running or completed) -->
+                  <template x-if="getCurrentTask()?.startedAt">
+                    <div
+                      x-html="UIComponents.renderMetadataRow({
+                        icon: UIComponents.ICONS.play,
+                        label: 'Started at',
+                        value: UIComponents.formatDate(getCurrentTask()?.startedAt)
+                      })"
+                    ></div>
+                  </template>
+
+                  <!-- Completed at (if completed) -->
+                  <template x-if="getCurrentTask()?.completedAt">
+                    <div
+                      x-html="UIComponents.renderMetadataRow({
+                        icon: UIComponents.ICONS.check,
+                        label: 'Completed at',
+                        value: UIComponents.formatDate(getCurrentTask()?.completedAt)
+                      })"
+                    ></div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Instructions -->
+              <div class="flex-1">
+                <h2
+                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
+                >
+                  Instructions
+                </h2>
+
+                <div class="glass-strong rounded-xl p-5 min-h-[200px]">
+                  <template x-if="getCurrentTask()?.instructions">
+                    <div
+                      class="prose prose-invert prose-sm max-w-none"
+                      x-html="DOMPurify.sanitize(marked.parse(getCurrentTask()?.instructions || ''))"
+                    ></div>
+                  </template>
+                  <template x-if="!getCurrentTask()?.instructions">
+                    <p class="text-tokyo-muted italic">
+                      No instructions for this task.
+                    </p>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Linked Conversations -->
+              <div
+                class="mt-6"
+                x-data="{ conversations: [], loading: true }"
+                x-init="
+                loadTaskConversations(getCurrentTask()?.id).then(convs => {
+                  conversations = convs;
+                  loading = false;
+                });
+              "
+              >
+                <h2
+                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
+                >
+                  Linked Conversations
+                </h2>
+
+                <template x-if="loading">
+                  <p class="text-sm text-tokyo-muted">Loading...</p>
+                </template>
+
+                <template x-if="!loading && conversations.length === 0">
+                  <p class="text-sm text-tokyo-muted">
+                    No conversations linked to this task yet.
+                  </p>
+                </template>
+
+                <template x-if="!loading && conversations.length > 0">
+                  <div class="space-y-2">
+                    <template
+                      x-for="link in conversations"
+                      :key="link.conversationId"
+                    >
+                      <button
+                        @click="switchConversation(link.conversationId)"
+                        class="w-full flex items-center justify-between p-3 glass-strong rounded-lg hover:bg-white/5 transition-colors text-left"
+                      >
+                        <div class="flex items-center gap-2">
+                          <span x-html="UIComponents.ICONS.chat"></span>
+                          <span
+                            class="text-sm text-tokyo-text"
+                            x-text="link.title"
+                          ></span>
+                        </div>
+                        <span
+                          class="text-xs text-tokyo-muted"
+                          x-text="UIComponents.formatDate(link.linkedAt, { relative: true })"
+                        ></span>
+                      </button>
+                    </template>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Task metadata footer -->
+              <div class="mt-6 pt-4 border-t border-white/5">
+                <div class="flex items-center gap-6 text-xs text-tokyo-muted">
+                  <span>
+                    ID:
+                    <code
+                      class="px-1.5 py-0.5 rounded bg-white/5"
+                      x-text="getCurrentTask()?.id?.slice(0, 16) + '...'"
+                    ></code>
+                  </span>
+                  <template x-if="getCurrentTask()?.sessionId">
+                    <span>
+                      Session:
+                      <code
+                        class="px-1.5 py-0.5 rounded bg-white/5"
+                        x-text="getCurrentTask()?.sessionId?.slice(0, 12) + '...'"
+                      ></code>
+                    </span>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ======================================================== -->
+          <!-- Event Detail Tab (Calendar scheduled task view)           -->
           <!-- ======================================================== -->
           <template
             x-if="openTabs.find(t => t.id === activeTab)?.type === 'event'"
@@ -1436,7 +1793,10 @@
 
           <!-- Notification list -->
           <div class="divide-y divide-white/5">
-            <template x-for="notif in getPendingNotifications()" :key="notif.id">
+            <template
+              x-for="notif in getPendingNotifications()"
+              :key="notif.id"
+            >
               <div class="p-3 hover:bg-tokyo-card/30 transition-colors">
                 <!-- Notify type -->
                 <template x-if="notif.type === 'notify'">
@@ -1451,19 +1811,33 @@
                       }"
                     >
                       <template x-if="notif.importance === 'info'">ℹ️</template>
-                      <template x-if="notif.importance === 'warning'">⚠️</template>
-                      <template x-if="notif.importance === 'success'">✅</template>
-                      <template x-if="notif.importance === 'error'">❌</template>
+                      <template x-if="notif.importance === 'warning'"
+                        >⚠️</template
+                      >
+                      <template x-if="notif.importance === 'success'"
+                        >✅</template
+                      >
+                      <template x-if="notif.importance === 'error'"
+                        >❌</template
+                      >
                     </span>
                     <div class="flex-1 min-w-0">
-                      <p class="text-sm text-tokyo-text" x-text="notif.message"></p>
-                      <p class="text-xs text-tokyo-muted mt-1" x-text="new Date(notif.created).toLocaleString()"></p>
+                      <p
+                        class="text-sm text-tokyo-text"
+                        x-text="notif.message"
+                      ></p>
+                      <p
+                        class="text-xs text-tokyo-muted mt-1"
+                        x-text="new Date(notif.created).toLocaleString()"
+                      ></p>
                     </div>
                     <button
                       @click="dismissNotification(notif.id)"
                       class="text-tokyo-muted hover:text-tokyo-text p-1"
                       title="Dismiss"
-                    >×</button>
+                    >
+                      ×
+                    </button>
                   </div>
                 </template>
 
@@ -1473,8 +1847,14 @@
                     <div class="flex items-start gap-2">
                       <span class="text-tokyo-purple mt-0.5 shrink-0">❓</span>
                       <div class="flex-1 min-w-0">
-                        <p class="text-sm text-tokyo-text" x-text="notif.question"></p>
-                        <p class="text-xs text-tokyo-muted mt-1" x-text="new Date(notif.created).toLocaleString()"></p>
+                        <p
+                          class="text-sm text-tokyo-text"
+                          x-text="notif.question"
+                        ></p>
+                        <p
+                          class="text-xs text-tokyo-muted mt-1"
+                          x-text="new Date(notif.created).toLocaleString()"
+                        ></p>
                       </div>
                     </div>
                     <div class="flex flex-wrap gap-1 pl-6">
@@ -1498,9 +1878,13 @@
                         'text-tokyo-orange': notif.severity === 'low' || notif.severity === 'medium',
                         'text-tokyo-red': notif.severity === 'high' || notif.severity === 'critical'
                       }"
-                    >🚨</span>
+                      >🚨</span
+                    >
                     <div class="flex-1 min-w-0">
-                      <p class="text-sm text-tokyo-text" x-text="notif.problem"></p>
+                      <p
+                        class="text-sm text-tokyo-text"
+                        x-text="notif.problem"
+                      ></p>
                       <p class="text-xs mt-1">
                         <span
                           class="px-1.5 py-0.5 rounded text-xs font-medium"
@@ -1516,7 +1900,9 @@
                       @click="markNotificationRead(notif.id)"
                       class="text-tokyo-muted hover:text-tokyo-text p-1"
                       title="Mark as read"
-                    >✓</button>
+                    >
+                      ✓
+                    </button>
                   </div>
                 </template>
               </div>
@@ -2319,6 +2705,136 @@
       </div>
 
       <!-- ============================================================== -->
+      <!-- Create Task Modal (M5-S6)                                      -->
+      <!-- ============================================================== -->
+      <div
+        x-show="showCreateTaskForm"
+        x-transition:enter="transition ease-out duration-150"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-100"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+        @click.self="closeCreateTaskForm()"
+        x-cloak
+      >
+        <div
+          x-show="showCreateTaskForm"
+          x-transition:enter="transition ease-out duration-150"
+          x-transition:enter-start="opacity-0 scale-95"
+          x-transition:enter-end="opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-100"
+          x-transition:leave-start="opacity-100 scale-100"
+          x-transition:leave-end="opacity-0 scale-95"
+          class="glass-strong rounded-xl p-5 w-[28rem] max-w-[90vw] shadow-xl"
+        >
+          <h3 class="text-lg font-semibold text-tokyo-text mb-4">New Task</h3>
+
+          <div class="space-y-4">
+            <!-- Title -->
+            <div>
+              <label
+                class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
+                >Title</label
+              >
+              <input
+                x-model="createTaskForm.title"
+                type="text"
+                placeholder="What needs to be done?"
+                class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text placeholder-tokyo-muted/50 focus:outline-none focus:border-tokyo-blue/50 transition-colors"
+              />
+            </div>
+
+            <!-- Instructions -->
+            <div>
+              <label
+                class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
+                >Instructions</label
+              >
+              <textarea
+                x-model="createTaskForm.instructions"
+                rows="4"
+                placeholder="Detailed instructions for Nina..."
+                class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text placeholder-tokyo-muted/50 focus:outline-none focus:border-tokyo-blue/50 transition-colors resize-none"
+              ></textarea>
+            </div>
+
+            <!-- Type -->
+            <div>
+              <label
+                class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
+                >Type</label
+              >
+              <div class="flex gap-2">
+                <button
+                  @click="createTaskForm.type = 'immediate'"
+                  class="flex-1 px-3 py-2 text-sm rounded-lg border transition-colors"
+                  :class="createTaskForm.type === 'immediate'
+                    ? 'bg-tokyo-purple/20 border-tokyo-purple/50 text-tokyo-purple'
+                    : 'bg-tokyo-card border-white/10 text-tokyo-muted hover:border-white/20'"
+                >
+                  Immediate
+                </button>
+                <button
+                  @click="createTaskForm.type = 'scheduled'"
+                  class="flex-1 px-3 py-2 text-sm rounded-lg border transition-colors"
+                  :class="createTaskForm.type === 'scheduled'
+                    ? 'bg-tokyo-cyan/20 border-tokyo-cyan/50 text-tokyo-cyan'
+                    : 'bg-tokyo-card border-white/10 text-tokyo-muted hover:border-white/20'"
+                >
+                  Scheduled
+                </button>
+              </div>
+            </div>
+
+            <!-- Scheduled for (only if scheduled) -->
+            <template x-if="createTaskForm.type === 'scheduled'">
+              <div>
+                <label
+                  class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
+                  >Scheduled for</label
+                >
+                <input
+                  x-model="createTaskForm.scheduledFor"
+                  type="datetime-local"
+                  class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text focus:outline-none focus:border-tokyo-blue/50 transition-colors"
+                />
+              </div>
+            </template>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex justify-end gap-3 mt-6">
+            <button
+              @click="closeCreateTaskForm()"
+              class="cal-action-btn cal-action-btn-ghost text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              @click="createTask()"
+              :disabled="!createTaskForm.title || !createTaskForm.instructions"
+              class="cal-action-btn cal-action-btn-cta-solid text-sm"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="4 10 8 14 16 6" />
+              </svg>
+              <span>Create</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================== -->
       <!-- Image Lightbox                                                 -->
       <!-- ============================================================== -->
       <div
@@ -2347,6 +2863,7 @@
     <script src="js/ws-client.js"></script>
     <script src="js/chat-controls.js"></script>
     <script src="js/calendar.js"></script>
+    <script src="js/components.js"></script>
     <script src="js/app.js"></script>
   </body>
 </html>

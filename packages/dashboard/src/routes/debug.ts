@@ -583,6 +583,163 @@ export async function registerDebugRoutes(
         note: "Most conversation operations use WebSocket at /api/chat/ws",
         endpoints: [],
       },
+      tasks: {
+        base: "/api/tasks",
+        description: "Task management with conversation linking (M5-S5)",
+        note: "Write operations (POST, PATCH, DELETE) create task-conversation links when conversationId is provided in the request body.",
+        endpoints: [
+          {
+            method: "GET",
+            path: "/",
+            description: "List tasks with optional filters",
+            query: [
+              {
+                name: "status",
+                required: false,
+                description: "Filter by status (comma-separated)",
+              },
+              {
+                name: "type",
+                required: false,
+                description: "Filter by type (scheduled|immediate)",
+              },
+              {
+                name: "sourceType",
+                required: false,
+                description: "Filter by source",
+              },
+              {
+                name: "recurrenceId",
+                required: false,
+                description: "Filter by recurrence",
+              },
+              {
+                name: "includeDeleted",
+                required: false,
+                description: "Include soft-deleted tasks",
+              },
+              { name: "limit", required: false, description: "Max results" },
+              { name: "offset", required: false, description: "Skip results" },
+            ],
+            response: "{ tasks: Task[] }",
+          },
+          {
+            method: "GET",
+            path: "/:id",
+            description: "Get single task by ID",
+            response: "Task object",
+          },
+          {
+            method: "GET",
+            path: "/:id/conversations",
+            description: "Get conversations linked to a task",
+            response:
+              "{ taskId, conversations: [{ conversationId, linkedAt }] }",
+          },
+          {
+            method: "GET",
+            path: "/conversations/:id/tasks",
+            description: "Get tasks linked to a conversation",
+            note: "Alternate path for conversation-centric queries",
+            response: "{ conversationId, tasks: [{ taskId, linkedAt }] }",
+          },
+          {
+            method: "POST",
+            path: "/",
+            description: "Create a new task",
+            body: [
+              {
+                name: "type",
+                required: true,
+                description: "scheduled|immediate",
+              },
+              {
+                name: "sourceType",
+                required: true,
+                description: "caldav|conversation|webhook|manual",
+              },
+              {
+                name: "sourceRef",
+                required: false,
+                description: "Reference to source",
+              },
+              { name: "title", required: true, description: "Task title" },
+              {
+                name: "instructions",
+                required: true,
+                description: "What the agent should do",
+              },
+              {
+                name: "createdBy",
+                required: true,
+                description: "scheduler|user|agent",
+              },
+              {
+                name: "scheduledFor",
+                required: false,
+                description: "ISO datetime for scheduled tasks",
+              },
+              {
+                name: "conversationId",
+                required: false,
+                description: "Links task to conversation",
+              },
+            ],
+            response: "Created task object",
+          },
+          {
+            method: "PATCH",
+            path: "/:id",
+            description: "Update a task",
+            body: [
+              { name: "status", required: false, description: "New status" },
+              {
+                name: "conversationId",
+                required: false,
+                description: "Links task to conversation",
+              },
+            ],
+            response: "Updated task object",
+          },
+          {
+            method: "POST",
+            path: "/:id/complete",
+            description: "Mark task as completed",
+            body: [
+              {
+                name: "conversationId",
+                required: false,
+                description: "Links task to conversation",
+              },
+            ],
+            response: "Updated task object",
+          },
+          {
+            method: "DELETE",
+            path: "/:id",
+            description: "Soft delete a task",
+            body: [
+              {
+                name: "conversationId",
+                required: false,
+                description: "Links task to conversation",
+              },
+            ],
+            response: "{ success: true, message: 'Task soft-deleted' }",
+          },
+        ],
+        examples: {
+          createTask: `curl -X POST http://localhost:4321/api/tasks \\
+  -H "Content-Type: application/json" \\
+  -d '{"type": "immediate", "sourceType": "conversation", "title": "Call mom", "instructions": "Remind user to call mom", "createdBy": "agent", "conversationId": "conv-123"}'`,
+          listTasks: `curl http://localhost:4321/api/tasks?status=pending,running`,
+          completeTask: `curl -X POST http://localhost:4321/api/tasks/task-123/complete \\
+  -H "Content-Type: application/json" \\
+  -d '{"conversationId": "conv-456"}'`,
+          deleteTask: `curl -X DELETE http://localhost:4321/api/tasks/task-123`,
+          getLinkedConversations: `curl http://localhost:4321/api/tasks/task-123/conversations`,
+        },
+      },
       debug: {
         base: "/api/debug",
         description: "Read-only inspection endpoints (localhost-only)",
@@ -766,7 +923,15 @@ export async function registerDebugRoutes(
       return { error: "Notification service not available" };
     }
 
-    const { type = "notify", message, importance, question, options, problem, severity } = request.body || {};
+    const {
+      type = "notify",
+      message,
+      importance,
+      question,
+      options,
+      problem,
+      severity,
+    } = request.body || {};
 
     switch (type) {
       case "notify":

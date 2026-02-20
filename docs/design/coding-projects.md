@@ -18,7 +18,7 @@
 7. [Supervision Architecture](#supervision-architecture)
 8. [Active Session Streaming](#active-session-streaming)
 9. [Crash Recovery](#crash-recovery)
-10. [Comms MCP Integration](#comms-mcp-integration)
+10. [NotificationService Integration](#notificationservice-integration)
 11. [Prototype Checklist](#prototype-checklist)
 12. [Risks and Mitigations](#risks-and-mitigations)
 13. [Implementation Notes](#implementation-notes)
@@ -195,7 +195,7 @@ Nina decides work is needed
   │       → No: project complete
   │
   └── Escalation needed
-      → Comms MCP: escalate() → Nina routes to user
+      → NotificationService: escalate() → Nina routes to user
       → Session pauses
       → User responds → /resume-sprint with response
 ```
@@ -406,9 +406,9 @@ This means:
 
 ---
 
-## Comms MCP Integration
+## NotificationService Integration
 
-Claude Code sessions communicate back to Nina via Comms MCP tools.
+Claude Code sessions communicate back to Nina via NotificationService.
 
 ### Tools
 
@@ -423,13 +423,13 @@ Claude Code sessions communicate back to Nina via Comms MCP tools.
 
 ```
 Claude Code calls escalate()
-  → Comms MCP receives call
+  → NotificationService receives call
   → Nina routes to user's preferred channel (dashboard/WhatsApp/etc.)
   → User responds
   → Nina resumes session with response
 ```
 
-**Note:** Comms MCP is defined in [task-system.md](task-system.md) §Comms MCP Server. Same tools, same behavior. Coding Projects is a consumer, not a separate implementation.
+**Note:** NotificationService is defined in [task-system.md](task-system.md) §NotificationService. Same methods, same behavior. Coding Projects is a consumer, not a separate implementation.
 
 ---
 
@@ -442,8 +442,8 @@ Claude Code calls escalate()
 | 1 | **Folder-scoped `--continue`** | Spawn in folder, kill, `--continue` from same folder. Correct resume? | Fall back to fresh start + context injection |
 | 2 | **`--output-format stream-json`** | Capture stdout, verify format, parse event types | Build custom output parser or use SDK directly |
 | 3 | **Concurrent sessions** | Two folders simultaneously, no cross-contamination | Add session isolation layer |
-| 4 | **SIGINT behavior** | Send SIGINT at 1, 5, 15 min. When does it stop responding? | Use `--max-turns` or MCP-based interrupt flag |
-| 5 | **Comms MCP** | Spawned Claude Code calls custom MCP server, Nina receives | File-based signaling as fallback |
+| 4 | **SIGINT behavior** | Send SIGINT at 1, 5, 15 min. When does it stop responding? | Use `--max-turns` or interrupt flag |
+| 5 | **NotificationService** | Spawned Claude Code calls notification service, Nina receives | File-based signaling as fallback |
 
 **Prototype results feed directly into the design. Failures alter the architecture, not the goals.**
 
@@ -456,7 +456,7 @@ Claude Code calls escalate()
 | **SIGINT ignored after ~10 min** | Important | Use `--max-turns N` for bounded execution. Prototype will verify. |
 | **stream-json format changes** | Important | Prototype validates format. Thin parser layer isolates changes. |
 | **No process spawning infra** | Important | Codebase is 100% SDK. Need child_process patterns. Sprint 1 work. |
-| **Comms MCP doesn't exist yet** | Blocker | Must be Sprint 1 deliverable. Pattern exists (hatching-tools.ts). |
+| **NotificationService doesn't exist yet** | Blocker | Must be implemented in M5-S4. Pattern exists (hatching-tools.ts). |
 | **Memory at scale** | Low | Each Claude Code process uses significant RAM. Monitor on WSL2. |
 
 ---
@@ -468,7 +468,7 @@ Claude Code calls escalate()
 | Feature | Sprint |
 |---------|--------|
 | Prototype validation (5 items above) | S1 |
-| Comms MCP server | S1 |
+| NotificationService integration | S1 |
 | Process spawning + monitoring | S1 |
 | Internal Project templates + lifecycle | S2 |
 | Active session streaming (WebSocket) | S2 |
@@ -479,7 +479,7 @@ Claude Code calls escalate()
 
 ### Dependencies
 
-- **M5 (Task System):** Task entity, agent.db, execution logs
+- **M5 (Task System):** Task entity, agent.db, execution logs, NotificationService
 - **M4.5 (Calendar):** Scheduled tasks trigger projects
 - **M2 (Dashboard):** WebSocket infrastructure, UI framework
 
@@ -496,7 +496,7 @@ Claude Code calls escalate()
 
 ## Related Documents
 
-- [Task System](task-system.md) — M5 design (tasks, execution, Comms MCP)
+- [Task System](task-system.md) — M5 design (tasks, execution, NotificationService)
 - [Self-Evolving Infrastructure](self-evolving-infrastructure.md) — Philosophy: agents extend their own tools
 - [Operations Dashboard](operations-dashboard.md) — Dashboard UI patterns
 - [Debug API](debug-api.md) — Introspection endpoints

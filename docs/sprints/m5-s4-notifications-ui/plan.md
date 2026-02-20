@@ -3,7 +3,7 @@
 > **Milestone:** M5 — Task System
 > **Sprint:** S4 of 4
 > **Status:** Planned
-> **Goal:** Comms MCP server, notification routing, dashboard integration
+> **Goal:** NotificationService, notification routing, dashboard integration
 
 ---
 
@@ -13,11 +13,11 @@ Build the communication layer for tasks — how Nina notifies about completions,
 
 ## Deliverables
 
-1. **Comms MCP server** (`packages/core/src/comms/`)
+1. **NotificationService** (`packages/core/src/notifications/`)
    - `notify(message, importance)` — fire-and-forget status update
    - `request_input(question, options, timeout)` — block for user response
    - `escalate(problem, severity)` — urgent notification
-   - Runs as MCP server accessible to brain
+   - Direct service accessible to brain and spawned Claude Code sessions
 
 2. **Notification routing** (`packages/core/src/notifications/`)
    - Route notifications based on importance + standing orders
@@ -42,7 +42,7 @@ Build the communication layer for tasks — how Nina notifies about completions,
 
 ## Technical Approach
 
-### Comms MCP Tools
+### NotificationService Methods
 
 ```typescript
 // notify — non-blocking
@@ -100,13 +100,13 @@ Nina calls notify()
 
 | Role | Model | Responsibility |
 |------|-------|----------------|
-| Backend Dev | Sonnet | Comms MCP, notification routing |
+| Backend Dev | Sonnet | NotificationService, notification routing |
 | Frontend Dev | Sonnet | Dashboard UI components |
 | Reviewer | Opus | Standing order integration, UX review |
 
 ## Success Criteria
 
-- [ ] Comms MCP server runs and responds to tools
+- [ ] NotificationService runs and provides all methods
 - [ ] Notifications appear in dashboard real-time
 - [ ] Standing orders suppress unwanted notifications
 - [ ] "Needs Attention" shows pending requests

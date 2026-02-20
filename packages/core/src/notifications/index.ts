@@ -2,8 +2,8 @@
  * Notification System — Module Exports
  */
 
-export { NotificationService } from "./service.js";
-export type { NotificationServiceConfig } from "./service.js";
+export { NotificationService } from './service.js'
+export type { NotificationServiceConfig } from './service.js'
 
 export type {
   NotificationImportance,
@@ -19,4 +19,4 @@ export type {
   RequestInputInput,
   EscalateInput,
   NotificationEvent,
-} from "./types.js";
+} from './types.js'

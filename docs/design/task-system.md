@@ -14,11 +14,13 @@
 3. [Task Lifecycle](#task-lifecycle)
 4. [Folder Structure](#folder-structure)
 5. [Claude Code Integration](#claude-code-integration)
-6. [Comms MCP Server](#comms-mcp-server)
+6. [NotificationService](#notificationservice)
 7. [Scheduled Tasks](#scheduled-tasks)
 8. [Triage Logic](#triage-logic)
-9. [Configuration](#configuration)
-10. [Implementation Notes](#implementation-notes)
+9. [Task-Conversation Linking](#task-conversation-linking)
+10. [Autonomy Modes](#autonomy-modes)
+11. [Configuration](#configuration)
+12. [Implementation Notes](#implementation-notes)
 
 ---
 
@@ -284,7 +286,7 @@ claude --continue \
 
 1. **Spawn:** Brain creates folder, writes CLAUDE.md, spawns `claude`
 2. **Work:** Claude Code investigates, plans, implements
-3. **Communicate:** Session uses Comms MCP tools to notify/escalate
+3. **Communicate:** Session uses NotificationService to notify/escalate
 4. **Exit:** Session exits cleanly, state saved in task.md
 5. **Resume:** On approval, brain spawns `claude --continue`
 
@@ -298,9 +300,9 @@ The folder is the complete handoff mechanism:
 
 ---
 
-## Comms MCP Server
+## NotificationService
 
-An MCP server available to Claude Code sessions for communicating with the brain.
+A service available to Claude Code sessions for communicating with the brain.
 
 ### Tools
 
@@ -474,6 +476,63 @@ The brain uses judgment. Ambiguous cases default to ad-hoc (can escalate to proj
 
 ---
 
+## Task-Conversation Linking
+
+### Design Principles
+
+- Single mechanism: Task write tools have optional `conversationId` field
+- Only write operations create links (createTask, updateTask, completeTask, deleteTask)
+- Read operations (getTask, listTasks) do NOT create links
+- Brain decides when to include conversationId — link creation is a side effect
+
+### Junction Table
+
+```sql
+CREATE TABLE task_conversations (
+  task_id TEXT NOT NULL,
+  conversation_id TEXT NOT NULL,
+  linked_at TEXT NOT NULL,
+  PRIMARY KEY (task_id, conversation_id)
+  -- No FK constraints (soft references)
+);
+```
+
+### Soft Delete
+
+- Tasks use soft delete: `status: "deleted"` + `deletedAt` timestamp
+- Links are preserved when tasks are deleted (audit trail)
+- TaskManager.list() excludes deleted by default
+
+### Brain Integration
+
+- Brain has Bash access, calls Task REST API via curl
+- conversationId injected into brain system prompt
+- Brain includes conversationId when task action is relevant to current conversation
+
+### API Endpoints
+
+| Method | Endpoint | Creates Link |
+|--------|----------|--------------|
+| POST | /api/tasks | ✓ (if conversationId provided) |
+| PATCH | /api/tasks/:id | ✓ |
+| POST | /api/tasks/:id/complete | ✓ |
+| DELETE | /api/tasks/:id | ✓ |
+| GET | /api/tasks | ✗ |
+| GET | /api/tasks/:id | ✗ |
+| GET | /api/tasks/:id/conversations | ✗ (query only) |
+| GET | /api/conversations/:id/tasks | ✗ (query only) |
+
+### Edge Cases
+
+| Case | Behavior |
+|------|----------|
+| Conversation deleted | Link row remains; UI shows "unavailable" |
+| Task soft-deleted | Link preserved; shows in history |
+| Multiple convos per task | Multiple rows, all preserved |
+| Multiple tasks per convo | Multiple rows, all preserved |
+
+---
+
 ## Autonomy Modes
 
 Every task has an autonomy mode that determines what the agent can do without asking.
@@ -579,8 +638,8 @@ schedule:
     cron: "0 */2 * * *"
     task: ongoing/email-management
 
-comms:
-  # Comms MCP server settings
+notifications:
+  # NotificationService settings
   ask_quick_timeout: 30m
   escalation_channels: [whatsapp, dashboard]
 ```
@@ -596,7 +655,7 @@ comms:
 | Task classification (trivial/ad-hoc/project/ongoing)           | Yes                  |
 | Folder creation with CLAUDE.md + task.md                       | Yes                  |
 | Claude Code session spawning                                   | Yes                  |
-| Comms MCP server (notify, request_review, escalate, ask_quick) | Yes                  |
+| NotificationService (notify, request_review, escalate, ask_quick) | Yes                  |
 | Resume flow (`claude --continue`)                              | Yes                  |
 | Scheduled tasks (cron)                                         | Yes                  |
 | Dashboard task browser                                         | Partial (basic view) |
@@ -606,18 +665,18 @@ comms:
 
 | Feature                          | Milestone                      |
 | -------------------------------- | ------------------------------ |
-| Agent Teams for ad-hoc tasks     | Deferred (evaluate during M4a) |
+| Agent Teams for ad-hoc tasks     | Deferred (evaluate during M5)  |
 | Full task browser UI             | M5                             |
 | Task search                      | M5                             |
-| Memory enrichment on task events | M4b                            |
+| Memory enrichment on task events | M6                             |
 
-### After M4a
+### After M5
 
-Once M4a is complete, the agent can develop itself:
+Once M5 is complete, the agent can develop itself:
 
-- M4b (Memory) becomes an agent project
-- M5 (Ops Dashboard) becomes an agent project
-- M6 (Email) becomes an agent project
+- M6 (Memory) becomes an agent project
+- M7 (Coding Projects) becomes an agent project
+- M8+ (remaining milestones) become agent projects
 
 Human review remains required for production changes.
 

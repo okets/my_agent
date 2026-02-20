@@ -7,19 +7,19 @@
 
 ## Quick Status
 
-| Milestone                     | Status   | Progress                     |
-| ----------------------------- | -------- | ---------------------------- |
-| **M1: Foundation**            | Complete | 4/4 sprints                  |
-| **M2: Web UI**                | Complete | 6/6 sprints                  |
-| **M3: WhatsApp Channel**      | Complete | 3/3 sprints                  |
-| **M4: Notebook System**       | Complete | 2/2 sprints                  |
-| **M4.5: Calendar System**     | Complete | 5/5 sprints                  |
-| **M5: Task System**           | Planned  | Design complete, sprints TBD |
-| **M6: Memory**                | Planned  | Design complete, sprints TBD |
-| **M7: Coding Projects**       | Planned  | Design complete, sprints TBD |
-| **M8: Operations Dashboard**  | Planned  | Design complete, sprints TBD |
-| **M9: Email Channel**         | Planned  | Design complete, sprints TBD |
-| **M10: External Comms**       | Planned  | Deferred from M3/M4          |
+| Milestone                    | Status   | Progress                     |
+| ---------------------------- | -------- | ---------------------------- |
+| **M1: Foundation**           | Complete | 4/4 sprints                  |
+| **M2: Web UI**               | Complete | 6/6 sprints                  |
+| **M3: WhatsApp Channel**     | Complete | 3/3 sprints                  |
+| **M4: Notebook System**      | Complete | 2/2 sprints                  |
+| **M4.5: Calendar System**    | Complete | 5/5 sprints                  |
+| **M5: Task System**          | Active   | 5/7 sprints                  |
+| **M6: Memory**               | Planned  | Design complete, sprints TBD |
+| **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
+| **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
+| **M9: Email Channel**        | Planned  | Design complete, sprints TBD |
+| **M10: External Comms**      | Planned  | Deferred from M3/M4          |
 
 ---
 
@@ -29,16 +29,15 @@
 2026-02                                          2026-03+
 ├─────────────────────────────────────────────────────────────────────►
 
-M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5+ Future
-[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [░░░░░░░░░░]
-   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         PLANNED
+M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks      M6+ Future
+[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████░░]   [░░░░░░░░░░]
+   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         ACTIVE         PLANNED
 
-                                                                                    M5 Tasks
-                                                                                    M6 Memory
-                                                                                    M7 Coding Projects
-                                                                                    M8 Ops Dashboard
-                                                                                    M9 Email
-                                                                                    M10 External Comms
+                                                                                                   M6 Memory
+                                                                                                   M7 Coding Projects
+                                                                                                   M8 Ops Dashboard
+                                                                                                   M9 Email
+                                                                                                   M10 External Comms
 ```
 
 ---
@@ -125,10 +124,10 @@ First external channel. Agent owns a phone number, responds immediately.
 
 Notebook is Nina's persistent memory — markdown files she can read always and write when talking to her owner.
 
-| Sprint | Name                    | Status   | Plan                                                  | Review |
-| ------ | ----------------------- | -------- | ----------------------------------------------------- | ------ |
+| Sprint | Name                    | Status   | Plan                                                  | Review                                                    |
+| ------ | ----------------------- | -------- | ----------------------------------------------------- | --------------------------------------------------------- |
 | S1     | Notebook Infrastructure | Complete | [plan](sprints/m4-s1-notebook-infrastructure/plan.md) | [review](sprints/m4-s1-notebook-infrastructure/review.md) |
-| S2     | Dashboard Evolution     | Complete | [plan](sprints/m4-s2-dashboard-evolution/plan.md)     | [review](sprints/m4-s2-dashboard-evolution/review.md) |
+| S2     | Dashboard Evolution     | Complete | [plan](sprints/m4-s2-dashboard-evolution/plan.md)     | [review](sprints/m4-s2-dashboard-evolution/review.md)     |
 
 **Architecture:**
 
@@ -154,13 +153,13 @@ Unified calendar replaces scattered time-aware concepts (reminders.md, cron sche
 
 **Design spec:** [calendar-system.md](design/calendar-system.md)
 
-| Sprint | Name                    | Status   | Plan                                              | Review                                              |
-| ------ | ----------------------- | -------- | ------------------------------------------------- | --------------------------------------------------- |
-| S1     | CalDAV Infrastructure   | Complete | [plan](sprints/m4.5-s1-caldav-infrastructure/plan.md) | [review](sprints/m4.5-s1-caldav-infrastructure/review.md) |
-| S2     | Calendar Dashboard      | Complete | [plan](sprints/m4.5-s2-calendar-dashboard/plan.md) | [review](sprints/m4.5-s2-calendar-dashboard/review.md) |
-| S3     | API Discovery + Scheduler | Complete | [plan](sprints/m4.5-s3-scheduler/plan.md) | [review](sprints/m4.5-s3-scheduler/review.md) |
-| S4     | Event Dispatch          | Complete | [plan](sprints/m4.5-s4-event-dispatch/plan.md) | [review](sprints/m4.5-s4-event-dispatch/review.md) |
-| S5     | Terminology Refactor    | Complete | — | — |
+| Sprint | Name                      | Status   | Plan                                                  | Review                                                    |
+| ------ | ------------------------- | -------- | ----------------------------------------------------- | --------------------------------------------------------- |
+| S1     | CalDAV Infrastructure     | Complete | [plan](sprints/m4.5-s1-caldav-infrastructure/plan.md) | [review](sprints/m4.5-s1-caldav-infrastructure/review.md) |
+| S2     | Calendar Dashboard        | Complete | [plan](sprints/m4.5-s2-calendar-dashboard/plan.md)    | [review](sprints/m4.5-s2-calendar-dashboard/review.md)    |
+| S3     | API Discovery + Scheduler | Complete | [plan](sprints/m4.5-s3-scheduler/plan.md)             | [review](sprints/m4.5-s3-scheduler/review.md)             |
+| S4     | Event Dispatch            | Complete | [plan](sprints/m4.5-s4-event-dispatch/plan.md)        | [review](sprints/m4.5-s4-event-dispatch/review.md)        |
+| S5     | Terminology Refactor      | Complete | —                                                     | —                                                         |
 
 **Deliverables:**
 
@@ -172,12 +171,12 @@ Unified calendar replaces scattered time-aware concepts (reminders.md, cron sche
 
 **Tech Stack:**
 
-| Component | Choice |
-|-----------|--------|
-| CalDAV server | Radicale (self-hosted) |
-| CalDAV client | tsdav (cal.com maintained) |
-| RRULE expansion | ical-expander |
-| Frontend | FullCalendar v6 (MIT, CDN) |
+| Component       | Choice                     |
+| --------------- | -------------------------- |
+| CalDAV server   | Radicale (self-hosted)     |
+| CalDAV client   | tsdav (cal.com maintained) |
+| RRULE expansion | ical-expander              |
+| Frontend        | FullCalendar v6 (MIT, CDN) |
 
 **Key Design Decisions:**
 
@@ -188,6 +187,7 @@ Unified calendar replaces scattered time-aware concepts (reminders.md, cron sche
 - Scheduler fires → brain query spawned → response logged to "Scheduled Events" conversation
 
 **Future Work (M5 integration):**
+
 - Show task execution history in calendar detail view (conversation at bottom of task panel)
 - Unified task visibility across scheduled tasks, inbox, and projects
 
@@ -197,26 +197,37 @@ Unified calendar replaces scattered time-aware concepts (reminders.md, cron sche
 
 ---
 
-### M5: Task System — PLANNED
+### M5: Task System — ACTIVE
 
 Tasks as first-class entities with execution logs, autonomous work alongside interactive conversations. Includes `notebook_edit` tool for Nina to manage her own standing orders.
 
 **Design specs:**
-- [task-system.md](design/task-system.md) — Architecture, folder structure, Comms MCP, autonomy modes
+
+- [task-system.md](design/task-system.md) — Architecture, folder structure, NotificationService, autonomy modes
 - [Task System Design (approved)](plans/2026-02-19-task-system-design.md) — Task entity, agent.db, session continuity
+
+| Sprint | Name                      | Status   | Plan                                                    | Review                                                      |
+| ------ | ------------------------- | -------- | ------------------------------------------------------- | ----------------------------------------------------------- |
+| S1     | Task Foundation           | Complete | [plan](sprints/m5-s1-task-foundation/plan.md)           | [review](sprints/m5-s1-task-foundation/review.md)           |
+| S2     | Task Execution            | Complete | [plan](sprints/m5-s2-task-execution/plan.md)            | [review](sprints/m5-s2-task-execution/review.md)            |
+| S3     | Notebook Tools            | Complete | [plan](sprints/m5-s3-notebook-tools/plan.md)            | [review](sprints/m5-s3-notebook-tools/review.md)            |
+| S4     | Notification System       | Complete | [plan](sprints/m5-s4-notifications-ui/plan.md)          | [review](sprints/m5-s4-notifications-ui/review.md)          |
+| S5     | Task-Conversation Linking | Complete | [plan](sprints/m5-s5-task-conversation-linking/plan.md) | [review](sprints/m5-s5-task-conversation-linking/review.md) |
+| S6     | Task UI                   | Planned  | [plan](sprints/m5-s6-task-ui/plan.md)                   | —                                                           |
+| S7     | Request/Input Blocking    | Planned  | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
 
 **Deliverables:**
 
-- Task entity in agent.db (renamed from conversations.db)
-- TaskManager + TaskExecutor with session continuity
-- CalDAV integration (scheduled tasks create Task entities)
-- Execution logs (JSONL, compression)
-- `notebook_edit` tool for section-based file editing (standing orders, preferences)
-- Comms MCP server (notify, request_input, escalate) — tools Nina uses during task execution
-- Notification routing that respects standing orders
-- Dashboard: execution history in task detail, "Needs attention" section
+- _(S1)_ Task entity in agent.db (renamed from conversations.db), TaskStorage, migration
+- _(S2)_ TaskExecutor with session continuity, CalDAV integration (scheduled tasks create Task entities)
+- _(S3)_ `notebook_edit` tool for section-based file editing (standing orders, preferences)
+- _(S4)_ NotificationService (notify, request_input, escalate), notification routing, dashboard UI
+- _(S5)_ Soft delete for tasks, task_conversations junction table, full Task REST API (CRUD + link queries), conversationId in brain system prompt, brain documentation for task API
+- _(S6)_ Task list screen, task detail tab, shared components (StatusBadge, DetailHeader, etc.), entity tags in chat, create task form
+- _(S7)_ D2 fix (immediate execution bypass), TaskExecutor pause/resume, NotificationService-driven blocking with resolution flow
 
 **Philosophy:**
+
 - **High autonomy:** Act, don't ask. If Nina can solve it, she solves it.
 - **Real-time summaries:** Notify on task completion. User sees what got done.
 - **Proportional effort:** Don't over-engineer for minor issues. If fix > problem, escalate.
@@ -259,11 +270,11 @@ Autonomous coding: internal self-development projects + user code session relay.
 - Process supervision (non-LLM): alive/dead/blocked checks, crash recovery
 - systemd watchdog with exponential backoff for internet/API recovery
 - /whats-next deterministic self-sync skill
-- Comms MCP integration for escalation routing
+- NotificationService integration for escalation routing
 
-**Dependencies:** M5 (task system, Comms MCP)
+**Dependencies:** M5 (task system, NotificationService)
 
-**Note:** Sprint 1 must validate prototype checklist (folder-scoped --continue, stream-json format, concurrent sessions, SIGINT behavior, Comms MCP). Results shape the architecture.
+**Note:** Sprint 1 must validate prototype checklist (folder-scoped --continue, stream-json format, concurrent sessions, SIGINT behavior, NotificationService). Results shape the architecture.
 
 ---
 
@@ -345,16 +356,16 @@ git stash pop stash@{0}  # Then untracked files
 
 Design specs define architecture before implementation. Each spec should be complete before sprints begin.
 
-| Spec                 | Status   | Milestones | Path                                                             |
-| -------------------- | -------- | ---------- | ---------------------------------------------------------------- |
-| Channels             | Complete | M3, M9, M10 | [design/channels.md](design/channels.md)                        |
-| Conversations        | Complete | M2         | [design/conversation-system.md](design/conversation-system.md)   |
-| Notebook             | Complete | M4, M5, M10 | [design/notebook.md](design/notebook.md)                        |
-| Calendar System      | Complete | M4.5       | [design/calendar-system.md](design/calendar-system.md)           |
-| Task System          | Complete | M5         | [design/task-system.md](design/task-system.md)                   |
-| Memory               | Complete | M6         | [design/memory-system.md](design/memory-system.md)               |
-| Coding Projects      | Complete | M7         | [design/coding-projects.md](design/coding-projects.md)           |
-| Operations Dashboard | Complete | M8         | [design/operations-dashboard.md](design/operations-dashboard.md) |
+| Spec                 | Status   | Milestones  | Path                                                             |
+| -------------------- | -------- | ----------- | ---------------------------------------------------------------- |
+| Channels             | Complete | M3, M9, M10 | [design/channels.md](design/channels.md)                         |
+| Conversations        | Complete | M2          | [design/conversation-system.md](design/conversation-system.md)   |
+| Notebook             | Complete | M4, M5, M10 | [design/notebook.md](design/notebook.md)                         |
+| Calendar System      | Complete | M4.5        | [design/calendar-system.md](design/calendar-system.md)           |
+| Task System          | Complete | M5          | [design/task-system.md](design/task-system.md)                   |
+| Memory               | Complete | M6          | [design/memory-system.md](design/memory-system.md)               |
+| Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
+| Operations Dashboard | Complete | M8          | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
 **Note:** M3 (WhatsApp), M9 (Email), and M10 (External Comms) are covered by `channels.md`. No separate specs needed.
 
@@ -384,11 +395,11 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                  M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete through M4.5)
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete through M4.5, M5 active)
 
-**M5 unlocks autonomy:** M6-M10 all depend on M5 (task system + Comms MCP). Order within M6-M9 is flexible.
+**M5 unlocks autonomy:** M6-M10 all depend on M5 (task system + NotificationService). Order within M6-M9 is flexible.
 
-**M10 requires M5:** External communications needs solid agentic flow (Comms MCP) before implementation.
+**M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
 
 **M7 requires prototyping:** Coding Projects Sprint 1 validates key assumptions (folder-scoped resume, stream-json, concurrent sessions). Results shape the architecture.
 
@@ -420,12 +431,12 @@ Ideas that haven't been promoted to design specs yet.
 
 Long-term features beyond the current milestone plan. Not scheduled, not designed — just captured for future consideration.
 
-| Feature | Description | Notes |
-|---------|-------------|-------|
+| Feature                        | Description                                               | Notes                                                               |
+| ------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------- |
 | **External Calendar Channels** | Google Calendar, Apple iCloud, Outlook as channel plugins | Each with own OAuth/auth flow, modeled like WhatsApp/Email channels |
-| **Mobile Dashboard** | Responsive web UI optimized for mobile browsers | Calendar list view, chat interface, quick actions |
-| **iOS App** | Native iOS app for Nina | Push notifications, Siri integration, widget support |
-| **Mid-session Intervention** | Send input to running Claude Code sessions | Depends on Claude Code supporting message injection (steer) |
+| **Mobile Dashboard**           | Responsive web UI optimized for mobile browsers           | Calendar list view, chat interface, quick actions                   |
+| **iOS App**                    | Native iOS app for Nina                                   | Push notifications, Siri integration, widget support                |
+| **Mid-session Intervention**   | Send input to running Claude Code sessions                | Depends on Claude Code supporting message injection (steer)         |
 
 ---
 

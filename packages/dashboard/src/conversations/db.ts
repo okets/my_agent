@@ -182,6 +182,37 @@ export class ConversationDatabase {
       CREATE INDEX IF NOT EXISTS idx_tasks_scheduled
       ON tasks(scheduled_for);
     `);
+
+    // Migration: add deleted_at column if missing (M5-S5)
+    const taskColumns = this.db
+      .prepare("PRAGMA table_info(tasks)")
+      .all() as Array<{ name: string }>;
+    if (!taskColumns.some((c) => c.name === "deleted_at")) {
+      this.db.exec("ALTER TABLE tasks ADD COLUMN deleted_at TEXT DEFAULT NULL");
+    }
+
+    // Create task_conversations junction table (M5-S5)
+    // Soft references: no FK constraints for graceful degradation
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS task_conversations (
+        task_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        linked_at TEXT NOT NULL,
+        PRIMARY KEY (task_id, conversation_id)
+      );
+    `);
+
+    // Index for querying conversations by task
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_task_conversations_task
+      ON task_conversations(task_id);
+    `);
+
+    // Index for querying tasks by conversation
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_task_conversations_conv
+      ON task_conversations(conversation_id);
+    `);
   }
 
   /**

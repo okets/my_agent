@@ -12,6 +12,7 @@ import { registerCalendarRoutes } from "./routes/calendar.js";
 import { registerDebugRoutes } from "./routes/debug.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
+import { registerTaskRoutes } from "./routes/tasks.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
@@ -111,6 +112,9 @@ export async function createServer(
 
   // Register notification routes
   await registerNotificationRoutes(fastify);
+
+  // Register task routes
+  await registerTaskRoutes(fastify);
 
   // Register debug API routes (localhost-only)
   await fastify.register(
