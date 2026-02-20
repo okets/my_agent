@@ -2,7 +2,7 @@
 
 > **Milestone:** M5 — Task System
 > **Sprint:** S6 of 7
-> **Status:** Planned
+> **Status:** Complete
 > **Goal:** Visual interface for viewing and managing tasks
 
 ---

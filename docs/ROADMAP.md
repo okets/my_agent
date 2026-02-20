@@ -213,7 +213,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 | S3     | Notebook Tools            | Complete | [plan](sprints/m5-s3-notebook-tools/plan.md)            | [review](sprints/m5-s3-notebook-tools/review.md)            |
 | S4     | Notification System       | Complete | [plan](sprints/m5-s4-notifications-ui/plan.md)          | [review](sprints/m5-s4-notifications-ui/review.md)          |
 | S5     | Task-Conversation Linking | Complete | [plan](sprints/m5-s5-task-conversation-linking/plan.md) | [review](sprints/m5-s5-task-conversation-linking/review.md) |
-| S6     | Task UI                   | Complete | [plan](sprints/m5-s6-task-ui/plan.md)                   | —                                                           |
+| S6     | Task UI                   | Complete | [plan](sprints/m5-s6-task-ui/plan.md)                   | [review](sprints/m5-s6-task-ui/review.md)                   |
 | S7     | Request/Input Blocking    | Deferred | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
 | S8     | E2E Task Flow             | Planned  | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | —                                                           |
 
