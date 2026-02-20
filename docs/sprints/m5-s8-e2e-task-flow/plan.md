@@ -4,6 +4,7 @@
 > **Sprint:** S8 of 8
 > **Status:** Planned
 > **Goal:** Pass two e2e tests proving tasks work end-to-end
+> **Overnight Suitable:** ✓ Yes — automated E2E tests via internal APIs
 
 ---
 
@@ -329,6 +330,10 @@ User Message
 | `packages/dashboard/src/routes/tasks.ts` | Hook TaskProcessor on task creation |
 | `packages/dashboard/src/index.ts` | Initialize TaskProcessor and TaskScheduler |
 | `.my_agent/brain/skills/task-api.md` | Add guidance on WHEN to create tasks |
+| `packages/dashboard/src/tests/e2e-immediate-task.ts` | NEW: Automated E2E test for immediate tasks |
+| `packages/dashboard/src/tests/e2e-scheduled-task.ts` | NEW: Automated E2E test for scheduled tasks |
+| `packages/dashboard/src/tests/run-e2e.ts` | NEW: Test runner with reporting |
+| `packages/dashboard/src/tests/test-utils.ts` | NEW: Shared test utilities (pollUntil, assert, etc.) |
 
 ---
 
@@ -337,8 +342,10 @@ User Message
 | Role | Model | Responsibility |
 |------|-------|----------------|
 | Backend Dev | Sonnet | TaskProcessor, TaskScheduler, skill loading fix |
-| Backend Dev | Sonnet | Result delivery, WebSocket events |
-| Reviewer | Opus | E2E test verification, edge cases |
+| Backend Dev | Sonnet | Result delivery, WebSocket events, E2E test scripts |
+| Reviewer | Opus | Code review, E2E test verification, edge cases |
+
+**Overnight Mode:** All implementation + automated E2E testing. Decisions logged to DECISIONS.md. Test results in test-report.json for morning review.
 
 ---
 
@@ -355,25 +362,226 @@ User Message
 
 ## Test Plan
 
-### E2E Test 1: Immediate Task
+Tests are **automated** using internal APIs — suitable for overnight execution.
 
-1. Open dashboard, start conversation
-2. Send: "We are traveling to Bangkok with a 3 and a 5 YO girls. research must see places to see with kids. send me the list."
-3. Verify:
-   - Brain responds acknowledging task
-   - Task appears in Tasks list (status: pending → running → completed)
-   - Research results appear in conversation
+### Available APIs for Testing
 
-### E2E Test 2: Scheduled Task
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/conversations` | Create test conversation |
+| `GET /api/conversations/:id` | Read conversation turns |
+| WebSocket `chat:send` | Send message to brain |
+| `GET /api/tasks` | List tasks (poll for creation) |
+| `GET /api/tasks/:id` | Check task status |
 
-1. Open dashboard, start conversation
-2. Send: "in 5 minutes, check if my website is loading https://thinking.homes"
-3. Verify:
-   - Brain responds acknowledging scheduled check
-   - Task appears in Tasks list (status: pending, scheduledFor: +5min)
-   - Wait 5 minutes
-   - Task executes (status: running → completed)
-   - Website status appears in conversation
+### E2E Test 1: Immediate Task (Automated)
+
+```typescript
+// packages/dashboard/src/tests/e2e-immediate-task.ts
+
+async function testImmediateTask(): Promise<TestResult> {
+  const BASE = 'http://localhost:4321';
+  const WS_URL = 'ws://localhost:4321';
+
+  // 1. Create test conversation
+  const convRes = await fetch(`${BASE}/api/conversations`, { method: 'POST' });
+  const { id: conversationId } = await convRes.json();
+
+  // 2. Connect WebSocket and send message
+  const ws = new WebSocket(WS_URL);
+  await waitForOpen(ws);
+  ws.send(JSON.stringify({
+    type: 'chat:send',
+    conversationId,
+    message: 'We are traveling to Bangkok with a 3 and a 5 YO girls. research must see places to see with kids. send me the list.'
+  }));
+
+  // 3. Wait for brain response (acknowledgment)
+  const brainResponse = await waitForMessage(ws, 'chat:complete', 30_000);
+  assert(brainResponse, 'Brain should respond');
+
+  // 4. Poll for task creation (max 10s)
+  const task = await pollUntil(
+    async () => {
+      const res = await fetch(`${BASE}/api/tasks`);
+      const tasks = await res.json();
+      return tasks.find(t => t.title.includes('Bangkok') || t.title.includes('research'));
+    },
+    10_000,
+    'Task should be created'
+  );
+
+  // 5. Poll for task completion (max 60s for research)
+  await pollUntil(
+    async () => {
+      const res = await fetch(`${BASE}/api/tasks/${task.id}`);
+      const t = await res.json();
+      return t.status === 'completed';
+    },
+    60_000,
+    'Task should complete'
+  );
+
+  // 6. Verify result in conversation
+  const convData = await fetch(`${BASE}/api/conversations/${conversationId}`).then(r => r.json());
+  const resultTurn = convData.turns.find(t =>
+    t.role === 'assistant' &&
+    t.content.toLowerCase().includes('bangkok')
+  );
+  assert(resultTurn, 'Research results should appear in conversation');
+
+  return { pass: true, conversationId, taskId: task.id };
+}
+```
+
+**Verification points:**
+- [ ] Brain responds with acknowledgment
+- [ ] Task created with type=immediate
+- [ ] Task status: pending → running → completed
+- [ ] Result turn appended to conversation
+
+### E2E Test 2: Scheduled Task (Automated)
+
+```typescript
+// packages/dashboard/src/tests/e2e-scheduled-task.ts
+
+async function testScheduledTask(): Promise<TestResult> {
+  const BASE = 'http://localhost:4321';
+  const DELAY_MINUTES = 1; // Use 1 minute for testing (not 5)
+
+  // 1. Create test conversation
+  const convRes = await fetch(`${BASE}/api/conversations`, { method: 'POST' });
+  const { id: conversationId } = await convRes.json();
+
+  // 2. Connect WebSocket and send message
+  const ws = new WebSocket(WS_URL);
+  await waitForOpen(ws);
+  ws.send(JSON.stringify({
+    type: 'chat:send',
+    conversationId,
+    message: `in ${DELAY_MINUTES} minute, check if my website is loading https://thinking.homes`
+  }));
+
+  // 3. Wait for brain response
+  const brainResponse = await waitForMessage(ws, 'chat:complete', 30_000);
+  assert(brainResponse, 'Brain should respond');
+
+  // 4. Poll for task creation
+  const task = await pollUntil(
+    async () => {
+      const res = await fetch(`${BASE}/api/tasks`);
+      const tasks = await res.json();
+      return tasks.find(t =>
+        t.type === 'scheduled' &&
+        (t.title.includes('website') || t.title.includes('check'))
+      );
+    },
+    10_000,
+    'Scheduled task should be created'
+  );
+
+  // 5. Verify scheduledFor is in the future
+  const scheduledFor = new Date(task.scheduledFor);
+  assert(scheduledFor > new Date(), 'scheduledFor should be in future');
+
+  // 6. Wait for scheduled time + poll interval + buffer
+  const waitTime = (DELAY_MINUTES * 60 + 45) * 1000; // +45s for scheduler poll
+  console.log(`Waiting ${waitTime/1000}s for scheduled execution...`);
+  await sleep(waitTime);
+
+  // 7. Poll for task completion
+  await pollUntil(
+    async () => {
+      const res = await fetch(`${BASE}/api/tasks/${task.id}`);
+      const t = await res.json();
+      return t.status === 'completed';
+    },
+    30_000,
+    'Scheduled task should complete after due time'
+  );
+
+  // 8. Verify result in conversation
+  const convData = await fetch(`${BASE}/api/conversations/${conversationId}`).then(r => r.json());
+  const resultTurn = convData.turns.find(t =>
+    t.role === 'assistant' &&
+    (t.content.includes('thinking.homes') || t.content.includes('website'))
+  );
+  assert(resultTurn, 'Website check results should appear in conversation');
+
+  return { pass: true, conversationId, taskId: task.id };
+}
+```
+
+**Verification points:**
+- [ ] Brain responds with scheduled acknowledgment
+- [ ] Task created with type=scheduled, scheduledFor in future
+- [ ] Task stays pending until due time
+- [ ] Task executes within 30s of scheduledFor
+- [ ] Result turn appended to conversation
+
+### Test Runner
+
+```typescript
+// packages/dashboard/src/tests/run-e2e.ts
+
+async function runE2ETests() {
+  console.log('=== M5-S8 E2E Tests ===\n');
+
+  const results: TestResult[] = [];
+
+  console.log('Test 1: Immediate Task');
+  try {
+    results.push(await testImmediateTask());
+    console.log('✓ PASS\n');
+  } catch (e) {
+    console.log(`✗ FAIL: ${e.message}\n`);
+    results.push({ pass: false, error: e.message });
+  }
+
+  console.log('Test 2: Scheduled Task');
+  try {
+    results.push(await testScheduledTask());
+    console.log('✓ PASS\n');
+  } catch (e) {
+    console.log(`✗ FAIL: ${e.message}\n`);
+    results.push({ pass: false, error: e.message });
+  }
+
+  // Summary
+  const passed = results.filter(r => r.pass).length;
+  console.log(`\n=== Results: ${passed}/${results.length} passed ===`);
+
+  // Write to file for review
+  await writeFile('test-report.json', JSON.stringify(results, null, 2));
+
+  return results.every(r => r.pass);
+}
+```
+
+### Running Tests
+
+```bash
+# Start dashboard server
+cd packages/dashboard && npm run dev &
+
+# Wait for server to be ready
+sleep 5
+
+# Run E2E tests
+npx tsx src/tests/run-e2e.ts
+
+# Results written to test-report.json
+```
+
+### Manual Verification (Fallback)
+
+If automated tests fail, verify manually:
+
+1. Open dashboard at http://localhost:4321
+2. Start new conversation
+3. Send test messages
+4. Check Tasks tab for task creation/status
+5. Verify results appear in chat
 
 ---
 
