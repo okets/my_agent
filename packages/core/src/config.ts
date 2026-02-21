@@ -133,6 +133,9 @@ function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInst
       ownerIdentities: (channelYaml.ownerIdentities ?? channelYaml.owner_identities) as
         | string[]
         | undefined,
+      ownerJid: (channelYaml.ownerJid ?? channelYaml.owner_jid) as
+        | string
+        | undefined,
     }
 
     const knownKeys = new Set([
@@ -152,6 +155,8 @@ function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInst
       'debounce_ms',
       'ownerIdentities',
       'owner_identities',
+      'ownerJid',
+      'owner_jid',
     ])
 
     for (const [k, v] of Object.entries(channelYaml)) {

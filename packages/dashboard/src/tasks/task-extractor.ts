@@ -20,7 +20,11 @@ export interface ExtractionResult {
   task?: ExtractedTask;
 }
 
-const EXTRACTION_PROMPT = `You are a task extraction assistant. Analyze the user's message and determine if it requires creating a task.
+const EXTRACTION_PROMPT = `You are a JSON-only task extraction API. You output raw JSON with no other text.
+
+RULES:
+- Output ONLY a single JSON object. No explanation, no markdown, no prose.
+- Never wrap JSON in code fences or backticks.
 
 CREATE A TASK when the message:
 - Requests research or information lookup
@@ -40,15 +44,44 @@ If a task should be created, extract:
 4. type: "immediate" or "scheduled"
 5. scheduledFor: ISO datetime if scheduled
 
-Respond with ONLY valid JSON:
+OUTPUT FORMAT (no other text allowed):
 {"shouldCreateTask": false}
 or
 {"shouldCreateTask": true, "task": {"title": "...", "instructions": "...", "steps": "- [ ] step1\\n- [ ] step2", "type": "immediate"}}`;
 
 /**
+ * Run a single extraction attempt via Haiku
+ */
+async function runExtraction(prompt: string): Promise<string> {
+  const q = createBrainQuery(prompt, {
+    model: "claude-haiku-4-5-20251001",
+    systemPrompt: EXTRACTION_PROMPT,
+    continue: false,
+    includePartialMessages: false,
+  });
+
+  let response = "";
+  for await (const msg of q) {
+    if (msg.type === "assistant") {
+      const assistantMsg = msg as {
+        type: string;
+        message: { content: Array<{ type: string; text?: string }> };
+      };
+      response = assistantMsg.message.content
+        .filter((b) => b.type === "text")
+        .map((b) => b.text ?? "")
+        .join("");
+    }
+    if (msg.type === "result") break;
+  }
+
+  return response;
+}
+
+/**
  * Extract task from user message
  *
- * Uses Haiku for fast, cheap extraction.
+ * Uses Haiku for fast, cheap extraction. Retries once if no JSON returned.
  */
 export async function extractTaskFromMessage(
   userMessage: string,
@@ -58,40 +91,42 @@ export async function extractTaskFromMessage(
     ? `Context:\n${conversationContext}\n\nUser message:\n${userMessage}`
     : `User message:\n${userMessage}`;
 
-  try {
-    const q = createBrainQuery(prompt, {
-      model: "claude-haiku-4-5-20251001",
-      systemPrompt: EXTRACTION_PROMPT,
-      continue: false,
-      includePartialMessages: false,
-    });
+  const MAX_ATTEMPTS = 2;
 
-    let response = "";
-    for await (const msg of q) {
-      if (msg.type === "assistant") {
-        const assistantMsg = msg as {
-          type: string;
-          message: { content: Array<{ type: string; text?: string }> };
-        };
-        response = assistantMsg.message.content
-          .filter((b) => b.type === "text")
-          .map((b) => b.text ?? "")
-          .join("");
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await runExtraction(prompt);
+
+      // Parse JSON response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        if (attempt < MAX_ATTEMPTS) {
+          console.warn(
+            `[TaskExtractor] No JSON in response (attempt ${attempt}/${MAX_ATTEMPTS}), retrying...`,
+          );
+          continue;
+        }
+        console.warn(
+          "[TaskExtractor] No JSON in response after retries:",
+          response.substring(0, 200),
+        );
+        return { shouldCreateTask: false };
       }
-      if (msg.type === "result") break;
-    }
 
-    // Parse JSON response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.warn("[TaskExtractor] No JSON in response:", response);
+      const result = JSON.parse(jsonMatch[0]) as ExtractionResult;
+      return result;
+    } catch (err) {
+      if (attempt < MAX_ATTEMPTS) {
+        console.warn(
+          `[TaskExtractor] Attempt ${attempt} failed, retrying:`,
+          err instanceof Error ? err.message : String(err),
+        );
+        continue;
+      }
+      console.error("[TaskExtractor] Extraction failed after retries:", err);
       return { shouldCreateTask: false };
     }
-
-    const result = JSON.parse(jsonMatch[0]) as ExtractionResult;
-    return result;
-  } catch (err) {
-    console.error("[TaskExtractor] Extraction failed:", err);
-    return { shouldCreateTask: false };
   }
+
+  return { shouldCreateTask: false };
 }

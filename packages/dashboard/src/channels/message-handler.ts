@@ -178,15 +178,18 @@ export class ChannelMessageHandler {
     );
 
     // Update runtime config
+    // ownerIdentities: normalized digits for identity matching
+    // ownerJid: full JID for outbound messaging (preserves @s.whatsapp.net suffix)
     this.deps.updateChannelConfig(channelId, {
       ownerIdentities: [normalizedJid],
+      ownerJid: senderJid,
     });
 
     // Persist to config.yaml
     try {
       saveChannelToConfig(
         channelId,
-        { owner_identities: [normalizedJid] },
+        { owner_identities: [normalizedJid], owner_jid: senderJid },
         this.deps.agentDir,
       );
     } catch (err) {

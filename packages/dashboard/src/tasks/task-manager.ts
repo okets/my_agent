@@ -428,11 +428,13 @@ export class TaskManager {
 
     const updated = lines
       .map((line) => {
-        const match = line.match(/^- \[ \] (.+)$/);
-        if (match) {
+        const uncheckedMatch = line.match(/^- \[ \] (.+)$/);
+        const checkedMatch = line.match(/^- \[x\] (.+)$/i);
+        // Count ALL steps (checked + unchecked) for absolute numbering
+        if (uncheckedMatch || checkedMatch) {
           currentStepIndex++;
-          if (currentStepIndex === stepNumber) {
-            return `- [x] ${match[1]}`;
+          if (currentStepIndex === stepNumber && uncheckedMatch) {
+            return `- [x] ${uncheckedMatch[1]}`;
           }
         }
         return line;

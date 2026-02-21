@@ -213,13 +213,16 @@ export class StepExecutor {
     }
 
     // Get owner JID from channel config
+    // ownerJid is the full JID stored during token auth (e.g., "phone@s.whatsapp.net")
+    // ownerIdentities is the normalized form used for identity matching only
     const config = this.channelManager.getChannelConfig(whatsappChannelId);
-    const ownerJid = config?.ownerIdentities?.[0];
+    const ownerJid = config?.ownerJid;
 
     if (!ownerJid) {
       return {
         success: false,
-        error: "No owner configured for WhatsApp channel",
+        error:
+          "No owner JID configured for WhatsApp channel. Re-authorize with a token to fix.",
       };
     }
 

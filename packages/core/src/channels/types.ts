@@ -158,8 +158,10 @@ export interface ChannelInstanceConfig {
   watchdog?: Partial<WatchdogConfig>
   /** Message debounce window in ms (0 = disabled) */
   debounceMs?: number
-  /** Owner identities — messages from these are routed as conversations */
+  /** Owner identities — normalized IDs for matching incoming messages */
   ownerIdentities?: string[]
+  /** Owner JID — full JID for outbound messaging (e.g., "phone@s.whatsapp.net") */
+  ownerJid?: string
   /** Plugin-specific config */
   [key: string]: unknown
 }
