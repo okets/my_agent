@@ -191,12 +191,17 @@ async function main() {
       agentDir,
     });
 
+    // Initialize notification service (before task processor so it can be passed in)
+    notificationService = new NotificationService();
+
     // Initialize task processor (handles immediate task execution)
     taskProcessor = new TaskProcessor({
       taskManager,
       executor: taskExecutor,
       conversationManager,
       connectionRegistry,
+      channelManager,
+      notificationService,
     });
 
     // Initialize task scheduler (polls for due scheduled tasks)
@@ -208,9 +213,6 @@ async function main() {
 
     // Start the task scheduler
     taskScheduler.start();
-
-    // Initialize notification service
-    notificationService = new NotificationService();
 
     // Wire notification events to WebSocket broadcasts
     notificationService.on("notification", (event) => {

@@ -6,18 +6,22 @@
  * and deliver the result to the source conversation.
  */
 
-import type { Task } from "@my-agent/core";
+import type { Task, NotificationService } from "@my-agent/core";
 import type { TaskManager } from "./task-manager.js";
 import type { TaskExecutor, ExecutionResult } from "./task-executor.js";
 import type { ConversationManager } from "../conversations/index.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import type { TranscriptTurn } from "../conversations/types.js";
+import type { ChannelManager } from "../channels/index.js";
+import { StepExecutor } from "./step-executor.js";
 
 export interface TaskProcessorConfig {
   taskManager: TaskManager;
   executor: TaskExecutor;
   conversationManager: ConversationManager;
   connectionRegistry: ConnectionRegistry;
+  channelManager?: ChannelManager | null;
+  notificationService?: NotificationService | null;
 }
 
 /**
@@ -28,12 +32,16 @@ export class TaskProcessor {
   private executor: TaskExecutor;
   private conversationManager: ConversationManager;
   private connectionRegistry: ConnectionRegistry;
+  private stepExecutor: StepExecutor;
+  private notificationService: NotificationService | null;
 
   constructor(config: TaskProcessorConfig) {
     this.taskManager = config.taskManager;
     this.executor = config.executor;
     this.conversationManager = config.conversationManager;
     this.connectionRegistry = config.connectionRegistry;
+    this.stepExecutor = new StepExecutor(config.channelManager ?? null);
+    this.notificationService = config.notificationService ?? null;
   }
 
   /**
@@ -61,7 +69,95 @@ export class TaskProcessor {
    */
   async executeAndDeliver(task: Task): Promise<void> {
     const result = await this.executor.run(task);
+
+    // Parse step completion markers from the response
+    if (task.steps && result.success) {
+      this.updateStepsFromResponse(task, result.response);
+    }
+
+    // Execute delivery steps deterministically (WhatsApp, email, etc.)
+    // The brain handles research; StepExecutor handles delivery actions
+    if (task.steps && result.success) {
+      const deliveryResult = await this.stepExecutor.executeDeliverySteps(
+        task,
+        result.response,
+      );
+
+      // Mark delivered steps as complete
+      for (const stepResult of deliveryResult.results) {
+        if (stepResult.success) {
+          this.taskManager.markStepComplete(task.id, stepResult.stepNumber);
+        }
+      }
+
+      // Log delivery results
+      if (deliveryResult.results.length > 0) {
+        const successCount = deliveryResult.results.filter(
+          (r) => r.success,
+        ).length;
+        console.log(
+          `[TaskProcessor] Delivery steps: ${successCount}/${deliveryResult.results.length} succeeded`,
+        );
+
+        // Broadcast step updates
+        this.broadcastStepUpdate(task.id);
+      }
+    }
+
     await this.deliverResult(task, result);
+  }
+
+  /**
+   * Parse the response for step completion markers and update the task
+   *
+   * Looks for lines like: ✓ STEP 1: [description]
+   */
+  private updateStepsFromResponse(task: Task, response: string): void {
+    const stepPattern = /✓ STEP (\d+):/g;
+    const completedSteps = new Set<number>();
+
+    let match;
+    while ((match = stepPattern.exec(response)) !== null) {
+      const stepNumber = parseInt(match[1], 10);
+      completedSteps.add(stepNumber);
+    }
+
+    if (completedSteps.size === 0) {
+      return;
+    }
+
+    // Mark all completed steps
+    const maxStep = Math.max(...completedSteps);
+    for (let i = 1; i <= maxStep; i++) {
+      if (completedSteps.has(i)) {
+        this.taskManager.markStepComplete(task.id, i);
+      }
+    }
+
+    console.log(
+      `[TaskProcessor] Marked ${completedSteps.size} steps complete for task ${task.id}`,
+    );
+
+    // Broadcast step updates via WebSocket
+    this.broadcastStepUpdate(task.id);
+  }
+
+  /**
+   * Broadcast step update via WebSocket
+   */
+  private broadcastStepUpdate(taskId: string): void {
+    const task = this.taskManager.findById(taskId);
+    if (!task) return;
+
+    const links = this.taskManager.getConversationsForTask(taskId);
+    for (const link of links) {
+      this.connectionRegistry.broadcastToConversation(link.conversationId, {
+        type: "task:step_complete",
+        taskId: task.id,
+        steps: task.steps,
+        currentStep: task.currentStep,
+      } as any);
+    }
   }
 
   /**
@@ -112,6 +208,17 @@ export class TaskProcessor {
 
     // Broadcast via WebSocket
     this.broadcastResult(conversationId, task, result);
+
+    // Trigger notification
+    if (this.notificationService) {
+      this.notificationService.notify({
+        message: result.success
+          ? `Task completed: ${task.title}`
+          : `Task failed: ${task.title}`,
+        importance: result.success ? "info" : "warning",
+        taskId: task.id,
+      });
+    }
   }
 
   /**

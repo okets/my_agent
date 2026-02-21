@@ -11,6 +11,7 @@ import type { ConversationManager } from "../conversations/index.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
 import { ConnectionRegistry } from "./connection-registry.js";
 import { AttachmentService } from "../conversations/attachments.js";
+import { extractTaskFromMessage } from "../tasks/task-extractor.js";
 import type {
   Attachment,
   ClientMessage,
@@ -1192,6 +1193,68 @@ export async function registerChatWebSocket(
               fastify.log.error(
                 err,
                 `Naming failed for conversation ${convIdForNaming}`,
+              );
+            }
+          })();
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // Task Extraction — Deterministic task creation from user message
+        // ═══════════════════════════════════════════════════════════════════
+        if (
+          fastify.taskManager &&
+          fastify.taskProcessor &&
+          currentConversationId
+        ) {
+          const convIdForTask = currentConversationId;
+
+          // Fire-and-forget task extraction
+          (async () => {
+            try {
+              const extraction = await extractTaskFromMessage(textContent);
+
+              if (extraction.shouldCreateTask && extraction.task) {
+                const task = fastify.taskManager!.create({
+                  type: extraction.task.type,
+                  sourceType: "conversation",
+                  title: extraction.task.title,
+                  instructions: extraction.task.instructions,
+                  steps: extraction.task.steps,
+                  scheduledFor: extraction.task.scheduledFor
+                    ? new Date(extraction.task.scheduledFor)
+                    : undefined,
+                  createdBy: "agent",
+                });
+
+                // Link task to conversation
+                fastify.taskManager!.linkTaskToConversation(
+                  task.id,
+                  convIdForTask,
+                );
+
+                fastify.log.info(
+                  `[TaskExtractor] Created task "${task.title}" (${task.id}) for conversation ${convIdForTask}`,
+                );
+
+                // Trigger immediate task execution
+                fastify.taskProcessor!.onTaskCreated(task);
+
+                // Broadcast task creation to clients
+                connectionRegistry.broadcastToConversation(convIdForTask, {
+                  type: "task:created",
+                  task: {
+                    id: task.id,
+                    title: task.title,
+                    type: task.type,
+                    status: task.status,
+                    steps: task.steps,
+                  },
+                } as any);
+              }
+            } catch (err) {
+              fastify.log.error(
+                err,
+                `[TaskExtractor] Failed to extract task for conversation ${convIdForTask}`,
               );
             }
           })();
