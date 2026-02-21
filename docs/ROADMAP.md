@@ -14,7 +14,8 @@
 | **M3: WhatsApp Channel**     | Complete | 3/3 sprints                  |
 | **M4: Notebook System**      | Complete | 2/2 sprints                  |
 | **M4.5: Calendar System**    | Complete | 5/5 sprints                  |
-| **M5: Task System**          | Active   | 5/7 sprints                  |
+| **M5: Task System**          | Active   | 8/9 sprints                  |
+| **M5.5: Live Dashboard**     | Planned  | Design complete, 3 sprints   |
 | **M6: Memory**               | Planned  | Design complete, sprints TBD |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -29,15 +30,15 @@
 2026-02                                          2026-03+
 ├─────────────────────────────────────────────────────────────────────►
 
-M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks      M6+ Future
-[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████░░]   [░░░░░░░░░░]
-   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         ACTIVE         PLANNED
+M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks      M5.5 Live    M6+ Future
+[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████░░]   [░░░░░░░░]   [░░░░░░░░░░]
+   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         ACTIVE        PLANNED       PLANNED
 
-                                                                                                   M6 Memory
-                                                                                                   M7 Coding Projects
-                                                                                                   M8 Ops Dashboard
-                                                                                                   M9 Email
-                                                                                                   M10 External Comms
+                                                                                                                M6 Memory
+                                                                                                                M7 Coding Projects
+                                                                                                                M8 Ops Dashboard
+                                                                                                                M9 Email
+                                                                                                                M10 External Comms
 ```
 
 ---
@@ -215,7 +216,8 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 | S5     | Task-Conversation Linking | Complete | [plan](sprints/m5-s5-task-conversation-linking/plan.md) | [review](sprints/m5-s5-task-conversation-linking/review.md) |
 | S6     | Task UI                   | Complete | [plan](sprints/m5-s6-task-ui/plan.md)                   | [review](sprints/m5-s6-task-ui/review.md)                   |
 | S7     | Request/Input Blocking    | Deferred | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
-| S8     | E2E Task Flow             | Planned  | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | —                                                           |
+| S8     | E2E Task Flow             | Complete | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | —                                                           |
+| S9     | Task Steps                | Planned  | [plan](sprints/m5-s9-task-steps/plan.md)                | —                                                           |
 
 **Deliverables:**
 
@@ -226,7 +228,8 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 - _(S5)_ Soft delete for tasks, task_conversations junction table, full Task REST API (CRUD + link queries), conversationId in brain system prompt, brain documentation for task API
 - _(S6)_ Task list screen, task detail tab, shared components (StatusBadge, DetailHeader, etc.), entity tags in chat, create task form
 - _(S7)_ _(Deferred)_ Request/input blocking for interactive task execution
-- _(S8)_ Brain skill loading fix, TaskProcessor (immediate), TaskScheduler (scheduled), result delivery to conversation
+- _(S8)_ Brain skill loading fix, TaskProcessor (immediate), TaskScheduler (scheduled), result delivery to conversation, E2E tests
+- _(S9)_ Multi-step tasks with markdown checkboxes, step progress markers, real-time UI updates
 
 **Philosophy:**
 
@@ -237,6 +240,34 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 - **Learnable:** User feedback ("stop notifying about X") → standing order → behavior adapts.
 
 **Dependencies:** M2 (dashboard), M4.5 (calendar scheduler)
+
+---
+
+### M5.5: Live Dashboard — PLANNED
+
+Real-time state binding for kiosk displays. Backend pushes state, frontend auto-renders.
+
+**Design spec:** [live-dashboard.md](design/live-dashboard.md)
+
+| Sprint | Name                     | Status  | Plan | Review |
+| ------ | ------------------------ | ------- | ---- | ------ |
+| S1     | Core Infrastructure      | Planned | —    | —      |
+| S2     | Calendar + Conversations | Planned | —    | —      |
+| S3     | Polish + Documentation   | Planned | —    | —      |
+
+**Deliverables:**
+
+- _(S1)_ StatePublisher service, Alpine stores for tasks, connection indicator
+- _(S2)_ Calendar and conversation state binding, multi-tab sync
+- _(S3)_ Reconnection handling, TypeScript types, documentation
+
+**Key Design Decisions:**
+
+- Data binding (full state push) over event-based updates
+- Alpine stores replace monolithic data() object
+- All CRUD operations trigger state publish
+
+**Dependencies:** M5 (Task System complete)
 
 ---
 
@@ -365,6 +396,8 @@ Design specs define architecture before implementation. Each spec should be comp
 | Notebook             | Complete | M4, M5, M10 | [design/notebook.md](design/notebook.md)                         |
 | Calendar System      | Complete | M4.5        | [design/calendar-system.md](design/calendar-system.md)           |
 | Task System          | Complete | M5          | [design/task-system.md](design/task-system.md)                   |
+| Task Steps           | Approved | M5          | [design/task-steps.md](design/task-steps.md)                     |
+| Live Dashboard       | Complete | M5.5        | [design/live-dashboard.md](design/live-dashboard.md)             |
 | Memory               | Complete | M6          | [design/memory-system.md](design/memory-system.md)               |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Complete | M8          | [design/operations-dashboard.md](design/operations-dashboard.md) |
@@ -382,6 +415,9 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                           ▼
                                                                       M5 Tasks
                                                                           │
+                                                                          ▼
+                                                                  M5.5 Live Dashboard
+                                                                          │
                                                    ┌──────────────────────┼──────────────────────┐
                                                    │                      │                      │
                                                    ▼                      ▼                      ▼
@@ -397,9 +433,9 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                  M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete through M4.5, M5 active)
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M5.5 (all complete through M4.5, M5 active)
 
-**M5 unlocks autonomy:** M6-M10 all depend on M5 (task system + NotificationService). Order within M6-M9 is flexible.
+**M5.5 enables live UI:** All future milestones benefit from real-time state binding. Required for kiosk displays.
 
 **M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
 
@@ -423,9 +459,10 @@ Requirements that must be complete before public release, regardless of mileston
 
 Ideas that haven't been promoted to design specs yet.
 
-| Idea                         | Status         | Path                                                                         |
-| ---------------------------- | -------------- | ---------------------------------------------------------------------------- |
-| Agent Teams for Ad-hoc Tasks | Deferred to M5 | [ideas/agent-teams-for-adhoc-tasks.md](ideas/agent-teams-for-adhoc-tasks.md) |
+| Idea                         | Status              | Path                                                                         |
+| ---------------------------- | ------------------- | ---------------------------------------------------------------------------- |
+| Agent Teams for Ad-hoc Tasks | Deferred to M5      | [ideas/agent-teams-for-adhoc-tasks.md](ideas/agent-teams-for-adhoc-tasks.md) |
+| Multi-Step Tasks             | Promoted to M5-S9   | [ideas/multi-step-tasks.md](ideas/multi-step-tasks.md)                       |
 
 ---
 
