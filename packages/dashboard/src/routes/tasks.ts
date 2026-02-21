@@ -6,6 +6,7 @@
  */
 
 import { FastifyInstance } from "fastify";
+import { readFile } from "node:fs/promises";
 import type { Task, CreateTaskInput, ListTasksFilter } from "@my-agent/core";
 
 /**
@@ -32,6 +33,8 @@ function toResponse(task: Task) {
     sourceRef: task.sourceRef,
     title: task.title,
     instructions: task.instructions,
+    steps: task.steps,
+    currentStep: task.currentStep,
     status: task.status,
     sessionId: task.sessionId,
     recurrenceId: task.recurrenceId,
@@ -177,6 +180,38 @@ export async function registerTaskRoutes(
     },
   );
 
+  // GET /api/tasks/:id/log - Get task execution log
+  fastify.get<{ Params: { id: string } }>(
+    "/api/tasks/:id/log",
+    async (request, reply) => {
+      const taskManager = fastify.taskManager;
+      if (!taskManager) {
+        return reply.code(503).send({ error: "Task manager not ready" });
+      }
+
+      const task = taskManager.findById(request.params.id);
+      if (!task) {
+        return reply.code(404).send({ error: "Task not found" });
+      }
+
+      if (!task.logPath) {
+        return { taskId: task.id, entries: [] };
+      }
+
+      try {
+        const content = await readFile(task.logPath, "utf-8");
+        const entries = content
+          .split("\n")
+          .filter((line) => line.trim())
+          .map((line) => JSON.parse(line));
+        return { taskId: task.id, entries };
+      } catch {
+        // Log file doesn't exist yet or is empty
+        return { taskId: task.id, entries: [] };
+      }
+    },
+  );
+
   // GET /api/conversations/:id/tasks - Get tasks linked to a conversation
   fastify.get<{ Params: { id: string } }>(
     "/api/conversations/:id/tasks",
@@ -209,6 +244,7 @@ export async function registerTaskRoutes(
       sourceRef?: string;
       title: string;
       instructions: string;
+      steps?: string;
       recurrenceId?: string;
       occurrenceDate?: string;
       scheduledFor?: string;

@@ -26,7 +26,7 @@ const NOTEBOOK_FILES = [
 const MAX_NOTEBOOK_CHARS = 8000
 
 // Skills whose full content should be included in the system prompt (not just commands)
-const SKILL_CONTENT_FILES = ['task-api.md']
+const SKILL_CONTENT_FILES = ['task-api.md', 'channels.md']
 
 /**
  * Format scheduled task context for inclusion in system prompt.

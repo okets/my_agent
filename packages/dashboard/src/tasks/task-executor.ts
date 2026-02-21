@@ -174,10 +174,22 @@ export class TaskExecutor {
    * Build the user message for the task
    */
   private buildUserMessage(task: Task): string {
-    let message = `Scheduled task: "${task.title}"`;
+    let message = `Task: "${task.title}"`;
 
     if (task.instructions) {
       message += `\n\n${task.instructions}`;
+    }
+
+    // If task has steps, include step execution instructions
+    if (task.steps) {
+      message += `\n\n## Steps to Complete\n\n${task.steps}`;
+      message += `\n\n## Execution Rules
+
+1. Work through each step in order
+2. When you complete a step, output on its own line:
+   ✓ STEP N: [step description]
+3. Never skip steps. If blocked on a step, explain why before continuing.
+4. After completing all steps, summarize the overall result.`;
     }
 
     return message;

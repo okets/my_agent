@@ -1016,6 +1016,22 @@ function chat() {
           break;
         }
 
+        // Task step completion (M5-S9)
+        case "task:step_complete": {
+          // Update task in open tab with new steps
+          if (data.taskId) {
+            const tabId = `task-${data.taskId}`;
+            const tab = this.openTabs.find((t) => t.id === tabId);
+            if (tab && tab.data.task) {
+              tab.data.task.steps = data.steps;
+              tab.data.task.currentStep = data.currentStep;
+            }
+          }
+          // Also refresh task list to update any step indicators
+          this.loadTasks();
+          break;
+        }
+
         default:
           console.warn("[App] Unknown message type:", data.type);
       }
@@ -2897,6 +2913,22 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         }
       } catch (err) {
         console.error("[App] Failed to load task conversations:", err);
+      }
+      return [];
+    },
+
+    /**
+     * Load execution log for a task
+     */
+    async loadTaskLog(taskId) {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/log`);
+        if (res.ok) {
+          const data = await res.json();
+          return data.entries || [];
+        }
+      } catch (err) {
+        console.error("[App] Failed to load task log:", err);
       }
       return [];
     },

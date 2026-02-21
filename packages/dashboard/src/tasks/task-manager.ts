@@ -78,6 +78,7 @@ export class TaskManager {
       sourceRef: input.sourceRef,
       title: input.title,
       instructions: input.instructions,
+      steps: input.steps,
       status: "pending",
       sessionId,
       recurrenceId: input.recurrenceId,
@@ -90,10 +91,10 @@ export class TaskManager {
 
     const stmt = this.db.prepare(`
       INSERT INTO tasks (
-        id, type, source_type, source_ref, title, instructions,
+        id, type, source_type, source_ref, title, instructions, steps,
         status, session_id, recurrence_id, occurrence_date,
         scheduled_for, created_by, log_path, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -103,6 +104,7 @@ export class TaskManager {
       task.sourceRef ?? null,
       task.title,
       task.instructions,
+      task.steps ?? null,
       task.status,
       task.sessionId,
       task.recurrenceId ?? null,
@@ -192,6 +194,7 @@ export class TaskManager {
       sourceRef: input.sourceRef,
       title: input.title,
       instructions: input.instructions,
+      steps: input.steps,
       status: "pending",
       sessionId,
       recurrenceId: input.recurrenceId,
@@ -204,10 +207,10 @@ export class TaskManager {
 
     const stmt = this.db.prepare(`
       INSERT INTO tasks (
-        id, type, source_type, source_ref, title, instructions,
+        id, type, source_type, source_ref, title, instructions, steps,
         status, session_id, recurrence_id, occurrence_date,
         scheduled_for, created_by, log_path, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -217,6 +220,7 @@ export class TaskManager {
       task.sourceRef ?? null,
       task.title,
       task.instructions,
+      task.steps ?? null,
       task.status,
       task.sessionId,
       task.recurrenceId,
@@ -236,7 +240,10 @@ export class TaskManager {
   update(
     id: string,
     changes: Partial<
-      Pick<Task, "status" | "startedAt" | "completedAt" | "deletedAt">
+      Pick<
+        Task,
+        "status" | "startedAt" | "completedAt" | "deletedAt" | "steps" | "currentStep"
+      >
     >,
   ): void {
     const fields: string[] = [];
@@ -260,6 +267,16 @@ export class TaskManager {
     if (changes.deletedAt !== undefined) {
       fields.push("deleted_at = ?");
       values.push(changes.deletedAt.toISOString());
+    }
+
+    if (changes.steps !== undefined) {
+      fields.push("steps = ?");
+      values.push(changes.steps);
+    }
+
+    if (changes.currentStep !== undefined) {
+      fields.push("current_step = ?");
+      values.push(changes.currentStep);
     }
 
     if (fields.length === 0) {
@@ -380,6 +397,8 @@ export class TaskManager {
       sourceRef: row.source_ref ?? undefined,
       title: row.title,
       instructions: row.instructions,
+      steps: row.steps ?? undefined,
+      currentStep: row.current_step ?? undefined,
       status: row.status as TaskStatus,
       sessionId: row.session_id,
       recurrenceId: row.recurrence_id ?? undefined,
@@ -392,6 +411,38 @@ export class TaskManager {
       createdBy: row.created_by,
       logPath: row.log_path,
     };
+  }
+
+  /**
+   * Mark a step as complete in a task
+   *
+   * Updates the task's steps markdown to check off the given step number,
+   * and updates currentStep for tracking.
+   */
+  markStepComplete(taskId: string, stepNumber: number): void {
+    const task = this.findById(taskId);
+    if (!task || !task.steps) return;
+
+    const lines = task.steps.split("\n");
+    let currentStepIndex = 0;
+
+    const updated = lines
+      .map((line) => {
+        const match = line.match(/^- \[ \] (.+)$/);
+        if (match) {
+          currentStepIndex++;
+          if (currentStepIndex === stepNumber) {
+            return `- [x] ${match[1]}`;
+          }
+        }
+        return line;
+      })
+      .join("\n");
+
+    this.update(taskId, {
+      steps: updated,
+      currentStep: stepNumber,
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

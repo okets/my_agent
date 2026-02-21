@@ -191,6 +191,16 @@ export class ConversationDatabase {
       this.db.exec("ALTER TABLE tasks ADD COLUMN deleted_at TEXT DEFAULT NULL");
     }
 
+    // Migration: add steps and current_step columns (M5-S9)
+    if (!taskColumns.some((c) => c.name === "steps")) {
+      this.db.exec("ALTER TABLE tasks ADD COLUMN steps TEXT DEFAULT NULL");
+    }
+    if (!taskColumns.some((c) => c.name === "current_step")) {
+      this.db.exec(
+        "ALTER TABLE tasks ADD COLUMN current_step INTEGER DEFAULT NULL",
+      );
+    }
+
     // Create task_conversations junction table (M5-S5)
     // Soft references: no FK constraints for graceful degradation
     this.db.exec(`

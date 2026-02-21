@@ -964,6 +964,24 @@
                 </div>
               </div>
 
+              <!-- Steps (if present) -->
+              <template x-if="getCurrentTask()?.steps">
+                <div class="flex-1 mb-6">
+                  <h2
+                    class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
+                  >
+                    Steps
+                  </h2>
+
+                  <div class="glass-strong rounded-xl p-5">
+                    <div
+                      class="prose prose-invert prose-sm max-w-none task-steps"
+                      x-html="DOMPurify.sanitize(marked.parse(getCurrentTask()?.steps || ''))"
+                    ></div>
+                  </div>
+                </div>
+              </template>
+
               <!-- Instructions -->
               <div class="flex-1">
                 <h2
@@ -985,6 +1003,56 @@
                     </p>
                   </template>
                 </div>
+              </div>
+
+              <!-- Execution Log (shows result when task is completed/failed) -->
+              <div
+                class="mt-6"
+                x-data="{ logEntries: [], loading: true }"
+                x-init="
+                loadTaskLog(getCurrentTask()?.id).then(entries => {
+                  logEntries = entries;
+                  loading = false;
+                });
+              "
+                x-show="getCurrentTask()?.status === 'completed' || getCurrentTask()?.status === 'failed' || getCurrentTask()?.status === 'running'"
+              >
+                <h2
+                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
+                >
+                  Execution Log
+                </h2>
+
+                <template x-if="loading">
+                  <p class="text-sm text-tokyo-muted">Loading...</p>
+                </template>
+
+                <template x-if="!loading && logEntries.length === 0">
+                  <p class="text-sm text-tokyo-muted">
+                    No execution log yet.
+                  </p>
+                </template>
+
+                <template x-if="!loading && logEntries.length > 0">
+                  <div class="glass-strong rounded-xl p-5 max-h-[400px] overflow-y-auto">
+                    <template x-for="(entry, idx) in logEntries.filter(e => e.type === 'turn')" :key="idx">
+                      <div class="mb-4 last:mb-0">
+                        <div class="flex items-center gap-2 mb-2">
+                          <span
+                            class="text-xs font-medium px-2 py-0.5 rounded"
+                            :class="entry.role === 'user' ? 'bg-tokyo-blue/20 text-tokyo-blue' : 'bg-tokyo-purple/20 text-tokyo-purple'"
+                            x-text="entry.role === 'user' ? 'Instructions' : 'Result'"
+                          ></span>
+                          <span class="text-xs text-tokyo-muted" x-text="entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''"></span>
+                        </div>
+                        <div
+                          class="prose prose-invert prose-sm max-w-none"
+                          x-html="DOMPurify.sanitize(marked.parse(entry.content || ''))"
+                        ></div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
               </div>
 
               <!-- Linked Conversations -->

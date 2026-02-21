@@ -1,0 +1,28 @@
+{
+  "timestamp": "2026-02-20T14:40:46.149Z",
+  "results": [
+    {
+      "name": "Immediate Task",
+      "result": {
+        "pass": true,
+        "conversationId": "conv-01KHXQQGT2XBA696ATZH6TEMVP",
+        "taskId": "task-01KHXQQVE12934TJC703B9FSG2"
+      },
+      "durationMs": 89183
+    },
+    {
+      "name": "Scheduled Task",
+      "result": {
+        "pass": true,
+        "conversationId": "conv-01KHXQT7VXS5Q7Y7B4B59GBAXR",
+        "taskId": "task-01KHXQTMMR5C1Q9XNT9SV5HWKD"
+      },
+      "durationMs": 122568
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0
+  }
+}

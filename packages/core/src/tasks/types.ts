@@ -44,8 +44,18 @@ export interface Task {
   /** Human-readable title */
   title: string
 
-  /** What the agent should do */
+  /** What the agent should do (legacy, prefer steps) */
   instructions: string
+
+  /**
+   * Markdown checklist of steps to execute.
+   * Format: "- [ ] step" or "- [x] step"
+   * Preferred over plain instructions for multi-action requests.
+   */
+  steps?: string
+
+  /** Current step being executed (1-indexed) */
+  currentStep?: number
 
   /** Current execution status */
   status: TaskStatus
@@ -89,7 +99,10 @@ export interface CreateTaskInput {
   sourceType: SourceType
   sourceRef?: string
   title: string
+  /** Plain instructions (legacy) */
   instructions: string
+  /** Markdown steps (preferred for multi-action tasks) */
+  steps?: string
   recurrenceId?: string
   occurrenceDate?: string
   scheduledFor?: Date
