@@ -218,6 +218,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 | S7     | Request/Input Blocking    | Deferred | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
 | S8     | E2E Task Flow             | Complete | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | —                                                           |
 | S9     | Work + Deliverable        | Active   | [plan](sprints/m5-s9-task-steps/plan.md)                | —                                                           |
+| S10    | Navigable Timeline        | Planned  | [design](design/navigable-timeline.md)                  | —                                                           |
 
 **Deliverables:**
 
@@ -229,7 +230,8 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 - _(S6)_ Task list screen, task detail tab, shared components (StatusBadge, DetailHeader, etc.), entity tags in chat, create task form
 - _(S7)_ _(Deferred)_ Request/input blocking for interactive task execution
 - _(S8)_ Brain skill loading fix, TaskProcessor (immediate), TaskScheduler (scheduled), result delivery to conversation, E2E tests
-- _(S9)_ Work + Deliverable architecture: typed WorkPlan with `<deliverable>` XML tags, DeliveryExecutor, channel-aware constraints, validation gate. Clean channel delivery — work output stays internal, only validated deliverables reach recipients.
+- _(S9)_ Work + Deliverable architecture: typed WorkPlan with `<deliverable>` XML tags, DeliveryExecutor, channel-aware constraints, validation gate. Clean channel delivery — work output stays internal, only validated deliverables reach recipients. **Plus:** Unified homepage timeline (Active Now + Timeline), past 24h visibility, bidirectional Task↔CalendarEvent linking. Design spec for full navigable timeline (M5-S10).
+- _(S10)_ _(Planned)_ Navigable Timeline: Hero timeline on homepage, infinite scroll, expansion, search/filters. See [design/navigable-timeline.md](design/navigable-timeline.md).
 
 **Philosophy:**
 

@@ -37,7 +37,9 @@ async function main() {
   const db = new Database(dbPath);
 
   // Clear conversations
-  const convCount = db.prepare("SELECT COUNT(*) as count FROM conversations").get() as { count: number };
+  const convCount = db
+    .prepare("SELECT COUNT(*) as count FROM conversations")
+    .get() as { count: number };
   db.exec("DELETE FROM turns_fts");
   db.exec("DELETE FROM conversations");
   console.log(`✓ Deleted ${convCount.count} conversations`);
@@ -53,7 +55,9 @@ async function main() {
   }
 
   // Clear tasks
-  const taskCount = db.prepare("SELECT COUNT(*) as count FROM tasks").get() as { count: number };
+  const taskCount = db.prepare("SELECT COUNT(*) as count FROM tasks").get() as {
+    count: number;
+  };
   db.exec("DELETE FROM task_conversations");
   db.exec("DELETE FROM tasks");
   console.log(`✓ Deleted ${taskCount.count} tasks`);
@@ -70,24 +74,34 @@ async function main() {
 
   db.close();
 
-  // Clear calendar entries (Radicale .ics files)
-  const calendarDataDir = path.join(agentDir, "calendar", "data", "collection-root", "agent", "user");
-  if (fs.existsSync(calendarDataDir)) {
+  // Clear calendar entries (Radicale .ics files) from user calendar only
+  // System calendar contains real scheduled tasks — don't wipe
+  const userCalendarDir = path.join(
+    agentDir,
+    "calendar",
+    "data",
+    "collection-root",
+    "agent",
+    "user",
+  );
+  if (fs.existsSync(userCalendarDir)) {
     let icsCount = 0;
-    const entries = fs.readdirSync(calendarDataDir);
+    const entries = fs.readdirSync(userCalendarDir);
+
     for (const entry of entries) {
-      const entryPath = path.join(calendarDataDir, entry);
+      const entryPath = path.join(userCalendarDir, entry);
       if (entry.endsWith(".ics")) {
         fs.unlinkSync(entryPath);
         icsCount++;
       }
     }
-    // Also clear the Radicale cache
-    const cacheDir = path.join(calendarDataDir, ".Radicale.cache");
+
+    // Clear the Radicale cache
+    const cacheDir = path.join(userCalendarDir, ".Radicale.cache");
     if (fs.existsSync(cacheDir)) {
       fs.rmSync(cacheDir, { recursive: true });
     }
-    console.log(`✓ Deleted ${icsCount} calendar entries`);
+    console.log(`✓ Deleted ${icsCount} calendar entries (user calendar)`);
   }
 
   console.log("\n✅ Test data cleared");

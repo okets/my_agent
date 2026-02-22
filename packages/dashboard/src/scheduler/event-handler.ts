@@ -101,54 +101,74 @@ export async function spawnEventQuery(
 
   console.log(`[EventHandler] Processing event: "${event.title}"`);
 
-  // Build task input
-  const recurrenceId = getRecurrenceId(event);
-  const occurrenceDate = getOccurrenceDate(event);
-
   let task;
   let created: boolean;
 
-  // Store calendarId:uid as sourceRef so executor can extract calendarId
-  const sourceRef = `${event.calendarId}:${event.uid}`;
-
-  if (recurrenceId) {
-    // Recurring event: find existing or create new with shared session
-    const result = taskManager.findOrCreateForOccurrence({
-      type: "scheduled",
-      sourceType: "caldav",
-      sourceRef,
-      title: event.title,
-      instructions: buildInstructions(event),
-      createdBy: "scheduler",
-      scheduledFor: event.start,
-      recurrenceId,
-      occurrenceDate,
-    });
-    task = result.task;
-    created = result.created;
-
-    if (created) {
+  // Check if event has a linked task (conversation-created scheduled tasks)
+  if (event.taskId) {
+    const existingTask = taskManager.findById(event.taskId);
+    if (existingTask) {
       console.log(
-        `[EventHandler] Created task for recurring event: ${task.id}`,
+        `[EventHandler] Found linked task ${event.taskId}, executing existing task`,
       );
+      task = existingTask;
+      created = false;
     } else {
-      console.log(`[EventHandler] Resuming recurring task: ${task.id}`);
+      console.warn(
+        `[EventHandler] Linked task ${event.taskId} not found, creating new task`,
+      );
+      // Fall through to create task from event
+      task = null;
     }
-  } else {
-    // One-time event: create new task
-    const taskInput: CreateTaskInput = {
-      type: "scheduled",
-      sourceType: "caldav",
-      sourceRef,
-      title: event.title,
-      instructions: buildInstructions(event),
-      createdBy: "scheduler",
-      scheduledFor: event.start,
-    };
-    task = taskManager.create(taskInput);
-    created = true;
+  }
 
-    console.log(`[EventHandler] Created task for one-time event: ${task.id}`);
+  // If no linked task found, create from event (legacy CalDAV events)
+  if (!task) {
+    const recurrenceId = getRecurrenceId(event);
+    const occurrenceDate = getOccurrenceDate(event);
+
+    // Store calendarId:uid as sourceRef so executor can extract calendarId
+    const sourceRef = `${event.calendarId}:${event.uid}`;
+
+    if (recurrenceId) {
+      // Recurring event: find existing or create new with shared session
+      const result = taskManager.findOrCreateForOccurrence({
+        type: "scheduled",
+        sourceType: "caldav",
+        sourceRef,
+        title: event.title,
+        instructions: buildInstructions(event),
+        createdBy: "scheduler",
+        scheduledFor: event.start,
+        recurrenceId,
+        occurrenceDate,
+      });
+      task = result.task;
+      created = result.created;
+
+      if (created) {
+        console.log(
+          `[EventHandler] Created task for recurring event: ${task.id}`,
+        );
+      } else {
+        console.log(`[EventHandler] Resuming recurring task: ${task.id}`);
+      }
+    } else {
+      // One-time event: create new task
+      const taskInput: CreateTaskInput = {
+        type: "scheduled",
+        sourceType: "caldav",
+        sourceRef,
+        title: event.title,
+        instructions: buildInstructions(event),
+        createdBy: "scheduler",
+        scheduledFor: event.start,
+      };
+      task = taskManager.create(taskInput);
+      created = true;
+
+      console.log(`[EventHandler] Created task for one-time event: ${task.id}`);
+    }
   }
 
   // Create executor and run

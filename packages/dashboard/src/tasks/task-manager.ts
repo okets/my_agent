@@ -254,6 +254,7 @@ export class TaskManager {
         | "deletedAt"
         | "work"
         | "delivery"
+        | "sourceRef"
       >
     >,
   ): void {
@@ -288,6 +289,11 @@ export class TaskManager {
     if (changes.delivery !== undefined) {
       fields.push("delivery = ?");
       values.push(JSON.stringify(changes.delivery));
+    }
+
+    if (changes.sourceRef !== undefined) {
+      fields.push("source_ref = ?");
+      values.push(changes.sourceRef);
     }
 
     if (fields.length === 0) {

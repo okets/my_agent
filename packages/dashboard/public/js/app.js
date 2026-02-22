@@ -94,6 +94,7 @@ function chat() {
     calendarList: [], // Available calendars from config
     calendarVisibility: {}, // { calendarId: boolean }
     todayEvents: [], // Events for today (mini calendar list)
+    upcomingEvents: [], // Events for next 7 days (timeline)
 
     // Event modal
     eventModalOpen: false,
@@ -254,9 +255,10 @@ function chat() {
       // Load channels
       this.fetchChannels();
 
-      // Load calendar config and today's events
+      // Load calendar config and events
       this.loadCalendarConfig();
       this.loadTodayEvents();
+      this.loadUpcomingEvents();
 
       // Load tasks (M5-S6)
       this.loadTasks();
@@ -970,6 +972,7 @@ function chat() {
             this.miniCalendar.refetchEvents();
           }
           this.loadTodayEvents();
+          this.loadUpcomingEvents();
           break;
         }
 
@@ -2037,6 +2040,18 @@ function chat() {
     },
 
     /**
+     * Load upcoming events for the timeline (next 7 days)
+     */
+    async loadUpcomingEvents() {
+      try {
+        this.upcomingEvents = await CalendarModule.fetchUpcomingEvents();
+      } catch (err) {
+        console.error("[App] Failed to load upcoming events:", err);
+        this.upcomingEvents = [];
+      }
+    },
+
+    /**
      * Initialize main calendar view (called when Calendar tab becomes active)
      */
     initCalendarView() {
@@ -2312,6 +2327,7 @@ function chat() {
         if (result) {
           this.calendar?.refetchEvents();
           this.loadTodayEvents();
+          this.loadUpcomingEvents();
         }
       } else {
         // Create new event
@@ -2319,6 +2335,7 @@ function chat() {
         if (result) {
           this.calendar?.refetchEvents();
           this.loadTodayEvents();
+          this.loadUpcomingEvents();
         }
       }
 
@@ -2341,14 +2358,16 @@ function chat() {
       );
       if (result) {
         this.loadTodayEvents();
+        this.loadUpcomingEvents();
       }
       return !!result;
     },
 
     /**
      * Open event in a dedicated tab (Outlook-style appointment view)
+     * If the event has a linked taskId, opens the task view instead
      */
-    openEventTab(event) {
+    async openEventTab(event) {
       // Normalize event data (FullCalendar event or raw API format)
       const eventData = {
         id: event.id,
@@ -2364,6 +2383,22 @@ function chat() {
         color: event.color || event.backgroundColor,
         extendedProps: event.extendedProps || {},
       };
+
+      // If event has a linked task, open the task view instead
+      const taskId = eventData.extendedProps?.taskId;
+      if (taskId) {
+        try {
+          const res = await fetch(`/api/tasks/${taskId}`);
+          if (res.ok) {
+            const task = await res.json();
+            this.openTaskTab(task);
+            return;
+          }
+        } catch (err) {
+          console.warn(`[App] Failed to fetch linked task ${taskId}:`, err);
+        }
+        // Fall through to event view if task fetch fails
+      }
 
       const tabId = `event-${eventData.id}`;
 
@@ -2499,6 +2534,7 @@ function chat() {
         // Refresh calendars
         this.refreshCalendar();
         this.loadTodayEvents();
+        this.loadUpcomingEvents();
       }
     },
 
@@ -2611,6 +2647,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       if (success) {
         this.calendar?.refetchEvents();
         this.loadTodayEvents();
+        this.loadUpcomingEvents();
       }
 
       this.closeEventPopover();
@@ -2732,6 +2769,173 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
      */
     get filteredTasks() {
       return this.tasks;
+    },
+
+    /**
+     * Get currently running tasks for Active Now section
+     */
+    get runningTasks() {
+      return this.tasks.filter((t) => t.status === "running");
+    },
+
+    /**
+     * Get timeline items (scheduled tasks + calendar events, sorted by time)
+     */
+    get timelineItems() {
+      const now = new Date();
+      const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const items = [];
+
+      // Add tasks (past 24h completed + future scheduled)
+      for (const task of this.tasks) {
+        const taskTime = task.scheduledFor
+          ? new Date(task.scheduledFor)
+          : task.completedAt
+            ? new Date(task.completedAt)
+            : task.createdAt
+              ? new Date(task.createdAt)
+              : null;
+
+        if (!taskTime) continue;
+
+        // Include: future pending, running, or completed in last 24h
+        const isFuture = taskTime >= now;
+        const isRecentPast = taskTime >= past24h && taskTime < now;
+        const isRunning = task.status === "running";
+        const isCompleted = task.status === "completed";
+        const isFailed = task.status === "failed";
+
+        if (
+          isFuture ||
+          isRunning ||
+          ((isCompleted || isFailed) && isRecentPast)
+        ) {
+          items.push({
+            id: `task-${task.id}`,
+            itemType: "task",
+            title: task.title,
+            time: taskTime,
+            date: taskTime.toDateString(),
+            status: task.status,
+            isPast: taskTime < now,
+            task: task,
+          });
+        }
+      }
+
+      // Add calendar events (excluding those with taskId - they're shown as tasks)
+      for (const event of this.upcomingEvents) {
+        if (event.extendedProps?.taskId) continue;
+
+        const eventDate = new Date(event.start);
+        const isFuture = eventDate >= now;
+        const isRecentPast = eventDate >= past24h && eventDate < now;
+
+        if (isFuture || isRecentPast) {
+          items.push({
+            id: `event-${event.id}`,
+            itemType: "event",
+            title: event.title,
+            time: eventDate,
+            date: eventDate.toDateString(),
+            status: eventDate < now ? "past" : "upcoming",
+            isPast: eventDate < now,
+            event: event,
+          });
+        }
+      }
+
+      // Sort by time
+      items.sort((a, b) => a.time - b.time);
+
+      // Find index of "now" for separator placement
+      const nowIndex = items.findIndex((item) => item.time >= now);
+
+      // Add date separators and now marker
+      let lastDate = null;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        item.showDateSeparator = item.date !== lastDate;
+        item.showNowMarker = i === nowIndex; // Show "Now" before first future item
+        lastDate = item.date;
+      }
+
+      return items;
+    },
+
+    /**
+     * Check if timeline is loading
+     */
+    get timelineLoading() {
+      return this.tasksLoading;
+    },
+
+    /**
+     * Format current time for Now marker
+     */
+    formatTimeNow() {
+      return new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    },
+
+    /**
+     * Format time for timeline item
+     */
+    formatTimelineTime(item) {
+      return item.time.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    },
+
+    /**
+     * Format date separator label
+     */
+    formatDateSeparator(dateStr) {
+      const date = new Date(dateStr);
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      if (date.toDateString() === today.toDateString()) {
+        return "Today";
+      } else if (date.toDateString() === tomorrow.toDateString()) {
+        return "Tomorrow";
+      } else {
+        return date.toLocaleDateString([], {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
+      }
+    },
+
+    /**
+     * Open a timeline item (task or event)
+     */
+    openTimelineItem(item) {
+      if (item.itemType === "task" && item.task) {
+        this.openTaskTab(item.task);
+      } else if (item.itemType === "event" && item.event) {
+        this.openEventTab(item.event);
+      }
+    },
+
+    /**
+     * Open calendar tab focused on a specific date
+     */
+    openCalendarOnDate(dateStr) {
+      // Open calendar tab
+      this.activeTab = "calendar";
+
+      // Navigate to the date (FullCalendar will be updated)
+      this.$nextTick(() => {
+        if (this.fullCalendar) {
+          this.fullCalendar.gotoDate(new Date(dateStr));
+        }
+      });
     },
 
     /**

@@ -289,6 +289,29 @@ async function fetchTodayEvents() {
   }
 }
 
+/**
+ * Fetch upcoming events (next 7 days)
+ * @returns {Array} Array of upcoming events
+ */
+async function fetchUpcomingEvents() {
+  try {
+    const now = new Date();
+    const end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const params = new URLSearchParams({
+      start: now.toISOString(),
+      end: end.toISOString(),
+    });
+    const res = await fetch(`/api/calendar/events?${params}`);
+    if (!res.ok) {
+      return [];
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("[Calendar] Upcoming events fetch error:", err);
+    return [];
+  }
+}
+
 // Export for use in app.js
 window.CalendarModule = {
   initCalendar,
@@ -299,4 +322,5 @@ window.CalendarModule = {
   deleteCalendarEvent,
   fetchCalendarConfig,
   fetchTodayEvents,
+  fetchUpcomingEvents,
 };

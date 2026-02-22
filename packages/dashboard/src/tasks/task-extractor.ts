@@ -22,11 +22,23 @@ export interface ExtractionResult {
   task?: ExtractedTask;
 }
 
-const EXTRACTION_PROMPT = `You are a JSON-only task extraction API. You output raw JSON with no other text.
+/**
+ * Build the extraction system prompt with current timestamp
+ */
+function buildExtractionPrompt(currentTime: Date): string {
+  const isoTime = currentTime.toISOString();
+  // Example: if current time is 08:03, "in 5 minutes" = 08:08
+  const fiveMinutesLater = new Date(currentTime.getTime() + 5 * 60 * 1000);
+  const exampleScheduledTime = fiveMinutesLater.toISOString();
+
+  return `You are a JSON-only task extraction API. You output raw JSON with no other text.
+
+CURRENT TIME: ${isoTime}
 
 RULES:
 - Output ONLY a single JSON object. No explanation, no markdown, no prose.
 - Never wrap JSON in code fences or backticks.
+- For scheduled tasks, calculate scheduledFor as ISO datetime relative to CURRENT TIME above.
 
 CREATE A TASK when the message:
 - Requests research or information lookup
@@ -47,15 +59,15 @@ If a task should be created, extract:
    - If the user provides exact text to send, include it as "content" on the delivery action
    - If the brain needs to compose content, omit "content" (brain will produce it)
 5. type: "immediate" or "scheduled"
-6. scheduledFor: ISO datetime if scheduled
+6. scheduledFor: ISO datetime calculated from CURRENT TIME (e.g., "in 5 minutes" = CURRENT TIME + 5 minutes)
 
 EXAMPLES:
 
 User: "Research Bangkok attractions and send me the list on WhatsApp"
 {"shouldCreateTask": true, "task": {"title": "Research Bangkok attractions", "instructions": "Research family-friendly attractions in Bangkok. Compile a list with brief descriptions.", "work": [{"description": "Research family-friendly attractions in Bangkok"}], "delivery": [{"channel": "whatsapp"}], "type": "immediate"}}
 
-User: "In 5 minutes send me a WhatsApp saying Don't forget to call mom"
-{"shouldCreateTask": true, "task": {"title": "Send WhatsApp reminder", "instructions": "Send a WhatsApp message with the exact text provided.", "work": [], "delivery": [{"channel": "whatsapp", "content": "Don't forget to call mom"}], "type": "scheduled", "scheduledFor": "2026-02-22T15:05:00Z"}}
+User: "In 5 minutes send me a WhatsApp saying Don't forget to call mom" (if current time is ${isoTime})
+{"shouldCreateTask": true, "task": {"title": "Send WhatsApp reminder", "instructions": "Send a WhatsApp message with the exact text provided.", "work": [], "delivery": [{"channel": "whatsapp", "content": "Don't forget to call mom"}], "type": "scheduled", "scheduledFor": "${exampleScheduledTime}"}}
 
 User: "What's the weather like?"
 {"shouldCreateTask": false}
@@ -64,14 +76,19 @@ OUTPUT FORMAT (no other text allowed):
 {"shouldCreateTask": false}
 or
 {"shouldCreateTask": true, "task": {"title": "...", "instructions": "...", "work": [...], "delivery": [...], "type": "immediate"}}`;
+}
 
 /**
  * Run a single extraction attempt via Haiku
  */
-async function runExtraction(prompt: string): Promise<string> {
+async function runExtraction(
+  prompt: string,
+  currentTime: Date,
+): Promise<string> {
+  const systemPrompt = buildExtractionPrompt(currentTime);
   const q = createBrainQuery(prompt, {
     model: "claude-haiku-4-5-20251001",
-    systemPrompt: EXTRACTION_PROMPT,
+    systemPrompt,
     continue: false,
     includePartialMessages: false,
   });
@@ -129,6 +146,7 @@ export async function extractTaskFromMessage(
   userMessage: string,
   assistantResponse?: string,
 ): Promise<ExtractionResult> {
+  const currentTime = new Date();
   let prompt = `User message:\n${userMessage}`;
   if (assistantResponse) {
     prompt += `\n\nAssistant's planned response:\n${assistantResponse}`;
@@ -138,7 +156,7 @@ export async function extractTaskFromMessage(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const response = await runExtraction(prompt);
+      const response = await runExtraction(prompt, currentTime);
 
       // Parse JSON response
       const jsonMatch = response.match(/\{[\s\S]*\}/);
