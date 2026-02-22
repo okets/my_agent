@@ -1,8 +1,8 @@
 # M5-S9: Work + Deliverable Architecture
 
 > **Milestone:** M5 — Task System
-> **Sprint:** S9 of 9
-> **Status:** In Progress
+> **Sprint:** S9 of 10
+> **Status:** Complete
 > **Goal:** Clean task delivery — work output stays internal, only validated deliverables reach channels
 > **Design Spec:** [task-steps.md](../../design/task-steps.md) (v2)
 

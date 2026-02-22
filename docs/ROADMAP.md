@@ -217,7 +217,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 | S6     | Task UI                   | Complete | [plan](sprints/m5-s6-task-ui/plan.md)                   | [review](sprints/m5-s6-task-ui/review.md)                   |
 | S7     | Request/Input Blocking    | Deferred | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
 | S8     | E2E Task Flow             | Complete | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | —                                                           |
-| S9     | Work + Deliverable        | Active   | [plan](sprints/m5-s9-task-steps/plan.md)                | —                                                           |
+| S9     | Work + Deliverable        | Complete | [plan](sprints/m5-s9-task-steps/plan.md)                | [review](sprints/m5-s9-task-steps/review.md)                |
 | S10    | Navigable Timeline        | Planned  | [design](design/navigable-timeline.md)                  | —                                                           |
 
 **Deliverables:**
