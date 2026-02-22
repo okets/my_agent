@@ -14,8 +14,8 @@
 | **M3: WhatsApp Channel**     | Complete | 3/3 sprints                  |
 | **M4: Notebook System**      | Complete | 2/2 sprints                  |
 | **M4.5: Calendar System**    | Complete | 5/5 sprints                  |
-| **M5: Task System**          | Active   | 8/9 sprints                  |
-| **M5.5: Live Dashboard**     | Planned  | Design complete, 3 sprints   |
+| **M5: Task System**          | Active   | 9/10 sprints                 |
+| ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Planned  | Design complete, sprints TBD |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -30,15 +30,15 @@
 2026-02                                          2026-03+
 ├─────────────────────────────────────────────────────────────────────►
 
-M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks      M5.5 Live    M6+ Future
-[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████░░]   [░░░░░░░░]   [░░░░░░░░░░]
-   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         ACTIVE        PLANNED       PLANNED
-
-                                                                                                                M6 Memory
-                                                                                                                M7 Coding Projects
-                                                                                                                M8 Ops Dashboard
-                                                                                                                M9 Email
-                                                                                                                M10 External Comms
+M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6+ Future
+[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [█████████░]     [░░░░░░░░░░]
+   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         ACTIVE           PLANNED
+                                                                                   (S10=Live UI)
+                                                                                                     M6 Memory
+                                                                                                     M7 Coding Projects
+                                                                                                     M8 Ops Dashboard
+                                                                                                     M9 Email
+                                                                                                     M10 External Comms
 ```
 
 ---
@@ -218,7 +218,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 | S7     | Request/Input Blocking    | Deferred | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
 | S8     | E2E Task Flow             | Complete | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | —                                                           |
 | S9     | Work + Deliverable        | Complete | [plan](sprints/m5-s9-task-steps/plan.md)                | [review](sprints/m5-s9-task-steps/review.md)                |
-| S10    | Navigable Timeline        | Planned  | [design](design/navigable-timeline.md)                  | —                                                           |
+| S10    | Live Dashboard            | Planned  | [plan](sprints/m5-s10-live-dashboard/plan.md)           | —                                                           |
 
 **Deliverables:**
 
@@ -231,7 +231,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 - _(S7)_ _(Deferred)_ Request/input blocking for interactive task execution
 - _(S8)_ Brain skill loading fix, TaskProcessor (immediate), TaskScheduler (scheduled), result delivery to conversation, E2E tests
 - _(S9)_ Work + Deliverable architecture: typed WorkPlan with `<deliverable>` XML tags, DeliveryExecutor, channel-aware constraints, validation gate. Clean channel delivery — work output stays internal, only validated deliverables reach recipients. **Plus:** Unified homepage timeline (Active Now + Timeline), past 24h visibility, bidirectional Task↔CalendarEvent linking. Design spec for full navigable timeline (M5-S10).
-- _(S10)_ _(Planned)_ Navigable Timeline: Hero timeline on homepage, infinite scroll, expansion, search/filters. See [design/navigable-timeline.md](design/navigable-timeline.md).
+- _(S10)_ _(Planned)_ Live Dashboard: State push via WebSocket, Alpine stores for reactive UI, connection status indicator, task results appear without refresh. See [design/live-dashboard.md](design/live-dashboard.md).
 
 **Philosophy:**
 
@@ -245,31 +245,11 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 
 ---
 
-### M5.5: Live Dashboard — PLANNED
+### ~~M5.5: Live Dashboard~~ — ABSORBED INTO M5-S10
 
-Real-time state binding for kiosk displays. Backend pushes state, frontend auto-renders.
-
-**Design spec:** [live-dashboard.md](design/live-dashboard.md)
-
-| Sprint | Name                     | Status  | Plan | Review |
-| ------ | ------------------------ | ------- | ---- | ------ |
-| S1     | Core Infrastructure      | Planned | —    | —      |
-| S2     | Calendar + Conversations | Planned | —    | —      |
-| S3     | Polish + Documentation   | Planned | —    | —      |
-
-**Deliverables:**
-
-- _(S1)_ StatePublisher service, Alpine stores for tasks, connection indicator
-- _(S2)_ Calendar and conversation state binding, multi-tab sync
-- _(S3)_ Reconnection handling, TypeScript types, documentation
-
-**Key Design Decisions:**
-
-- Data binding (full state push) over event-based updates
-- Alpine stores replace monolithic data() object
-- All CRUD operations trigger state publish
-
-**Dependencies:** M5 (Task System complete)
+> **Note:** Live Dashboard work has been absorbed into M5-S10 to fix the immediate UX issue (task results not appearing without refresh). See [M5-S10 plan](sprints/m5-s10-live-dashboard/plan.md).
+>
+> Future enhancements (hero timeline, infinite scroll, search) deferred to post-M5 work. See [navigable-timeline.md](design/navigable-timeline.md).
 
 ---
 
@@ -410,7 +390,8 @@ Design specs define architecture before implementation. Each spec should be comp
 | Calendar System      | Complete | M4.5        | [design/calendar-system.md](design/calendar-system.md)           |
 | Task System          | Complete | M5          | [design/task-system.md](design/task-system.md)                   |
 | Task Delivery (v2)   | Approved | M5          | [design/task-steps.md](design/task-steps.md)                     |
-| Live Dashboard       | Complete | M5.5        | [design/live-dashboard.md](design/live-dashboard.md)             |
+| Live Dashboard       | Complete | M5-S10      | [design/live-dashboard.md](design/live-dashboard.md)             |
+| Navigable Timeline   | Deferred | Post-M5     | [design/navigable-timeline.md](design/navigable-timeline.md)     |
 | Memory               | Complete | M6          | [design/memory-system.md](design/memory-system.md)               |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Complete | M8          | [design/operations-dashboard.md](design/operations-dashboard.md) |
@@ -426,10 +407,7 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
       (done)          (done)         (done)           (done)            (done)
                                                                           │
                                                                           ▼
-                                                                      M5 Tasks
-                                                                          │
-                                                                          ▼
-                                                                  M5.5 Live Dashboard
+                                                                  M5 Tasks (S10=Live)
                                                                           │
                                                    ┌──────────────────────┼──────────────────────┐
                                                    │                      │                      │
@@ -446,9 +424,9 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                  M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M5.5 (all complete through M4.5, M5 active)
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete through M4.5, M5 active with S10 remaining)
 
-**M5.5 enables live UI:** All future milestones benefit from real-time state binding. Required for kiosk displays.
+**M5-S10 delivers live UI:** State push via WebSocket, reactive Alpine stores. Fixes task results not appearing without refresh.
 
 **M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
 

@@ -1,9 +1,11 @@
 # Navigable Timeline Design
 
-> **Status:** Approved for Implementation
-> **Sprint:** M5-S10 (dedicated sprint)
-> **Related:** homepage-unified-timeline.md
+> **Status:** Deferred (post-M5)
+> **Superseded by:** M5-S10 Live Dashboard (state push foundation)
+> **Related:** homepage-unified-timeline.md, live-dashboard.md
 > **Quick fix in place:** Phase 1 partially complete (past 24h visible)
+>
+> **Note:** This design is preserved for future implementation. M5-S10 was repurposed for Live Dashboard (state push via WebSocket, reactive Alpine stores) which is a prerequisite for any rich timeline features. Hero timeline, infinite scroll, and search will be implemented in a future milestone.
 
 ## Vision
 
