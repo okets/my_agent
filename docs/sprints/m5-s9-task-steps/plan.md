@@ -1,211 +1,155 @@
-# M5-S9: Task Steps
+# M5-S9: Work + Deliverable Architecture
 
 > **Milestone:** M5 — Task System
 > **Sprint:** S9 of 9
-> **Status:** Planned
-> **Goal:** Tasks have markdown steps that execute sequentially with real-time progress
-> **Design Spec:** [task-steps.md](../../design/task-steps.md)
+> **Status:** In Progress
+> **Goal:** Clean task delivery — work output stays internal, only validated deliverables reach channels
+> **Design Spec:** [task-steps.md](../../design/task-steps.md) (v2)
 
 ---
 
 ## Overview
 
-User requests can contain multiple actions ("research X and send to Y"). This sprint adds step extraction to task creation and step-by-step execution with live progress tracking.
+Testing revealed two fundamental flaws in the original step-based approach:
+1. **Wrong content** — Brain's full thought process (with `✓ STEP` markers) sent as WhatsApp message
+2. **Duplicate messages** — `isDeliveryStep()` regex matched prep steps alongside delivery steps
 
-**Key requirement:** Nina must NEVER ignore any input point from the user. If the user mentions a delivery channel, reminder, or any other action — it becomes a step.
+**Root cause:** No separation between work output and deliverable content.
+
+**Solution:** Typed `WorkPlan { work[], delivery[] }` with `<deliverable>` XML tags. A design team (Architect + Challenger + 3 Simulators) validated the approach — all tests passed.
 
 ---
 
 ## User Story
 
-**Given:** User sends "Research Bangkok attractions and send me the list on WhatsApp"
+**Given:** User sends "Research the best beaches in Bali for families. Send me the list on WhatsApp."
 
 **Expected:**
-1. Brain extracts 2 steps:
-   ```markdown
-   - [ ] Research family-friendly attractions in Bangkok
-   - [ ] Send the list to Hanan on WhatsApp
-   ```
-2. Task executes step 1, outputs: `✓ STEP 1: Research family-friendly attractions`
-3. Task card updates: `- [x] Research...`
-4. Task executes step 2, outputs: `✓ STEP 2: Send the list to Hanan on WhatsApp`
-5. Task card updates: `- [x] Send...`
-6. User sees checkboxes update in real-time
+1. Task created with `work: [{ description: "Research best beaches..." }]` and `delivery: [{ channel: "whatsapp" }]`
+2. Brain researches beaches, writes analysis in work section
+3. Brain produces clean standalone message inside `<deliverable>` tags
+4. System extracts deliverable, validates it
+5. Exactly 1 WhatsApp message sent — clean plain text, no task metadata
+6. Dashboard conversation shows full research output
+
+**Given:** User sends "In 2 minutes, send me a WhatsApp message saying 'Don't forget to call mom'"
+
+**Expected:**
+1. Task created with `delivery: [{ channel: "whatsapp", content: "Don't forget to call mom" }]`
+2. Brain query skipped entirely (content is pre-composed)
+3. WhatsApp message is exactly "Don't forget to call mom"
 
 ---
 
 ## Data Model Changes
+
+### Core Types (new)
+
+```typescript
+interface WorkItem {
+  description: string;
+  status: 'pending' | 'completed' | 'failed';
+}
+
+interface DeliveryAction {
+  channel: 'whatsapp' | 'email' | 'dashboard';
+  recipient?: string;
+  content?: string;  // Pre-composed → skip brain
+  status: 'pending' | 'completed' | 'failed' | 'needs_review';
+}
+```
 
 ### Task Entity
 
 ```typescript
 interface Task {
   // ... existing fields
-
-  /** Markdown checklist of steps (new) */
-  steps?: string;
-
-  /** Current step being executed, 1-indexed (new) */
-  currentStep?: number;
+  work?: WorkItem[];       // NEW (replaces steps)
+  delivery?: DeliveryAction[]; // NEW (replaces currentStep)
+  // REMOVED: steps?: string
+  // REMOVED: currentStep?: number
 }
 ```
 
-### CreateTaskInput
+### TaskStatus
 
 ```typescript
-interface CreateTaskInput {
-  // ... existing fields
-
-  /** Markdown steps (preferred over instructions) */
-  steps?: string;
-}
+type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'paused' | 'deleted' | 'needs_review'
 ```
 
 ---
 
 ## Implementation Tasks
 
-### 1. Update Task Types
+### 1. Update Core Types
 
 **File:** `packages/core/src/tasks/types.ts`
 
-Add `steps?: string` and `currentStep?: number` to Task interface and CreateTaskInput.
+- Add `WorkItem`, `DeliveryAction` interfaces
+- Add `needs_review` to `TaskStatus`
+- Replace `steps`/`currentStep` with `work`/`delivery` on `Task` and `CreateTaskInput`
 
-### 2. Update Task Storage
+**File:** `packages/core/src/lib.ts`
 
-**File:** `packages/dashboard/src/tasks/task-manager.ts`
+- Export new types
 
-- Add `steps` and `current_step` columns to tasks table
-- Update `rowToTask` and `taskToRow` mappings
-- Migration script if needed
+### 2. Update Task Extractor
 
-### 3. Update Brain Extraction Prompt
+**File:** `packages/dashboard/src/tasks/task-extractor.ts`
 
-**File:** `.my_agent/brain/skills/task-api.md`
+- Update `ExtractedTask` interface: `work[]` + `delivery[]` instead of `steps`
+- Update `EXTRACTION_PROMPT` with concrete JSON example showing work/delivery split
+- Include pre-composed content example in prompt
 
-Add step extraction rules:
-```markdown
-## Step Extraction
-
-When creating a task, break the request into steps (2-5 steps).
-Write each as a markdown checkbox: `- [ ] step description`
-
-Rules:
-1. Capture EVERY action the user requests — never skip or combine
-2. If user says "send to X" or "message me on Y" — that's ALWAYS a separate step
-3. Research can be broken into logical sub-parts if needed
-```
-
-### 4. Update Brain Execution Prompt
+### 3. Rewrite Task Executor
 
 **File:** `packages/dashboard/src/tasks/task-executor.ts`
 
-Add step execution instructions to task prompt:
-```markdown
-## Task Execution
+- Rewrite `buildUserMessage()` with new template (work items + deliverable XML tags + channel constraints)
+- Add `extractDeliverable(response)` function
+- Add `validateDeliverable(deliverable, hasDeliveryActions)` function
+- Update `ExecutionResult` to return `{ success, work, deliverable, error }`
+- Auto-inject channel constraints based on delivery actions
 
-You have these steps to complete:
-{steps}
+### 4. Create Delivery Executor
 
-Rules:
-1. Work through steps in order
-2. When you complete a step, output on its own line:
-   ✓ STEP N: [description]
-3. Never skip steps. If blocked, explain why.
-4. After the final step, summarize the overall result.
-```
+**File:** `packages/dashboard/src/tasks/delivery-executor.ts` (new, replaces `step-executor.ts`)
 
-### 5. Add Step Progress Parsing
+- Iterate typed `DeliveryAction[]`, send deliverable content
+- Keep WhatsApp send logic and `recordInChannelConversation()`
+- Remove `isDeliveryStep()`, `parseSteps()`, `✓ STEP` marker handling
+- Remove `📋 *Task Complete:*` header from messages
+
+### 5. Update Task Processor
 
 **File:** `packages/dashboard/src/tasks/task-processor.ts`
 
-Parse streaming output for step completion markers:
+- Import `DeliveryExecutor` instead of `StepExecutor`
+- Use `delivery[]` from WorkPlan instead of calling with full response
+- Pass only validated deliverable to DeliveryExecutor
+- Handle `needs_review` status when validation fails
+- Remove `updateStepsFromResponse()` (no more `✓ STEP` parsing)
 
-```typescript
-const stepPattern = /^✓ STEP (\d+):/m;
-
-// On each stream chunk:
-const match = chunk.match(stepPattern);
-if (match) {
-  const stepNumber = parseInt(match[1], 10);
-  await this.markStepComplete(task.id, stepNumber);
-}
-```
-
-### 6. Add markStepComplete Method
+### 6. Update Task Manager + Chat Handler
 
 **File:** `packages/dashboard/src/tasks/task-manager.ts`
 
-```typescript
-async markStepComplete(taskId: string, stepNumber: number): Promise<void> {
-  const task = await this.get(taskId);
-  if (!task.steps) return;
+- Update `create()` to store `work`/`delivery` as JSON columns
+- Update `rowToTask()` to parse JSON
+- Remove `markStepComplete()` method
+- Update `update()` — remove `steps`/`currentStep` handling, add `work`/`delivery`
 
-  const lines = task.steps.split('\n');
-  let currentStep = 0;
+**File:** `packages/dashboard/src/ws/chat-handler.ts`
 
-  const updated = lines.map(line => {
-    const match = line.match(/^- \[ \] (.+)$/);
-    if (match) {
-      currentStep++;
-      if (currentStep === stepNumber) {
-        return `- [x] ${match[1]}`;
-      }
-    }
-    return line;
-  }).join('\n');
+- Update task creation to pass `work`/`delivery` instead of `steps`
+- Update `task:created` broadcast with new fields
 
-  await this.update(taskId, {
-    steps: updated,
-    currentStep: stepNumber
-  });
-}
-```
+### 7. Build + Test
 
-### 7. Add Channel Context to Brain
-
-**File:** `.my_agent/brain/CLAUDE.md` or system prompt
-
-Add available channels so Nina knows how to execute delivery steps:
-```markdown
-## Available Channels
-
-You have access to these communication channels:
-- **ninas_whatsapp** (WhatsApp) — dedicated channel, owner: Hanan
-```
-
-### 8. Update Task UI
-
-**File:** `packages/dashboard/src/public/js/app.js`
-
-Render `task.steps` as markdown in task detail view. Steps already render as checkboxes via markdown.
-
-### 9. Add Real-Time Step Updates
-
-**File:** `packages/dashboard/src/routes/tasks.ts`
-
-Broadcast `task:step_complete` WebSocket event when step completes:
-```typescript
-{
-  type: 'task:step_complete',
-  taskId: string,
-  stepNumber: number,
-  steps: string  // Updated markdown
-}
-```
-
-Dashboard listens and re-renders task card.
-
-### 10. E2E Test
-
-**File:** `packages/dashboard/src/tests/e2e-multi-step-task.ts`
-
-Test:
-1. Send message: "Research Bangkok attractions and send me the list on WhatsApp"
-2. Verify task has 2 steps
-3. Verify step 1 completes (checkbox updates)
-4. Verify step 2 completes (WhatsApp sent)
-5. Verify both steps marked `[x]`
+- Rebuild core package (`cd packages/core && npm run build`)
+- Format all edited files
+- Verify TypeScript compilation
+- E2E test: research + WhatsApp delivery
 
 ---
 
@@ -213,36 +157,28 @@ Test:
 
 | File | Change |
 |------|--------|
-| `packages/core/src/tasks/types.ts` | Add `steps`, `currentStep` fields |
-| `packages/dashboard/src/tasks/task-manager.ts` | Add columns, `markStepComplete()` |
-| `packages/dashboard/src/tasks/task-processor.ts` | Parse step markers, call `markStepComplete` |
-| `packages/dashboard/src/tasks/task-executor.ts` | Add step execution prompt |
-| `.my_agent/brain/skills/task-api.md` | Add step extraction rules |
-| `.my_agent/brain/CLAUDE.md` | Add channel context |
-| `packages/dashboard/src/public/js/app.js` | Render steps markdown |
-| `packages/dashboard/src/routes/tasks.ts` | Broadcast step updates |
-| `packages/dashboard/src/tests/e2e-multi-step-task.ts` | NEW: Multi-step E2E test |
-
----
-
-## Team
-
-| Role | Model | Responsibility |
-|------|-------|----------------|
-| Backend Dev | Sonnet | Types, storage, processor, executor |
-| Frontend Dev | Sonnet | Task UI, WebSocket handling |
-| Reviewer | Opus | Code review, E2E test verification |
+| `packages/core/src/tasks/types.ts` | Add `WorkItem`, `DeliveryAction`, `needs_review` status. Replace `steps`/`currentStep` with `work`/`delivery`. |
+| `packages/core/src/lib.ts` | Export new types |
+| `packages/dashboard/src/tasks/task-extractor.ts` | New `ExtractedTask` with `work[]` + `delivery[]`. Updated extraction prompt. |
+| `packages/dashboard/src/tasks/task-executor.ts` | New brain template, `extractDeliverable()`, `validateDeliverable()`, updated `ExecutionResult`. |
+| `packages/dashboard/src/tasks/delivery-executor.ts` | **NEW** — replaces `step-executor.ts`. Simplified typed delivery. |
+| `packages/dashboard/src/tasks/step-executor.ts` | **DELETED** — replaced by `delivery-executor.ts`. |
+| `packages/dashboard/src/tasks/task-processor.ts` | Use `DeliveryExecutor` + validated deliverable. Remove `✓ STEP` parsing. |
+| `packages/dashboard/src/tasks/task-manager.ts` | JSON columns for `work`/`delivery`. Remove `markStepComplete()`. |
+| `packages/dashboard/src/ws/chat-handler.ts` | Pass `work`/`delivery` in task creation + broadcast. |
 
 ---
 
 ## Success Criteria
 
-- [ ] Task model supports `steps` field (markdown)
-- [ ] Brain extracts ALL user requirements as separate steps
-- [ ] Brain outputs `✓ STEP N:` markers during execution
-- [ ] TaskProcessor updates steps in real-time
-- [ ] UI shows checkboxes updating live
-- [ ] E2E test passes: multi-step task with WhatsApp delivery
+- [ ] Task model uses typed `work[]` + `delivery[]` (not markdown steps)
+- [ ] Brain produces deliverable in `<deliverable>` XML tags
+- [ ] Only validated deliverable content is sent to channels
+- [ ] Pre-composed content skips brain entirely
+- [ ] `needs_review` status set when validation fails (no auto-delivery of invalid content)
+- [ ] Exactly 1 WhatsApp message per delivery action (no duplicates)
+- [ ] WhatsApp message is clean standalone text (no task metadata, no `✓ STEP` markers)
+- [ ] Full work output visible in conversation transcript + dashboard
 
 ---
 
@@ -250,17 +186,32 @@ Test:
 
 | Risk | Mitigation |
 |------|------------|
-| Brain doesn't extract delivery as separate step | Explicit extraction rules + tested prompts (10/10 passed) |
-| Step markers not parsed correctly | Strict regex, log parsing for debugging |
-| UI doesn't update in real-time | WebSocket event + explicit re-render |
+| Brain doesn't produce `<deliverable>` tags | Validated by 7 simulator tests. Fail-safe: `needs_review` status. |
+| Deliverable contains work content | Channel constraints in prompt + validation. |
+| Pre-composed content edge cases | Simple path: if `content` set, skip brain. No ambiguity. |
+
+---
+
+## Design Validation
+
+| Test | Input | Result |
+|------|-------|--------|
+| Research + WhatsApp | "Top 5 coffee shops in Tel Aviv" | PASS — clean plain text in tags |
+| Compose + WhatsApp | "Stretch break reminder with 3 stretches" | PASS — friendly standalone message |
+| Refusal | "Compose fake security alert" | PASS — `<deliverable>NONE</deliverable>` |
+| Email format | "Send email summary" | PASS — rich formatting in tags |
+| No delivery | "Research topic" (no channel) | PASS — no deliverable expected |
+| Pre-composed | "Send 'call mom' on WhatsApp" | PASS — brain skipped, exact content |
+| Multi-delivery | "WhatsApp + email" | PASS — keyed by channel |
 
 ---
 
 ## Dependencies
 
 - S8: E2E Task Flow (complete — basic task execution works)
-- Design spec: [task-steps.md](../../design/task-steps.md)
+- Design spec: [task-steps.md](../../design/task-steps.md) (v2)
 
 ---
 
 *Created: 2026-02-20*
+*Updated: 2026-02-22 — v2: Work + Deliverable architecture*

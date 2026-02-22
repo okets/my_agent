@@ -1016,18 +1016,17 @@ function chat() {
           break;
         }
 
-        // Task step completion (M5-S9)
-        case "task:step_complete": {
-          // Update task in open tab with new steps
+        // Task delivery update (M5-S9)
+        case "task:delivery_update": {
+          // Update task work plan in open tab
           if (data.taskId) {
             const tabId = `task-${data.taskId}`;
             const tab = this.openTabs.find((t) => t.id === tabId);
             if (tab && tab.data.task) {
-              tab.data.task.steps = data.steps;
-              tab.data.task.currentStep = data.currentStep;
+              tab.data.task.work = data.work;
+              tab.data.task.delivery = data.delivery;
             }
           }
-          // Also refresh task list to update any step indicators
           this.loadTasks();
           break;
         }

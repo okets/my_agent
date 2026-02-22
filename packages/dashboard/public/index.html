@@ -964,21 +964,99 @@
                 </div>
               </div>
 
-              <!-- Steps (if present) -->
-              <template x-if="getCurrentTask()?.steps">
+              <!-- Work Plan (if present) -->
+              <template
+                x-if="getCurrentTask()?.work?.length > 0 || getCurrentTask()?.delivery?.length > 0"
+              >
                 <div class="flex-1 mb-6">
-                  <h2
-                    class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
-                  >
-                    Steps
-                  </h2>
+                  <!-- Work Items -->
+                  <template x-if="getCurrentTask()?.work?.length > 0">
+                    <div class="mb-4">
+                      <h2
+                        class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
+                      >
+                        Work Items
+                      </h2>
+                      <div class="glass-strong rounded-xl p-5 space-y-2">
+                        <template
+                          x-for="item in getCurrentTask().work"
+                          :key="item.description"
+                        >
+                          <div class="flex items-center gap-2 text-sm">
+                            <span
+                              x-show="item.status === 'completed'"
+                              class="text-green-400"
+                              >&#10003;</span
+                            >
+                            <span
+                              x-show="item.status === 'pending'"
+                              class="text-tokyo-muted"
+                              >&#9675;</span
+                            >
+                            <span
+                              x-show="item.status === 'failed'"
+                              class="text-red-400"
+                              >&#10007;</span
+                            >
+                            <span
+                              class="text-tokyo-text"
+                              x-text="item.description"
+                            ></span>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
 
-                  <div class="glass-strong rounded-xl p-5">
-                    <div
-                      class="prose prose-invert prose-sm max-w-none task-steps"
-                      x-html="DOMPurify.sanitize(marked.parse(getCurrentTask()?.steps || ''))"
-                    ></div>
-                  </div>
+                  <!-- Delivery Actions -->
+                  <template x-if="getCurrentTask()?.delivery?.length > 0">
+                    <div>
+                      <h2
+                        class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
+                      >
+                        Delivery
+                      </h2>
+                      <div class="glass-strong rounded-xl p-5 space-y-2">
+                        <template
+                          x-for="action in getCurrentTask().delivery"
+                          :key="action.channel + (action.recipient || '')"
+                        >
+                          <div class="flex items-center gap-2 text-sm">
+                            <span
+                              x-show="action.status === 'completed'"
+                              class="text-green-400"
+                              >&#10003;</span
+                            >
+                            <span
+                              x-show="action.status === 'pending'"
+                              class="text-tokyo-muted"
+                              >&#9675;</span
+                            >
+                            <span
+                              x-show="action.status === 'failed'"
+                              class="text-red-400"
+                              >&#10007;</span
+                            >
+                            <span
+                              x-show="action.status === 'needs_review'"
+                              class="text-orange-400"
+                              >&#9888;</span
+                            >
+                            <span
+                              class="text-tokyo-text capitalize"
+                              x-text="action.channel"
+                            ></span>
+                            <template x-if="action.recipient">
+                              <span
+                                class="text-tokyo-muted"
+                                x-text="'→ ' + action.recipient"
+                              ></span>
+                            </template>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
                 </div>
               </template>
 
@@ -1028,14 +1106,17 @@
                 </template>
 
                 <template x-if="!loading && logEntries.length === 0">
-                  <p class="text-sm text-tokyo-muted">
-                    No execution log yet.
-                  </p>
+                  <p class="text-sm text-tokyo-muted">No execution log yet.</p>
                 </template>
 
                 <template x-if="!loading && logEntries.length > 0">
-                  <div class="glass-strong rounded-xl p-5 max-h-[400px] overflow-y-auto">
-                    <template x-for="(entry, idx) in logEntries.filter(e => e.type === 'turn')" :key="idx">
+                  <div
+                    class="glass-strong rounded-xl p-5 max-h-[400px] overflow-y-auto"
+                  >
+                    <template
+                      x-for="(entry, idx) in logEntries.filter(e => e.type === 'turn')"
+                      :key="idx"
+                    >
                       <div class="mb-4 last:mb-0">
                         <div class="flex items-center gap-2 mb-2">
                           <span
@@ -1043,7 +1124,10 @@
                             :class="entry.role === 'user' ? 'bg-tokyo-blue/20 text-tokyo-blue' : 'bg-tokyo-purple/20 text-tokyo-purple'"
                             x-text="entry.role === 'user' ? 'Instructions' : 'Result'"
                           ></span>
-                          <span class="text-xs text-tokyo-muted" x-text="entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''"></span>
+                          <span
+                            class="text-xs text-tokyo-muted"
+                            x-text="entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''"
+                          ></span>
                         </div>
                         <div
                           class="prose prose-invert prose-sm max-w-none"

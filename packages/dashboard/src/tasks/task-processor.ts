@@ -13,7 +13,7 @@ import type { ConversationManager } from "../conversations/index.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import type { TranscriptTurn } from "../conversations/types.js";
 import type { ChannelManager } from "../channels/index.js";
-import { StepExecutor } from "./step-executor.js";
+import { DeliveryExecutor } from "./delivery-executor.js";
 
 export interface TaskProcessorConfig {
   taskManager: TaskManager;
@@ -32,7 +32,7 @@ export class TaskProcessor {
   private executor: TaskExecutor;
   private conversationManager: ConversationManager;
   private connectionRegistry: ConnectionRegistry;
-  private stepExecutor: StepExecutor;
+  private deliveryExecutor: DeliveryExecutor;
   private notificationService: NotificationService | null;
 
   constructor(config: TaskProcessorConfig) {
@@ -40,7 +40,10 @@ export class TaskProcessor {
     this.executor = config.executor;
     this.conversationManager = config.conversationManager;
     this.connectionRegistry = config.connectionRegistry;
-    this.stepExecutor = new StepExecutor(config.channelManager ?? null);
+    this.deliveryExecutor = new DeliveryExecutor(
+      config.channelManager ?? null,
+      config.conversationManager,
+    );
     this.notificationService = config.notificationService ?? null;
   }
 
@@ -68,96 +71,97 @@ export class TaskProcessor {
    * Public so TaskScheduler can also use it.
    */
   async executeAndDeliver(task: Task): Promise<void> {
-    const result = await this.executor.run(task);
+    const hasDeliveryActions = (task.delivery ?? []).some(
+      (d) => d.status === "pending",
+    );
+    const hasPreComposedOnly =
+      hasDeliveryActions &&
+      (task.delivery ?? [])
+        .filter((d) => d.status === "pending")
+        .every((d) => d.content);
 
-    // Parse step completion markers from the response
-    if (task.steps && result.success) {
-      this.updateStepsFromResponse(task, result.response);
-    }
-
-    // Execute delivery steps deterministically (WhatsApp, email, etc.)
-    // The brain handles research; StepExecutor handles delivery actions
-    if (task.steps && result.success) {
-      const deliveryResult = await this.stepExecutor.executeDeliverySteps(
-        task,
-        result.response,
+    // If all delivery actions have pre-composed content, skip brain entirely
+    if (hasPreComposedOnly) {
+      console.log(
+        `[TaskProcessor] Pre-composed delivery, skipping brain for: ${task.title}`,
       );
 
-      // Mark delivered steps as complete
-      for (const stepResult of deliveryResult.results) {
-        if (stepResult.success) {
-          this.taskManager.markStepComplete(task.id, stepResult.stepNumber);
-        }
-      }
+      const deliveryResult = await this.deliveryExecutor.executeDeliveryActions(
+        task,
+        "",
+      );
 
-      // Log delivery results
-      if (deliveryResult.results.length > 0) {
-        const successCount = deliveryResult.results.filter(
-          (r) => r.success,
-        ).length;
-        console.log(
-          `[TaskProcessor] Delivery steps: ${successCount}/${deliveryResult.results.length} succeeded`,
-        );
+      // Update delivery action statuses
+      this.updateDeliveryStatuses(task.id, deliveryResult.results);
 
-        // Broadcast step updates
-        this.broadcastStepUpdate(task.id);
-      }
+      // Mark task as completed
+      this.taskManager.update(task.id, {
+        status: "completed",
+        completedAt: new Date(),
+      });
+
+      await this.deliverResult(task, {
+        success: true,
+        work: "Pre-composed message delivered.",
+        deliverable: null,
+      });
+      return;
     }
 
+    // Execute brain query
+    const result = await this.executor.run(task);
+
+    // If execution failed or needs review, deliver result to conversation only
+    if (!result.success) {
+      await this.deliverResult(task, result);
+      return;
+    }
+
+    // Execute delivery actions with validated deliverable
+    if (hasDeliveryActions && result.deliverable) {
+      const deliveryResult = await this.deliveryExecutor.executeDeliveryActions(
+        task,
+        result.deliverable,
+      );
+
+      // Update delivery action statuses
+      this.updateDeliveryStatuses(task.id, deliveryResult.results);
+
+      // Log delivery results
+      const successCount = deliveryResult.results.filter(
+        (r) => r.success,
+      ).length;
+      console.log(
+        `[TaskProcessor] Delivery: ${successCount}/${deliveryResult.results.length} succeeded`,
+      );
+    }
+
+    // Deliver work output to source conversation + dashboard
     await this.deliverResult(task, result);
   }
 
   /**
-   * Parse the response for step completion markers and update the task
-   *
-   * Looks for lines like: ✓ STEP 1: [description]
+   * Update delivery action statuses in the task
    */
-  private updateStepsFromResponse(task: Task, response: string): void {
-    const stepPattern = /✓ STEP (\d+):/g;
-    const completedSteps = new Set<number>();
-
-    let match;
-    while ((match = stepPattern.exec(response)) !== null) {
-      const stepNumber = parseInt(match[1], 10);
-      completedSteps.add(stepNumber);
-    }
-
-    if (completedSteps.size === 0) {
-      return;
-    }
-
-    // Mark all completed steps
-    const maxStep = Math.max(...completedSteps);
-    for (let i = 1; i <= maxStep; i++) {
-      if (completedSteps.has(i)) {
-        this.taskManager.markStepComplete(task.id, i);
-      }
-    }
-
-    console.log(
-      `[TaskProcessor] Marked ${completedSteps.size} steps complete for task ${task.id}`,
-    );
-
-    // Broadcast step updates via WebSocket
-    this.broadcastStepUpdate(task.id);
-  }
-
-  /**
-   * Broadcast step update via WebSocket
-   */
-  private broadcastStepUpdate(taskId: string): void {
+  private updateDeliveryStatuses(
+    taskId: string,
+    results: Array<{ channel: string; success: boolean; error?: string }>,
+  ): void {
     const task = this.taskManager.findById(taskId);
-    if (!task) return;
+    if (!task?.delivery) return;
 
-    const links = this.taskManager.getConversationsForTask(taskId);
-    for (const link of links) {
-      this.connectionRegistry.broadcastToConversation(link.conversationId, {
-        type: "task:step_complete",
-        taskId: task.id,
-        steps: task.steps,
-        currentStep: task.currentStep,
-      } as any);
-    }
+    const updatedDelivery = task.delivery.map((action) => {
+      const result = results.find((r) => r.channel === action.channel);
+      if (result && action.status === "pending") {
+        return {
+          ...action,
+          status: result.success ? ("completed" as const) : ("failed" as const),
+        };
+      }
+      return action;
+    });
+
+    this.taskManager.update(taskId, { delivery: updatedDelivery });
   }
 
   /**
@@ -178,7 +182,7 @@ export class TaskProcessor {
 
     const conversationId = links[0].conversationId;
 
-    // Format the result message
+    // Format the result message (work output, not deliverable)
     const messageContent = this.formatResult(task, result);
 
     // Append to conversation transcript
@@ -222,13 +226,14 @@ export class TaskProcessor {
   }
 
   /**
-   * Format task result for display
+   * Format task result for display in conversation
    */
   private formatResult(task: Task, result: ExecutionResult): string {
     if (result.success) {
-      return `**Task Completed: ${task.title}**\n\n${result.response}`;
+      return `**Task Completed: ${task.title}**\n\n${result.work}`;
     } else {
-      return `**Task Failed: ${task.title}**\n\nError: ${result.error || "Unknown error"}`;
+      const reason = result.error || "Unknown error";
+      return `**Task Failed: ${task.title}**\n\nError: ${reason}`;
     }
   }
 
@@ -246,7 +251,7 @@ export class TaskProcessor {
       taskId: task.id,
       conversationId,
       success: result.success,
-      response: result.response,
+      response: result.work,
       error: result.error,
     } as any);
 

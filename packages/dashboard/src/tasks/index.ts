@@ -7,9 +7,12 @@ export { TaskLogStorage } from "./log-storage.js";
 export { TaskExecutor } from "./task-executor.js";
 export { TaskProcessor } from "./task-processor.js";
 export { TaskScheduler } from "./task-scheduler.js";
-export { StepExecutor } from "./step-executor.js";
+export { DeliveryExecutor } from "./delivery-executor.js";
 export type { TaskLogMeta } from "./log-storage.js";
-export type { StepResult, ExecuteStepsResult } from "./step-executor.js";
+export type {
+  DeliveryActionResult,
+  DeliveryResult,
+} from "./delivery-executor.js";
 export type { TaskExecutorConfig, ExecutionResult } from "./task-executor.js";
 export type { TaskProcessorConfig } from "./task-processor.js";
 export type { TaskSchedulerConfig } from "./task-scheduler.js";
@@ -24,4 +27,6 @@ export type {
   CreateTaskInput,
   ListTasksFilter,
   GetLogOptions,
+  WorkItem,
+  DeliveryAction,
 } from "@my-agent/core";

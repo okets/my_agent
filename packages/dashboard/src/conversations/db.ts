@@ -191,7 +191,7 @@ export class ConversationDatabase {
       this.db.exec("ALTER TABLE tasks ADD COLUMN deleted_at TEXT DEFAULT NULL");
     }
 
-    // Migration: add steps and current_step columns (M5-S9)
+    // Migration: add steps and current_step columns (M5-S9, legacy)
     if (!taskColumns.some((c) => c.name === "steps")) {
       this.db.exec("ALTER TABLE tasks ADD COLUMN steps TEXT DEFAULT NULL");
     }
@@ -199,6 +199,14 @@ export class ConversationDatabase {
       this.db.exec(
         "ALTER TABLE tasks ADD COLUMN current_step INTEGER DEFAULT NULL",
       );
+    }
+
+    // Migration: add work and delivery columns (M5-S9 Work+Deliverable architecture)
+    if (!taskColumns.some((c) => c.name === "work")) {
+      this.db.exec("ALTER TABLE tasks ADD COLUMN work TEXT DEFAULT NULL");
+    }
+    if (!taskColumns.some((c) => c.name === "delivery")) {
+      this.db.exec("ALTER TABLE tasks ADD COLUMN delivery TEXT DEFAULT NULL");
     }
 
     // Create task_conversations junction table (M5-S5)

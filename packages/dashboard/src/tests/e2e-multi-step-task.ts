@@ -1,11 +1,11 @@
 /**
- * E2E Test: Multi-Step Task
+ * E2E Test: Work + Deliverable Task
  *
  * Tests the full flow:
  * 1. Create conversation
- * 2. Send message that should trigger MULTI-STEP task creation
- * 3. Verify task has steps field populated
- * 4. Verify steps include both research AND delivery
+ * 2. Send message that should trigger task creation with work[] + delivery[]
+ * 3. Verify task has work items populated
+ * 4. Verify task has delivery actions (WhatsApp)
  */
 
 import { WebSocket } from "ws";
@@ -80,32 +80,45 @@ export async function testMultiStepTask(): Promise<TestResult> {
   );
 
   console.log(`  Task created: ${task.id} - ${task.title}`);
-  console.log(`  Task steps: ${task.steps || "(none)"}`);
-  console.log(`  Task instructions: ${task.instructions?.substring(0, 100)}...`);
+  console.log(`  Work items: ${JSON.stringify(task.work) || "(none)"}`);
+  console.log(`  Delivery actions: ${JSON.stringify(task.delivery) || "(none)"}`);
+  console.log(
+    `  Task instructions: ${task.instructions?.substring(0, 100)}...`,
+  );
 
   ws.close();
 
-  // 5. Verify task has steps
-  const hasSteps = !!task.steps;
-  const hasDeliveryStep =
-    task.steps?.toLowerCase().includes("whatsapp") ||
-    task.steps?.toLowerCase().includes("send");
+  // 5. Verify task has work items
+  const hasWork = Array.isArray(task.work) && task.work.length > 0;
+  const hasDelivery = Array.isArray(task.delivery) && task.delivery.length > 0;
+  const hasWhatsAppDelivery = task.delivery?.some(
+    (d: any) => d.channel === "whatsapp",
+  );
 
-  if (!hasSteps) {
+  if (!hasWork) {
     return {
       pass: false,
       conversationId,
       taskId: task.id,
-      error: "Task was created without steps field",
+      error: "Task was created without work items",
     };
   }
 
-  if (!hasDeliveryStep) {
+  if (!hasDelivery) {
     return {
       pass: false,
       conversationId,
       taskId: task.id,
-      error: "Task steps do not include WhatsApp delivery step",
+      error: "Task was created without delivery actions",
+    };
+  }
+
+  if (!hasWhatsAppDelivery) {
+    return {
+      pass: false,
+      conversationId,
+      taskId: task.id,
+      error: "Task delivery does not include WhatsApp channel",
     };
   }
 
@@ -123,7 +136,7 @@ if (import.meta.url.startsWith("file:")) {
   if (argv1 && modulePath.endsWith(argv1.replace(/.*\//, ""))) {
     testMultiStepTask()
       .then((result) => {
-        console.log("\n=== Multi-Step Task Test ===");
+        console.log("\n=== Work + Deliverable Task Test ===");
         console.log(result.pass ? "PASS" : `FAIL: ${result.error}`);
         process.exit(result.pass ? 0 : 1);
       })

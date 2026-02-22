@@ -1211,7 +1211,10 @@ export async function registerChatWebSocket(
           // Fire-and-forget task extraction
           (async () => {
             try {
-              const extraction = await extractTaskFromMessage(textContent);
+              const extraction = await extractTaskFromMessage(
+                textContent,
+                assistantContent,
+              );
 
               if (extraction.shouldCreateTask && extraction.task) {
                 const task = fastify.taskManager!.create({
@@ -1219,7 +1222,8 @@ export async function registerChatWebSocket(
                   sourceType: "conversation",
                   title: extraction.task.title,
                   instructions: extraction.task.instructions,
-                  steps: extraction.task.steps,
+                  work: extraction.task.work,
+                  delivery: extraction.task.delivery,
                   scheduledFor: extraction.task.scheduledFor
                     ? new Date(extraction.task.scheduledFor)
                     : undefined,
@@ -1247,7 +1251,8 @@ export async function registerChatWebSocket(
                     title: task.title,
                     type: task.type,
                     status: task.status,
-                    steps: task.steps,
+                    work: task.work,
+                    delivery: task.delivery,
                   },
                 } as any);
               }

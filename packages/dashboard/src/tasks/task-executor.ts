@@ -2,7 +2,7 @@
  * Task System — Task Executor
  *
  * Executes tasks with Agent SDK session continuity.
- * Handles status transitions, execution logging, and error handling.
+ * Produces structured output: work log + deliverable.
  */
 
 import {
@@ -14,7 +14,11 @@ import {
   loadCalendarConfig,
   loadCalendarCredentials,
 } from "@my-agent/core";
-import type { Task, ScheduledTaskContext } from "@my-agent/core";
+import type {
+  Task,
+  ScheduledTaskContext,
+  DeliveryAction,
+} from "@my-agent/core";
 import type { TranscriptTurn } from "../conversations/types.js";
 import { TaskManager } from "./task-manager.js";
 import { TaskLogStorage } from "./log-storage.js";
@@ -33,8 +37,79 @@ export interface TaskExecutorConfig {
  */
 export interface ExecutionResult {
   success: boolean;
-  response: string;
+  /** Full work log (reasoning, research, analysis) */
+  work: string;
+  /** Clean deliverable content extracted from <deliverable> tags (null if none) */
+  deliverable: string | null;
   error?: string;
+}
+
+/**
+ * Extract deliverable content from brain response
+ */
+export function extractDeliverable(response: string): {
+  work: string;
+  deliverable: string | null;
+} {
+  const match = response.match(/<deliverable>([\s\S]*?)<\/deliverable>/);
+  if (match) {
+    const deliverable = match[1].trim();
+    const work = response.replace(match[0], "").trim();
+    return { work, deliverable: deliverable || null };
+  }
+  return { work: response, deliverable: null };
+}
+
+/**
+ * Validate that the deliverable is suitable for delivery
+ */
+export function validateDeliverable(
+  deliverable: string | null,
+  hasDeliveryActions: boolean,
+): { valid: boolean; reason?: string } {
+  if (!hasDeliveryActions) return { valid: true };
+  if (deliverable === null)
+    return { valid: false, reason: "Deliverable tags missing from response" };
+  if (deliverable.trim() === "")
+    return { valid: false, reason: "Deliverable is empty" };
+  if (deliverable.trim().toUpperCase() === "NONE")
+    return {
+      valid: false,
+      reason: "Brain declined to produce deliverable",
+    };
+  return { valid: true };
+}
+
+/**
+ * Get channel constraints text for the brain prompt
+ */
+function getChannelConstraints(delivery: DeliveryAction[]): string {
+  if (delivery.length === 0) return "";
+
+  const channels = [...new Set(delivery.map((d) => d.channel))];
+  const constraints: string[] = [];
+
+  for (const channel of channels) {
+    switch (channel) {
+      case "whatsapp":
+        constraints.push(
+          "Your deliverable will be sent via WhatsApp. Plain text only. Use *bold* sparingly. Keep under 2000 chars. No markdown headers, code blocks, or bullet dashes.",
+        );
+        break;
+      case "email":
+        constraints.push(
+          "Your deliverable will be sent via email. Rich formatting OK. Headers, lists, longer content all fine.",
+        );
+        break;
+      case "dashboard":
+        constraints.push(
+          "Your deliverable will be shown on the dashboard. Full markdown supported.",
+        );
+        break;
+    }
+  }
+
+  return constraints.join("\n");
 }
 
 /**
@@ -58,8 +133,9 @@ export class TaskExecutor {
    * 1. Update status to 'running'
    * 2. Load prior context (for recurring tasks)
    * 3. Spawn brain query
-   * 4. Append response to execution log
-   * 5. Update status to 'completed' or 'failed'
+   * 4. Extract deliverable from response
+   * 5. Append response to execution log
+   * 6. Update status to 'completed' or 'failed'
    */
   async run(task: Task): Promise<ExecutionResult> {
     const now = new Date();
@@ -84,11 +160,16 @@ export class TaskExecutor {
       // 4. Assemble prompt and execute
       const response = await this.executeQuery(task, priorContext);
 
-      // 5. Append response to log
+      // 5. Extract deliverable from response
+      const hasDeliveryActions = (task.delivery ?? []).some(
+        (d) => d.status === "pending" && !d.content,
+      );
+      const { work, deliverable } = extractDeliverable(response);
+
+      // 6. Append to log
       const turnNumber = this.logStorage.getTurnCount(task.id) + 1;
       const timestamp = new Date().toISOString();
 
-      // Log the user message (task instructions)
       const userTurn: TranscriptTurn = {
         type: "turn",
         role: "user",
@@ -98,7 +179,6 @@ export class TaskExecutor {
       };
       this.logStorage.appendTurn(task.id, userTurn);
 
-      // Log the assistant response
       const assistantTurn: TranscriptTurn = {
         type: "turn",
         role: "assistant",
@@ -108,7 +188,24 @@ export class TaskExecutor {
       };
       this.logStorage.appendTurn(task.id, assistantTurn);
 
-      // 6. Update status to completed
+      // 7. Validate deliverable
+      const validation = validateDeliverable(deliverable, hasDeliveryActions);
+      if (!validation.valid) {
+        console.warn(
+          `[TaskExecutor] Deliverable validation failed for "${task.title}": ${validation.reason}`,
+        );
+        this.taskManager.update(task.id, {
+          status: "needs_review",
+        });
+        return {
+          success: false,
+          work,
+          deliverable: null,
+          error: validation.reason,
+        };
+      }
+
+      // 8. Update status to completed
       this.taskManager.update(task.id, {
         status: "completed",
         completedAt: new Date(),
@@ -118,7 +215,8 @@ export class TaskExecutor {
 
       return {
         success: true,
-        response,
+        work,
+        deliverable,
       };
     } catch (error) {
       const errorMessage =
@@ -142,7 +240,8 @@ export class TaskExecutor {
 
       return {
         success: false,
-        response: "",
+        work: "",
+        deliverable: null,
         error: errorMessage,
       };
     }
@@ -154,11 +253,9 @@ export class TaskExecutor {
    */
   private async loadPriorContext(task: Task): Promise<TranscriptTurn[]> {
     if (!task.recurrenceId) {
-      // Not a recurring task, no prior context
       return [];
     }
 
-    // Get recent turns from this task's log
     const recentTurns = this.logStorage.getRecentTurns(task.id, 10);
 
     if (recentTurns.length > 0) {
@@ -172,24 +269,62 @@ export class TaskExecutor {
 
   /**
    * Build the user message for the task
+   *
+   * Uses the Work + Deliverable template:
+   * - Work items as bullet list
+   * - Deliverable instructions with <deliverable> XML tags
+   * - Channel-specific constraints auto-injected
    */
   private buildUserMessage(task: Task): string {
+    const deliveryActions = (task.delivery ?? []).filter(
+      (d) => d.status === "pending" && !d.content,
+    );
+    const workItems = task.work ?? [];
+
     let message = `Task: "${task.title}"`;
 
     if (task.instructions) {
       message += `\n\n${task.instructions}`;
     }
 
-    // If task has steps, include step execution instructions
-    if (task.steps) {
-      message += `\n\n## Steps to Complete\n\n${task.steps}`;
-      message += `\n\n## Execution Rules
+    // Work items
+    if (workItems.length > 0) {
+      message += "\n\n## Work Items\n";
+      for (const item of workItems) {
+        message += `\n- ${item.description}`;
+      }
+    }
 
-1. Work through each step in order
-2. When you complete a step, output on its own line:
-   ✓ STEP N: [step description]
-3. Never skip steps. If blocked on a step, explain why before continuing.
-4. After completing all steps, summarize the overall result.`;
+    // Deliverable instructions (only if there are delivery actions needing content)
+    if (deliveryActions.length > 0) {
+      message += `\n\n## Output Format
+
+Complete the work items above. Structure your response as follows:
+
+First, write your reasoning, research, and analysis. This working section is logged internally and shown on the dashboard, but is NOT sent to anyone.
+
+Then produce your final deliverable wrapped in XML tags:
+
+<deliverable>
+[Your standalone message for the recipient goes here]
+</deliverable>
+
+Rules for the deliverable:
+- The recipient sees ONLY the content inside the tags. Nothing else.
+- Write a complete, standalone message. The recipient has no other context.
+- Do not include preamble ("Here are the results:", "I found:", etc.)
+- Do not include task metadata, step numbers, or internal reasoning.
+- Do not reference these instructions or the task itself.`;
+
+      // Channel constraints
+      const channelConstraints = getChannelConstraints(deliveryActions);
+      if (channelConstraints) {
+        message += `\n\n${channelConstraints}`;
+      }
+
+      message += `\n\nIf you cannot produce a deliverable (safety concern, insufficient information, or ethical issue), output exactly:
+<deliverable>NONE</deliverable>
+Explain your reason in the working section above.`;
     }
 
     return message;
@@ -206,7 +341,7 @@ export class TaskExecutor {
     const brainConfig = loadConfig();
 
     // Extract calendarId from sourceRef (format: "calendarId:uid")
-    let calendarId = "system"; // Default fallback
+    let calendarId = "system";
     if (task.sourceType === "caldav" && task.sourceRef) {
       const colonIndex = task.sourceRef.indexOf(":");
       if (colonIndex > 0) {
@@ -219,7 +354,7 @@ export class TaskExecutor {
       title: task.title,
       start: task.scheduledFor?.toISOString() ?? new Date().toISOString(),
       calendarId,
-      action: undefined, // Tasks don't use the action field directly
+      action: undefined,
     };
 
     // Try to assemble calendar context
@@ -259,7 +394,6 @@ export class TaskExecutor {
     fullPrompt += this.buildUserMessage(task);
 
     // Spawn brain query
-    // Note: Using continue: true for recurring tasks to maintain session
     const shouldContinue = !!task.recurrenceId && priorContext.length > 0;
 
     const query = createBrainQuery(fullPrompt, {

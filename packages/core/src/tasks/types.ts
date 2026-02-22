@@ -8,7 +8,14 @@
 /**
  * Task execution status
  */
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'paused' | 'deleted'
+export type TaskStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'paused'
+  | 'deleted'
+  | 'needs_review'
 
 /**
  * Task type: how it was triggered
@@ -24,6 +31,25 @@ export type SourceType = 'caldav' | 'conversation' | 'webhook' | 'manual'
  * Who created the task
  */
 export type CreatedBy = 'scheduler' | 'user' | 'agent'
+
+/**
+ * A work item the brain should complete (research, compose, etc.)
+ */
+export interface WorkItem {
+  description: string
+  status: 'pending' | 'completed' | 'failed'
+}
+
+/**
+ * A delivery action the system executes deterministically
+ */
+export interface DeliveryAction {
+  channel: 'whatsapp' | 'email' | 'dashboard'
+  recipient?: string
+  /** Pre-composed content — if set, brain query is skipped entirely */
+  content?: string
+  status: 'pending' | 'completed' | 'failed' | 'needs_review'
+}
 
 /**
  * Task entity - a unit of autonomous work
@@ -44,18 +70,14 @@ export interface Task {
   /** Human-readable title */
   title: string
 
-  /** What the agent should do (legacy, prefer steps) */
+  /** What the agent should do */
   instructions: string
 
-  /**
-   * Markdown checklist of steps to execute.
-   * Format: "- [ ] step" or "- [x] step"
-   * Preferred over plain instructions for multi-action requests.
-   */
-  steps?: string
+  /** Work items for the brain to complete */
+  work?: WorkItem[]
 
-  /** Current step being executed (1-indexed) */
-  currentStep?: number
+  /** Delivery actions for the system to execute after brain completes */
+  delivery?: DeliveryAction[]
 
   /** Current execution status */
   status: TaskStatus
@@ -99,10 +121,9 @@ export interface CreateTaskInput {
   sourceType: SourceType
   sourceRef?: string
   title: string
-  /** Plain instructions (legacy) */
   instructions: string
-  /** Markdown steps (preferred for multi-action tasks) */
-  steps?: string
+  work?: WorkItem[]
+  delivery?: DeliveryAction[]
   recurrenceId?: string
   occurrenceDate?: string
   scheduledFor?: Date

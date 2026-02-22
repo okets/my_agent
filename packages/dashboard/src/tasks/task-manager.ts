@@ -14,6 +14,8 @@ import type {
   TaskStatus,
   CreateTaskInput,
   ListTasksFilter,
+  WorkItem,
+  DeliveryAction,
 } from "@my-agent/core";
 
 /**
@@ -78,7 +80,8 @@ export class TaskManager {
       sourceRef: input.sourceRef,
       title: input.title,
       instructions: input.instructions,
-      steps: input.steps,
+      work: input.work,
+      delivery: input.delivery,
       status: "pending",
       sessionId,
       recurrenceId: input.recurrenceId,
@@ -91,10 +94,10 @@ export class TaskManager {
 
     const stmt = this.db.prepare(`
       INSERT INTO tasks (
-        id, type, source_type, source_ref, title, instructions, steps,
+        id, type, source_type, source_ref, title, instructions, work, delivery,
         status, session_id, recurrence_id, occurrence_date,
         scheduled_for, created_by, log_path, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -104,7 +107,8 @@ export class TaskManager {
       task.sourceRef ?? null,
       task.title,
       task.instructions,
-      task.steps ?? null,
+      task.work ? JSON.stringify(task.work) : null,
+      task.delivery ? JSON.stringify(task.delivery) : null,
       task.status,
       task.sessionId,
       task.recurrenceId ?? null,
@@ -194,7 +198,8 @@ export class TaskManager {
       sourceRef: input.sourceRef,
       title: input.title,
       instructions: input.instructions,
-      steps: input.steps,
+      work: input.work,
+      delivery: input.delivery,
       status: "pending",
       sessionId,
       recurrenceId: input.recurrenceId,
@@ -207,10 +212,10 @@ export class TaskManager {
 
     const stmt = this.db.prepare(`
       INSERT INTO tasks (
-        id, type, source_type, source_ref, title, instructions, steps,
+        id, type, source_type, source_ref, title, instructions, work, delivery,
         status, session_id, recurrence_id, occurrence_date,
         scheduled_for, created_by, log_path, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -220,7 +225,8 @@ export class TaskManager {
       task.sourceRef ?? null,
       task.title,
       task.instructions,
-      task.steps ?? null,
+      task.work ? JSON.stringify(task.work) : null,
+      task.delivery ? JSON.stringify(task.delivery) : null,
       task.status,
       task.sessionId,
       task.recurrenceId,
@@ -242,7 +248,12 @@ export class TaskManager {
     changes: Partial<
       Pick<
         Task,
-        "status" | "startedAt" | "completedAt" | "deletedAt" | "steps" | "currentStep"
+        | "status"
+        | "startedAt"
+        | "completedAt"
+        | "deletedAt"
+        | "work"
+        | "delivery"
       >
     >,
   ): void {
@@ -269,14 +280,14 @@ export class TaskManager {
       values.push(changes.deletedAt.toISOString());
     }
 
-    if (changes.steps !== undefined) {
-      fields.push("steps = ?");
-      values.push(changes.steps);
+    if (changes.work !== undefined) {
+      fields.push("work = ?");
+      values.push(JSON.stringify(changes.work));
     }
 
-    if (changes.currentStep !== undefined) {
-      fields.push("current_step = ?");
-      values.push(changes.currentStep);
+    if (changes.delivery !== undefined) {
+      fields.push("delivery = ?");
+      values.push(JSON.stringify(changes.delivery));
     }
 
     if (fields.length === 0) {
@@ -397,8 +408,10 @@ export class TaskManager {
       sourceRef: row.source_ref ?? undefined,
       title: row.title,
       instructions: row.instructions,
-      steps: row.steps ?? undefined,
-      currentStep: row.current_step ?? undefined,
+      work: row.work ? (JSON.parse(row.work) as WorkItem[]) : undefined,
+      delivery: row.delivery
+        ? (JSON.parse(row.delivery) as DeliveryAction[])
+        : undefined,
       status: row.status as TaskStatus,
       sessionId: row.session_id,
       recurrenceId: row.recurrence_id ?? undefined,
@@ -411,40 +424,6 @@ export class TaskManager {
       createdBy: row.created_by,
       logPath: row.log_path,
     };
-  }
-
-  /**
-   * Mark a step as complete in a task
-   *
-   * Updates the task's steps markdown to check off the given step number,
-   * and updates currentStep for tracking.
-   */
-  markStepComplete(taskId: string, stepNumber: number): void {
-    const task = this.findById(taskId);
-    if (!task || !task.steps) return;
-
-    const lines = task.steps.split("\n");
-    let currentStepIndex = 0;
-
-    const updated = lines
-      .map((line) => {
-        const uncheckedMatch = line.match(/^- \[ \] (.+)$/);
-        const checkedMatch = line.match(/^- \[x\] (.+)$/i);
-        // Count ALL steps (checked + unchecked) for absolute numbering
-        if (uncheckedMatch || checkedMatch) {
-          currentStepIndex++;
-          if (currentStepIndex === stepNumber && uncheckedMatch) {
-            return `- [x] ${uncheckedMatch[1]}`;
-          }
-        }
-        return line;
-      })
-      .join("\n");
-
-    this.update(taskId, {
-      steps: updated,
-      currentStep: stepNumber,
-    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

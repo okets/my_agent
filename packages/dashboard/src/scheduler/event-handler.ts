@@ -178,9 +178,7 @@ export async function spawnEventQuery(
     });
 
     // Assistant turn: execution result
-    const summary = result.success
-      ? result.response
-      : `[Error: ${result.error}]`;
+    const summary = result.success ? result.work : `[Error: ${result.error}]`;
 
     await conversationManager.appendTurn(conversationId, {
       type: "turn",
@@ -193,7 +191,7 @@ export async function spawnEventQuery(
     console.warn(`[EventHandler] Failed to record turn:`, err);
   }
 
-  return result.response;
+  return result.work;
 }
 
 /**

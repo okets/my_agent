@@ -515,7 +515,10 @@ export async function registerAdminRoutes(
 
       return { ok: true, channelId: id, to };
     } catch (err) {
-      fastify.log.error(err, `[Admin] Failed to send message via channel ${id}`);
+      fastify.log.error(
+        err,
+        `[Admin] Failed to send message via channel ${id}`,
+      );
       return reply.code(500).send({
         error: err instanceof Error ? err.message : "Failed to send message",
       });

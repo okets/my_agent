@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-02-20
+> **Updated:** 2026-02-22
 
 ---
 
@@ -217,7 +217,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 | S6     | Task UI                   | Complete | [plan](sprints/m5-s6-task-ui/plan.md)                   | [review](sprints/m5-s6-task-ui/review.md)                   |
 | S7     | Request/Input Blocking    | Deferred | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
 | S8     | E2E Task Flow             | Complete | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | —                                                           |
-| S9     | Task Steps                | Planned  | [plan](sprints/m5-s9-task-steps/plan.md)                | —                                                           |
+| S9     | Work + Deliverable        | Active   | [plan](sprints/m5-s9-task-steps/plan.md)                | —                                                           |
 
 **Deliverables:**
 
@@ -229,7 +229,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 - _(S6)_ Task list screen, task detail tab, shared components (StatusBadge, DetailHeader, etc.), entity tags in chat, create task form
 - _(S7)_ _(Deferred)_ Request/input blocking for interactive task execution
 - _(S8)_ Brain skill loading fix, TaskProcessor (immediate), TaskScheduler (scheduled), result delivery to conversation, E2E tests
-- _(S9)_ Multi-step tasks with markdown checkboxes, step progress markers, real-time UI updates
+- _(S9)_ Work + Deliverable architecture: typed WorkPlan with `<deliverable>` XML tags, DeliveryExecutor, channel-aware constraints, validation gate. Clean channel delivery — work output stays internal, only validated deliverables reach recipients.
 
 **Philosophy:**
 
@@ -273,7 +273,7 @@ Real-time state binding for kiosk displays. Backend pushes state, frontend auto-
 
 ### M6: Memory — PLANNED
 
-Notebook memory with flexible user-defined lists, daily summaries.
+Notebook memory with flexible user-defined lists, daily summaries, semantic search.
 
 **Design spec:** [memory-system.md](design/memory-system.md)
 
@@ -284,6 +284,17 @@ Notebook memory with flexible user-defined lists, daily summaries.
 - Prompted additions ("Should I remember this?")
 - Recall priority: Notebook → Conversation search → Ask user
 - Daily summary generation (Haiku)
+
+**Embedding Architecture:**
+
+| Component | Choice | Notes |
+|-----------|--------|-------|
+| Embedding runtime | node-llama-cpp | GPU support (CUDA/Metal/Vulkan), no PyTorch needed |
+| Default model | embeddinggemma-300M or nomic-embed | Small, fast on CPU, auto-download GGUF |
+| Vector storage | sqlite-vec | In-DB vector queries, no JS loop |
+| Search strategy | Hybrid (FTS5 + vector) | BM25 for exact tokens, vector for semantic |
+
+**Constraint:** Local models only — no external API subscriptions beyond Anthropic.
 
 **Dependencies:** M2 (conversation search as fallback)
 
@@ -396,7 +407,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Notebook             | Complete | M4, M5, M10 | [design/notebook.md](design/notebook.md)                         |
 | Calendar System      | Complete | M4.5        | [design/calendar-system.md](design/calendar-system.md)           |
 | Task System          | Complete | M5          | [design/task-system.md](design/task-system.md)                   |
-| Task Steps           | Approved | M5          | [design/task-steps.md](design/task-steps.md)                     |
+| Task Delivery (v2)   | Approved | M5          | [design/task-steps.md](design/task-steps.md)                     |
 | Live Dashboard       | Complete | M5.5        | [design/live-dashboard.md](design/live-dashboard.md)             |
 | Memory               | Complete | M6          | [design/memory-system.md](design/memory-system.md)               |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
@@ -462,7 +473,7 @@ Ideas that haven't been promoted to design specs yet.
 | Idea                         | Status              | Path                                                                         |
 | ---------------------------- | ------------------- | ---------------------------------------------------------------------------- |
 | Agent Teams for Ad-hoc Tasks | Deferred to M5      | [ideas/agent-teams-for-adhoc-tasks.md](ideas/agent-teams-for-adhoc-tasks.md) |
-| Multi-Step Tasks             | Promoted to M5-S9   | [ideas/multi-step-tasks.md](ideas/multi-step-tasks.md)                       |
+| Multi-Step Tasks             | Evolved → M5-S9 (v2: Work + Deliverable) | [ideas/multi-step-tasks.md](ideas/multi-step-tasks.md)                       |
 
 ---
 
@@ -476,6 +487,8 @@ Long-term features beyond the current milestone plan. Not scheduled, not designe
 | **Mobile Dashboard**           | Responsive web UI optimized for mobile browsers           | Calendar list view, chat interface, quick actions                   |
 | **iOS App**                    | Native iOS app for Nina                                   | Push notifications, Siri integration, widget support                |
 | **Mid-session Intervention**   | Send input to running Claude Code sessions                | Depends on Claude Code supporting message injection (steer)         |
+| **Voice Output (TTS)**         | Give Nina a voice using text-to-speech                    | Evaluate Qwen 3 TTS — open, sounds good, need to test near real-time latency |
+| **Voice Input (STT)**          | Let Nina understand voice via speech-to-text              | Web UI + WhatsApp channels; STT model for voice message transcription |
 
 ---
 
@@ -564,4 +577,4 @@ After completion:
 
 ---
 
-_Updated: 2026-02-20_
+_Updated: 2026-02-22_

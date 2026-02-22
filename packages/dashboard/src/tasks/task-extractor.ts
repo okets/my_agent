@@ -6,11 +6,13 @@
  */
 
 import { createBrainQuery } from "@my-agent/core";
+import type { WorkItem, DeliveryAction } from "@my-agent/core";
 
 export interface ExtractedTask {
   title: string;
   instructions: string;
-  steps: string;
+  work: WorkItem[];
+  delivery: DeliveryAction[];
   type: "immediate" | "scheduled";
   scheduledFor?: string;
 }
@@ -39,15 +41,29 @@ DO NOT create a task for:
 
 If a task should be created, extract:
 1. title: Brief description (max 80 chars)
-2. instructions: What needs to be done
-3. steps: Markdown checkboxes for each action (CRITICAL: every delivery instruction must be a separate step)
-4. type: "immediate" or "scheduled"
-5. scheduledFor: ISO datetime if scheduled
+2. instructions: Detailed, self-contained instructions. Include ALL specifics from both the user's request AND the assistant's planned response. The executor runs in a separate context with NO access to the conversation — instructions must contain everything needed.
+3. work: Array of work items the brain should complete (research, compose, etc.). Each item: { "description": "..." }
+4. delivery: Array of delivery actions. Each item: { "channel": "whatsapp"|"email"|"dashboard" }
+   - If the user provides exact text to send, include it as "content" on the delivery action
+   - If the brain needs to compose content, omit "content" (brain will produce it)
+5. type: "immediate" or "scheduled"
+6. scheduledFor: ISO datetime if scheduled
+
+EXAMPLES:
+
+User: "Research Bangkok attractions and send me the list on WhatsApp"
+{"shouldCreateTask": true, "task": {"title": "Research Bangkok attractions", "instructions": "Research family-friendly attractions in Bangkok. Compile a list with brief descriptions.", "work": [{"description": "Research family-friendly attractions in Bangkok"}], "delivery": [{"channel": "whatsapp"}], "type": "immediate"}}
+
+User: "In 5 minutes send me a WhatsApp saying Don't forget to call mom"
+{"shouldCreateTask": true, "task": {"title": "Send WhatsApp reminder", "instructions": "Send a WhatsApp message with the exact text provided.", "work": [], "delivery": [{"channel": "whatsapp", "content": "Don't forget to call mom"}], "type": "scheduled", "scheduledFor": "2026-02-22T15:05:00Z"}}
+
+User: "What's the weather like?"
+{"shouldCreateTask": false}
 
 OUTPUT FORMAT (no other text allowed):
 {"shouldCreateTask": false}
 or
-{"shouldCreateTask": true, "task": {"title": "...", "instructions": "...", "steps": "- [ ] step1\\n- [ ] step2", "type": "immediate"}}`;
+{"shouldCreateTask": true, "task": {"title": "...", "instructions": "...", "work": [...], "delivery": [...], "type": "immediate"}}`;
 
 /**
  * Run a single extraction attempt via Haiku
@@ -79,17 +95,44 @@ async function runExtraction(prompt: string): Promise<string> {
 }
 
 /**
+ * Normalize extraction result to ensure correct types on work/delivery items
+ */
+function normalizeExtractedTask(raw: any): ExtractedTask {
+  const work: WorkItem[] = (raw.work ?? []).map((w: any) => ({
+    description: String(w.description ?? ""),
+    status: "pending" as const,
+  }));
+
+  const delivery: DeliveryAction[] = (raw.delivery ?? []).map((d: any) => ({
+    channel: d.channel ?? "dashboard",
+    recipient: d.recipient,
+    content: d.content,
+    status: "pending" as const,
+  }));
+
+  return {
+    title: String(raw.title ?? ""),
+    instructions: String(raw.instructions ?? ""),
+    work,
+    delivery,
+    type: raw.type === "scheduled" ? "scheduled" : "immediate",
+    scheduledFor: raw.scheduledFor,
+  };
+}
+
+/**
  * Extract task from user message
  *
  * Uses Haiku for fast, cheap extraction. Retries once if no JSON returned.
  */
 export async function extractTaskFromMessage(
   userMessage: string,
-  conversationContext?: string,
+  assistantResponse?: string,
 ): Promise<ExtractionResult> {
-  const prompt = conversationContext
-    ? `Context:\n${conversationContext}\n\nUser message:\n${userMessage}`
-    : `User message:\n${userMessage}`;
+  let prompt = `User message:\n${userMessage}`;
+  if (assistantResponse) {
+    prompt += `\n\nAssistant's planned response:\n${assistantResponse}`;
+  }
 
   const MAX_ATTEMPTS = 2;
 
@@ -113,8 +156,16 @@ export async function extractTaskFromMessage(
         return { shouldCreateTask: false };
       }
 
-      const result = JSON.parse(jsonMatch[0]) as ExtractionResult;
-      return result;
+      const result = JSON.parse(jsonMatch[0]);
+
+      if (!result.shouldCreateTask) {
+        return { shouldCreateTask: false };
+      }
+
+      return {
+        shouldCreateTask: true,
+        task: normalizeExtractedTask(result.task),
+      };
     } catch (err) {
       if (attempt < MAX_ATTEMPTS) {
         console.warn(

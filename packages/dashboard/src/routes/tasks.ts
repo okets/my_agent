@@ -19,6 +19,7 @@ const PATCHABLE_STATUSES = [
   "completed",
   "failed",
   "paused",
+  "needs_review",
 ];
 
 /**
@@ -33,8 +34,8 @@ function toResponse(task: Task) {
     sourceRef: task.sourceRef,
     title: task.title,
     instructions: task.instructions,
-    steps: task.steps,
-    currentStep: task.currentStep,
+    work: task.work,
+    delivery: task.delivery,
     status: task.status,
     sessionId: task.sessionId,
     recurrenceId: task.recurrenceId,
@@ -244,7 +245,8 @@ export async function registerTaskRoutes(
       sourceRef?: string;
       title: string;
       instructions: string;
-      steps?: string;
+      work?: any[];
+      delivery?: any[];
       recurrenceId?: string;
       occurrenceDate?: string;
       scheduledFor?: string;

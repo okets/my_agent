@@ -101,6 +101,8 @@ export type {
   CreateTaskInput,
   ListTasksFilter,
   GetLogOptions,
+  WorkItem,
+  DeliveryAction,
 } from './tasks/types.js'
 
 // Tools
