@@ -207,6 +207,10 @@ export async function registerChatWebSocket(
       (async () => {
         try {
           await handleConnect(null);
+          // Push full entity snapshots to the newly connected client
+          if (fastify.statePublisher) {
+            await fastify.statePublisher.publishAllTo(socket);
+          }
         } catch (err) {
           fastify.log.error(err, "Error loading conversation on connect");
           send({
@@ -572,6 +576,9 @@ export async function registerChatWebSocket(
         },
         socket,
       );
+
+      // Broadcast updated conversation list as state snapshot
+      fastify.statePublisher?.publishConversations();
     }
 
     /**
@@ -719,6 +726,9 @@ export async function registerChatWebSocket(
         type: "conversation_deleted",
         conversationId,
       });
+
+      // Broadcast updated conversation list as state snapshot
+      fastify.statePublisher?.publishConversations();
     }
 
     /**
@@ -818,6 +828,9 @@ export async function registerChatWebSocket(
           },
           socket,
         );
+
+        // Broadcast updated conversation list as state snapshot
+        fastify.statePublisher?.publishConversations();
 
         return;
       }
@@ -935,6 +948,9 @@ export async function registerChatWebSocket(
           },
           socket,
         );
+
+        // Broadcast updated conversation list as state snapshot
+        fastify.statePublisher?.publishConversations();
       }
 
       // Get or create session for this conversation
@@ -1295,6 +1311,9 @@ export async function registerChatWebSocket(
 
                 // Trigger immediate task execution
                 fastify.taskProcessor!.onTaskCreated(task);
+
+                // Broadcast updated task list as state snapshot
+                fastify.statePublisher?.publishTasks();
 
                 // Broadcast task creation to clients
                 connectionRegistry.broadcastToConversation(convIdForTask, {

@@ -30,6 +30,7 @@ import {
   TaskScheduler,
 } from "./tasks/index.js";
 import { connectionRegistry, sessionRegistry } from "./ws/chat-handler.js";
+import { StatePublisher } from "./state/state-publisher.js";
 
 // Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
 // When the dashboard is started from within a Claude Code session (e.g. during dev),
@@ -195,6 +196,7 @@ async function main() {
     notificationService = new NotificationService();
 
     // Initialize task processor (handles immediate task execution)
+    // onTaskMutated is a lazy callback — server.statePublisher is set after this block
     taskProcessor = new TaskProcessor({
       taskManager,
       executor: taskExecutor,
@@ -202,6 +204,7 @@ async function main() {
       connectionRegistry,
       channelManager,
       notificationService,
+      onTaskMutated: () => server.statePublisher?.publishTasks(),
     });
 
     // Initialize task scheduler (polls for due scheduled tasks)
@@ -292,6 +295,29 @@ async function main() {
   server.logStorage = logStorage;
   server.taskProcessor = taskProcessor;
   server.taskScheduler = taskScheduler;
+
+  // Initialize StatePublisher — live state sync to all connected dashboard clients
+  if (hatched) {
+    const statePublisher = new StatePublisher({
+      connectionRegistry,
+      taskManager,
+      conversationManager,
+      getCalendarClient: () => {
+        try {
+          const calConfig = loadCalendarConfig(agentDir);
+          const credentials = loadCalendarCredentials(agentDir);
+          if (!calConfig || !credentials) return null;
+          return createCalDAVClient(calConfig, credentials);
+        } catch {
+          return null;
+        }
+      },
+    });
+    server.statePublisher = statePublisher;
+    console.log("StatePublisher initialized");
+  } else {
+    server.statePublisher = null;
+  }
 
   try {
     await server.listen({ port, host: "0.0.0.0" });

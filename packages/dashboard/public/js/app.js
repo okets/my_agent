@@ -136,6 +136,12 @@ function chat() {
     tasks: [], // All tasks (loaded from API)
     tasksLoading: false, // Loading indicator
     tasksFilter: { status: null, type: null }, // Active filters
+
+    // ─────────────────────────────────────────────────────────────────
+    // Timeline traversal state (M5-S10)
+    // ─────────────────────────────────────────────────────────────────
+    timelinePastDays: 1, // How far back to show (days)
+    timelineFutureDays: 7, // How far forward to show (days)
     showCreateTaskForm: false, // Create task modal
     createTaskForm: {
       title: "",
@@ -725,6 +731,10 @@ function chat() {
           // Channel conversations shown under their channel
           if (data.channelConversations) {
             this.channelConversations = data.channelConversations;
+          }
+          // Keep store in sync
+          if (typeof Alpine !== "undefined" && Alpine.store("conversations")) {
+            Alpine.store("conversations").items = this.conversations;
           }
           break;
 
@@ -2040,15 +2050,40 @@ function chat() {
     },
 
     /**
-     * Load upcoming events for the timeline (next 7 days)
+     * Load upcoming events for the timeline using current timelineFutureDays range
      */
     async loadUpcomingEvents() {
       try {
-        this.upcomingEvents = await CalendarModule.fetchUpcomingEvents();
+        this.upcomingEvents = await CalendarModule.fetchUpcomingEvents(
+          this.timelineFutureDays,
+        );
       } catch (err) {
         console.error("[App] Failed to load upcoming events:", err);
         this.upcomingEvents = [];
       }
+    },
+
+    /**
+     * Reload both tasks and calendar events for the current timeline range
+     */
+    async loadTimelineData() {
+      await Promise.all([this.loadTasks(), this.loadUpcomingEvents()]);
+    },
+
+    /**
+     * Expand the timeline range backward by 7 days and reload
+     */
+    loadEarlierTimeline() {
+      this.timelinePastDays += 7;
+      this.loadTimelineData();
+    },
+
+    /**
+     * Expand the timeline range forward by 7 days and reload
+     */
+    loadLaterTimeline() {
+      this.timelineFutureDays += 7;
+      this.loadTimelineData();
     },
 
     /**
@@ -2739,6 +2774,9 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
      */
     async loadTasks() {
       this.tasksLoading = true;
+      if (typeof Alpine !== "undefined" && Alpine.store("tasks")) {
+        Alpine.store("tasks").loading = true;
+      }
       try {
         let url = "/api/tasks?";
         const params = [];
@@ -2756,11 +2794,18 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         if (res.ok) {
           const data = await res.json();
           this.tasks = data.tasks || [];
+          // Keep store in sync
+          if (typeof Alpine !== "undefined" && Alpine.store("tasks")) {
+            Alpine.store("tasks").items = this.tasks;
+          }
         }
       } catch (err) {
         console.error("[App] Failed to load tasks:", err);
       } finally {
         this.tasksLoading = false;
+        if (typeof Alpine !== "undefined" && Alpine.store("tasks")) {
+          Alpine.store("tasks").loading = false;
+        }
       }
     },
 
@@ -2783,10 +2828,11 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
      */
     get timelineItems() {
       const now = new Date();
-      const past24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const pastMs = this.timelinePastDays * 24 * 60 * 60 * 1000;
+      const pastDate = new Date(now.getTime() - pastMs);
       const items = [];
 
-      // Add tasks (past 24h completed + future scheduled)
+      // Add tasks (past N days completed + future scheduled)
       for (const task of this.tasks) {
         const taskTime = task.scheduledFor
           ? new Date(task.scheduledFor)
@@ -2798,9 +2844,9 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
         if (!taskTime) continue;
 
-        // Include: future pending, running, or completed in last 24h
+        // Include: future pending, running, or completed within past window
         const isFuture = taskTime >= now;
-        const isRecentPast = taskTime >= past24h && taskTime < now;
+        const isRecentPast = taskTime >= pastDate && taskTime < now;
         const isRunning = task.status === "running";
         const isCompleted = task.status === "completed";
         const isFailed = task.status === "failed";
@@ -2810,14 +2856,26 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
           isRunning ||
           ((isCompleted || isFailed) && isRecentPast)
         ) {
+          // Determine trigger type: recurring > scheduled > immediate
+          const triggerType =
+            task.recurrenceId || task.sourceType === "caldav"
+              ? "recurring"
+              : task.type === "scheduled"
+                ? "scheduled"
+                : "immediate";
+
+          // Running tasks cluster at NOW position instead of their original time
+          const displayTime = isRunning ? now : taskTime;
+
           items.push({
             id: `task-${task.id}`,
             itemType: "task",
             title: task.title,
-            time: taskTime,
-            date: taskTime.toDateString(),
+            time: displayTime,
+            date: displayTime.toDateString(),
             status: task.status,
-            isPast: taskTime < now,
+            isPast: isRunning ? false : taskTime < now,
+            triggerType: triggerType,
             task: task,
           });
         }
@@ -2829,7 +2887,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
         const eventDate = new Date(event.start);
         const isFuture = eventDate >= now;
-        const isRecentPast = eventDate >= past24h && eventDate < now;
+        const isRecentPast = eventDate >= pastDate && eventDate < now;
 
         if (isFuture || isRecentPast) {
           items.push({
@@ -2871,6 +2929,17 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     },
 
     /**
+     * Timeline traversal: always allow expanding range
+     */
+    get canLoadEarlier() {
+      return true;
+    },
+
+    get canLoadLater() {
+      return true;
+    },
+
+    /**
      * Format current time for Now marker
      */
     formatTimeNow() {
@@ -2899,17 +2968,28 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
+      const dateFormatted = date.toLocaleDateString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+
       if (date.toDateString() === today.toDateString()) {
-        return "Today";
+        return `Today, ${date.toLocaleDateString([], { month: "short", day: "numeric" })}`;
       } else if (date.toDateString() === tomorrow.toDateString()) {
-        return "Tomorrow";
+        return `Tomorrow, ${date.toLocaleDateString([], { month: "short", day: "numeric" })}`;
       } else {
-        return date.toLocaleDateString([], {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        });
+        return dateFormatted;
       }
+    },
+
+    /**
+     * Check if a date string is today
+     */
+    isToday(dateStr) {
+      const date = new Date(dateStr);
+      const today = new Date();
+      return date.toDateString() === today.toDateString();
     },
 
     /**

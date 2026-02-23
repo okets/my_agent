@@ -22,6 +22,8 @@ export interface TaskProcessorConfig {
   connectionRegistry: ConnectionRegistry;
   channelManager?: ChannelManager | null;
   notificationService?: NotificationService | null;
+  /** Optional callback fired after any task status mutation (for state publishing) */
+  onTaskMutated?: () => void;
 }
 
 /**
@@ -34,6 +36,7 @@ export class TaskProcessor {
   private connectionRegistry: ConnectionRegistry;
   private deliveryExecutor: DeliveryExecutor;
   private notificationService: NotificationService | null;
+  private onTaskMutated: (() => void) | null;
 
   constructor(config: TaskProcessorConfig) {
     this.taskManager = config.taskManager;
@@ -45,6 +48,7 @@ export class TaskProcessor {
       config.conversationManager,
     );
     this.notificationService = config.notificationService ?? null;
+    this.onTaskMutated = config.onTaskMutated ?? null;
   }
 
   /**
@@ -99,6 +103,7 @@ export class TaskProcessor {
         status: "completed",
         completedAt: new Date(),
       });
+      this.onTaskMutated?.();
 
       await this.deliverResult(task, {
         success: true,
@@ -126,6 +131,7 @@ export class TaskProcessor {
 
       // Update delivery action statuses
       this.updateDeliveryStatuses(task.id, deliveryResult.results);
+      this.onTaskMutated?.();
 
       // Log delivery results
       const successCount = deliveryResult.results.filter(

@@ -290,13 +290,14 @@ async function fetchTodayEvents() {
 }
 
 /**
- * Fetch upcoming events (next 7 days)
+ * Fetch upcoming events
+ * @param {number} days - Number of days ahead to fetch (default 7)
  * @returns {Array} Array of upcoming events
  */
-async function fetchUpcomingEvents() {
+async function fetchUpcomingEvents(days = 7) {
   try {
     const now = new Date();
-    const end = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const end = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
     const params = new URLSearchParams({
       start: now.toISOString(),
       end: end.toISOString(),

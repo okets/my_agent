@@ -145,185 +145,84 @@
           <!-- Home Tab                                                 -->
           <!-- ======================================================== -->
           <div x-show="activeTab === 'home'" class="p-6" x-cloak>
-            <h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+            <!-- Header with live status -->
+            <div class="flex items-center justify-between mb-6">
+              <h1 class="text-2xl font-bold">Dashboard</h1>
+              <div class="flex items-center gap-2 text-xs text-tokyo-muted">
+                <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                <span x-text="formatTimeNow()"></span>
+              </div>
+            </div>
 
-            <!-- Quick actions -->
-            <h2
-              class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
-            >
-              Notebook
-            </h2>
-            <div class="grid grid-cols-3 gap-3 mb-8">
+            <!-- Compact Notebook Row -->
+            <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+              <span class="text-xs text-tokyo-muted shrink-0"
+                >Quick access:</span
+              >
               <button
                 @click="openNotebookTab('external-communications')"
-                class="p-4 rounded-xl glass-strong hover:bg-tokyo-card/80 transition-colors text-left"
+                class="px-3 py-1.5 rounded-lg glass-strong hover:bg-tokyo-card/80 transition-colors text-xs flex items-center gap-1.5 shrink-0"
               >
-                <div class="text-lg mb-1">📋</div>
-                <div class="text-sm font-medium">External Rules</div>
-                <div class="text-xs text-tokyo-muted mt-1">
-                  Communication guidelines
-                </div>
+                <span>📋</span>
+                <span>External Rules</span>
               </button>
               <button
                 @click="openNotebookTab('reminders')"
-                class="p-4 rounded-xl glass-strong hover:bg-tokyo-card/80 transition-colors text-left"
+                class="px-3 py-1.5 rounded-lg glass-strong hover:bg-tokyo-card/80 transition-colors text-xs flex items-center gap-1.5 shrink-0"
               >
-                <div class="text-lg mb-1">✅</div>
-                <div class="text-sm font-medium">Reminders</div>
-                <div class="text-xs text-tokyo-muted mt-1">
-                  Tasks &amp; to-dos
-                </div>
+                <span>✅</span>
+                <span>Reminders</span>
               </button>
               <button
                 @click="openNotebookTab('standing-orders')"
-                class="p-4 rounded-xl glass-strong hover:bg-tokyo-card/80 transition-colors text-left"
+                class="px-3 py-1.5 rounded-lg glass-strong hover:bg-tokyo-card/80 transition-colors text-xs flex items-center gap-1.5 shrink-0"
               >
-                <div class="text-lg mb-1">📜</div>
-                <div class="text-sm font-medium">Standing Orders</div>
-                <div class="text-xs text-tokyo-muted mt-1">
-                  Persistent instructions
-                </div>
+                <span>📜</span>
+                <span>Standing Orders</span>
               </button>
             </div>
 
-            <!-- Channel status -->
-            <h2
-              class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
-            >
-              Channels
-            </h2>
-            <div class="space-y-2">
+            <!-- Channel status - compact inline -->
+            <div class="flex items-center gap-3 mb-4 flex-wrap">
+              <span class="text-xs text-tokyo-muted">Channels:</span>
               <template x-for="channel in channels" :key="channel.id">
                 <div
-                  class="flex items-center justify-between p-3 rounded-xl glass-strong"
+                  class="flex items-center gap-2 px-2 py-1 rounded-lg glass-strong text-xs"
                 >
-                  <div class="flex items-center gap-3">
-                    <div
-                      class="w-8 h-8 rounded-lg bg-tokyo-panel flex items-center justify-center text-tokyo-muted channel-icon"
-                      x-html="channel.icon"
-                    ></div>
-                    <div>
-                      <div
-                        class="text-sm font-medium"
-                        x-text="channel.id"
-                      ></div>
-                      <div
-                        class="text-xs text-tokyo-muted"
-                        x-text="channel.identity"
-                      ></div>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span
-                      class="w-2 h-2 rounded-full"
-                      :class="channelDotClass(channel.status)"
-                    ></span>
-                    <span
-                      class="text-xs"
-                      :class="{
-                        'text-green-400': channel.status === 'connected',
-                        'text-yellow-400': channel.status === 'connecting',
-                        'text-red-400': channel.status === 'error',
-                        'text-tokyo-muted': channel.status === 'disconnected' || channel.status === 'logged_out'
-                      }"
-                      x-text="channel.status"
-                    ></span>
-                  </div>
+                  <span
+                    class="channel-icon w-4 h-4 text-tokyo-muted"
+                    x-html="channel.icon"
+                  ></span>
+                  <span class="font-medium" x-text="channel.id"></span>
+                  <span
+                    class="w-1.5 h-1.5 rounded-full"
+                    :class="channelDotClass(channel.status)"
+                  ></span>
+                  <span
+                    :class="{
+                      'text-green-400': channel.status === 'connected',
+                      'text-yellow-400': channel.status === 'connecting',
+                      'text-red-400': channel.status === 'error',
+                      'text-tokyo-muted': channel.status === 'disconnected' || channel.status === 'logged_out'
+                    }"
+                    x-text="channel.status"
+                  ></span>
                 </div>
               </template>
-
-              <!-- No channels state -->
               <template x-if="channels.length === 0">
-                <div class="text-sm text-tokyo-muted p-3 text-center">
-                  No channels configured. Go to Settings to add one.
-                </div>
+                <span class="text-xs text-tokyo-muted">None configured</span>
               </template>
             </div>
 
-            <!-- Active Now Section -->
-            <template x-if="runningTasks.length > 0">
-              <div class="mt-8">
-                <div class="flex items-center gap-2 mb-3">
-                  <span
-                    class="w-2 h-2 rounded-full bg-red-400 animate-pulse"
-                  ></span>
-                  <h2
-                    class="text-sm font-semibold text-red-400 uppercase tracking-wide"
-                  >
-                    Active Now
-                  </h2>
-                </div>
-
-                <div class="space-y-3">
-                  <template x-for="task in runningTasks" :key="task.id">
-                    <button
-                      @click="openTaskTab(task)"
-                      class="w-full p-4 rounded-xl glass-strong border-l-4 border-red-400 hover:bg-tokyo-card/80 text-left transition-colors"
-                    >
-                      <div class="flex items-center justify-between mb-2">
-                        <span
-                          class="text-sm font-medium"
-                          x-text="task.title"
-                        ></span>
-                        <span
-                          class="px-2 py-0.5 text-xs rounded bg-red-400/20 text-red-400"
-                        >
-                          Running
-                        </span>
-                      </div>
-                      <div class="text-xs text-tokyo-muted">
-                        Started
-                        <span
-                          x-text="UIComponents.formatDate(task.startedAt, { relative: true })"
-                        ></span>
-                      </div>
-                    </button>
-                  </template>
-                </div>
-              </div>
-            </template>
-
-            <!-- External conversations -->
-            <template x-if="channelConversations.length > 0">
-              <div class="mt-8">
-                <h2
-                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
-                >
-                  <span x-text="agentName"></span>'s Chats
-                </h2>
-                <div class="space-y-2">
-                  <template x-for="conv in channelConversations" :key="conv.id">
-                    <button
-                      @click="openConversationTab(conv)"
-                      class="w-full flex items-center justify-between p-3 rounded-xl glass-strong hover:bg-tokyo-card/80 transition-colors text-left"
-                    >
-                      <div class="flex items-center gap-3">
-                        <span
-                          class="channel-icon w-5 h-5 text-tokyo-muted"
-                          x-html="getConversationChannel(conv)?.icon || ''"
-                        ></span>
-                        <span
-                          class="text-sm font-medium"
-                          x-text="conv.title"
-                        ></span>
-                      </div>
-                      <span
-                        class="text-[9px] px-1.5 py-0.5 rounded bg-tokyo-muted/10 text-tokyo-muted"
-                      >
-                        read-only
-                      </span>
-                    </button>
-                  </template>
-                </div>
-              </div>
-            </template>
-
             <!-- Timeline Section -->
-            <div class="mt-8">
-              <div class="flex items-center justify-between mb-3">
+            <div
+              class="mt-6 -mx-4 px-4 py-4 bg-tokyo-panel/30 border-y border-tokyo-panel"
+            >
+              <div class="flex items-center justify-between mb-4">
                 <h2
-                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide"
+                  class="text-sm font-semibold text-tokyo-text uppercase tracking-wide flex items-center gap-2"
                 >
+                  <span class="text-base">📅</span>
                   Timeline
                 </h2>
                 <div class="flex items-center gap-3">
@@ -372,8 +271,24 @@
                 </div>
               </template>
 
-              <!-- Timeline items -->
-              <div class="space-y-2">
+              <!-- Timeline items with continuous vertical line -->
+              <div class="relative">
+                <!-- Vertical line running through bullets (positioned after time column) -->
+                <div
+                  class="absolute top-0 bottom-0 left-[3.65rem] w-0.5 bg-[#313244]"
+                ></div>
+
+                <!-- Load earlier button -->
+                <template x-if="!timelineLoading && canLoadEarlier">
+                  <button
+                    @click="loadEarlierTimeline()"
+                    class="w-full py-2 text-xs text-tokyo-muted hover:text-tokyo-blue transition-colors flex items-center justify-center gap-1"
+                  >
+                    <span>↑</span>
+                    <span>Load earlier</span>
+                  </button>
+                </template>
+
                 <template x-if="timelineLoading">
                   <p class="text-sm text-tokyo-muted text-center py-3">
                     Loading timeline...
@@ -387,137 +302,152 @@
                 </template>
 
                 <template x-for="item in timelineItems" :key="item.id">
-                  <div>
+                  <div class="relative">
+                    <!-- Now marker (shown before first future item) -->
+                    <template x-if="item.showNowMarker">
+                      <div class="flex items-center py-2">
+                        <div class="w-14 shrink-0"></div>
+                        <div class="flex-1 flex items-center gap-2">
+                          <div class="h-0.5 w-8 bg-tokyo-red"></div>
+                          <span
+                            class="text-[10px] font-bold text-tokyo-red uppercase tracking-wider whitespace-nowrap"
+                            >Now <span x-text="formatTimeNow()"></span
+                          ></span>
+                          <div
+                            class="flex-1 h-0.5 bg-gradient-to-r from-tokyo-red to-transparent"
+                          ></div>
+                        </div>
+                      </div>
+                    </template>
+
                     <!-- Date separator -->
                     <template x-if="item.showDateSeparator">
                       <button
                         @click="openCalendarOnDate(item.date)"
-                        class="w-full flex items-center gap-3 my-4 group"
+                        class="w-full flex items-center py-2 group"
                       >
-                        <div class="flex-1 h-px bg-tokyo-panel"></div>
-                        <span
-                          class="text-xs text-tokyo-muted uppercase tracking-wide px-2 py-1 rounded hover:bg-tokyo-panel hover:text-tokyo-blue transition-colors"
-                        >
-                          <span x-text="formatDateSeparator(item.date)"></span>
-                        </span>
-                        <div class="flex-1 h-px bg-tokyo-panel"></div>
+                        <div class="w-14 shrink-0"></div>
+                        <div class="flex-1 flex items-center gap-2">
+                          <div class="h-px w-4 bg-tokyo-panel/60"></div>
+                          <span
+                            class="text-[10px] uppercase tracking-wide text-tokyo-text/60 group-hover:text-tokyo-blue transition-colors whitespace-nowrap"
+                            x-text="formatDateSeparator(item.date)"
+                          ></span>
+                          <div class="flex-1 h-px bg-tokyo-panel/40"></div>
+                        </div>
                       </button>
                     </template>
 
-                    <!-- Now marker (shown before first future item) -->
-                    <template x-if="item.showNowMarker">
-                      <div class="flex items-center gap-3 my-4">
-                        <div
-                          class="flex-1 h-0.5 bg-gradient-to-r from-tokyo-red to-transparent"
-                        ></div>
-                        <span
-                          class="text-xs font-semibold text-tokyo-red uppercase tracking-wider"
-                          >Now <span x-text="formatTimeNow()"></span
-                        ></span>
-                        <div
-                          class="flex-1 h-0.5 bg-gradient-to-l from-tokyo-red to-transparent"
-                        ></div>
-                      </div>
-                    </template>
-
-                    <!-- Timeline item -->
-                    <button
-                      @click="openTimelineItem(item)"
-                      class="w-full flex items-center gap-3 p-3 rounded-xl glass-strong hover:bg-tokyo-card/80 text-left transition-colors"
-                      :class="{ 'opacity-60': item.isPast }"
-                    >
-                      <!-- Time -->
+                    <!-- Timeline item: [TIME] [BULLET] [CARD] -->
+                    <div class="flex items-start py-0.5">
+                      <!-- Time (left of bullet) -->
                       <span
-                        class="text-xs font-medium w-12 shrink-0"
-                        :class="{
-                          'text-tokyo-muted': item.isPast,
-                          'text-tokyo-blue': !item.isPast && item.itemType === 'task',
-                          'text-green-400': !item.isPast && item.itemType === 'event'
-                        }"
+                        class="w-14 text-[10px] font-medium text-tokyo-text/50 text-right pr-1 pt-1.5 shrink-0"
                         x-text="formatTimelineTime(item)"
                       ></span>
 
-                      <!-- Status/Type indicator -->
+                      <!-- Bullet (centered on the vertical line) -->
                       <span
-                        class="w-4 h-4 shrink-0 flex items-center justify-center"
-                      >
-                        <!-- Completed checkmark -->
-                        <template x-if="item.status === 'completed'">
-                          <svg
-                            class="w-4 h-4 text-green-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M5 13l4 4L19 7"
-                            ></path>
-                          </svg>
-                        </template>
-                        <!-- Failed X -->
-                        <template x-if="item.status === 'failed'">
-                          <svg
-                            class="w-4 h-4 text-tokyo-red"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M6 18L18 6M6 6l12 12"
-                            ></path>
-                          </svg>
-                        </template>
-                        <!-- Running pulse -->
-                        <template x-if="item.status === 'running'">
-                          <span
-                            class="w-2 h-2 rounded-full bg-tokyo-red animate-pulse"
-                          ></span>
-                        </template>
-                        <!-- Pending/upcoming dot -->
-                        <template
-                          x-if="!['completed', 'failed', 'running'].includes(item.status)"
-                        >
-                          <span
-                            class="w-2 h-2 rounded-full"
-                            :class="{
-                              'bg-tokyo-blue': item.itemType === 'task',
-                              'bg-green-400': item.itemType === 'event',
-                              'bg-orange-400': item.itemType === 'reminder'
-                            }"
-                          ></span>
-                        </template>
-                      </span>
+                        class="w-2.5 h-2.5 rounded-full shrink-0 mt-1.5 relative z-10 ring-2 ring-tokyo-bg"
+                        :class="{
+                          'bg-green-400': item.status === 'completed',
+                          'bg-tokyo-red': item.status === 'failed',
+                          'bg-amber-400 animate-pulse': item.status === 'running',
+                          'bg-orange-400': item.itemType === 'task' && !['completed', 'failed', 'running'].includes(item.status),
+                          'bg-purple-400': item.itemType === 'event' && item.status !== 'completed'
+                        }"
+                      ></span>
 
-                      <!-- Content -->
-                      <div class="flex-1 min-w-0">
+                      <!-- Card -->
+                      <button
+                        @click="openTimelineItem(item)"
+                        class="flex-1 flex flex-col gap-0.5 px-2 py-1 ml-1.5 rounded-lg hover:bg-tokyo-card/60 text-left transition-colors max-w-sm"
+                        :class="{ 'opacity-60': item.isPast, 'bg-amber-500/10': item.status === 'running' }"
+                      >
+                        <!-- Title -->
                         <span
-                          class="text-sm truncate"
-                          :class="{ 'line-through': item.status === 'completed' }"
+                          class="text-xs font-medium text-tokyo-text/90 truncate"
+                          :class="{ 'line-through text-tokyo-text/50': item.status === 'completed' }"
                           x-text="item.title"
                         ></span>
-                      </div>
-
-                      <!-- Status/Type badge -->
-                      <span
-                        class="px-2 py-0.5 text-[10px] rounded uppercase tracking-wide"
-                        :class="{
-                          'bg-green-400/20 text-green-400': item.status === 'completed',
-                          'bg-tokyo-red/20 text-tokyo-red': item.status === 'failed' || item.status === 'running',
-                          'bg-tokyo-blue/20 text-tokyo-blue': !item.isPast && item.itemType === 'task' && !['completed', 'failed', 'running'].includes(item.status),
-                          'bg-green-400/20 text-green-400': !item.isPast && item.itemType === 'event' && item.status !== 'completed',
-                          'bg-tokyo-muted/20 text-tokyo-muted': item.isPast && item.itemType === 'event'
-                        }"
-                        x-text="item.status === 'completed' ? '✓ Done' : item.status === 'failed' ? '✗ Failed' : item.status === 'running' ? 'Running' : item.itemType"
-                      ></span>
-                    </button>
+                        <!-- Badges row -->
+                        <div class="flex items-center gap-1">
+                          <!-- Type badge (Task/Event) -->
+                          <span
+                            class="px-1 py-0.5 text-[9px] rounded font-medium"
+                            :class="{
+                              'bg-orange-400/20 text-orange-400': item.itemType === 'task',
+                              'bg-purple-400/20 text-purple-400': item.itemType === 'event'
+                            }"
+                            x-text="item.itemType === 'task' ? 'Task' : 'Event'"
+                          ></span>
+                          <!-- Trigger type for tasks -->
+                          <template
+                            x-if="item.itemType === 'task' && item.triggerType"
+                          >
+                            <span
+                              class="px-1 py-0.5 text-[9px] rounded font-medium"
+                              :class="{
+                                'bg-cyan-400/20 text-cyan-400': item.triggerType === 'recurring',
+                                'bg-blue-400/20 text-blue-400': item.triggerType === 'scheduled',
+                                'bg-tokyo-text/10 text-tokyo-text/60': item.triggerType === 'immediate'
+                              }"
+                              x-text="item.triggerType === 'recurring' ? '🔁' :
+                                      item.triggerType === 'scheduled' ? '📅' : '⚡'"
+                            ></span>
+                          </template>
+                          <!-- Status -->
+                          <span
+                            class="text-[9px]"
+                            :class="{
+                              'text-green-400': item.status === 'completed',
+                              'text-tokyo-red': item.status === 'failed',
+                              'text-tokyo-red': item.status === 'running',
+                              'text-tokyo-text/50': !['completed', 'failed', 'running'].includes(item.status)
+                            }"
+                            x-text="item.status === 'completed' ? '✓' :
+                                    item.status === 'failed' ? '✗' :
+                                    item.status === 'running' ? '●' :
+                                    item.status === 'pending' ? '○' : ''"
+                          ></span>
+                        </div>
+                      </button>
+                    </div>
                   </div>
                 </template>
+
+                <!-- Load later button -->
+                <template x-if="!timelineLoading && canLoadLater">
+                  <button
+                    @click="loadLaterTimeline()"
+                    class="w-full py-2 text-xs text-tokyo-muted hover:text-tokyo-blue transition-colors flex items-center justify-center gap-1"
+                  >
+                    <span>Load later</span>
+                    <span>↓</span>
+                  </button>
+                </template>
+              </div>
+
+              <!-- Legend -->
+              <div
+                class="flex items-center gap-4 mt-4 pt-3 border-t border-tokyo-panel/50"
+              >
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-orange-400"></span>
+                  <span class="text-[10px] text-tokyo-muted"
+                    >Task (pending)</span
+                  >
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                  <span class="text-[10px] text-tokyo-muted"
+                    >Calendar event</span
+                  >
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                  <span class="text-[10px] text-tokyo-muted">Completed</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1978,6 +1908,36 @@
             ></span>
           </button>
 
+          <!-- Connection status indicator -->
+          <div
+            class="flex items-center shrink-0"
+            title="WebSocket connection status"
+          >
+            <!-- Connected: subtle green dot -->
+            <span
+              x-show="$store.connection.status === 'connected'"
+              class="w-2 h-2 rounded-full bg-green-400/70"
+            ></span>
+            <!-- Reconnecting: yellow pulsing dot -->
+            <span
+              x-show="$store.connection.status === 'reconnecting'"
+              class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"
+            ></span>
+            <!-- Offline: red dot + reconnect button -->
+            <template x-if="$store.connection.status === 'offline'">
+              <div class="flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-red-400"></span>
+                <button
+                  @click="ws && ws.connect()"
+                  class="text-[10px] text-red-400 hover:text-red-300 transition-colors"
+                  title="Reconnect"
+                >
+                  Reconnect
+                </button>
+              </div>
+            </template>
+          </div>
+
           <button
             @click="openTab({ id: 'settings', type: 'settings', title: 'Settings', icon: '⚙️', closeable: true })"
             class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0"
@@ -3092,6 +3052,7 @@
     </div>
 
     <!-- App logic (must load before Alpine processes x-data) -->
+    <script src="js/stores.js"></script>
     <script src="js/ws-client.js"></script>
     <script src="js/chat-controls.js"></script>
     <script src="js/calendar.js"></script>

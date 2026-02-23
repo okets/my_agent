@@ -26,6 +26,9 @@ class NinaWebSocket {
       console.log("[WS] Connected");
       this.reconnectDelay = 1000; // Reset delay on successful connection
       this.reconnectAttempts = 0;
+      if (typeof Alpine !== "undefined" && Alpine.store("connection")) {
+        Alpine.store("connection").status = "connected";
+      }
       if (this.callbacks.onOpen) {
         this.callbacks.onOpen();
       }
@@ -34,6 +37,32 @@ class NinaWebSocket {
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+
+        // Handle state sync messages — update Alpine stores directly
+        if (typeof Alpine !== "undefined") {
+          switch (data.type) {
+            case "state:tasks":
+              if (Alpine.store("tasks")) {
+                Alpine.store("tasks").items = data.tasks || [];
+                Alpine.store("tasks").loading = false;
+              }
+              break;
+            case "state:calendar":
+              if (Alpine.store("calendar")) {
+                Alpine.store("calendar").events = data.events || [];
+                if (data.configs !== undefined) {
+                  Alpine.store("calendar").configs = data.configs;
+                }
+              }
+              break;
+            case "state:conversations":
+              if (Alpine.store("conversations")) {
+                Alpine.store("conversations").items = data.conversations || [];
+              }
+              break;
+          }
+        }
+
         if (this.callbacks.onMessage) {
           this.callbacks.onMessage(data);
         }
@@ -64,6 +93,9 @@ class NinaWebSocket {
         console.log(
           `[WS] Reconnecting in ${this.reconnectDelay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`,
         );
+        if (typeof Alpine !== "undefined" && Alpine.store("connection")) {
+          Alpine.store("connection").status = "reconnecting";
+        }
         setTimeout(() => this.connect(), this.reconnectDelay);
 
         // Exponential backoff: double delay, cap at 30s
@@ -73,6 +105,9 @@ class NinaWebSocket {
         );
       } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
         console.error("[WS] Max reconnect attempts reached. Giving up.");
+        if (typeof Alpine !== "undefined" && Alpine.store("connection")) {
+          Alpine.store("connection").status = "offline";
+        }
       }
     };
   }

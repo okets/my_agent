@@ -24,6 +24,7 @@ import type {
   TaskScheduler,
 } from "./tasks/index.js";
 import type { CalendarScheduler, NotificationService } from "@my-agent/core";
+import type { StatePublisher } from "./state/state-publisher.js";
 
 export interface ServerOptions {
   agentDir: string;
@@ -44,6 +45,7 @@ declare module "fastify" {
     taskScheduler: TaskScheduler | null;
     calendarScheduler: CalendarScheduler | null;
     notificationService: NotificationService | null;
+    statePublisher: StatePublisher | null;
   }
 }
 
@@ -106,6 +108,7 @@ export async function createServer(
   fastify.decorate("taskScheduler", null);
   fastify.decorate("calendarScheduler", null);
   fastify.decorate("notificationService", null);
+  fastify.decorate("statePublisher", null);
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);

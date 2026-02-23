@@ -408,6 +408,9 @@ export async function registerCalendarRoutes(
         const calendars = await client.listCalendars();
         const cal = calendars.find((c: Calendar) => c.id === calendarId);
 
+        // Broadcast updated calendar state
+        fastify.statePublisher?.publishCalendar();
+
         return toFullCalendarEvent(created, cal?.color ?? "blue");
       } catch (err) {
         fastify.log.error(`Failed to create event: ${err}`);
@@ -483,6 +486,9 @@ export async function registerCalendarRoutes(
         editMode,
       );
 
+      // Broadcast updated calendar state
+      fastify.statePublisher?.publishCalendar();
+
       const cal = calendars.find((c: Calendar) => c.id === targetCalendarId);
       return toFullCalendarEvent(updated, cal?.color ?? "blue");
     } catch (err) {
@@ -540,6 +546,10 @@ export async function registerCalendarRoutes(
 
     try {
       await client.deleteEvent(targetCalendarId, uid, editMode);
+
+      // Broadcast updated calendar state
+      fastify.statePublisher?.publishCalendar();
+
       return { success: true };
     } catch (err) {
       fastify.log.error(`Failed to delete event: ${err}`);

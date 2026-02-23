@@ -81,7 +81,9 @@ export async function testMultiStepTask(): Promise<TestResult> {
 
   console.log(`  Task created: ${task.id} - ${task.title}`);
   console.log(`  Work items: ${JSON.stringify(task.work) || "(none)"}`);
-  console.log(`  Delivery actions: ${JSON.stringify(task.delivery) || "(none)"}`);
+  console.log(
+    `  Delivery actions: ${JSON.stringify(task.delivery) || "(none)"}`,
+  );
   console.log(
     `  Task instructions: ${task.instructions?.substring(0, 100)}...`,
   );

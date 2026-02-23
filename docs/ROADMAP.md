@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-02-22
+> **Updated:** 2026-02-23
 
 ---
 
@@ -14,7 +14,7 @@
 | **M3: WhatsApp Channel**     | Complete | 3/3 sprints                  |
 | **M4: Notebook System**      | Complete | 2/2 sprints                  |
 | **M4.5: Calendar System**    | Complete | 5/5 sprints                  |
-| **M5: Task System**          | Active   | 9/10 sprints                 |
+| **M5: Task System**          | Complete | 10/10 sprints                |
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Planned  | Design complete, sprints TBD |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
@@ -31,9 +31,8 @@
 ├─────────────────────────────────────────────────────────────────────►
 
 M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6+ Future
-[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [█████████░]     [░░░░░░░░░░]
-   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         ACTIVE           PLANNED
-                                                                                   (S10=Live UI)
+[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [░░░░░░░░░░]
+   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         PLANNED
                                                                                                      M6 Memory
                                                                                                      M7 Coding Projects
                                                                                                      M8 Ops Dashboard
@@ -198,7 +197,7 @@ Unified calendar replaces scattered time-aware concepts (reminders.md, cron sche
 
 ---
 
-### M5: Task System — ACTIVE
+### M5: Task System — COMPLETE
 
 Tasks as first-class entities with execution logs, autonomous work alongside interactive conversations. Includes `notebook_edit` tool for Nina to manage her own standing orders.
 
@@ -218,7 +217,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 | S7     | Request/Input Blocking    | Deferred | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
 | S8     | E2E Task Flow             | Complete | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | —                                                           |
 | S9     | Work + Deliverable        | Complete | [plan](sprints/m5-s9-task-steps/plan.md)                | [review](sprints/m5-s9-task-steps/review.md)                |
-| S10    | Live Dashboard            | Planned  | [plan](sprints/m5-s10-live-dashboard/plan.md)           | —                                                           |
+| S10    | Live Dashboard            | Complete | [plan](sprints/m5-s10-live-dashboard/plan.md)           | [review](sprints/m5-s10-live-dashboard/review.md)           |
 
 **Deliverables:**
 
@@ -231,7 +230,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 - _(S7)_ _(Deferred)_ Request/input blocking for interactive task execution
 - _(S8)_ Brain skill loading fix, TaskProcessor (immediate), TaskScheduler (scheduled), result delivery to conversation, E2E tests
 - _(S9)_ Work + Deliverable architecture: typed WorkPlan with `<deliverable>` XML tags, DeliveryExecutor, channel-aware constraints, validation gate. Clean channel delivery — work output stays internal, only validated deliverables reach recipients. **Plus:** Unified homepage timeline (Active Now + Timeline), past 24h visibility, bidirectional Task↔CalendarEvent linking. Design spec for full navigable timeline (M5-S10).
-- _(S10)_ _(Planned)_ Live Dashboard: State push via WebSocket, Alpine stores for reactive UI, connection status indicator, task results appear without refresh. See [design/live-dashboard.md](design/live-dashboard.md).
+- _(S10)_ Live Dashboard: State push via WebSocket, Alpine stores for reactive UI, connection status indicator, task results appear without refresh. Homepage polish: timeline connecting line, time-left-of-bullets layout, trigger type badges, Active Now merged into timeline at NOW cluster. See [design/live-dashboard.md](design/live-dashboard.md).
 
 **Philosophy:**
 
@@ -269,12 +268,12 @@ Notebook memory with flexible user-defined lists, daily summaries, semantic sear
 
 **Embedding Architecture:**
 
-| Component | Choice | Notes |
-|-----------|--------|-------|
-| Embedding runtime | node-llama-cpp | GPU support (CUDA/Metal/Vulkan), no PyTorch needed |
-| Default model | embeddinggemma-300M or nomic-embed | Small, fast on CPU, auto-download GGUF |
-| Vector storage | sqlite-vec | In-DB vector queries, no JS loop |
-| Search strategy | Hybrid (FTS5 + vector) | BM25 for exact tokens, vector for semantic |
+| Component         | Choice                             | Notes                                              |
+| ----------------- | ---------------------------------- | -------------------------------------------------- |
+| Embedding runtime | node-llama-cpp                     | GPU support (CUDA/Metal/Vulkan), no PyTorch needed |
+| Default model     | embeddinggemma-300M or nomic-embed | Small, fast on CPU, auto-download GGUF             |
+| Vector storage    | sqlite-vec                         | In-DB vector queries, no JS loop                   |
+| Search strategy   | Hybrid (FTS5 + vector)             | BM25 for exact tokens, vector for semantic         |
 
 **Constraint:** Local models only — no external API subscriptions beyond Anthropic.
 
@@ -424,9 +423,9 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                  M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete through M4.5, M5 active with S10 remaining)
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete) → M6 Memory
 
-**M5-S10 delivers live UI:** State push via WebSocket, reactive Alpine stores. Fixes task results not appearing without refresh.
+**M5 complete (10/10 sprints).** Next: M6 Memory System.
 
 **M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
 
@@ -450,9 +449,9 @@ Requirements that must be complete before public release, regardless of mileston
 
 Ideas that haven't been promoted to design specs yet.
 
-| Idea                         | Status              | Path                                                                         |
-| ---------------------------- | ------------------- | ---------------------------------------------------------------------------- |
-| Agent Teams for Ad-hoc Tasks | Deferred to M5      | [ideas/agent-teams-for-adhoc-tasks.md](ideas/agent-teams-for-adhoc-tasks.md) |
+| Idea                         | Status                                   | Path                                                                         |
+| ---------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------- |
+| Agent Teams for Ad-hoc Tasks | Deferred to M5                           | [ideas/agent-teams-for-adhoc-tasks.md](ideas/agent-teams-for-adhoc-tasks.md) |
 | Multi-Step Tasks             | Evolved → M5-S9 (v2: Work + Deliverable) | [ideas/multi-step-tasks.md](ideas/multi-step-tasks.md)                       |
 
 ---
@@ -461,14 +460,14 @@ Ideas that haven't been promoted to design specs yet.
 
 Long-term features beyond the current milestone plan. Not scheduled, not designed — just captured for future consideration.
 
-| Feature                        | Description                                               | Notes                                                               |
-| ------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------- |
-| **External Calendar Channels** | Google Calendar, Apple iCloud, Outlook as channel plugins | Each with own OAuth/auth flow, modeled like WhatsApp/Email channels |
-| **Mobile Dashboard**           | Responsive web UI optimized for mobile browsers           | Calendar list view, chat interface, quick actions                   |
-| **iOS App**                    | Native iOS app for Nina                                   | Push notifications, Siri integration, widget support                |
-| **Mid-session Intervention**   | Send input to running Claude Code sessions                | Depends on Claude Code supporting message injection (steer)         |
+| Feature                        | Description                                               | Notes                                                                        |
+| ------------------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **External Calendar Channels** | Google Calendar, Apple iCloud, Outlook as channel plugins | Each with own OAuth/auth flow, modeled like WhatsApp/Email channels          |
+| **Mobile Dashboard**           | Responsive web UI optimized for mobile browsers           | Calendar list view, chat interface, quick actions                            |
+| **iOS App**                    | Native iOS app for Nina                                   | Push notifications, Siri integration, widget support                         |
+| **Mid-session Intervention**   | Send input to running Claude Code sessions                | Depends on Claude Code supporting message injection (steer)                  |
 | **Voice Output (TTS)**         | Give Nina a voice using text-to-speech                    | Evaluate Qwen 3 TTS — open, sounds good, need to test near real-time latency |
-| **Voice Input (STT)**          | Let Nina understand voice via speech-to-text              | Web UI + WhatsApp channels; STT model for voice message transcription |
+| **Voice Input (STT)**          | Let Nina understand voice via speech-to-text              | Web UI + WhatsApp channels; STT model for voice message transcription        |
 
 ---
 

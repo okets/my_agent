@@ -2,7 +2,7 @@
 
 > **Milestone:** M5 — Task System
 > **Sprint:** S10 of 10 (final sprint)
-> **Status:** Planned
+> **Status:** COMPLETE
 > **Goal:** Task results appear without refresh — state push via WebSocket, reactive Alpine stores
 > **Design Spec:** [live-dashboard.md](../../design/live-dashboard.md)
 
@@ -17,6 +17,7 @@ When Nina executes a task, the result is delivered via `chat:turn` WebSocket eve
 ## Solution
 
 **Data binding via state push:**
+
 - Backend pushes full state arrays on changes
 - Frontend Alpine stores receive state
 - UI reactively renders from stores
@@ -31,6 +32,7 @@ When Nina executes a task, the result is delivered via `chat:turn` WebSocket eve
 **Then:** Result message appears immediately in chat without refresh
 
 **Secondary:**
+
 - Open dashboard in two tabs → create task in one → other tab updates automatically
 - Network disconnect → visual indicator shows "Reconnecting..." → state syncs on reconnect
 
@@ -46,10 +48,10 @@ Create service that wraps `connectionRegistry.broadcastToAll()`:
 
 ```typescript
 interface StatePublisher {
-  publishTasks(): Promise<void>       // Broadcast all tasks
-  publishCalendar(): Promise<void>    // Broadcast all calendar events
-  publishConversations(): Promise<void> // Broadcast conversation metadata
-  publishAllTo(socket: WebSocket): Promise<void> // Initial state for new connection
+  publishTasks(): Promise<void>; // Broadcast all tasks
+  publishCalendar(): Promise<void>; // Broadcast all calendar events
+  publishConversations(): Promise<void>; // Broadcast conversation metadata
+  publishAllTo(socket: WebSocket): Promise<void>; // Initial state for new connection
 }
 ```
 
@@ -64,9 +66,13 @@ Add state message types:
 
 ```typescript
 type StateMessage =
-  | { type: 'state:tasks'; tasks: Task[]; timestamp: number }
-  | { type: 'state:calendar'; events: CalendarEvent[]; timestamp: number }
-  | { type: 'state:conversations'; conversations: ConversationMetadata[]; timestamp: number }
+  | { type: "state:tasks"; tasks: Task[]; timestamp: number }
+  | { type: "state:calendar"; events: CalendarEvent[]; timestamp: number }
+  | {
+      type: "state:conversations";
+      conversations: ConversationMetadata[];
+      timestamp: number;
+    };
 ```
 
 ### 3. Alpine Stores (Frontend)
@@ -76,10 +82,10 @@ type StateMessage =
 Replace monolithic `data()` with reactive stores:
 
 ```javascript
-Alpine.store('tasks', { items: [], loading: false })
-Alpine.store('calendar', { events: [], configs: [] })
-Alpine.store('conversations', { items: [] })
-Alpine.store('connection', { status: 'connected' }) // 'connected' | 'reconnecting' | 'offline'
+Alpine.store("tasks", { items: [], loading: false });
+Alpine.store("calendar", { events: [], configs: [] });
+Alpine.store("conversations", { items: [] });
+Alpine.store("connection", { status: "connected" }); // 'connected' | 'reconnecting' | 'offline'
 ```
 
 ### 4. WebSocket Client Update
@@ -100,6 +106,7 @@ case 'state:conversations':
 ### 5. Hook StatePublisher into CRUD Operations
 
 **Files to modify:**
+
 - `packages/dashboard/src/tasks/task-manager.ts` — call `statePublisher.publishTasks()` after create/update/delete
 - `packages/dashboard/src/routes/tasks.ts` — ensure POST/PUT/DELETE trigger publish
 - `packages/dashboard/src/ws/chat-handler.ts` — publish after conversation changes
@@ -110,6 +117,7 @@ case 'state:conversations':
 **File:** `packages/dashboard/public/index.html`
 
 Add visual indicator in header:
+
 - **Connected** — Green dot (subtle)
 - **Reconnecting** — Yellow pulsing indicator
 - **Offline** — Red indicator with reconnect button
@@ -124,17 +132,17 @@ On new WebSocket connection, call `statePublisher.publishAllTo(socket)` to send 
 
 ## File Changes Summary
 
-| File | Change |
-|------|--------|
-| `packages/dashboard/src/state/state-publisher.ts` | **NEW** — StatePublisher service |
-| `packages/dashboard/src/ws/protocol.ts` | Add `state:*` message types |
-| `packages/dashboard/public/js/stores.js` | **NEW** — Alpine stores |
-| `packages/dashboard/public/js/ws-client.js` | Handle state messages, update stores |
-| `packages/dashboard/public/index.html` | Connection status UI, use stores |
-| `packages/dashboard/src/tasks/task-manager.ts` | Call statePublisher after mutations |
-| `packages/dashboard/src/routes/tasks.ts` | Ensure publish on CRUD |
-| `packages/dashboard/src/ws/chat-handler.ts` | Publish on conversation changes, initial state |
-| `packages/dashboard/src/scheduler/calendar-scheduler.ts` | Publish after calendar sync |
+| File                                                     | Change                                         |
+| -------------------------------------------------------- | ---------------------------------------------- |
+| `packages/dashboard/src/state/state-publisher.ts`        | **NEW** — StatePublisher service               |
+| `packages/dashboard/src/ws/protocol.ts`                  | Add `state:*` message types                    |
+| `packages/dashboard/public/js/stores.js`                 | **NEW** — Alpine stores                        |
+| `packages/dashboard/public/js/ws-client.js`              | Handle state messages, update stores           |
+| `packages/dashboard/public/index.html`                   | Connection status UI, use stores               |
+| `packages/dashboard/src/tasks/task-manager.ts`           | Call statePublisher after mutations            |
+| `packages/dashboard/src/routes/tasks.ts`                 | Ensure publish on CRUD                         |
+| `packages/dashboard/src/ws/chat-handler.ts`              | Publish on conversation changes, initial state |
+| `packages/dashboard/src/scheduler/calendar-scheduler.ts` | Publish after calendar sync                    |
 
 ---
 
@@ -155,17 +163,25 @@ On new WebSocket connection, call `statePublisher.publishAllTo(socket)` to send 
 - Delta updates (full state push is fine at current scale)
 - Per-topic subscriptions (all clients get all state)
 - Offline queue (requires service worker)
-- Navigable Timeline UI redesign (deferred to future work)
+
+## Added Scope (CTO Review)
+
+Homepage polish iteration based on CTO feedback:
+
+- Timeline visual refinements (connecting line, time placement, consistent gaps)
+- Task trigger type badges (recurring/scheduled/immediate)
+- Merged Active Now into timeline as NOW cluster
+- Removed external conversations section
 
 ---
 
 ## Risks
 
-| Risk | Mitigation |
-|------|------------|
-| Event storms on bulk ops | Debounce publishes (100ms batch window) |
-| Race conditions | Timestamp on messages; frontend uses latest |
-| Large state payloads | Acceptable at current scale; add pagination later |
+| Risk                       | Mitigation                                                          |
+| -------------------------- | ------------------------------------------------------------------- |
+| Event storms on bulk ops   | Debounce publishes (100ms batch window)                             |
+| Race conditions            | Timestamp on messages; frontend uses latest                         |
+| Large state payloads       | Acceptable at current scale; add pagination later                   |
 | Breaking existing handlers | Keep existing event handlers alongside state push during transition |
 
 ---
@@ -177,4 +193,4 @@ On new WebSocket connection, call `statePublisher.publishAllTo(socket)` to send 
 
 ---
 
-*Created: 2026-02-22*
+_Created: 2026-02-22_

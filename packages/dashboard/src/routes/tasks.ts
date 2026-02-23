@@ -297,6 +297,9 @@ export async function registerTaskRoutes(
       taskProcessor.onTaskCreated(task);
     }
 
+    // Broadcast updated task list
+    fastify.statePublisher?.publishTasks();
+
     return reply.code(201).send(toResponse(task));
   });
 
@@ -338,6 +341,9 @@ export async function registerTaskRoutes(
       taskManager.linkTaskToConversation(request.params.id, conversationId);
     }
 
+    // Broadcast updated task list
+    fastify.statePublisher?.publishTasks();
+
     const updated = taskManager.findById(request.params.id)!;
     return toResponse(updated);
   });
@@ -372,6 +378,9 @@ export async function registerTaskRoutes(
       taskManager.linkTaskToConversation(request.params.id, conversationId);
     }
 
+    // Broadcast updated task list
+    fastify.statePublisher?.publishTasks();
+
     const updated = taskManager.findById(request.params.id)!;
     return toResponse(updated);
   });
@@ -402,6 +411,9 @@ export async function registerTaskRoutes(
     }
 
     taskManager.delete(request.params.id);
+
+    // Broadcast updated task list
+    fastify.statePublisher?.publishTasks();
 
     return { success: true, message: "Task soft-deleted" };
   });

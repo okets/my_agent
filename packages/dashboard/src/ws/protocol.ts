@@ -168,7 +168,62 @@ export type ServerMessage =
       type: "notification_list";
       notifications: NotificationPayload[];
       pendingCount: number;
+    }
+  // State sync — full collection snapshots pushed to all connected clients
+  | { type: "state:tasks"; tasks: TaskSnapshot[]; timestamp: number }
+  | {
+      type: "state:calendar";
+      events: CalendarEventSnapshot[];
+      timestamp: number;
+    }
+  | {
+      type: "state:conversations";
+      conversations: ConversationMeta[];
+      timestamp: number;
     };
+
+// ─── State Sync Messages ───────────────────────────────────────────────────
+//
+// Server pushes full snapshots of entity collections to all connected clients.
+// These are used for live dashboard panels (Tasks, Calendar, Conversations).
+
+export interface TaskSnapshot {
+  id: string;
+  type: string;
+  sourceType: string;
+  sourceRef?: string;
+  title: string;
+  instructions: string;
+  work?: unknown[];
+  delivery?: unknown[];
+  status: string;
+  sessionId: string;
+  recurrenceId?: string;
+  occurrenceDate?: string;
+  scheduledFor?: string;
+  startedAt?: string;
+  completedAt?: string;
+  deletedAt?: string;
+  created: string;
+  createdBy: string;
+}
+
+export interface CalendarEventSnapshot {
+  uid: string;
+  calendarId: string;
+  title: string;
+  description?: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  rrule?: string;
+  status: string;
+  transparency: string;
+  location?: string;
+  taskId?: string;
+  taskType?: string;
+  action?: string;
+}
 
 // Notification payload for WebSocket transport
 export interface NotificationPayload {
