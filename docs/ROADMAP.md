@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-02-23
+> **Updated:** 2026-02-24
 
 ---
 
@@ -10,7 +10,7 @@
 | Milestone                    | Status   | Progress                     |
 | ---------------------------- | -------- | ---------------------------- |
 | **M1: Foundation**           | Complete | 4/4 sprints                  |
-| **M2: Web UI**               | Complete | 6/6 sprints                  |
+| **M2: Web UI**               | Complete | 7/7 sprints                  |
 | **M3: WhatsApp Channel**     | Complete | 3/3 sprints                  |
 | **M4: Notebook System**      | Complete | 2/2 sprints                  |
 | **M4.5: Calendar System**    | Complete | 5/5 sprints                  |
@@ -77,6 +77,7 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 | S4     | Conversations          | Complete | [plan](sprints/m2-s4-conversations/plan.md)     | [review](sprints/m2-s4-conversations/review.md)     |
 | S5     | Naming                 | Complete | [plan](sprints/m2-s5-naming/plan.md)            | [review](sprints/m2-s5-naming/review.md)            |
 | S6     | Advanced Chat Features | Complete | [plan](sprints/m2-s6-advanced-features/plan.md) | [review](sprints/m2-s6-advanced-features/review.md) |
+| S7     | Responsive Mobile      | Complete | [plan](sprints/m2-s7-responsive-mobile/plan.md) | [review](sprints/m2-s7-responsive-mobile/review.md) |
 
 **Design specs:**
 
@@ -91,6 +92,7 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 - Auto-naming at turn 5 + periodic re-naming on idle
 - _(S6)_ Conversation deletion, per-conversation model selection
 - _(S6)_ Extended thinking toggle, file attachments (images + text)
+- _(S7)_ Responsive mobile layout: breakpoint system, Alpine mobile store, swipe-dismissable popovers (task detail, calendar, settings, notebook, notifications), mini calendar with day agenda, inline task actions
 
 ---
 
@@ -390,6 +392,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Task System          | Complete | M5          | [design/task-system.md](design/task-system.md)                   |
 | Task Delivery (v2)   | Approved | M5          | [design/task-steps.md](design/task-steps.md)                     |
 | Live Dashboard       | Complete | M5-S10      | [design/live-dashboard.md](design/live-dashboard.md)             |
+| Mobile Layout        | Complete | M2-S7       | [design/mobile-layout-spec.md](design/mobile-layout-spec.md)     |
 | Navigable Timeline   | Deferred | Post-M5     | [design/navigable-timeline.md](design/navigable-timeline.md)     |
 | Memory               | Complete | M6          | [design/memory-system.md](design/memory-system.md)               |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
@@ -463,7 +466,7 @@ Long-term features beyond the current milestone plan. Not scheduled, not designe
 | Feature                        | Description                                               | Notes                                                                        |
 | ------------------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | **External Calendar Channels** | Google Calendar, Apple iCloud, Outlook as channel plugins | Each with own OAuth/auth flow, modeled like WhatsApp/Email channels          |
-| **Mobile Dashboard**           | Responsive web UI optimized for mobile browsers           | Calendar list view, chat interface, quick actions                            |
+| **Mobile Dashboard (Phase 2)** | Advanced mobile features: bottom sheet chat, keyboard handling, accessibility | M2-S7 delivered foundation; remaining: peek/half/full chat, safe areas, a11y |
 | **iOS App**                    | Native iOS app for Nina                                   | Push notifications, Siri integration, widget support                         |
 | **Mid-session Intervention**   | Send input to running Claude Code sessions                | Depends on Claude Code supporting message injection (steer)                  |
 | **Voice Output (TTS)**         | Give Nina a voice using text-to-speech                    | Evaluate Qwen 3 TTS — open, sounds good, need to test near real-time latency |
@@ -556,4 +559,4 @@ After completion:
 
 ---
 
-_Updated: 2026-02-22_
+_Updated: 2026-02-24_

@@ -5,6 +5,7 @@ import fastifyWebSocket from "@fastify/websocket";
 import fastifyMultipart from "@fastify/multipart";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import { registerChatWebSocket } from "./ws/chat-handler.js";
 import { registerHatchingRoutes } from "./routes/hatching.js";
 import { registerChannelRoutes } from "./routes/channels.js";
@@ -82,10 +83,31 @@ export async function createServer(
   // Register multipart/form-data support for file uploads
   await fastify.register(fastifyMultipart);
 
-  // Serve static files from public/ directory
+  // Generate build version from git hash (falls back to startup timestamp)
+  let buildVersion: string;
+  try {
+    buildVersion = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+      encoding: "utf-8",
+    }).trim();
+  } catch {
+    buildVersion = Date.now().toString(36);
+  }
+  fastify.log.info(`Build version: ${buildVersion}`);
+
+  // Serve index.html with build version injected (replaces __BUILD_VERSION__)
+  const publicDir = join(import.meta.dirname, "../public");
+  fastify.get("/", async (_request, reply) => {
+    const html = await readFile(join(publicDir, "index.html"), "utf-8");
+    return reply
+      .type("text/html")
+      .send(html.replaceAll("__BUILD_VERSION__", buildVersion));
+  });
+
+  // Serve static files from public/ directory (index: false — / is handled by custom route above)
   await fastify.register(fastifyStatic, {
-    root: join(import.meta.dirname, "../public"),
+    root: publicDir,
     prefix: "/",
+    index: false,
   });
 
   // Serve attachments from {agentDir}/conversations/
