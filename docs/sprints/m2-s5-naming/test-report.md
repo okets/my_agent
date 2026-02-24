@@ -307,7 +307,7 @@ Verified by sidebar showing title after page navigation.
 
 ## CTO Verification (10:30+ UTC)
 
-**Tester:** CTO (Hanan), manual testing from LAN (10.10.10.12:4321)
+**Tester:** CTO, manual testing from LAN (localhost:4321)
 
 ### Augmentation Features Verified
 

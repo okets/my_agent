@@ -1,0 +1,14 @@
+{
+  "name": "memory-validation",
+  "type": "module",
+  "scripts": {
+    "test:sqlite-vec": "node test-sqlite-vec.js",
+    "test:embeddings": "node test-embeddings.js",
+    "test:all": "node test-all.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "sqlite-vec": "^0.1.6",
+    "node-llama-cpp": "^3.16.2"
+  }
+}
