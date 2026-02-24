@@ -9,7 +9,7 @@ import { mkdir, readFile, writeFile, copyFile, access } from 'fs/promises'
 import { join, dirname } from 'path'
 import { existsSync } from 'fs'
 
-const NOTEBOOK_FOLDERS = ['lists', 'reference', 'knowledge', 'daily']
+const NOTEBOOK_FOLDERS = ['operations', 'lists', 'reference', 'knowledge', 'daily']
 
 /**
  * Initialize the notebook directory structure.

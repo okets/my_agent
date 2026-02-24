@@ -1186,6 +1186,37 @@
                       ></option>
                     </template>
                   </select>
+
+                  <!-- Ollama host input (shown when Ollama selected) -->
+                  <template
+                    x-if="selectedEmbeddingsPlugin === 'embeddings-ollama'"
+                  >
+                    <div class="mt-3">
+                      <label class="block text-xs text-tokyo-muted mb-1"
+                        >Ollama Server URL</label
+                      >
+                      <div class="flex gap-2">
+                        <input
+                          type="text"
+                          x-model="ollamaHost"
+                          placeholder="http://localhost:11434"
+                          class="flex-1 bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text placeholder-tokyo-muted focus:outline-none focus:border-tokyo-blue/50 transition-colors"
+                        />
+                        <button
+                          @click="activateEmbeddingsPlugin()"
+                          :disabled="embeddingsActivating"
+                          class="px-3 py-2 rounded-lg font-medium text-xs transition-all disabled:opacity-50 bg-tokyo-blue/15 text-tokyo-blue hover:bg-tokyo-blue/25"
+                        >
+                          Connect
+                        </button>
+                      </div>
+                      <p class="text-[10px] text-tokyo-muted mt-1">
+                        Ensure Ollama is running with an embedding model (e.g.,
+                        nomic-embed-text)
+                      </p>
+                    </div>
+                  </template>
+
                   <p
                     x-show="embeddingsActivating"
                     class="text-xs text-tokyo-blue mt-2"
@@ -1197,6 +1228,43 @@
                     x-text="embeddingsError"
                     class="text-xs text-tokyo-red mt-2"
                   ></p>
+
+                  <!-- Active plugin info panel -->
+                  <template x-if="memoryStatus?.embeddings?.active">
+                    <div
+                      class="mt-3 p-3 rounded-lg bg-tokyo-green/5 border border-tokyo-green/20"
+                    >
+                      <div class="flex items-center gap-2 mb-2">
+                        <div class="w-2 h-2 rounded-full bg-tokyo-green"></div>
+                        <span class="text-xs font-medium text-tokyo-green"
+                          >Active</span
+                        >
+                      </div>
+                      <div class="space-y-1 text-xs">
+                        <div class="flex justify-between">
+                          <span class="text-tokyo-muted">Plugin</span>
+                          <span
+                            class="text-tokyo-text"
+                            x-text="memoryStatus.embeddings.active.name"
+                          ></span>
+                        </div>
+                        <div class="flex justify-between">
+                          <span class="text-tokyo-muted">Model</span>
+                          <span
+                            class="text-tokyo-text"
+                            x-text="memoryStatus.embeddings.active.model"
+                          ></span>
+                        </div>
+                        <div class="flex justify-between">
+                          <span class="text-tokyo-muted">Dimensions</span>
+                          <span
+                            class="text-tokyo-text"
+                            x-text="memoryStatus.embeddings.active.dimensions || 'Unknown'"
+                          ></span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
                 </div>
 
                 <!-- Rebuild button -->
@@ -4455,6 +4523,129 @@
                     </div>
                   </template>
                 </div>
+              </div>
+
+              <!-- Memory section (mobile) -->
+              <div class="glass-strong rounded-xl p-4">
+                <h3 class="text-sm font-semibold text-tokyo-text mb-3">
+                  Memory
+                </h3>
+
+                <!-- Index status -->
+                <div class="grid grid-cols-2 gap-2 mb-4 text-xs">
+                  <div class="p-2 rounded bg-tokyo-card/30">
+                    <div class="text-tokyo-muted">Files indexed</div>
+                    <div
+                      class="text-tokyo-text font-medium"
+                      x-text="memoryStatus?.index?.filesIndexed ?? '—'"
+                    ></div>
+                  </div>
+                  <div class="p-2 rounded bg-tokyo-card/30">
+                    <div class="text-tokyo-muted">Chunks</div>
+                    <div
+                      class="text-tokyo-text font-medium"
+                      x-text="memoryStatus?.index?.totalChunks ?? '—'"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- Embeddings plugin selector -->
+                <label class="block text-xs text-tokyo-muted mb-1"
+                  >Embeddings Plugin</label
+                >
+                <select
+                  x-model="selectedEmbeddingsPlugin"
+                  @change="activateEmbeddingsPlugin()"
+                  class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text mb-2"
+                >
+                  <option value="none">Disabled (FTS only)</option>
+                  <template
+                    x-for="plugin in memoryStatus?.embeddings?.available || []"
+                    :key="plugin.id"
+                  >
+                    <option
+                      :value="plugin.id"
+                      x-text="plugin.name + ' (' + plugin.model + ')'"
+                    ></option>
+                  </template>
+                </select>
+
+                <!-- Ollama host (shown when Ollama selected) -->
+                <template
+                  x-if="selectedEmbeddingsPlugin === 'embeddings-ollama'"
+                >
+                  <div class="mb-3">
+                    <label class="block text-xs text-tokyo-muted mb-1"
+                      >Ollama Server</label
+                    >
+                    <div class="flex gap-2">
+                      <input
+                        type="text"
+                        x-model="ollamaHost"
+                        placeholder="http://localhost:11434"
+                        class="flex-1 bg-tokyo-card border border-white/10 rounded-lg px-2 py-1.5 text-xs text-tokyo-text"
+                      />
+                      <button
+                        @click="activateEmbeddingsPlugin()"
+                        :disabled="embeddingsActivating"
+                        class="px-2 py-1.5 rounded-lg text-xs bg-tokyo-blue/15 text-tokyo-blue"
+                      >
+                        Connect
+                      </button>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Status messages -->
+                <p
+                  x-show="embeddingsActivating"
+                  class="text-xs text-tokyo-blue mb-2"
+                >
+                  Activating...
+                </p>
+                <p
+                  x-show="embeddingsError"
+                  x-text="embeddingsError"
+                  class="text-xs text-tokyo-red mb-2"
+                ></p>
+
+                <!-- Active plugin info -->
+                <template x-if="memoryStatus?.embeddings?.active">
+                  <div
+                    class="p-2 rounded bg-tokyo-green/5 border border-tokyo-green/20 mb-3"
+                  >
+                    <div class="flex items-center gap-1.5 mb-1">
+                      <div
+                        class="w-1.5 h-1.5 rounded-full bg-tokyo-green"
+                      ></div>
+                      <span class="text-[10px] font-medium text-tokyo-green"
+                        >Active</span
+                      >
+                    </div>
+                    <div class="text-[10px] text-tokyo-muted">
+                      <span x-text="memoryStatus.embeddings.active.name"></span>
+                      •
+                      <span
+                        x-text="memoryStatus.embeddings.active.model"
+                      ></span>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Rebuild button -->
+                <button
+                  @click="rebuildMemoryIndex()"
+                  :disabled="memoryRebuilding"
+                  class="w-full text-xs px-3 py-2 rounded-lg font-medium transition-all disabled:opacity-50 bg-tokyo-card/50 text-tokyo-text hover:bg-tokyo-card"
+                >
+                  <span x-show="!memoryRebuilding">Rebuild Index</span>
+                  <span x-show="memoryRebuilding">Rebuilding...</span>
+                </button>
+                <p
+                  x-show="memoryRebuildResult"
+                  x-text="memoryRebuildResult"
+                  class="text-[10px] text-tokyo-green mt-1"
+                ></p>
               </div>
             </div>
           </template>

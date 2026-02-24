@@ -163,6 +163,7 @@ function chat() {
     // ─────────────────────────────────────────────────────────────────
     memoryStatus: null, // { index, embeddings }
     selectedEmbeddingsPlugin: "none",
+    ollamaHost: "http://localhost:11434", // Ollama server URL for embeddings
     embeddingsActivating: false,
     embeddingsError: null,
     memoryRebuilding: false,
@@ -3569,10 +3570,16 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       this.embeddingsError = null;
 
       try {
+        // Build request body with optional ollamaHost for Ollama plugin
+        const body = { pluginId: this.selectedEmbeddingsPlugin };
+        if (this.selectedEmbeddingsPlugin === "embeddings-ollama") {
+          body.ollamaHost = this.ollamaHost;
+        }
+
         const res = await fetch("/api/memory/embeddings/activate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pluginId: this.selectedEmbeddingsPlugin }),
+          body: JSON.stringify(body),
         });
 
         const data = await res.json();

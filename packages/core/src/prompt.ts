@@ -142,6 +142,61 @@ async function loadNotebookReference(agentDir: string): Promise<string | null> {
 }
 
 /**
+ * Load all files from notebook/operations/ directory.
+ * These are Nina's operational rules (standing orders, external communications).
+ * Returns formatted sections up to MAX_REFERENCE_TOTAL_CHARS total.
+ */
+async function loadNotebookOperations(agentDir: string): Promise<string | null> {
+  const operationsDir = path.join(agentDir, 'notebook', 'operations')
+
+  if (!existsSync(operationsDir)) {
+    return null
+  }
+
+  let entries: string[]
+  try {
+    entries = await readdir(operationsDir)
+  } catch {
+    return null
+  }
+
+  const sections: string[] = []
+  let totalChars = 0
+
+  // Sort entries for consistent ordering
+  for (const entry of entries.sort()) {
+    if (!entry.endsWith('.md')) continue
+
+    const filePath = path.join(operationsDir, entry)
+    let content = await readOptionalFile(filePath)
+    if (!content || content.trim() === '') continue
+
+    // Truncate individual file if too large
+    if (content.length > MAX_NOTEBOOK_CHARS) {
+      content = content.substring(0, MAX_NOTEBOOK_CHARS) + '\n\n[... truncated ...]'
+    }
+
+    // Check total limit
+    if (totalChars + content.length > MAX_REFERENCE_TOTAL_CHARS) {
+      console.warn(`[Prompt] Operations files exceed ${MAX_REFERENCE_TOTAL_CHARS} chars, stopping`)
+      break
+    }
+
+    // Format with header derived from filename
+    const name = entry.replace('.md', '').replace(/-/g, ' ')
+    const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1)
+    sections.push(`### ${capitalizedName}\n\n${content.trim()}`)
+    totalChars += content.length
+  }
+
+  if (sections.length === 0) {
+    return null
+  }
+
+  return `## Operating Rules\n\n${sections.join('\n\n')}`
+}
+
+/**
  * Load today's and yesterday's daily logs.
  */
 async function loadDailyLogs(agentDir: string): Promise<string | null> {
@@ -311,6 +366,12 @@ export async function assembleSystemPrompt(
     const notebookReference = await loadNotebookReference(agentDir)
     if (notebookReference) {
       sections.push(notebookReference)
+    }
+
+    // Load notebook/operations/* files (standing orders, external comms)
+    const notebookOperations = await loadNotebookOperations(agentDir)
+    if (notebookOperations) {
+      sections.push(notebookOperations)
     }
 
     // Load daily logs
