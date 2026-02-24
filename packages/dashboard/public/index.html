@@ -4035,8 +4035,53 @@
                 </div>
                 <div class="action-bar flex items-center gap-2 px-2 py-1.5">
                   <div class="flex items-center gap-1 flex-1 min-w-0">
-                    <!-- Model badge (compact on mobile) -->
-                    <span class="model-badge" x-text="modelDisplayName"></span>
+                    <!-- Model selector dropdown (mobile) -->
+                    <div
+                      class="relative shrink-0"
+                      x-data="{ modelOpen: false }"
+                    >
+                      <button
+                        @click="modelOpen = !modelOpen"
+                        @click.outside="modelOpen = false"
+                        class="model-badge"
+                      >
+                        <span
+                          class="model-name"
+                          x-text="modelDisplayName"
+                        ></span>
+                        <svg
+                          viewBox="0 0 16 16"
+                          fill="currentColor"
+                          class="w-3 h-3 ml-0.5 opacity-50"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+                            clip-rule="evenodd"
+                          />
+                        </svg>
+                      </button>
+                      <div
+                        x-show="modelOpen"
+                        x-transition:enter="transition ease-out duration-200"
+                        x-transition:enter-start="opacity-0 translate-y-2"
+                        x-transition:enter-end="opacity-100 translate-y-0"
+                        x-transition:leave="transition ease-in duration-150"
+                        x-transition:leave-start="opacity-100 translate-y-0"
+                        x-transition:leave-end="opacity-0 translate-y-2"
+                        class="absolute bottom-full left-0 mb-1 w-40 rounded-lg bg-tokyo-panel border border-tokyo-muted/20 shadow-lg overflow-hidden z-50 transform"
+                        x-cloak
+                      >
+                        <template x-for="model in modelOptions" :key="model.id">
+                          <button
+                            @click="onModelChange(model.id); modelOpen = false"
+                            class="w-full text-left px-3 py-2 text-xs transition-colors"
+                            :class="selectedModel === model.id ? 'bg-tokyo-blue/15 text-tokyo-blue' : 'text-tokyo-text hover:bg-tokyo-card/50'"
+                            x-text="model.name"
+                          ></button>
+                        </template>
+                      </div>
+                    </div>
                     <!-- Context tag (shows what user is viewing) -->
                     <template x-if="chatContext">
                       <div
@@ -4068,24 +4113,28 @@
                         </button>
                       </div>
                     </template>
-                    <!-- Reasoning toggle (icon only on mobile) -->
-                    <button
-                      @click="reasoningEnabled = !reasoningEnabled"
-                      class="reasoning-toggle"
+                    <!-- Reasoning toggle (label+checkbox for reliable iOS toggling) -->
+                    <label
+                      class="reasoning-toggle shrink-0"
                       :class="{ 'active': reasoningEnabled, 'disabled': isHaikuModel }"
-                      :disabled="isHaikuModel"
-                      aria-label="Toggle reasoning"
+                      :title="isHaikuModel ? 'Not supported with Haiku' : 'Toggle reasoning'"
                     >
+                      <input
+                        type="checkbox"
+                        x-model="reasoningEnabled"
+                        :disabled="isHaikuModel"
+                        class="sr-only"
+                      />
                       <svg
                         viewBox="0 0 16 16"
                         fill="currentColor"
                         class="w-3.5 h-3.5"
                       >
                         <path
-                          d="M8 1a4.5 4.5 0 0 0-4.5 4.5c0 1.544.78 2.912 1.969 3.728a.75.75 0 0 1 .337.63v.392a.75.75 0 0 0 .75.75h2.888a.75.75 0 0 0 .75-.75v-.392a.75.75 0 0 1 .337-.63A4.498 4.498 0 0 0 12.5 5.5 4.5 4.5 0 0 0 8 1Z"
+                          d="M8 0a.75.75 0 0 1 .7.48l1.17 3.15 3.15 1.17a.75.75 0 0 1 0 1.4l-3.15 1.17-1.17 3.15a.75.75 0 0 1-1.4 0L6.13 7.37 2.98 6.2a.75.75 0 0 1 0-1.4l3.15-1.17L7.3.48A.75.75 0 0 1 8 0Zm4.5 9a.5.5 0 0 1 .47.33l.5 1.35 1.35.5a.5.5 0 0 1 0 .94l-1.35.5-.5 1.35a.5.5 0 0 1-.94 0l-.5-1.35-1.35-.5a.5.5 0 0 1 0-.94l1.35-.5.5-1.35A.5.5 0 0 1 12.5 9Z"
                         />
                       </svg>
-                    </button>
+                    </label>
                     <!-- Attachment button -->
                     <button
                       @click="$refs.fileInput?.click()"
@@ -4163,6 +4212,6 @@
     <script src="js/chat-controls.js"></script>
     <script src="js/calendar.js?v=17"></script>
     <script src="js/components.js"></script>
-    <script src="js/app.js?v=28"></script>
+    <script src="js/app.js?v=29"></script>
   </body>
 </html>

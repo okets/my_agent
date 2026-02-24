@@ -962,6 +962,16 @@ select,
     color var(--duration-fast) var(--ease-out);
 }
 
+/* ── iOS zoom prevention ─────────────────────────────────────── */
+/* iOS Safari auto-zooms inputs with font-size < 16px */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* ── Focus states ─────────────────────────────────────────────── */
 button:focus-visible,
 a:focus-visible,
