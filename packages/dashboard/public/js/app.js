@@ -397,6 +397,17 @@ function chat() {
       return date.toLocaleDateString();
     },
 
+    getLastAssistantSnippet() {
+      for (let i = this.messages.length - 1; i >= 0; i--) {
+        const msg = this.messages[i];
+        if (msg.role === "assistant" && msg.text) {
+          const plain = msg.text.replace(/[#*_`~\[\]]/g, "").trim();
+          return plain.length > 60 ? plain.substring(0, 60) + "..." : plain;
+        }
+      }
+      return "Start a conversation...";
+    },
+
     async sendMessage() {
       const text = this.inputText.trim();
       const hasAttachments = this.attachments.length > 0;
@@ -2996,6 +3007,15 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
      * Open a timeline item (task or event)
      */
     openTimelineItem(item) {
+      const mobile = Alpine.store("mobile");
+      if (mobile && mobile.isMobile) {
+        if (item.itemType === "task" && item.task) {
+          mobile.openPopoverWithFocus("task", item.task);
+        } else if (item.itemType === "event" && item.event) {
+          mobile.openPopoverWithFocus("event", item.event);
+        }
+        return;
+      }
       if (item.itemType === "task" && item.task) {
         this.openTaskTab(item.task);
       } else if (item.itemType === "event" && item.event) {

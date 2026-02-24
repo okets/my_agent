@@ -1,0 +1,582 @@
+/* ================================================================
+   mobile.css — Responsive mobile layout (< 768px)
+   Percentage-based two-panel flex layout: header + content + chat
+   Swipe gestures change --chat-ratio to resize panels in real-time.
+   ================================================================ */
+
+/* ── Mobile custom properties ──────────────────────────────────── */
+:root {
+  --mobile-header-height: 44px;
+  --chat-ratio: 8; /* percentage of container height for chat (8 = peek) */
+  --color-surface-elevated: #252538;
+  --popover-max-height: 85dvh;
+  --popover-min-height: 40vh;
+  --popover-border-radius: 20px;
+  --sheet-transition-duration: 300ms;
+  --sheet-transition-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --sheet-exit-duration: 200ms;
+  --sheet-exit-ease: cubic-bezier(0.5, 0, 0.75, 0);
+  --keyboard-height: 0px;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Z-index stack (mobile only) ───────────────────────────────── */
+/*
+   Layer                 Z-index   Content
+   ─────────────────────────────────────────
+   Content panel         0         Timeline, channels, quick access
+   Mobile header         10        Agent name, bell, gear
+   Popover backdrop      20        Semi-transparent dim overlay
+   Popover sheet         30        Task detail, calendar, settings
+   Chat panel            auto      Flex child — no z-index needed
+   Conversation dropdown 50        Conversation switcher
+   Notification panel    50        Notification popover
+*/
+
+/* ================================================================
+   Mobile layout (< 768px): Percentage-based two-panel architecture
+   ┌─────────────────────────┐
+   │      Mobile Header      │  <- fixed 44px (only fixed px value)
+   ├─────────────────────────┤
+   │    CONTENT PANEL        │  <- height: (100% - header) * (1 - ratio)
+   │    (home/popovers)      │     overflow-y: auto
+   ├─────────────────────────┤
+   │    CHAT PANEL           │  <- height: (100% - header) * ratio
+   │    (8% / 50% / 92%)     │     overflow-y: auto
+   └─────────────────────────┘
+
+   --chat-ratio drives everything. Three presets:
+     peek = 8    (chat barely visible, content dominates)
+     half = 50   (equal split)
+     full = 92   (chat dominates, content minimized)
+   ================================================================ */
+@media (max-width: 767px) {
+  /* ── Lock html/body to prevent any root-level scroll/bounce ── */
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+
+  /* ── Fixed outer container ─────────────────────────────────────
+     position: fixed prevents pull-to-refresh entirely.
+     100vw x 100vh, overflow: hidden on the container itself. ──── */
+  .mobile-app-container {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+  }
+
+  /* ── Mobile header ─────────────────────────────────────────── */
+  .mobile-header {
+    flex-shrink: 0;
+    height: var(--mobile-header-height);
+    padding-top: var(--safe-area-top);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-left: 16px;
+    padding-right: 12px;
+    background: var(--color-crust);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .mobile-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mobile-header-btn {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+    border-radius: 8px;
+  }
+
+  .mobile-header-btn:active {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* ── Content panel (top) ─────────────────────────────────────
+     Height is percentage-based: fills remaining space after
+     header and chat panel take their share.
+     Uses calc to subtract header, then takes (100 - chatRatio)%. */
+  .mobile-content-panel {
+    flex: none;
+    height: calc(
+      (100% - var(--mobile-header-height)) * (100 - var(--chat-ratio)) / 100
+    );
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: var(--color-bg);
+  }
+
+  /* Single vertical-only scroll area inside the content panel */
+  .mobile-content-panel > * {
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    max-height: 100%;
+  }
+
+  /* ── Chat panel (bottom) ─────────────────────────────────────
+     Height is percentage-based via --chat-ratio.
+     Both panels scroll independently within their own bounds. ── */
+  .mobile-chat-panel {
+    flex: none;
+    height: calc(
+      (100% - var(--mobile-header-height)) * var(--chat-ratio) / 100
+    );
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    display: flex;
+    flex-direction: column;
+    transition: height var(--sheet-transition-duration)
+      var(--sheet-transition-ease);
+    /* Elevated surface — distinct from dashboard content */
+    background: var(--color-surface-elevated, #252538);
+    border-radius: 16px 16px 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.25);
+  }
+
+  .mobile-chat-panel.dragging {
+    transition: none;
+  }
+
+  /* ── Chat drag handle (visible in half/full states) ──────── */
+  .chat-drag-handle {
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-muted);
+    opacity: 0.4;
+    margin: 10px auto 6px;
+    flex-shrink: 0;
+  }
+
+  .chat-drag-handle.dragging {
+    opacity: 0.6;
+    background: var(--color-blue);
+  }
+
+  /* ── Chat peek content layout ────────────────────────────── */
+  .chat-peek-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 4px 12px;
+    cursor: pointer;
+    /* Entire peek area is a touch/swipe target */
+    touch-action: none;
+  }
+
+  .chat-peek-snippet {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 24px;
+    font-size: 12px;
+    color: var(--color-muted);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .chat-peek-compose {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+  }
+
+  .chat-peek-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    font-size: 14px;
+    outline: none;
+    padding: 0;
+  }
+
+  .chat-peek-input::placeholder {
+    color: var(--color-muted);
+  }
+
+  .chat-peek-send {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e07a5f;
+    border: none;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .chat-peek-send:active {
+    background: #d4694f;
+  }
+
+  .chat-peek-send:disabled {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  /* ── Chat messages area (half/full states) ───────────────── */
+  .chat-messages-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Chat compose bar (half/full states) ─────────────────── */
+  .chat-compose-bar {
+    flex-shrink: 0;
+    padding-bottom: calc(var(--safe-area-bottom) + var(--keyboard-height));
+    transition: padding-bottom 100ms ease-out;
+  }
+
+  /* ── Popover backdrop ──────────────────────────────────────── */
+  .popover-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+
+  .popover-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  :root.light .popover-backdrop.active {
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  :root.light .mobile-chat-panel {
+    --color-surface-elevated: #f0eaf5;
+    border-top-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
+  }
+
+  /* ── Popover sheet ─────────────────────────────────────────── */
+  .popover-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    /* Position above the chat panel — use percentage-based bottom */
+    bottom: calc(
+      (100vh - var(--mobile-header-height)) * var(--chat-ratio) / 100
+    );
+    bottom: calc(
+      (100dvh - var(--mobile-header-height)) * var(--chat-ratio) / 100
+    );
+    max-height: var(--popover-max-height);
+    min-height: var(--popover-min-height);
+    z-index: 30;
+    background: var(--color-bg);
+    border-radius: var(--popover-border-radius) var(--popover-border-radius) 0 0;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+    transform: translateY(100%);
+    transition: transform var(--sheet-transition-duration)
+      var(--sheet-transition-ease);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .popover-sheet.open {
+    transform: translateY(0);
+  }
+
+  .popover-sheet.closing {
+    transition: transform var(--sheet-exit-duration) var(--sheet-exit-ease);
+    transform: translateY(100%);
+  }
+
+  .popover-sheet.dragging {
+    transition: none;
+  }
+
+  /* Drag handle */
+  .popover-handle {
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-muted);
+    opacity: 0.4;
+    margin: 12px auto 8px;
+    flex-shrink: 0;
+  }
+
+  .popover-handle.dragging {
+    opacity: 0.6;
+    background: var(--color-blue);
+  }
+
+  /* Drag zone — top 32px of popover is always draggable */
+  .popover-drag-zone {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    touch-action: none;
+    z-index: 1;
+    cursor: grab;
+  }
+
+  .popover-drag-zone:active {
+    cursor: grabbing;
+  }
+
+  /* Popover scrollable content */
+  .popover-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 16px 16px;
+  }
+
+  /* Popover sticky action footer */
+  .popover-actions {
+    position: sticky;
+    bottom: 0;
+    padding: 12px 16px;
+    padding-bottom: calc(12px + var(--safe-area-bottom));
+    background: var(--color-bg);
+    border-top: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  /* ── Quick access pills ────────────────────────────────────── */
+  .quick-access-pills {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding: 0 16px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .quick-access-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .quick-access-pill {
+    min-width: auto;
+    padding: 8px 16px;
+    border-radius: 9999px;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid var(--border-muted);
+    background: var(--glass-bg);
+    color: var(--color-text);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .quick-access-pill:active {
+    background: rgba(122, 162, 247, 0.15);
+    border-color: rgba(122, 162, 247, 0.3);
+  }
+
+  /* ── Conversation switcher (full-width dropdown in full chat) */
+  .conversation-dropdown-mobile {
+    position: fixed;
+    /* Snap to the top of the chat panel, regardless of ratio */
+    top: calc(
+      var(--mobile-header-height) + (100vh - var(--mobile-header-height)) *
+        (100 - var(--chat-ratio)) / 100
+    );
+    top: calc(
+      var(--mobile-header-height) + (100dvh - var(--mobile-header-height)) *
+        (100 - var(--chat-ratio)) / 100
+    );
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--border-subtle);
+    /* Don't exceed the chat panel height */
+    max-height: calc(
+      (100vh - var(--mobile-header-height)) * var(--chat-ratio) / 100 - 60px
+    );
+    max-height: calc(
+      (100dvh - var(--mobile-header-height)) * var(--chat-ratio) / 100 - 60px
+    );
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    transform: translateY(-100%);
+    transition: transform var(--sheet-transition-duration)
+      var(--sheet-transition-ease);
+  }
+
+  .conversation-dropdown-mobile.open {
+    transform: translateY(0);
+  }
+
+  /* Conversation switcher backdrop (covers messages, not compose) */
+  .conv-switcher-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+
+  .conv-switcher-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Conversation switcher items */
+  .conv-switcher-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 16px;
+    min-height: 44px;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 100ms ease;
+  }
+
+  .conv-switcher-item:active {
+    background: rgba(122, 162, 247, 0.1);
+  }
+
+  .conv-switcher-item.current {
+    background: rgba(122, 162, 247, 0.12);
+    color: var(--color-blue);
+  }
+
+  /* ── Notification popover (uses popover-sheet) ─────────────── */
+  .notification-popover .notification-item {
+    min-height: 48px;
+    padding: 12px 16px;
+  }
+
+  /* ── Timeline mobile overrides ─────────────────────────────── */
+  .timeline-mobile .timeline-line {
+    left: 3rem;
+  }
+
+  .timeline-mobile .timeline-time {
+    width: 48px;
+  }
+
+  .timeline-mobile .timeline-card {
+    max-width: none;
+  }
+
+  /* ── Card grid responsive (for chat controls) ──────────────── */
+  .chat-controls-cards.cols-2 {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── Touch targets ─────────────────────────────────────────── */
+  .chat-control-btn {
+    min-height: 44px;
+  }
+
+  /* ── Global x-wobble kill ─────────────────────────────────── */
+  /* Every element inside content panel is locked:
+     - touch-action: pan-y (no horizontal panning)
+     - max-width: 100% (nothing exceeds parent)
+     - overflow-x: hidden (no horizontal scroll)
+     The chat panel peek area uses touch-action: none
+     (for swipe gesture capture), so only max-width there. */
+  .mobile-content-panel *:not(.chat-peek-content) {
+    touch-action: pan-y;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .mobile-chat-panel * {
+    max-width: 100%;
+  }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .popover-sheet,
+  .mobile-chat-panel,
+  .popover-backdrop,
+  .conversation-dropdown-mobile {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
+
+/* ── Screen-reader only close button (all breakpoints) ───────── */
+.sr-only-close {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Performance hints ───────────────────────────────────────── */
+@media (max-width: 767px) {
+  .popover-sheet.dragging,
+  .mobile-chat-panel.dragging {
+    will-change: height;
+  }
+
+  .popover-drag-zone,
+  .chat-drag-handle {
+    touch-action: none;
+  }
+
+  /* Peek area is a touch target — prevent browser scroll interference */
+  .chat-peek-content {
+    touch-action: none;
+  }
+}

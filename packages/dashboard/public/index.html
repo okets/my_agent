@@ -85,8 +85,9 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
 
     <!-- App styles -->
-    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/app.css?v=2" />
     <link rel="stylesheet" href="css/calendar.css" />
+    <link rel="stylesheet" href="css/mobile.css?v=6" />
   </head>
 
   <body class="bg-tokyo-bg text-tokyo-text antialiased">
@@ -95,14 +96,108 @@
     <!-- Left: Tab bar + content area                                       -->
     <!-- Right: Permanent chat with conversation dropdown                   -->
     <!-- ================================================================== -->
-    <div x-data="chat()" class="flex h-screen w-full">
+    <div
+      x-data="chat()"
+      class="flex h-screen w-full"
+      :class="{ 'mobile-app-container': $store.mobile.isMobile }"
+    >
+      <!-- ============================================================== -->
+      <!-- Mobile Header (< 768px only)                                   -->
+      <!-- ============================================================== -->
+      <div x-show="$store.mobile.isMobile" class="mobile-header" x-cloak>
+        <!-- Left: status dot + agent name -->
+        <div class="flex items-center gap-2 min-w-0">
+          <span
+            class="w-2.5 h-2.5 rounded-full shrink-0"
+            :class="$store.connection.status === 'connected' ? 'bg-green-400' : $store.connection.status === 'reconnecting' ? 'bg-yellow-400 animate-pulse' : 'bg-red-400'"
+          ></span>
+          <span
+            class="text-sm font-semibold truncate"
+            x-text="$store.mobile.chatState === 'full' ? 'Chat with ' + agentNickname : agentName + ' Dashboard'"
+          ></span>
+        </div>
+        <!-- Right: collapse arrow (in full chat) or bell + gear -->
+        <div class="mobile-header-actions">
+          <!-- Collapse arrow (shown only in full-chat mode) -->
+          <button
+            x-show="$store.mobile.chatState === 'full'"
+            @click="$store.mobile.collapseChat()"
+            class="mobile-header-btn"
+            aria-label="Collapse chat"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              class="w-5 h-5"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </button>
+          <!-- Bell (hidden when chat is full) -->
+          <button
+            x-show="$store.mobile.chatState !== 'full'"
+            @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('notification', null, $event.currentTarget) : (showNotificationPanel = !showNotificationPanel); if(showNotificationPanel || $store.mobile.isMobile) requestNotifications()"
+            class="mobile-header-btn relative"
+            aria-label="Notifications"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              class="w-5 h-5"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M10 2a6 6 0 0 0-6 6c0 1.887-.454 3.665-1.257 5.234a.75.75 0 0 0 .515 1.076 32.91 32.91 0 0 0 3.256.508 3.5 3.5 0 0 0 6.972 0 32.903 32.903 0 0 0 3.256-.508.75.75 0 0 0 .515-1.076A11.448 11.448 0 0 1 16 8a6 6 0 0 0-6-6Zm0 14.5a2 2 0 0 1-1.95-1.557 33.54 33.54 0 0 0 3.9 0A2 2 0 0 1 10 16.5Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            <span
+              x-show="pendingNotificationCount > 0"
+              x-text="pendingNotificationCount > 9 ? '9+' : pendingNotificationCount"
+              class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 text-[10px] font-bold text-white bg-tokyo-orange rounded-full flex items-center justify-center"
+            ></span>
+          </button>
+          <!-- Gear (hidden when chat is full) -->
+          <button
+            x-show="$store.mobile.chatState !== 'full'"
+            @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('settings', null, $event.currentTarget) : openTab({ id: 'settings', type: 'settings', title: 'Settings', icon: '\u2699\uFE0F', closeable: true })"
+            class="mobile-header-btn"
+            aria-label="Settings"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              class="w-5 h-5"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.115l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.54a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.992 6.992 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <!-- ============================================================== -->
       <!-- Left Panel: Workspace (Tabs + Content)                         -->
       <!-- ============================================================== -->
-      <div class="flex-1 flex flex-col min-w-0">
-        <!-- Tab bar -->
+      <div
+        class="flex-1 flex flex-col min-w-0"
+        :class="{
+          'mobile-content-panel': $store.mobile.isMobile
+        }"
+      >
+        <!-- Tab bar (hidden on mobile) -->
         <div
-          class="tab-bar flex items-end gap-0 h-9 shrink-0"
+          class="tab-bar items-end gap-0 h-9 shrink-0 hidden lg:flex"
           style="background: var(--color-crust)"
         >
           <!-- Open tabs -->
@@ -144,7 +239,11 @@
           <!-- ======================================================== -->
           <!-- Home Tab                                                 -->
           <!-- ======================================================== -->
-          <div x-show="activeTab === 'home'" class="p-6" x-cloak>
+          <div
+            x-show="activeTab === 'home' || $store.mobile.isMobile"
+            class="p-6"
+            x-cloak
+          >
             <!-- Header with live status -->
             <div class="flex items-center justify-between mb-6">
               <h1 class="text-2xl font-bold">Dashboard</h1>
@@ -155,27 +254,35 @@
             </div>
 
             <!-- Compact Notebook Row -->
-            <div class="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
-              <span class="text-xs text-tokyo-muted shrink-0"
+            <div
+              class="flex items-center gap-2 mb-4 overflow-x-auto pb-2"
+              :class="{ 'quick-access-pills': $store.mobile.isMobile }"
+            >
+              <span
+                class="text-xs text-tokyo-muted shrink-0"
+                x-show="!$store.mobile.isMobile"
                 >Quick access:</span
               >
               <button
-                @click="openNotebookTab('external-communications')"
+                @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('notebook', { name: 'external-communications' }) : openNotebookTab('external-communications')"
                 class="px-3 py-1.5 rounded-lg glass-strong hover:bg-tokyo-card/80 transition-colors text-xs flex items-center gap-1.5 shrink-0"
+                :class="{ 'quick-access-pill': $store.mobile.isMobile }"
               >
                 <span>📋</span>
                 <span>External Rules</span>
               </button>
               <button
-                @click="openNotebookTab('reminders')"
+                @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('notebook', { name: 'reminders' }) : openNotebookTab('reminders')"
                 class="px-3 py-1.5 rounded-lg glass-strong hover:bg-tokyo-card/80 transition-colors text-xs flex items-center gap-1.5 shrink-0"
+                :class="{ 'quick-access-pill': $store.mobile.isMobile }"
               >
                 <span>✅</span>
                 <span>Reminders</span>
               </button>
               <button
-                @click="openNotebookTab('standing-orders')"
+                @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('notebook', { name: 'standing-orders' }) : openNotebookTab('standing-orders')"
                 class="px-3 py-1.5 rounded-lg glass-strong hover:bg-tokyo-card/80 transition-colors text-xs flex items-center gap-1.5 shrink-0"
+                :class="{ 'quick-access-pill': $store.mobile.isMobile }"
               >
                 <span>📜</span>
                 <span>Standing Orders</span>
@@ -243,7 +350,7 @@
                     New task
                   </button>
                   <button
-                    @click="openCalendar()"
+                    @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('calendar', null, $event.currentTarget) : openCalendar()"
                     class="text-xs text-tokyo-muted hover:text-tokyo-blue transition-colors flex items-center gap-1"
                   >
                     📅 Calendar
@@ -455,7 +562,11 @@
           <!-- ======================================================== -->
           <!-- Settings Tab                                             -->
           <!-- ======================================================== -->
-          <div x-show="activeTab === 'settings'" class="p-6" x-cloak>
+          <div
+            x-show="activeTab === 'settings' && !$store.mobile.isMobile"
+            class="p-6"
+            x-cloak
+          >
             <div class="max-w-2xl mx-auto space-y-6">
               <!-- Settings header -->
               <div>
@@ -1568,7 +1679,7 @@
           <!-- Calendar Tab                                             -->
           <!-- ======================================================== -->
           <div
-            x-show="activeTab === 'calendar'"
+            x-show="activeTab === 'calendar' && !$store.mobile.isMobile"
             x-init="$watch('activeTab', (val, oldVal) => { if (val === 'calendar') $nextTick(() => initCalendarView()) })"
             class="h-full flex"
             x-cloak
@@ -1643,7 +1754,7 @@
       <!-- ============================================================== -->
       <div
         @mousedown="startChatResize($event)"
-        class="resize-handle w-1 shrink-0 cursor-col-resize hover:bg-tokyo-blue/30 transition-colors"
+        class="resize-handle w-1 shrink-0 cursor-col-resize hover:bg-tokyo-blue/30 transition-colors hidden lg:block"
         :class="chatResizing ? 'bg-tokyo-blue/50' : 'bg-transparent'"
       ></div>
 
@@ -1651,7 +1762,7 @@
       <!-- Right Panel: Permanent Chat                                    -->
       <!-- ============================================================== -->
       <div
-        class="chat-panel flex flex-col shrink-0 border-l border-white/5"
+        class="chat-panel flex flex-col shrink-0 border-l border-white/5 hidden lg:flex"
         :style="{ width: chatWidth + 'px' }"
         style="min-width: 300px; max-width: 85vw"
       >
@@ -3027,6 +3138,870 @@
       </div>
 
       <!-- ============================================================== -->
+      <!-- Mobile: Popover Backdrop (< 768px)                            -->
+      <!-- ============================================================== -->
+      <div
+        x-show="$store.mobile.isMobile && $store.mobile.isPopoverOpen"
+        @click="$store.mobile.closePopoverWithFocus()"
+        class="popover-backdrop"
+        :class="{ 'active': $store.mobile.isPopoverOpen }"
+        aria-hidden="true"
+        x-cloak
+      ></div>
+
+      <!-- ============================================================== -->
+      <!-- Mobile: Popover Sheet (< 768px)                               -->
+      <!-- ============================================================== -->
+      <div
+        x-show="$store.mobile.isMobile && $store.mobile.isPopoverOpen"
+        x-init="$nextTick(() => { if (typeof initSheetGesture === 'function') initSheetGesture($el, { onDismiss: () => $store.mobile.closePopoverWithFocus(), getScrollTop: () => $el.querySelector('.popover-content')?.scrollTop ?? 0 }) })"
+        x-effect="if ($store.mobile.isPopoverOpen) { $nextTick(() => { if (typeof createFocusTrap === 'function') { $el._focusTrapCleanup = createFocusTrap($el) } }); if (typeof announceMobile === 'function') announceMobile(($store.mobile.popover?.type || 'detail') + ' opened') } else { if ($el._focusTrapCleanup) { $el._focusTrapCleanup(); $el._focusTrapCleanup = null } }"
+        @keydown.escape="$store.mobile.closePopoverWithFocus()"
+        class="popover-sheet"
+        :class="{ 'open': $store.mobile.isPopoverOpen }"
+        role="dialog"
+        :aria-label="$store.mobile.popover ? $store.mobile.popover.type + ' detail' : ''"
+        aria-modal="true"
+        x-cloak
+      >
+        <!-- Drag zone for swipe-to-dismiss -->
+        <div class="popover-drag-zone" aria-hidden="true"></div>
+        <!-- Drag handle -->
+        <div class="popover-handle" aria-hidden="true"></div>
+        <!-- SR-only close button for accessibility -->
+        <button
+          class="sr-only-close"
+          @click="$store.mobile.closePopoverWithFocus()"
+          aria-label="Close"
+        >
+          Close
+        </button>
+
+        <!-- Popover content — rendered based on popover type -->
+        <div class="popover-content">
+          <!-- Task detail popover (#9) -->
+          <template x-if="$store.mobile.popover?.type === 'task'">
+            <div
+              class="space-y-4"
+              x-data="{ get task() { return $store.mobile.popover?.data } }"
+            >
+              <div class="flex items-start gap-3">
+                <div
+                  class="w-3 h-3 rounded-full shrink-0 mt-1.5"
+                  :class="UIComponents.getStatusDotClass(task?.status)"
+                ></div>
+                <div class="min-w-0 flex-1">
+                  <h2
+                    class="text-lg font-bold text-tokyo-text"
+                    x-text="task?.title || 'Task'"
+                  ></h2>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span
+                      x-html="UIComponents.renderStatusBadge(task?.status)"
+                    ></span>
+                    <span
+                      x-html="UIComponents.renderTypeBadge(task?.type)"
+                    ></span>
+                  </div>
+                </div>
+              </div>
+              <div class="glass-strong rounded-xl p-4">
+                <div class="divide-y divide-white/5">
+                  <div
+                    x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.calendar, label: 'Created', value: UIComponents.formatDate(task?.created) })"
+                  ></div>
+                  <div
+                    x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.user, label: 'Created by', value: UIComponents.SOURCE_LABELS[task?.createdBy] || task?.createdBy })"
+                  ></div>
+                  <template x-if="task?.scheduledFor">
+                    <div
+                      x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.clock, label: 'Scheduled', value: UIComponents.formatDate(task?.scheduledFor) })"
+                    ></div>
+                  </template>
+                  <template x-if="task?.startedAt">
+                    <div
+                      x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.play, label: 'Started', value: UIComponents.formatDate(task?.startedAt) })"
+                    ></div>
+                  </template>
+                  <template x-if="task?.completedAt">
+                    <div
+                      x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.check, label: 'Completed', value: UIComponents.formatDate(task?.completedAt) })"
+                    ></div>
+                  </template>
+                </div>
+              </div>
+              <template x-if="task?.work?.length > 0">
+                <div>
+                  <h3
+                    class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-2"
+                  >
+                    Work Items
+                  </h3>
+                  <div class="glass-strong rounded-xl p-4 space-y-2">
+                    <template x-for="item in task.work" :key="item.description">
+                      <div class="flex items-center gap-2 text-sm">
+                        <span
+                          x-show="item.status === 'completed'"
+                          class="text-green-400"
+                          >&#10003;</span
+                        >
+                        <span
+                          x-show="item.status === 'pending'"
+                          class="text-tokyo-muted"
+                          >&#9675;</span
+                        >
+                        <span
+                          x-show="item.status === 'failed'"
+                          class="text-red-400"
+                          >&#10007;</span
+                        >
+                        <span
+                          class="text-tokyo-text"
+                          x-text="item.description"
+                        ></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+              <template x-if="task?.instructions">
+                <div>
+                  <h3
+                    class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-2"
+                  >
+                    Instructions
+                  </h3>
+                  <div
+                    class="glass-strong rounded-xl p-4 text-sm text-tokyo-text chat-md"
+                    x-html="renderMarkdown(task.instructions)"
+                  ></div>
+                </div>
+              </template>
+              <div class="popover-actions -mx-4 -mb-4">
+                <template
+                  x-if="task?.status !== 'completed' && task?.status !== 'deleted'"
+                >
+                  <button
+                    @click="completeTask(task?.id); $store.mobile.closePopover()"
+                    class="w-full py-3 rounded-lg text-sm font-medium text-white mb-2"
+                    style="background: var(--color-green)"
+                  >
+                    Complete
+                  </button>
+                </template>
+                <button
+                  @click="deleteTask(task?.id); $store.mobile.closePopover()"
+                  class="w-full py-2.5 rounded-lg text-sm font-medium text-tokyo-red bg-tokyo-red/10 border border-tokyo-red/20"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <!-- Event detail popover (#10) -->
+          <template x-if="$store.mobile.popover?.type === 'event'">
+            <div
+              class="space-y-4"
+              x-data="{ get evt() { return $store.mobile.popover?.data } }"
+            >
+              <div class="flex items-start gap-3">
+                <div
+                  class="w-3 h-3 rounded-full shrink-0 mt-1.5"
+                  :style="{ background: evt?.color || '#89b4fa' }"
+                ></div>
+                <div class="min-w-0 flex-1">
+                  <h2
+                    class="text-lg font-bold text-tokyo-text"
+                    x-text="evt?.title || 'Event'"
+                  ></h2>
+                  <p
+                    class="text-sm text-tokyo-muted mt-0.5"
+                    x-text="calendarList.find(c => c.id === evt?.extendedProps?.calendarId)?.name || 'Calendar'"
+                  ></p>
+                </div>
+              </div>
+              <div class="glass-strong rounded-xl p-4">
+                <div class="divide-y divide-white/5">
+                  <div
+                    x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.calendar, label: 'Date', value: evt?.start ? new Date(evt.start).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) : '' })"
+                  ></div>
+                  <div
+                    x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.clock, label: 'Time', value: (evt?.start ? new Date(evt.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') + (evt?.end ? ' - ' + new Date(evt.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '') })"
+                  ></div>
+                </div>
+              </div>
+              <template x-if="evt?.extendedProps?.description">
+                <div>
+                  <h3
+                    class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-2"
+                  >
+                    Description
+                  </h3>
+                  <div
+                    class="glass-strong rounded-xl p-4 text-sm text-tokyo-text chat-md"
+                    x-html="renderMarkdown(evt.extendedProps.description)"
+                  ></div>
+                </div>
+              </template>
+              <div class="popover-actions -mx-4 -mb-4">
+                <button
+                  @click="$store.mobile.closePopover()"
+                  class="w-full py-3 rounded-lg text-sm font-medium text-white mb-2"
+                  style="background: linear-gradient(135deg, #a855f7, #ec4899)"
+                >
+                  <span x-text="'Ask ' + agentFirstName"></span>
+                </button>
+                <button
+                  @click="$store.mobile.closePopover()"
+                  class="w-full py-2.5 rounded-lg text-sm font-medium text-tokyo-red bg-tokyo-red/10 border border-tokyo-red/20"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <!-- Calendar popover (#11) -->
+          <template x-if="$store.mobile.popover?.type === 'calendar'">
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <h2 class="text-lg font-bold text-tokyo-text">Calendar</h2>
+                <button
+                  @click="openCreateEventModal()"
+                  class="text-xs text-tokyo-blue hover:text-tokyo-blue/80 transition-colors flex items-center gap-1"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    class="w-3 h-3"
+                  >
+                    <path
+                      d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z"
+                    />
+                  </svg>
+                  New event
+                </button>
+              </div>
+              <div class="flex gap-2 overflow-x-auto pb-1">
+                <template x-for="cal in calendarList" :key="cal.id">
+                  <button
+                    @click="calendarVisibility[cal.id] = !calendarVisibility[cal.id]"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shrink-0 transition-colors"
+                    :class="calendarVisibility[cal.id] !== false
+                      ? 'bg-tokyo-blue/15 border-tokyo-blue/30 text-tokyo-blue'
+                      : 'bg-transparent border-white/10 text-tokyo-muted'"
+                  >
+                    <span
+                      class="w-2 h-2 rounded-full"
+                      :style="{ background: cal.color || '#89b4fa' }"
+                    ></span>
+                    <span x-text="cal.name"></span>
+                  </button>
+                </template>
+              </div>
+              <div class="space-y-2">
+                <template x-if="upcomingEvents.length === 0">
+                  <p class="text-sm text-tokyo-muted text-center py-4">
+                    No upcoming events
+                  </p>
+                </template>
+                <template x-for="event in upcomingEvents" :key="event.id">
+                  <button
+                    @click="$store.mobile.openPopoverWithFocus('event', event, $event.currentTarget)"
+                    class="w-full flex items-center gap-3 p-3 rounded-lg glass-strong text-left hover:bg-tokyo-card/60 transition-colors"
+                  >
+                    <div
+                      class="w-2 h-2 rounded-full shrink-0"
+                      :style="{ background: event.color || '#89b4fa' }"
+                    ></div>
+                    <div class="min-w-0 flex-1">
+                      <span
+                        class="text-sm font-medium text-tokyo-text truncate block"
+                        x-text="event.title"
+                      ></span>
+                      <span
+                        class="text-xs text-tokyo-muted"
+                        x-text="event.start ? new Date(event.start).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''"
+                      ></span>
+                    </div>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <!-- Settings popover (#12) -->
+          <template x-if="$store.mobile.popover?.type === 'settings'">
+            <div class="space-y-4">
+              <h2 class="text-lg font-bold text-tokyo-text">Settings</h2>
+              <div class="glass-strong rounded-xl p-4">
+                <h3 class="text-sm font-semibold text-tokyo-text mb-3">
+                  Appearance
+                </h3>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-tokyo-text">Theme</span>
+                  <select
+                    x-model="theme"
+                    @change="setTheme($event.target.value)"
+                    class="bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text focus:outline-none cursor-pointer"
+                  >
+                    <option value="dark">Mocha Dark</option>
+                    <option value="light">Latte Light</option>
+                  </select>
+                </div>
+              </div>
+              <div class="glass-strong rounded-xl p-4">
+                <h3 class="text-sm font-semibold text-tokyo-text mb-3">
+                  Channels
+                </h3>
+                <template x-if="channels.length === 0">
+                  <p class="text-sm text-tokyo-muted">No channels configured</p>
+                </template>
+                <div class="space-y-3">
+                  <template x-for="channel in channels" :key="channel.id">
+                    <div
+                      class="flex items-center gap-3 p-3 rounded-lg bg-tokyo-card/30 border border-white/5"
+                    >
+                      <span
+                        class="channel-icon w-5 h-5 text-tokyo-muted"
+                        x-html="channel.icon"
+                      ></span>
+                      <div class="flex-1 min-w-0">
+                        <span
+                          class="text-sm font-medium text-tokyo-text block truncate"
+                          x-text="channel.id"
+                        ></span>
+                        <span
+                          class="text-xs"
+                          :class="{
+                          'text-green-400': channel.status === 'connected',
+                          'text-yellow-400': channel.status === 'connecting',
+                          'text-red-400': channel.status === 'error',
+                          'text-tokyo-muted': channel.status === 'disconnected'
+                        }"
+                          x-text="channel.status"
+                        ></span>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Notebook popover (#13) -->
+          <template x-if="$store.mobile.popover?.type === 'notebook'">
+            <div
+              class="space-y-4"
+              x-data="{ nbContent: 'Loading...', get nbName() { return $store.mobile.popover?.data?.name } }"
+              x-init="fetch('/api/notebook/' + nbName).then(r => r.json()).then(d => nbContent = d.content || 'No content').catch(() => nbContent = 'Failed to load')"
+            >
+              <h2
+                class="text-lg font-bold text-tokyo-text capitalize"
+                x-text="(nbName || 'Notebook').replace(/-/g, ' ')"
+              ></h2>
+              <div
+                class="text-sm text-tokyo-text chat-md"
+                x-html="renderMarkdown(nbContent)"
+              ></div>
+            </div>
+          </template>
+
+          <!-- Notification popover (#13) -->
+          <template x-if="$store.mobile.popover?.type === 'notification'">
+            <div class="space-y-3">
+              <h2 class="text-lg font-bold text-tokyo-text">Notifications</h2>
+              <template x-if="getPendingNotifications().length === 0">
+                <p class="text-sm text-tokyo-muted text-center py-6">
+                  No pending notifications
+                </p>
+              </template>
+              <div class="space-y-2">
+                <template
+                  x-for="notif in getPendingNotifications()"
+                  :key="notif.id"
+                >
+                  <div class="p-3 rounded-lg glass-strong">
+                    <template x-if="notif.type === 'notify'">
+                      <div class="flex items-start gap-2">
+                        <span
+                          class="mt-0.5 shrink-0"
+                          :class="{
+                            'text-tokyo-blue': notif.importance === 'info',
+                            'text-tokyo-orange': notif.importance === 'warning',
+                            'text-tokyo-green': notif.importance === 'success',
+                            'text-tokyo-red': notif.importance === 'error'
+                          }"
+                        >
+                          <template x-if="notif.importance === 'info'"
+                            >&#8505;&#65039;</template
+                          >
+                          <template x-if="notif.importance === 'warning'"
+                            >&#9888;&#65039;</template
+                          >
+                          <template x-if="notif.importance === 'success'"
+                            >&#9989;</template
+                          >
+                          <template x-if="notif.importance === 'error'"
+                            >&#10060;</template
+                          >
+                        </span>
+                        <div class="flex-1 min-w-0">
+                          <p
+                            class="text-sm text-tokyo-text"
+                            x-text="notif.message"
+                          ></p>
+                          <p
+                            class="text-xs text-tokyo-muted mt-1"
+                            x-text="new Date(notif.created).toLocaleString()"
+                          ></p>
+                        </div>
+                        <button
+                          @click="dismissNotification(notif.id)"
+                          class="text-tokyo-muted hover:text-tokyo-text p-1"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    </template>
+                    <template x-if="notif.type === 'request_input'">
+                      <div class="space-y-2">
+                        <div class="flex items-start gap-2">
+                          <span class="text-tokyo-purple mt-0.5 shrink-0"
+                            >&#10067;</span
+                          >
+                          <div class="flex-1 min-w-0">
+                            <p
+                              class="text-sm text-tokyo-text"
+                              x-text="notif.question"
+                            ></p>
+                            <p
+                              class="text-xs text-tokyo-muted mt-1"
+                              x-text="new Date(notif.created).toLocaleString()"
+                            ></p>
+                          </div>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5 pl-6">
+                          <template
+                            x-for="opt in notif.options"
+                            :key="opt.value"
+                          >
+                            <button
+                              @click="respondToNotification(notif.id, opt.value)"
+                              class="px-3 py-2 text-xs rounded-lg bg-tokyo-card hover:bg-tokyo-blue/20 text-tokyo-text transition-colors min-h-[44px]"
+                              x-text="opt.label"
+                            ></button>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                    <template x-if="notif.type === 'escalate'">
+                      <div class="flex items-start gap-2">
+                        <span class="mt-0.5 shrink-0 text-tokyo-red"
+                          >&#128680;</span
+                        >
+                        <div class="flex-1 min-w-0">
+                          <p
+                            class="text-sm text-tokyo-text"
+                            x-text="notif.problem"
+                          ></p>
+                          <span
+                            class="inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-medium"
+                            :class="{
+                              'bg-tokyo-orange/20 text-tokyo-orange': notif.severity === 'low' || notif.severity === 'medium',
+                              'bg-tokyo-red/20 text-tokyo-red': notif.severity === 'high' || notif.severity === 'critical'
+                            }"
+                            x-text="notif.severity"
+                          ></span>
+                        </div>
+                        <button
+                          @click="markNotificationRead(notif.id)"
+                          class="text-tokyo-muted hover:text-tokyo-text p-1"
+                        >
+                          &#10003;
+                        </button>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ============================================================== -->
+      <!-- Mobile: Chat Bottom Panel (< 768px)                          -->
+      <!-- Always rendered in DOM — never removed via x-show.           -->
+      <!-- Height changes via CSS class (peek/half/full).               -->
+      <!-- Hidden on desktop via lg:hidden since desktop has its own    -->
+      <!-- chat panel in the right column.                              -->
+      <!-- ============================================================== -->
+      <div
+        x-init="$nextTick(() => { if (typeof initChatSheetGesture === 'function') initChatSheetGesture($el) })"
+        x-effect="if ($store.mobile.isMobile && $store.mobile.chatState !== 'peek') { if (typeof announceMobile === 'function') announceMobile('Chat ' + ($store.mobile.chatState === 'full' ? 'fully expanded' : 'expanded')) } else if ($store.mobile.isMobile) { if (typeof announceMobile === 'function') announceMobile('Chat collapsed') }"
+        class="mobile-chat-panel md:hidden"
+        :class="{ 'dragging': false }"
+        role="region"
+        aria-label="Chat"
+      >
+        <!-- Drag handle (visible in half/full states) -->
+        <div
+          x-show="$store.mobile.chatState !== 'peek'"
+          class="chat-drag-handle"
+          aria-hidden="true"
+        ></div>
+
+        <!-- Peek state: snippet + mini compose -->
+        <div
+          x-show="$store.mobile.chatState === 'peek'"
+          class="chat-peek-content"
+          @click="$store.mobile.expandChat('half')"
+        >
+          <div class="chat-peek-snippet">
+            <!-- Agent avatar -->
+            <div
+              class="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-semibold text-white shrink-0"
+              style="background: linear-gradient(135deg, #a855f7, #ec4899)"
+              x-text="headerInitial"
+            ></div>
+            <!-- Conversation title + last message -->
+            <span
+              x-show="!isResponding"
+              class="truncate flex items-center gap-1.5"
+            >
+              <span
+                class="text-tokyo-text font-medium"
+                x-text="currentTitle || agentNickname"
+              ></span>
+              <span class="text-tokyo-muted/50">&middot;</span>
+              <span
+                class="text-tokyo-muted truncate"
+                x-text="getLastAssistantSnippet()"
+              ></span>
+            </span>
+            <span x-show="isResponding" class="flex items-center gap-1">
+              <span class="typing-dots"
+                ><span></span><span></span><span></span
+              ></span>
+              <span class="text-tokyo-muted text-xs">Typing...</span>
+            </span>
+          </div>
+          <div class="chat-peek-compose" @click.stop>
+            <!-- Expand hint chevron -->
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              class="w-3.5 h-3.5 text-tokyo-muted/40 shrink-0"
+              @click="$store.mobile.expandChat('half')"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M9.47 6.47a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 1 1-1.06 1.06L10 8.06l-3.72 3.72a.75.75 0 0 1-1.06-1.06l4.25-4.25Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            <input
+              type="text"
+              class="chat-peek-input"
+              placeholder="Message..."
+              x-model="inputText"
+              :disabled="isCurrentConversationReadOnly"
+              @keydown.enter.prevent="sendMessage()"
+              @focus="$store.mobile.expandChat('half')"
+            />
+            <button
+              class="chat-peek-send"
+              :disabled="!inputText.trim() || isResponding"
+              @click.stop="sendMessage()"
+              aria-label="Send message"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                class="w-4 h-4"
+              >
+                <path
+                  d="M3.105 2.288a.75.75 0 0 0-.826.95l1.414 4.926A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.115A28.897 28.897 0 0 0 3.105 2.288Z"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Half/Full state: messages + full compose -->
+        <template x-if="$store.mobile.chatState !== 'peek'">
+          <div class="flex flex-col flex-1 min-h-0">
+            <!-- Conversation switcher (half + full states) -->
+            <div
+              x-show="$store.mobile.chatState !== 'peek'"
+              class="px-3 py-2 border-b border-white/5 shrink-0"
+            >
+              <button
+                class="flex items-center gap-1.5 text-xs text-tokyo-muted hover:text-tokyo-text transition-colors"
+                @click="$store.mobile.toggleConvSwitcher()"
+                aria-label="Switch conversation"
+                :aria-expanded="$store.mobile.convSwitcherOpen"
+              >
+                <span
+                  class="truncate"
+                  x-text="currentTitle || 'New conversation'"
+                ></span>
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  class="w-3 h-3 shrink-0 transition-transform"
+                  :class="{ 'rotate-180': $store.mobile.convSwitcherOpen }"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Conversation switcher backdrop -->
+            <div
+              x-show="$store.mobile.convSwitcherOpen"
+              @click="$store.mobile.closeConvSwitcher()"
+              class="conv-switcher-backdrop"
+              :class="{ 'active': $store.mobile.convSwitcherOpen }"
+              aria-hidden="true"
+            ></div>
+
+            <!-- Conversation switcher dropdown -->
+            <div
+              x-show="$store.mobile.convSwitcherOpen"
+              @keydown.escape.window="$store.mobile.convSwitcherOpen && $store.mobile.closeConvSwitcher()"
+              class="conversation-dropdown-mobile"
+              :class="{ 'open': $store.mobile.convSwitcherOpen }"
+              role="listbox"
+              aria-label="Conversations"
+              x-cloak
+            >
+              <!-- New conversation button -->
+              <button
+                @click="createNewConversation(); $store.mobile.closeConvSwitcher()"
+                class="conv-switcher-item"
+                style="
+                  color: var(--color-blue);
+                  border-bottom: 1px solid var(--border-subtle);
+                "
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  class="w-4 h-4 shrink-0"
+                >
+                  <path
+                    d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z"
+                  />
+                </svg>
+                New conversation
+              </button>
+
+              <!-- Active channel conversations -->
+              <template
+                x-if="channels.some(ch => getChannelConversations(ch.id).length > 0)"
+              >
+                <div style="border-bottom: 1px solid var(--border-subtle)">
+                  <div
+                    class="px-4 py-1.5 text-[10px] text-tokyo-muted uppercase tracking-wide"
+                  >
+                    Active Channels
+                  </div>
+                  <template x-for="ch in channels" :key="ch.id">
+                    <template
+                      x-for="conv in getChannelConversations(ch.id)"
+                      :key="conv.id"
+                    >
+                      <button
+                        @click="switchConversation(conv.id); $store.mobile.closeConvSwitcher()"
+                        class="conv-switcher-item"
+                        :class="{ 'current': currentConversationId === conv.id }"
+                        role="option"
+                        :aria-selected="currentConversationId === conv.id"
+                      >
+                        <span
+                          class="channel-icon w-4 h-4 shrink-0 text-tokyo-muted"
+                          x-html="ch.icon"
+                        ></span>
+                        <span
+                          class="w-1.5 h-1.5 rounded-full shrink-0"
+                          :class="channelDotClass(ch.status)"
+                        ></span>
+                        <span
+                          class="truncate flex-1"
+                          x-text="conv.title || 'Chat'"
+                        ></span>
+                        <span
+                          class="text-[10px] px-1.5 py-0.5 rounded bg-tokyo-muted/10 text-tokyo-muted shrink-0"
+                          >read-only</span
+                        >
+                      </button>
+                    </template>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Web conversations -->
+              <div>
+                <div
+                  class="px-4 py-1.5 text-[10px] text-tokyo-muted uppercase tracking-wide"
+                >
+                  Conversations
+                </div>
+                <template x-for="conv in conversations" :key="conv.id">
+                  <button
+                    @click="switchConversation(conv.id); $store.mobile.closeConvSwitcher()"
+                    class="conv-switcher-item"
+                    :class="{ 'current': currentConversationId === conv.id }"
+                    role="option"
+                    :aria-selected="currentConversationId === conv.id"
+                  >
+                    <template x-if="conv.channel && conv.channel !== 'web'">
+                      <span
+                        class="channel-icon w-4 h-4 shrink-0 text-tokyo-muted"
+                        x-html="getConversationChannel(conv)?.icon || ''"
+                      ></span>
+                    </template>
+                    <template x-if="!conv.channel || conv.channel === 'web'">
+                      <span class="w-4 h-4 shrink-0"></span>
+                    </template>
+                    <span
+                      class="truncate flex-1"
+                      x-text="conv.title || 'New conversation'"
+                    ></span>
+                    <span
+                      class="text-tokyo-muted text-[10px] shrink-0"
+                      x-text="formatRelativeTime(conv.updated)"
+                    ></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <!-- Messages area -->
+            <div class="chat-messages-area flex-1 p-4 space-y-4">
+              <template x-for="msg in messages" :key="msg.id">
+                <div
+                  class="msg-enter"
+                  :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'"
+                >
+                  <div
+                    class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm"
+                    :class="msg.role === 'user' ? 'user-bubble' : 'assistant-bubble'"
+                  >
+                    <div
+                      class="chat-md"
+                      x-html="renderMarkdown(msg.text || '')"
+                    ></div>
+                  </div>
+                </div>
+              </template>
+              <!-- Typing indicator -->
+              <div
+                x-show="isResponding && !currentAssistantMessage"
+                class="flex justify-start"
+              >
+                <div class="assistant-bubble rounded-2xl px-4 py-3">
+                  <div class="typing-dots">
+                    <span></span><span></span><span></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Compose bar -->
+            <div class="chat-compose-bar shrink-0 p-3 border-t border-white/5">
+              <div class="compose-box">
+                <div class="px-3 py-2">
+                  <textarea
+                    x-model="inputText"
+                    rows="1"
+                    :placeholder="isCurrentConversationReadOnly ? 'Read-only' : 'Message...'"
+                    :disabled="isCurrentConversationReadOnly"
+                    class="w-full bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted resize-none outline-none leading-relaxed"
+                    style="max-height: 7.5rem"
+                    @keydown.enter="if (!$event.shiftKey && !isCurrentConversationReadOnly) { $event.preventDefault(); sendMessage(); }"
+                    @input="autoResize($event.target)"
+                  ></textarea>
+                </div>
+                <div class="action-bar flex items-center gap-2 px-2 py-1.5">
+                  <div class="flex items-center gap-1 flex-1">
+                    <!-- Model badge (compact on mobile) -->
+                    <span class="model-badge" x-text="modelDisplayName"></span>
+                    <!-- Reasoning toggle (icon only on mobile) -->
+                    <button
+                      @click="reasoningEnabled = !reasoningEnabled"
+                      class="reasoning-toggle"
+                      :class="{ 'active': reasoningEnabled, 'disabled': isHaikuModel }"
+                      :disabled="isHaikuModel"
+                      aria-label="Toggle reasoning"
+                    >
+                      <svg
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        class="w-3.5 h-3.5"
+                      >
+                        <path
+                          d="M8 1a4.5 4.5 0 0 0-4.5 4.5c0 1.544.78 2.912 1.969 3.728a.75.75 0 0 1 .337.63v.392a.75.75 0 0 0 .75.75h2.888a.75.75 0 0 0 .75-.75v-.392a.75.75 0 0 1 .337-.63A4.498 4.498 0 0 0 12.5 5.5 4.5 4.5 0 0 0 8 1Z"
+                        />
+                      </svg>
+                    </button>
+                    <!-- Attachment button -->
+                    <button
+                      @click="$refs.fileInput?.click()"
+                      class="w-8 h-8 flex items-center justify-center text-tokyo-muted hover:text-tokyo-text transition-colors rounded-md"
+                      aria-label="Attach file"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        class="w-4 h-4"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M15.621 4.379a3 3 0 0 0-4.242 0l-7 7a3 3 0 0 0 4.241 4.243h.001l.497-.5a.75.75 0 0 1 1.064 1.057l-.498.501-.002.002a4.5 4.5 0 0 1-6.364-6.364l7-7a4.5 4.5 0 0 1 6.368 6.36l-3.455 3.553A2.625 2.625 0 1 1 9.52 9.52l3.45-3.451a.75.75 0 1 1 1.061 1.06l-3.45 3.451a1.125 1.125 0 0 0 1.587 1.595l3.454-3.553a3 3 0 0 0 0-4.242Z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                  <!-- Send button -->
+                  <button
+                    class="send-btn"
+                    :disabled="(!inputText.trim() && attachments.length === 0) || isResponding"
+                    @click="sendMessage()"
+                    aria-label="Send"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      class="w-4 h-4"
+                    >
+                      <path
+                        d="M3.105 2.288a.75.75 0 0 0-.826.95l1.414 4.926A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.115A28.897 28.897 0 0 0 3.105 2.288Z"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- ============================================================== -->
       <!-- Image Lightbox                                                 -->
       <!-- ============================================================== -->
       <div
@@ -3053,6 +4028,7 @@
 
     <!-- App logic (must load before Alpine processes x-data) -->
     <script src="js/stores.js"></script>
+    <script src="js/mobile.js?v=6"></script>
     <script src="js/ws-client.js"></script>
     <script src="js/chat-controls.js"></script>
     <script src="js/calendar.js"></script>
