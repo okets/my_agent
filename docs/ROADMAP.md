@@ -256,30 +256,65 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 
 ### M6: Memory — PLANNED
 
-Notebook memory with flexible user-defined lists, daily summaries, semantic search.
+Markdown-first notebook memory: files are the source of truth, SQLite is a derived search index. Hybrid BM25 + vector search. Local embeddings via plugin system.
 
-**Design spec:** [memory-system.md](design/memory-system.md)
+**Design specs:**
+- [memory-system.md](design/memory-system.md) — Full architecture, tools, schema, migration plan
+- [embeddings-plugin.md](design/embeddings-plugin.md) — Embeddings plugin interface and registry
+
+**Architecture:**
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Source of truth | Markdown files in `notebook/` | Human-editable, git-friendly, recoverable |
+| Search index | SQLite (`memory.db`) | Derived, rebuildable from markdown |
+| Keyword search | FTS5 (BM25) | Fast exact + keyword matching |
+| Semantic search | sqlite-vec + embeddings plugin | Cosine similarity |
+| Default embeddings | node-llama-cpp + embeddinggemma-300M | Local, ~600MB, no API cost |
+| SQLite binding | better-sqlite3 | Consistent with agent.db, battle-tested |
+
+**Notebook structure:** `lists/` (high-churn) + `reference/` (always in prompt) + `knowledge/` (learned facts) + `daily/` (temporal logs)
+
+**Agent tools:**
+- Intent-based: `remember()`, `recall()`, `daily_log()` — Nina thinks in concepts, not files
+- File-based escape hatch: `notebook_read()`, `notebook_write()` — for precise control
+- Separate: `conversation_search()` — keeps transcript search isolated from notebook results
+
+**Sprint breakdown:**
+
+| Sprint | Name | Scope |
+|--------|------|-------|
+| S1 | Infrastructure + Notebook Indexing | SQLite schema, embeddings plugin, sync service, `recall()` + `notebook_read()`, debug API |
+| S2 | Memory Tools + Prompt Integration | `remember()`, `daily_log()`, `notebook_write()`, `conversation_search()`, prompt assembly, pre-compaction flush, Nina's CLAUDE.md |
+| S3 | Dashboard + Conversation Search | Notebook browser UI, memory search UI, session transcript indexing, settings panel, E2E tests |
 
 **Deliverables:**
 
-- SQLite notebook with user-defined lists (contacts, shopping, preferences, etc.)
-- MCP tools: list_create, entry_add, entry_search, entry_update, entry_delete
-- Prompted additions ("Should I remember this?")
-- Recall priority: Notebook → Conversation search → Ask user
-- Daily summary generation (Haiku)
+- Markdown notebook (`notebook/`) with folder organization
+- SQLite index (`memory.db`) with FTS5 + sqlite-vec for hybrid search
+- Embeddings plugin system with `embeddings-local` as default
+- Five agent tools: `remember`, `recall`, `daily_log`, `notebook_read`, `notebook_write`
+- `conversation_search` tool (separate from notebook recall)
+- Auto-load `reference/*` + today/yesterday daily logs in every prompt
+- Pre-compaction flush: silent prompt to save memories before context compression
+- Dashboard: notebook browser, memory search UI, "Rebuild Memory Index" button
+- Debug API: memory status, search, file listing, rebuild, notebook CRUD, simulation endpoints
+- Migration from existing `runtime/` files into `notebook/reference/`
 
-**Embedding Architecture:**
+**Key decisions (2026-02-24):**
 
-| Component         | Choice                             | Notes                                              |
-| ----------------- | ---------------------------------- | -------------------------------------------------- |
-| Embedding runtime | node-llama-cpp                     | GPU support (CUDA/Metal/Vulkan), no PyTorch needed |
-| Default model     | embeddinggemma-300M or nomic-embed | Small, fast on CPU, auto-download GGUF             |
-| Vector storage    | sqlite-vec                         | In-DB vector queries, no JS loop                   |
-| Search strategy   | Hybrid (FTS5 + vector)             | BM25 for exact tokens, vector for semantic         |
+1. `better-sqlite3` binding — consistent with existing `agent.db`, 10-67% faster than `node:sqlite`
+2. Hybrid tools — intent-based primary (`remember`, `recall`) + file-based escape hatch
+3. Separate `conversation_search()` — keeps noisy transcripts isolated from curated notebook
+4. Manual `daily_log()` only — no automated Haiku summary ("explicit over automatic")
+5. Embeddings plugin system — `embeddings-local` default, extensible to OpenAI/Ollama/Voyage
 
-**Constraint:** Local models only — no external API subscriptions beyond Anthropic.
+**Dependencies:** M5 (task system complete), better-sqlite3 (existing)
 
-**Dependencies:** M2 (conversation search as fallback)
+**Risk mitigations:**
+- Graceful fallback to FTS5-only if embeddings plugin not ready
+- Session transcript indexing deferred to S3 (complexity shield)
+- Prompt assembly changes tested thoroughly (regression risk for all brain queries)
 
 ---
 
@@ -395,6 +430,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Mobile Layout        | Complete | M2-S7       | [design/mobile-layout-spec.md](design/mobile-layout-spec.md)     |
 | Navigable Timeline   | Deferred | Post-M5     | [design/navigable-timeline.md](design/navigable-timeline.md)     |
 | Memory               | Complete | M6          | [design/memory-system.md](design/memory-system.md)               |
+| Embeddings Plugin    | Complete | M6          | [design/embeddings-plugin.md](design/embeddings-plugin.md)       |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Complete | M8          | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
