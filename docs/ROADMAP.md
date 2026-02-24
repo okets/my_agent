@@ -16,7 +16,7 @@
 | **M4.5: Calendar System**    | Complete | 5/5 sprints                  |
 | **M5: Task System**          | Complete | 10/10 sprints                |
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
-| **M6: Memory**               | Planned  | Design complete, sprints TBD |
+| **M6: Memory**               | Active   | 2/3 sprints complete         |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
 | **M9: Email Channel**        | Planned  | Design complete, sprints TBD |
@@ -30,10 +30,10 @@
 2026-02                                          2026-03+
 ├─────────────────────────────────────────────────────────────────────►
 
-M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6+ Future
-[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [░░░░░░░░░░]
-   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         PLANNED
-                                                                                                     M6 Memory
+M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory
+[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████░░]
+   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         ACTIVE
+                                                                                                     (2/3 sprints)
                                                                                                      M7 Coding Projects
                                                                                                      M8 Ops Dashboard
                                                                                                      M9 Email
@@ -254,39 +254,39 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 
 ---
 
-### M6: Memory — PLANNED
+### M6: Memory — ACTIVE
 
 Markdown-first notebook memory: files are the source of truth, SQLite is a derived search index. Hybrid BM25 + vector search. Local embeddings via plugin system.
 
 **Design specs:**
+
 - [memory-system.md](design/memory-system.md) — Full architecture, tools, schema, migration plan
 - [embeddings-plugin.md](design/embeddings-plugin.md) — Embeddings plugin interface and registry
 
+| Sprint | Name                               | Status   | Plan                                                | Review                                                  |
+| ------ | ---------------------------------- | -------- | --------------------------------------------------- | ------------------------------------------------------- |
+| S1     | Infrastructure + Notebook Indexing | Complete | [plan](sprints/m6-s1-memory-infrastructure/plan.md) | [review](sprints/m6-s1-memory-infrastructure/review.md) |
+| S2     | Memory Tools + Prompt Integration  | Complete | [plan](sprints/m6-s2-memory-tools/plan.md)          | [review](sprints/m6-s2-memory-tools/review.md)          |
+| S3     | Dashboard + Conversation Search    | Planned  | —                                                   | —                                                       |
+
 **Architecture:**
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Source of truth | Markdown files in `notebook/` | Human-editable, git-friendly, recoverable |
-| Search index | SQLite (`memory.db`) | Derived, rebuildable from markdown |
-| Keyword search | FTS5 (BM25) | Fast exact + keyword matching |
-| Semantic search | sqlite-vec + embeddings plugin | Cosine similarity |
-| Default embeddings | node-llama-cpp + embeddinggemma-300M | Local, ~600MB, no API cost |
-| SQLite binding | better-sqlite3 | Consistent with agent.db, battle-tested |
+| Layer              | Technology                           | Purpose                                   |
+| ------------------ | ------------------------------------ | ----------------------------------------- |
+| Source of truth    | Markdown files in `notebook/`        | Human-editable, git-friendly, recoverable |
+| Search index       | SQLite (`memory.db`)                 | Derived, rebuildable from markdown        |
+| Keyword search     | FTS5 (BM25)                          | Fast exact + keyword matching             |
+| Semantic search    | sqlite-vec + embeddings plugin       | Cosine similarity                         |
+| Default embeddings | node-llama-cpp + embeddinggemma-300M | Local, ~600MB, no API cost                |
+| SQLite binding     | better-sqlite3                       | Consistent with agent.db, battle-tested   |
 
 **Notebook structure:** `lists/` (high-churn) + `reference/` (always in prompt) + `knowledge/` (learned facts) + `daily/` (temporal logs)
 
 **Agent tools:**
+
 - Intent-based: `remember()`, `recall()`, `daily_log()` — Nina thinks in concepts, not files
 - File-based escape hatch: `notebook_read()`, `notebook_write()` — for precise control
 - Separate: `conversation_search()` — keeps transcript search isolated from notebook results
-
-**Sprint breakdown:**
-
-| Sprint | Name | Scope |
-|--------|------|-------|
-| S1 | Infrastructure + Notebook Indexing | SQLite schema, embeddings plugin, sync service, `recall()` + `notebook_read()`, debug API |
-| S2 | Memory Tools + Prompt Integration | `remember()`, `daily_log()`, `notebook_write()`, `conversation_search()`, prompt assembly, pre-compaction flush, Nina's CLAUDE.md |
-| S3 | Dashboard + Conversation Search | Notebook browser UI, memory search UI, session transcript indexing, settings panel, E2E tests |
 
 **Deliverables:**
 
@@ -312,6 +312,7 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 **Dependencies:** M5 (task system complete), better-sqlite3 (existing)
 
 **Risk mitigations:**
+
 - Graceful fallback to FTS5-only if embeddings plugin not ready
 - Session transcript indexing deferred to S3 (complexity shield)
 - Prompt assembly changes tested thoroughly (regression risk for all brain queries)
@@ -462,9 +463,9 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                  M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete) → M6 Memory
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete) → M6 Memory (2/3 sprints)
 
-**M5 complete (10/10 sprints).** Next: M6 Memory System.
+**M6 in progress (2/3 sprints).** Next: M6-S3 Dashboard + Conversation Search.
 
 **M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
 
@@ -499,14 +500,14 @@ Ideas that haven't been promoted to design specs yet.
 
 Long-term features beyond the current milestone plan. Not scheduled, not designed — just captured for future consideration.
 
-| Feature                        | Description                                               | Notes                                                                        |
-| ------------------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| **External Calendar Channels** | Google Calendar, Apple iCloud, Outlook as channel plugins | Each with own OAuth/auth flow, modeled like WhatsApp/Email channels          |
+| Feature                        | Description                                                                   | Notes                                                                        |
+| ------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **External Calendar Channels** | Google Calendar, Apple iCloud, Outlook as channel plugins                     | Each with own OAuth/auth flow, modeled like WhatsApp/Email channels          |
 | **Mobile Dashboard (Phase 2)** | Advanced mobile features: bottom sheet chat, keyboard handling, accessibility | M2-S7 delivered foundation; remaining: peek/half/full chat, safe areas, a11y |
-| **iOS App**                    | Native iOS app for Nina                                   | Push notifications, Siri integration, widget support                         |
-| **Mid-session Intervention**   | Send input to running Claude Code sessions                | Depends on Claude Code supporting message injection (steer)                  |
-| **Voice Output (TTS)**         | Give Nina a voice using text-to-speech                    | Evaluate Qwen 3 TTS — open, sounds good, need to test near real-time latency |
-| **Voice Input (STT)**          | Let Nina understand voice via speech-to-text              | Web UI + WhatsApp channels; STT model for voice message transcription        |
+| **iOS App**                    | Native iOS app for Nina                                                       | Push notifications, Siri integration, widget support                         |
+| **Mid-session Intervention**   | Send input to running Claude Code sessions                                    | Depends on Claude Code supporting message injection (steer)                  |
+| **Voice Output (TTS)**         | Give Nina a voice using text-to-speech                                        | Evaluate Qwen 3 TTS — open, sounds good, need to test near real-time latency |
+| **Voice Input (STT)**          | Let Nina understand voice via speech-to-text                                  | Web UI + WhatsApp channels; STT model for voice message transcription        |
 
 ---
 

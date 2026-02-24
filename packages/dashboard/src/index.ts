@@ -9,7 +9,18 @@ import {
   loadCalendarConfig,
   loadCalendarCredentials,
   NotificationService,
+  // Memory system (M6-S2)
+  MemoryDb,
+  SyncService,
+  SearchService,
+  PluginRegistry,
+  LocalEmbeddingsPlugin,
+  OllamaEmbeddingsPlugin,
+  initNotebook,
+  migrateToNotebook,
+  needsMigration,
 } from "@my-agent/core";
+import { join } from "node:path";
 import { createEventHandler } from "./scheduler/event-handler.js";
 import { createBaileysPlugin } from "@my-agent/channel-whatsapp";
 import { createServer } from "./server.js";
@@ -319,6 +330,74 @@ async function main() {
     server.statePublisher = null;
   }
 
+  // Initialize memory system (M6-S2)
+  let memoryDb: MemoryDb | null = null;
+  let syncService: SyncService | null = null;
+  let searchService: SearchService | null = null;
+  let pluginRegistry: PluginRegistry | null = null;
+
+  if (hatched) {
+    try {
+      // Initialize notebook folder structure
+      await initNotebook(agentDir);
+
+      // Migrate any existing files if needed
+      if (await needsMigration(agentDir)) {
+        const migrated = await migrateToNotebook(agentDir);
+        if (migrated.length > 0) {
+          console.log(`Migrated ${migrated.length} file(s) to notebook/`);
+        }
+      }
+
+      // Create plugin registry and register available plugins
+      pluginRegistry = new PluginRegistry();
+      pluginRegistry.register(new LocalEmbeddingsPlugin(agentDir));
+      pluginRegistry.register(
+        new OllamaEmbeddingsPlugin({
+          host: "http://localhost:11434",
+          model: "nomic-embed-text",
+        }),
+      );
+
+      // Create memory database
+      memoryDb = new MemoryDb(agentDir);
+
+      // Create sync service (watches notebook files)
+      const notebookDir = join(agentDir, "notebook");
+      syncService = new SyncService({
+        notebookDir,
+        db: memoryDb,
+        getPlugin: () => pluginRegistry?.getActive() ?? null,
+      });
+
+      // Create search service (hybrid FTS5 + vector)
+      searchService = new SearchService({
+        db: memoryDb,
+        getPlugin: () => pluginRegistry?.getActive() ?? null,
+      });
+
+      // Run initial sync on startup
+      const syncResult = await syncService.fullSync();
+      console.log(
+        `Memory system initialized (${syncResult.added} files indexed, ${syncResult.errors.length} errors)`,
+      );
+
+      // Start file watcher
+      syncService.startWatching();
+      console.log("Memory file watcher started");
+    } catch (err) {
+      console.warn(
+        "Failed to initialize memory system:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  server.memoryDb = memoryDb;
+  server.syncService = syncService;
+  server.searchService = searchService;
+  server.pluginRegistry = pluginRegistry;
+
   try {
     await server.listen({ port, host: "0.0.0.0" });
     console.log(`\nDashboard running at http://localhost:${port}`);
@@ -352,6 +431,16 @@ async function main() {
       // Drain abbreviation queue
       if (abbreviationQueue) {
         await abbreviationQueue.drain();
+      }
+
+      // Stop memory file watcher and close database
+      if (syncService) {
+        syncService.stopWatching();
+        console.log("Memory file watcher stopped.");
+      }
+      if (memoryDb) {
+        memoryDb.close();
+        console.log("Memory database closed.");
       }
 
       // Then close server

@@ -151,6 +151,17 @@ export {
   PluginRegistry,
   LocalEmbeddingsPlugin,
   OllamaEmbeddingsPlugin,
+  // Tools (M6-S2)
+  recall,
+  notebookRead,
+  formatRecallResults,
+  remember,
+  dailyLog,
+  notebookWrite,
+  conversationSearch,
+  formatConversationSearchResults,
+  getPreCompactionFlushMessage,
+  shouldFlushBeforeCompaction,
 } from './memory/index.js'
 export type {
   FileRecord,
@@ -168,4 +179,18 @@ export type {
   EmbeddingsConfig,
   SyncServiceOptions,
   SearchServiceOptions,
+  // Tool types (M6-S2)
+  NotebookReadOptions,
+  RememberCategory,
+  RememberParams,
+  RememberResult,
+  DailyLogParams,
+  DailyLogResult,
+  NotebookWriteParams,
+  NotebookWriteResult,
+  ConversationSearchParams,
+  ConversationSearchResult,
+  ConversationSearchResponse,
+  RawConversationSearchResult,
+  ConversationMetadata,
 } from './memory/index.js'

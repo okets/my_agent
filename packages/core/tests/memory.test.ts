@@ -19,6 +19,7 @@ import { chunkMarkdown, hashFileContent } from '../src/memory/chunker.js'
 import { SyncService } from '../src/memory/sync-service.js'
 import { SearchService } from '../src/memory/search-service.js'
 import { initNotebook } from '../src/memory/init.js'
+import { remember, dailyLog, notebookWrite } from '../src/memory/tools.js'
 
 // -------------------------------------------------------------------
 // Helpers
@@ -446,5 +447,208 @@ describe('Notebook Initialization', () => {
 
     // Should not throw, directories should still exist
     expect(fs.existsSync(path.join(tempDir, 'notebook'))).toBe(true)
+  })
+})
+
+// -------------------------------------------------------------------
+// remember() Tool Tests
+// -------------------------------------------------------------------
+
+describe('remember() Tool', () => {
+  let tempDir: string
+  let notebookDir: string
+
+  beforeEach(async () => {
+    tempDir = createTempDir()
+    await initNotebook(tempDir)
+    notebookDir = path.join(tempDir, 'notebook')
+  })
+
+  afterEach(() => {
+    cleanDir(tempDir)
+  })
+
+  it('auto-routes contact info to reference/contacts.md', async () => {
+    const result = await remember(notebookDir, {
+      content: 'John Doe - john@example.com - 555-1234',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.file).toBe('reference/contacts.md')
+
+    const content = fs.readFileSync(path.join(notebookDir, 'reference/contacts.md'), 'utf-8')
+    expect(content).toContain('John Doe')
+    expect(content).toContain('john@example.com')
+  })
+
+  it('auto-routes preferences to reference/preferences.md', async () => {
+    const result = await remember(notebookDir, {
+      content: 'I prefer dark mode in all apps',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.file).toBe('reference/preferences.md')
+  })
+
+  it('respects explicit category', async () => {
+    const result = await remember(notebookDir, {
+      content: 'Remember to buy milk',
+      category: 'lists',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.file).toContain('lists/')
+  })
+
+  it('appends to specific section', async () => {
+    // First create a file with a section
+    await notebookWrite(notebookDir, {
+      path: 'reference/contacts.md',
+      content: '# Contacts\n\n## Work\n\nAlice - Manager',
+    })
+
+    const result = await remember(notebookDir, {
+      content: 'Bob - Developer',
+      category: 'reference',
+      file: 'contacts',
+      section: 'Work',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.section).toBe('Work')
+
+    const content = fs.readFileSync(path.join(notebookDir, 'reference/contacts.md'), 'utf-8')
+    expect(content).toContain('Alice - Manager')
+    expect(content).toContain('Bob - Developer')
+  })
+})
+
+// -------------------------------------------------------------------
+// daily_log() Tool Tests
+// -------------------------------------------------------------------
+
+describe('daily_log() Tool', () => {
+  let tempDir: string
+  let notebookDir: string
+
+  beforeEach(async () => {
+    tempDir = createTempDir()
+    await initNotebook(tempDir)
+    notebookDir = path.join(tempDir, 'notebook')
+  })
+
+  afterEach(() => {
+    cleanDir(tempDir)
+  })
+
+  it('creates daily log with timestamp', async () => {
+    const result = await dailyLog(notebookDir, {
+      entry: 'Started working on memory system',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.file).toMatch(/daily\/\d{4}-\d{2}-\d{2}\.md/)
+    expect(result.timestamp).toMatch(/\d{2}:\d{2}/)
+
+    const content = fs.readFileSync(path.join(notebookDir, result.file), 'utf-8')
+    expect(content).toContain('Started working on memory system')
+    expect(content).toMatch(/- \[\d{2}:\d{2}\]/)
+  })
+
+  it('appends to existing daily log', async () => {
+    await dailyLog(notebookDir, { entry: 'First entry' })
+    await dailyLog(notebookDir, { entry: 'Second entry' })
+
+    const today = new Date().toISOString().split('T')[0]
+    const content = fs.readFileSync(path.join(notebookDir, 'daily', `${today}.md`), 'utf-8')
+
+    expect(content).toContain('First entry')
+    expect(content).toContain('Second entry')
+  })
+})
+
+// -------------------------------------------------------------------
+// notebook_write() Tool Tests
+// -------------------------------------------------------------------
+
+describe('notebook_write() Tool', () => {
+  let tempDir: string
+  let notebookDir: string
+
+  beforeEach(async () => {
+    tempDir = createTempDir()
+    await initNotebook(tempDir)
+    notebookDir = path.join(tempDir, 'notebook')
+  })
+
+  afterEach(() => {
+    cleanDir(tempDir)
+  })
+
+  it('writes new file', async () => {
+    const result = await notebookWrite(notebookDir, {
+      path: 'lists/shopping.md',
+      content: '# Shopping\n\n- Milk\n- Bread',
+    })
+
+    expect(result.success).toBe(true)
+
+    const content = fs.readFileSync(path.join(notebookDir, 'lists/shopping.md'), 'utf-8')
+    expect(content).toContain('# Shopping')
+    expect(content).toContain('- Milk')
+  })
+
+  it('appends to section', async () => {
+    // Create initial file
+    await notebookWrite(notebookDir, {
+      path: 'lists/shopping.md',
+      content: '# Shopping\n\n## Groceries\n\n- Milk',
+    })
+
+    // Append to section
+    const result = await notebookWrite(notebookDir, {
+      path: 'lists/shopping.md',
+      content: '- Eggs',
+      section: 'Groceries',
+      replace: false,
+    })
+
+    expect(result.success).toBe(true)
+
+    const content = fs.readFileSync(path.join(notebookDir, 'lists/shopping.md'), 'utf-8')
+    expect(content).toContain('- Milk')
+    expect(content).toContain('- Eggs')
+  })
+
+  it('replaces section content', async () => {
+    // Create initial file
+    await notebookWrite(notebookDir, {
+      path: 'lists/shopping.md',
+      content: '# Shopping\n\n## Groceries\n\n- Old items',
+    })
+
+    // Replace section
+    const result = await notebookWrite(notebookDir, {
+      path: 'lists/shopping.md',
+      content: '- New items',
+      section: 'Groceries',
+      replace: true,
+    })
+
+    expect(result.success).toBe(true)
+
+    const content = fs.readFileSync(path.join(notebookDir, 'lists/shopping.md'), 'utf-8')
+    expect(content).not.toContain('Old items')
+    expect(content).toContain('New items')
+  })
+
+  it('prevents directory traversal', async () => {
+    const result = await notebookWrite(notebookDir, {
+      path: '../../../etc/passwd',
+      content: 'malicious content',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('Invalid path')
   })
 })
