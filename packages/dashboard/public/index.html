@@ -305,14 +305,14 @@
                   :class="notebookTab === 'orders' ? 'text-tokyo-blue border-b-2 border-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text'"
                   class="flex-1 px-2 py-2 text-[11px] font-medium truncate transition-colors"
                 >
-                  <span x-text="agentFirstName + '\u0027s Orders'"></span>
+                  Operations
                 </button>
                 <button
                   @click="setNotebookTab('lists')"
                   :class="notebookTab === 'lists' ? 'text-tokyo-blue border-b-2 border-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text'"
                   class="flex-1 px-2 py-2 text-[11px] font-medium truncate transition-colors"
                 >
-                  Lists &amp; Contacts
+                  Lists &amp; Reference
                 </button>
                 <button
                   @click="setNotebookTab('daily')"
@@ -1470,7 +1470,7 @@
                 </template>
                 <template x-if="!notebookLoading && notebookTree.length > 0">
                   <div class="space-y-1">
-                    <!-- Section: Nina's Orders (operations/) -->
+                    <!-- Section: Operations (operations/) -->
                     <div class="mb-2">
                       <button
                         @click="notebookSections.orders = !notebookSections.orders"
@@ -1493,8 +1493,8 @@
                         </svg>
                         <span
                           class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide"
-                          x-text="agentFirstName + '\u0027s Orders'"
-                        ></span>
+                          >Operations</span
+                        >
                         <span
                           class="text-[10px] text-tokyo-muted/60 ml-auto"
                           x-text="notebookCategoryFiles.orders.length + ' files'"
@@ -1545,7 +1545,7 @@
                       </div>
                     </div>
 
-                    <!-- Section: Lists & Contacts (lists/ + reference/) -->
+                    <!-- Section: Lists & Reference (lists/ + reference/) -->
                     <div class="mb-2">
                       <button
                         @click="notebookSections.lists = !notebookSections.lists"
@@ -1568,7 +1568,7 @@
                         </svg>
                         <span
                           class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide"
-                          >Lists &amp; Contacts</span
+                          >Lists &amp; Reference</span
                         >
                         <span
                           class="text-[10px] text-tokyo-muted/60 ml-auto"
@@ -4710,7 +4710,7 @@
               </template>
               <template x-if="!notebookLoading && notebookTree.length > 0">
                 <div class="space-y-2 max-h-[60vh] overflow-auto">
-                  <!-- Nina's Orders -->
+                  <!-- Operations -->
                   <div x-data="{ expanded: true }">
                     <button
                       @click="expanded = !expanded"
@@ -4733,8 +4733,8 @@
                       </svg>
                       <span
                         class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide"
-                        x-text="agentFirstName + '\u0027s Orders'"
-                      ></span>
+                        >Operations</span
+                      >
                       <span
                         class="text-[10px] text-tokyo-muted/60 ml-auto"
                         x-text="notebookCategoryFiles.orders.length"
@@ -4782,7 +4782,7 @@
                       </template>
                     </div>
                   </div>
-                  <!-- Lists & Contacts -->
+                  <!-- Lists & Reference -->
                   <div x-data="{ expanded: true }">
                     <button
                       @click="expanded = !expanded"
@@ -4805,7 +4805,7 @@
                       </svg>
                       <span
                         class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide"
-                        >Lists &amp; Contacts</span
+                        >Lists &amp; Reference</span
                       >
                       <span
                         class="text-[10px] text-tokyo-muted/60 ml-auto"
