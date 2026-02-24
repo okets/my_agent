@@ -287,7 +287,7 @@ When initializing a plugin that needs download:
 ### `embeddings-ollama` — M6-S1 Requirement
 
 > **Status:** Required for M6-S1 (not future work)
-> **Context:** Unraid server has Ollama at 10.10.10.2:11434 with RTX 5060 Ti (16GB VRAM)
+> **Context:** Ollama server with GPU (16GB VRAM) available on network
 
 GPU-accelerated embeddings via Ollama server. Generic — supports any Ollama embedding model.
 
@@ -298,7 +298,7 @@ GPU-accelerated embeddings via Ollama server. Generic — supports any Ollama em
   description: "GPU-accelerated embeddings via Ollama server",
 
   // Configurable — not hardcoded
-  host: string,           // e.g., "http://10.10.10.2:11434"
+  host: string,           // e.g., "http://your-ollama-server:11434"
   model: string,          // e.g., "nomic-embed-text", "mxbai-embed-large"
   dimensions: number,     // Model-dependent (768, 1024, etc.)
 }
@@ -318,7 +318,7 @@ memory:
   embeddingsPlugin: "embeddings-ollama"  # or "embeddings-local"
   plugins:
     embeddings-ollama:
-      host: "http://10.10.10.2:11434"
+      host: "http://your-ollama-server:11434"
       model: "nomic-embed-text"
     embeddings-local:
       model: "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf"
@@ -331,7 +331,7 @@ memory:
 ollama pull nomic-embed-text
 
 # Test from dev machine
-curl http://10.10.10.2:11434/api/embed -d '{"model":"nomic-embed-text","input":"test"}'
+curl http://your-ollama-server:11434/api/embed -d '{"model":"nomic-embed-text","input":"test"}'
 ```
 
 ### `embeddings-voyage`

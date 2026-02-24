@@ -15,23 +15,32 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/",
-    "format:check": "prettier --check src/"
+    "format:check": "prettier --check src/",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.39",
     "@types/luxon": "^3.7.1",
+    "better-sqlite3": "^12.6.2",
+    "chokidar": "^5.0.0",
+    "globby": "^16.1.1",
     "ical-expander": "^3.2.0",
     "luxon": "^3.7.2",
+    "node-llama-cpp": "^3.16.2",
+    "sqlite-vec": "^0.1.6",
     "tsdav": "^2.1.8",
     "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "eslint": "^9.39.2",
     "prettier": "^3.8.1",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.55.0"
+    "typescript-eslint": "^8.55.0",
+    "vitest": "^4.0.18"
   }
 }

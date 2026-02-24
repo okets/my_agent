@@ -136,3 +136,36 @@ export type {
   EscalateInput,
   NotificationEvent,
 } from './notifications/index.js'
+
+// Memory system
+export {
+  MemoryDb,
+  SyncService,
+  SearchService,
+  initNotebook,
+  migrateToNotebook,
+  needsMigration,
+  createStarterNotebook,
+  chunkMarkdown,
+  hashFileContent,
+  PluginRegistry,
+  LocalEmbeddingsPlugin,
+  OllamaEmbeddingsPlugin,
+} from './memory/index.js'
+export type {
+  FileRecord,
+  Chunk,
+  SearchResult,
+  RecallResult,
+  SearchOptions,
+  SyncResult,
+  SyncOptions,
+  IndexMeta,
+  MemoryStatus,
+  EmbeddingsPlugin,
+  InitializeOptions,
+  PluginConfig,
+  EmbeddingsConfig,
+  SyncServiceOptions,
+  SearchServiceOptions,
+} from './memory/index.js'

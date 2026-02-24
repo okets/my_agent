@@ -953,4 +953,128 @@ export async function registerDebugRoutes(
         return { error: "Unknown notification type" };
     }
   });
+
+  // ============================================================
+  // MEMORY DEBUG ENDPOINTS (M6-S1)
+  // ============================================================
+
+  /**
+   * GET /memory/status
+   *
+   * Memory index statistics and embeddings plugin status
+   */
+  fastify.get("/memory/status", async (request, reply) => {
+    const memoryDb = fastify.memoryDb;
+
+    if (!memoryDb) {
+      return reply.code(503).send({
+        error: "Memory system not initialized",
+        embeddingsReady: false,
+      });
+    }
+
+    return memoryDb.getStatus();
+  });
+
+  /**
+   * GET /memory/search
+   *
+   * Raw search results for debugging hybrid search
+   */
+  fastify.get<{
+    Querystring: {
+      q: string;
+      maxResults?: string;
+      minScore?: string;
+    };
+  }>("/memory/search", async (request, reply) => {
+    const searchService = fastify.searchService;
+
+    if (!searchService) {
+      return reply.code(503).send({
+        error: "Search service not initialized",
+      });
+    }
+
+    const { q, maxResults, minScore } = request.query;
+
+    if (!q || !q.trim()) {
+      return reply.code(400).send({ error: "Query parameter 'q' is required" });
+    }
+
+    const results = await searchService.recall(q, {
+      maxResults: maxResults ? parseInt(maxResults, 10) : undefined,
+      minScore: minScore ? parseFloat(minScore) : undefined,
+    });
+
+    return {
+      query: q,
+      notebook: results.notebook,
+      daily: results.daily,
+      totalResults: results.notebook.length + results.daily.length,
+    };
+  });
+
+  /**
+   * GET /memory/files
+   *
+   * List all indexed files with metadata
+   */
+  fastify.get("/memory/files", async (request, reply) => {
+    const memoryDb = fastify.memoryDb;
+
+    if (!memoryDb) {
+      return reply.code(503).send({
+        error: "Memory system not initialized",
+      });
+    }
+
+    const files = memoryDb.listFiles();
+
+    return {
+      count: files.length,
+      files: files.map((f) => ({
+        path: f.path,
+        hash: f.hash.slice(0, 8) + "...", // Truncate for readability
+        size: f.size,
+        mtime: f.mtime,
+        indexedAt: f.indexedAt,
+      })),
+    };
+  });
+
+  /**
+   * GET /memory/embeddings
+   *
+   * Embeddings plugin status and available plugins
+   */
+  fastify.get("/memory/embeddings", async (request, reply) => {
+    const pluginRegistry = fastify.pluginRegistry;
+
+    if (!pluginRegistry) {
+      return reply.code(503).send({
+        error: "Plugin registry not initialized",
+      });
+    }
+
+    const active = pluginRegistry.getActive();
+    const available = pluginRegistry.list();
+
+    return {
+      activePlugin: active
+        ? {
+            id: active.id,
+            name: active.name,
+            model: active.modelName,
+            dimensions: active.getDimensions(),
+          }
+        : null,
+      availablePlugins: available.map((p) => ({
+        id: p.id,
+        name: p.name,
+        model: p.modelName,
+        dimensions: p.getDimensions(),
+      })),
+    };
+  });
 }

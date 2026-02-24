@@ -24,7 +24,14 @@ import type {
   TaskProcessor,
   TaskScheduler,
 } from "./tasks/index.js";
-import type { CalendarScheduler, NotificationService } from "@my-agent/core";
+import type {
+  CalendarScheduler,
+  NotificationService,
+  MemoryDb,
+  SyncService,
+  SearchService,
+  PluginRegistry,
+} from "@my-agent/core";
 import type { StatePublisher } from "./state/state-publisher.js";
 
 export interface ServerOptions {
@@ -47,6 +54,11 @@ declare module "fastify" {
     calendarScheduler: CalendarScheduler | null;
     notificationService: NotificationService | null;
     statePublisher: StatePublisher | null;
+    // Memory system (M6-S1)
+    memoryDb: MemoryDb | null;
+    syncService: SyncService | null;
+    searchService: SearchService | null;
+    pluginRegistry: PluginRegistry | null;
   }
 }
 
@@ -131,6 +143,11 @@ export async function createServer(
   fastify.decorate("calendarScheduler", null);
   fastify.decorate("notificationService", null);
   fastify.decorate("statePublisher", null);
+  // Memory system (M6-S1)
+  fastify.decorate("memoryDb", null);
+  fastify.decorate("syncService", null);
+  fastify.decorate("searchService", null);
+  fastify.decorate("pluginRegistry", null);
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);

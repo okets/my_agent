@@ -524,4 +524,245 @@ export async function registerAdminRoutes(
       });
     }
   });
+
+  // ============================================================
+  // MEMORY ADMIN ENDPOINTS (M6-S1)
+  // ============================================================
+
+  /**
+   * POST /memory/rebuild
+   *
+   * Clear memory index and rebuild from notebook files.
+   * DESTRUCTIVE: Requires X-Confirm-Destructive header.
+   */
+  fastify.post("/memory/rebuild", async (request, reply) => {
+    const confirmHeader = request.headers["x-confirm-destructive"];
+    if (confirmHeader !== "true") {
+      return reply.code(400).send({
+        error:
+          "Destructive operation requires X-Confirm-Destructive: true header",
+      });
+    }
+
+    const syncService = fastify.syncService;
+
+    if (!syncService) {
+      return reply.code(503).send({
+        error: "Sync service not initialized",
+      });
+    }
+
+    try {
+      fastify.log.info("[Admin] Starting memory index rebuild...");
+      const result = await syncService.rebuild();
+
+      fastify.log.info(
+        `[Admin] Memory rebuild complete: ${result.added} added, ${result.errors.length} errors`,
+      );
+
+      return {
+        ok: true,
+        result: {
+          added: result.added,
+          updated: result.updated,
+          removed: result.removed,
+          errors: result.errors,
+          durationMs: result.duration,
+        },
+      };
+    } catch (err) {
+      fastify.log.error(err, "[Admin] Memory rebuild failed");
+      return reply.code(500).send({
+        error: err instanceof Error ? err.message : "Memory rebuild failed",
+      });
+    }
+  });
+
+  /**
+   * POST /memory/sync
+   *
+   * Trigger a full sync (without clearing existing data).
+   */
+  fastify.post("/memory/sync", async (request, reply) => {
+    const syncService = fastify.syncService;
+
+    if (!syncService) {
+      return reply.code(503).send({
+        error: "Sync service not initialized",
+      });
+    }
+
+    try {
+      fastify.log.info("[Admin] Starting memory sync...");
+      const result = await syncService.fullSync();
+
+      fastify.log.info(
+        `[Admin] Memory sync complete: ${result.added} added, ${result.updated} updated`,
+      );
+
+      return {
+        ok: true,
+        result: {
+          added: result.added,
+          updated: result.updated,
+          removed: result.removed,
+          errors: result.errors,
+          durationMs: result.duration,
+        },
+      };
+    } catch (err) {
+      fastify.log.error(err, "[Admin] Memory sync failed");
+      return reply.code(500).send({
+        error: err instanceof Error ? err.message : "Memory sync failed",
+      });
+    }
+  });
+
+  /**
+   * POST /memory/embeddings/activate
+   *
+   * Activate an embeddings plugin by ID.
+   */
+  fastify.post<{
+    Body: { pluginId: string };
+  }>("/memory/embeddings/activate", async (request, reply) => {
+    const pluginRegistry = fastify.pluginRegistry;
+
+    if (!pluginRegistry) {
+      return reply.code(503).send({
+        error: "Plugin registry not initialized",
+      });
+    }
+
+    const { pluginId } = request.body || {};
+
+    if (!pluginId) {
+      return reply.code(400).send({ error: "pluginId is required" });
+    }
+
+    const plugin = pluginRegistry.get(pluginId);
+    if (!plugin) {
+      const available = pluginRegistry.list().map((p) => p.id);
+      return reply.code(404).send({
+        error: `Plugin not found: ${pluginId}`,
+        available,
+      });
+    }
+
+    try {
+      // Initialize the plugin
+      await plugin.initialize();
+
+      // Check if ready
+      const isReady = await plugin.isReady();
+      if (!isReady) {
+        return reply.code(503).send({
+          error: "Plugin not ready after initialization",
+          pluginId,
+        });
+      }
+
+      // Set as active
+      pluginRegistry.setActive(pluginId);
+
+      fastify.log.info(`[Admin] Activated embeddings plugin: ${pluginId}`);
+
+      return {
+        ok: true,
+        pluginId,
+        name: plugin.name,
+        model: plugin.modelName,
+        dimensions: plugin.getDimensions(),
+        note: "Vector index may need rebuild if dimensions changed",
+      };
+    } catch (err) {
+      fastify.log.error(err, `[Admin] Failed to activate plugin ${pluginId}`);
+      return reply.code(500).send({
+        error: err instanceof Error ? err.message : "Plugin activation failed",
+      });
+    }
+  });
+
+  /**
+   * DELETE /memory/embeddings/local-model
+   *
+   * Delete the downloaded local embeddings model to free disk space.
+   * DESTRUCTIVE: Requires X-Confirm-Destructive header.
+   */
+  fastify.delete("/memory/embeddings/local-model", async (request, reply) => {
+    const confirmHeader = request.headers["x-confirm-destructive"];
+    if (confirmHeader !== "true") {
+      return reply.code(400).send({
+        error:
+          "Destructive operation requires X-Confirm-Destructive: true header",
+      });
+    }
+
+    const modelsDir = join(fastify.agentDir, "cache", "models");
+
+    try {
+      // Check if directory exists
+      const stat = await import("node:fs/promises").then((fs) =>
+        fs.stat(modelsDir).catch(() => null),
+      );
+
+      if (!stat || !stat.isDirectory()) {
+        return reply.code(404).send({
+          error: "Models directory not found",
+          path: modelsDir,
+        });
+      }
+
+      // Get directory size before deletion
+      const files = await import("node:fs/promises").then((fs) =>
+        fs.readdir(modelsDir, { withFileTypes: true }),
+      );
+      let totalSize = 0;
+      const deletedFiles: string[] = [];
+
+      for (const file of files) {
+        if (file.isFile() && file.name.endsWith(".gguf")) {
+          const filePath = join(modelsDir, file.name);
+          const fileStat = await import("node:fs/promises").then((fs) =>
+            fs.stat(filePath),
+          );
+          totalSize += fileStat.size;
+          deletedFiles.push(file.name);
+        }
+      }
+
+      if (deletedFiles.length === 0) {
+        return {
+          ok: true,
+          message: "No local model files found",
+          freedBytes: 0,
+        };
+      }
+
+      // Delete GGUF files
+      for (const fileName of deletedFiles) {
+        const filePath = join(modelsDir, fileName);
+        await rm(filePath);
+        fastify.log.info(`[Admin] Deleted model file: ${fileName}`);
+      }
+
+      const freedMB = (totalSize / 1024 / 1024).toFixed(1);
+      fastify.log.info(
+        `[Admin] Deleted ${deletedFiles.length} model files, freed ${freedMB} MB`,
+      );
+
+      return {
+        ok: true,
+        deletedFiles,
+        freedBytes: totalSize,
+        freedMB: parseFloat(freedMB),
+      };
+    } catch (err) {
+      fastify.log.error(err, "[Admin] Failed to delete local model");
+      return reply.code(500).send({
+        error:
+          err instanceof Error ? err.message : "Failed to delete local model",
+      });
+    }
+  });
 }
