@@ -265,13 +265,17 @@
   }
 
   /* ── Popover backdrop ──────────────────────────────────────── */
+  /* Backdrop is invisible — chat stays visible in lower panel */
   .popover-backdrop {
     position: fixed;
-    inset: 0;
+    top: var(--mobile-header-height);
+    left: 0;
+    right: 0;
+    bottom: calc(
+      (100dvh - var(--mobile-header-height)) * var(--chat-ratio) / 100
+    );
     z-index: 20;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: transparent;
     opacity: 0;
     pointer-events: none;
     transition: opacity 200ms ease;
@@ -283,7 +287,7 @@
   }
 
   :root.light .popover-backdrop.active {
-    background: rgba(0, 0, 0, 0.25);
+    background: transparent;
   }
 
   :root.light .mobile-chat-panel {
@@ -292,25 +296,20 @@
     box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.08);
   }
 
-  /* ── Popover sheet ─────────────────────────────────────────── */
+  /* ── Popover sheet — fills the top (content) panel ─────────── */
   .popover-sheet {
     position: fixed;
+    top: var(--mobile-header-height);
     left: 0;
     right: 0;
-    /* Position above the chat panel — use percentage-based bottom */
-    bottom: calc(
-      (100vh - var(--mobile-header-height)) * var(--chat-ratio) / 100
-    );
     bottom: calc(
       (100dvh - var(--mobile-header-height)) * var(--chat-ratio) / 100
     );
-    max-height: var(--popover-max-height);
-    min-height: var(--popover-min-height);
     z-index: 30;
     background: var(--color-bg);
-    border-radius: var(--popover-border-radius) var(--popover-border-radius) 0 0;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
-    transform: translateY(100%);
+    border-radius: 0 0 var(--popover-border-radius) var(--popover-border-radius);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    transform: translateY(-100%);
     transition: transform var(--sheet-transition-duration)
       var(--sheet-transition-ease);
     overflow: hidden;
@@ -324,7 +323,7 @@
 
   .popover-sheet.closing {
     transition: transform var(--sheet-exit-duration) var(--sheet-exit-ease);
-    transform: translateY(100%);
+    transform: translateY(-100%);
   }
 
   .popover-sheet.dragging {

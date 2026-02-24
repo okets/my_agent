@@ -2194,6 +2194,81 @@ function chat() {
     },
 
     /**
+     * Initialize calendar inside the mobile calendar popover.
+     * Clicking a date selects it and shows that day's items below the calendar.
+     */
+    initMobileCalendar(el) {
+      if (!el) return;
+      // Clean up previous instance
+      if (window._mobileCalendar) {
+        window._mobileCalendar.destroy();
+        window._mobileCalendar = null;
+      }
+      // Defer until element has dimensions
+      if (el.offsetWidth === 0) {
+        requestAnimationFrame(() => this.initMobileCalendar(el));
+        return;
+      }
+      // Default selected date to today
+      this.mobileCalendarSelectedDate = new Date().toDateString();
+      this.updateMobileCalendarItems();
+
+      window._mobileCalendar = CalendarModule.initMiniCalendar(el, (date) => {
+        this.mobileCalendarSelectedDate = date.toDateString();
+        this.updateMobileCalendarItems();
+      });
+    },
+
+    /** Selected date in mobile calendar popover (toDateString format) */
+    mobileCalendarSelectedDate: null,
+    /** Items for the selected date */
+    mobileCalendarDayItems: [],
+
+    /** Update the day items list for the selected mobile calendar date */
+    updateMobileCalendarItems() {
+      if (!this.mobileCalendarSelectedDate) {
+        this.mobileCalendarDayItems = [];
+        return;
+      }
+      const target = this.mobileCalendarSelectedDate;
+      this.mobileCalendarDayItems = this.timelineItems.filter(
+        (item) => item.date === target,
+      );
+    },
+
+    /**
+     * Scroll the timeline to a specific date by finding its date separator.
+     * Falls back to expanding the timeline range if the date isn't loaded yet.
+     */
+    scrollTimelineToDate(date) {
+      if (!date) return;
+      const target = date.toDateString();
+      // Find the timeline item with a matching date separator
+      const items = this.timelineItems;
+      const match = items.find(
+        (item) => item.showDateSeparator && item.date === target,
+      );
+      if (!match) return; // Date not in current timeline range
+
+      // Find the separator button in the DOM by its text content
+      this.$nextTick(() => {
+        const timelineEl = document.querySelector(".timeline-scroll-area");
+        if (!timelineEl) return;
+        const separators = timelineEl.querySelectorAll("button");
+        for (const btn of separators) {
+          const span = btn.querySelector("span");
+          if (
+            span &&
+            span.textContent === this.formatDateSeparator(target)
+          ) {
+            btn.scrollIntoView({ behavior: "smooth", block: "start" });
+            return;
+          }
+        }
+      });
+    },
+
+    /**
      * Open the Calendar tab (create if needed) and optionally navigate to a date
      */
     openCalendar(date = null) {

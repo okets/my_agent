@@ -99,10 +99,6 @@ document.addEventListener("alpine:init", () => {
       if (!this.isMobile) return;
       if (state !== "peek" && state !== "half" && state !== "full") return;
 
-      // Opening chat collapses any open popover
-      if (state !== "peek" && this.popover) {
-        this.closePopover();
-      }
       // Close conv switcher if collapsing to peek
       if (state === "peek" && this.convSwitcherOpen) {
         this.convSwitcherOpen = false;
@@ -142,16 +138,57 @@ document.addEventListener("alpine:init", () => {
     openPopover(type, data) {
       if (!this.isMobile) return;
 
-      // Collapse chat to peek when opening a popover
-      if (this.chatState !== "peek") {
-        setChatRatio(CHAT_RATIO_PEEK);
-      }
-
       this.popover = { type: type, data: data || null };
+
+      // Set chat context tag (mirrors desktop tab behavior)
+      this._setChatContext(type, data);
     },
 
     closePopover() {
       this.popover = null;
+      this._clearChatContext();
+    },
+
+    /** Set chatContext on the main Alpine chat component */
+    _setChatContext(type, data) {
+      try {
+        const chatEl = document.querySelector("[x-data]");
+        if (!chatEl || !chatEl._x_dataStack) return;
+        const appData = chatEl._x_dataStack[0];
+        if (!appData) return;
+
+        if (type === "task" && data) {
+          appData.chatContext = {
+            type: "task",
+            icon: "\uD83D\uDCCB",
+            title: data.title,
+            taskId: data.id,
+          };
+        } else if (type === "event" && data) {
+          appData.chatContext = {
+            type: "event",
+            icon: "\uD83D\uDCC5",
+            title: data.title,
+            eventId: data.id,
+          };
+        }
+      } catch (e) {
+        // Silently fail — context tag is non-critical
+      }
+    },
+
+    /** Clear chatContext on the main Alpine chat component */
+    _clearChatContext() {
+      try {
+        const chatEl = document.querySelector("[x-data]");
+        if (!chatEl || !chatEl._x_dataStack) return;
+        const appData = chatEl._x_dataStack[0];
+        if (appData) {
+          appData.chatContext = null;
+        }
+      } catch (e) {
+        // Silently fail
+      }
     },
 
     get isPopoverOpen() {
@@ -394,14 +431,18 @@ function initSheetGesture(el, options) {
       getScrollTop: () => 0,
       dismissThreshold: 0.33,
       velocityThreshold: 500,
+      direction: "down", // "down" = swipe down to dismiss, "up" = swipe up to dismiss
     },
     options,
   );
+
+  const isUp = opts.direction === "up";
 
   let startY = 0;
   let startTime = 0;
   let currentY = 0;
   let isDragging = false;
+  let gestureAbandoned = false; // set when wrong-direction swipe detected
   let rafId = null;
 
   function onTouchStart(e) {
@@ -413,20 +454,31 @@ function initSheetGesture(el, options) {
     startTime = Date.now();
     currentY = 0;
     isDragging = false;
+    gestureAbandoned = false;
   }
 
   function onTouchMove(e) {
-    if (e.touches.length !== 1) return;
+    if (gestureAbandoned || e.touches.length !== 1) return;
 
     const touch = e.touches[0];
     const deltaY = touch.clientY - startY;
 
-    // Only start dragging downward when content is at scroll top
     if (!isDragging) {
-      if (deltaY > 10 && opts.getScrollTop() <= 0) {
+      const threshold = 10;
+
+      // Wrong direction → abandon this gesture, let native scroll work
+      if (isUp ? deltaY > threshold : deltaY < -threshold) {
+        gestureAbandoned = true;
+        return;
+      }
+
+      // Right direction → only start if at scroll boundary
+      const shouldStart = isUp
+        ? deltaY < -threshold
+        : deltaY > threshold && opts.getScrollTop() <= 0;
+      if (shouldStart) {
         isDragging = true;
         opts.onDragStart();
-        // Prevent scroll while dragging
         e.preventDefault();
       } else {
         return;
@@ -435,7 +487,8 @@ function initSheetGesture(el, options) {
 
     if (isDragging) {
       e.preventDefault();
-      currentY = Math.max(0, deltaY); // Only allow downward drag
+      // Absolute distance in the dismiss direction
+      currentY = isUp ? Math.max(0, -deltaY) : Math.max(0, deltaY);
 
       if (rafId) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
@@ -445,6 +498,7 @@ function initSheetGesture(el, options) {
   }
 
   function onTouchEnd() {
+    gestureAbandoned = false;
     if (!isDragging) return;
     isDragging = false;
 
@@ -466,17 +520,15 @@ function initSheetGesture(el, options) {
     }
   }
 
-  // Use the dedicated drag zone if it exists, otherwise the whole element
-  const dragZone = el.querySelector(".popover-drag-zone") || el;
-
-  // Passive: false needed because we call preventDefault in touchmove
-  dragZone.addEventListener("touchstart", onTouchStart, { passive: true });
+  // Listen on the whole element — dismiss activates only when scrolled to top
+  // and swiping in the dismiss direction
+  el.addEventListener("touchstart", onTouchStart, { passive: true });
   el.addEventListener("touchmove", onTouchMove, { passive: false });
   el.addEventListener("touchend", onTouchEnd, { passive: true });
 
   // Return cleanup function
   return function cleanup() {
-    dragZone.removeEventListener("touchstart", onTouchStart);
+    el.removeEventListener("touchstart", onTouchStart);
     el.removeEventListener("touchmove", onTouchMove);
     el.removeEventListener("touchend", onTouchEnd);
     if (rafId) cancelAnimationFrame(rafId);
@@ -664,10 +716,6 @@ function initChatSheetGesture(el) {
       setChatRatio(nearestPreset(currentRatio));
     }
 
-    // Opening chat collapses any open popover
-    if (store.chatState !== "peek" && store.popover) {
-      store.closePopover();
-    }
     // Close conv switcher if collapsing to peek
     if (store.chatState === "peek" && store.convSwitcherOpen) {
       store.convSwitcherOpen = false;
