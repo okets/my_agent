@@ -142,6 +142,8 @@ function chat() {
     // ─────────────────────────────────────────────────────────────────
     timelinePastDays: 1, // How far back to show (days)
     timelineFutureDays: 7, // How far forward to show (days)
+    noMoreFutureEvents: true, // Pessimistic default; set false when events are found
+    nowMarkerDirection: null, // null = visible, 'up' = above viewport, 'down' = below
     showCreateTaskForm: false, // Create task modal
     createTaskForm: {
       title: "",
@@ -1054,6 +1056,13 @@ function chat() {
           this.loadTasks();
           break;
         }
+
+        // State push messages (M5-S10 Live Dashboard)
+        case "state:tasks":
+        case "state:calendar":
+        case "state:conversations":
+          // Silently handled — state is already synced via individual events
+          break;
 
         default:
           console.warn("[App] Unknown message type:", data.type);
@@ -2065,9 +2074,13 @@ function chat() {
      */
     async loadUpcomingEvents() {
       try {
+        const prevCount = this.upcomingEvents.length;
         this.upcomingEvents = await CalendarModule.fetchUpcomingEvents(
           this.timelineFutureDays,
         );
+        // If count increased, there might be more beyond the window
+        // If count stayed same, nothing more to load
+        this.noMoreFutureEvents = this.upcomingEvents.length === prevCount;
       } catch (err) {
         console.error("[App] Failed to load upcoming events:", err);
         this.upcomingEvents = [];
@@ -2095,6 +2108,78 @@ function chat() {
     loadLaterTimeline() {
       this.timelineFutureDays += 7;
       this.loadTimelineData();
+    },
+
+    /**
+     * Computed style for the fixed-position "scroll to now" button.
+     * Positions it in the timeline's left margin area.
+     */
+    get nowScrollBtnStyle() {
+      if (!this.nowMarkerDirection) return "display: none;";
+      const scroll = document.getElementById("main-scroll");
+      const timeline = document.querySelector(".timeline-section");
+      if (!scroll || !timeline) return "display: none;";
+
+      const scrollRect = scroll.getBoundingClientRect();
+      const timelineRect = timeline.getBoundingClientRect();
+      // Position in the timeline's left padding area (px-4 = 16px)
+      const left = timelineRect.left + 2;
+
+      if (this.nowMarkerDirection === "up") {
+        return `left: ${left}px; top: ${scrollRect.top + 8}px;`;
+      } else {
+        return `left: ${left}px; top: ${scrollRect.bottom - 30}px;`;
+      }
+    },
+
+    /**
+     * Set up IntersectionObserver to track NOW marker visibility.
+     * Called via x-effect whenever timelineItems changes.
+     */
+    setupNowMarkerObserver() {
+      if (this._nowObserver) {
+        this._nowObserver.disconnect();
+        this._nowObserver = null;
+      }
+
+      const scrollRoot = document.getElementById("main-scroll");
+      const marker = document.querySelector(".now-marker");
+
+      if (!marker || !scrollRoot) {
+        this.nowMarkerDirection = null;
+        return;
+      }
+
+      this._nowObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              this.nowMarkerDirection = null;
+            } else {
+              const rect = entry.boundingClientRect;
+              const rootBounds = entry.rootBounds;
+              if (rect.top < rootBounds.top) {
+                this.nowMarkerDirection = "up";
+              } else {
+                this.nowMarkerDirection = "down";
+              }
+            }
+          }
+        },
+        { root: scrollRoot, threshold: 0 },
+      );
+
+      this._nowObserver.observe(marker);
+    },
+
+    /**
+     * Smooth-scroll the NOW marker into the center of the viewport.
+     */
+    scrollToNow() {
+      const marker = document.querySelector(".now-marker");
+      if (marker) {
+        marker.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     },
 
     /**
@@ -2257,10 +2342,7 @@ function chat() {
         const separators = timelineEl.querySelectorAll("button");
         for (const btn of separators) {
           const span = btn.querySelector("span");
-          if (
-            span &&
-            span.textContent === this.formatDateSeparator(target)
-          ) {
+          if (span && span.textContent === this.formatDateSeparator(target)) {
             btn.scrollIntoView({ behavior: "smooth", block: "start" });
             return;
           }
@@ -2915,10 +2997,12 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     get timelineItems() {
       const now = new Date();
       const pastMs = this.timelinePastDays * 24 * 60 * 60 * 1000;
+      const futureMs = this.timelineFutureDays * 24 * 60 * 60 * 1000;
       const pastDate = new Date(now.getTime() - pastMs);
+      const futureDate = new Date(now.getTime() + futureMs);
       const items = [];
 
-      // Add tasks (past N days completed + future scheduled)
+      // Add tasks (past N days completed + future within window)
       for (const task of this.tasks) {
         const taskTime = task.scheduledFor
           ? new Date(task.scheduledFor)
@@ -2930,8 +3014,8 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
         if (!taskTime) continue;
 
-        // Include: future pending, running, or completed within past window
-        const isFuture = taskTime >= now;
+        // Include: future within window, running, or completed within past window
+        const isFuture = taskTime >= now && taskTime <= futureDate;
         const isRecentPast = taskTime >= pastDate && taskTime < now;
         const isRunning = task.status === "running";
         const isCompleted = task.status === "completed";
@@ -3015,14 +3099,36 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     },
 
     /**
-     * Timeline traversal: always allow expanding range
+     * Whether expanding the past window would show more items.
+     * Checks if any task exists before the current past boundary.
      */
     get canLoadEarlier() {
-      return true;
+      const now = new Date();
+      const pastMs = this.timelinePastDays * 24 * 60 * 60 * 1000;
+      const pastDate = new Date(now.getTime() - pastMs);
+
+      for (const task of this.tasks) {
+        const t = task.completedAt || task.scheduledFor || task.createdAt;
+        if (t && new Date(t) < pastDate) return true;
+      }
+      return false;
     },
 
+    /**
+     * Whether expanding the future window would show more items.
+     * Only checks tasks since all tasks are loaded client-side.
+     * Calendar events are date-bounded by the API and expand automatically.
+     */
     get canLoadLater() {
-      return true;
+      const now = new Date();
+      const futureMs = this.timelineFutureDays * 24 * 60 * 60 * 1000;
+      const futureDate = new Date(now.getTime() + futureMs);
+
+      for (const task of this.tasks) {
+        const t = task.scheduledFor || task.createdAt;
+        if (t && new Date(t) > futureDate) return true;
+      }
+      return false;
     },
 
     /**

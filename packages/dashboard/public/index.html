@@ -235,7 +235,50 @@
         </div>
 
         <!-- Content area -->
-        <div class="flex-1 overflow-auto">
+        <div class="flex-1 overflow-auto" id="main-scroll">
+          <!-- Scroll to Now — fixed overlay positioned in timeline left margin -->
+          <button
+            x-show="nowMarkerDirection"
+            x-transition.opacity.duration.200
+            @click="scrollToNow()"
+            class="fixed z-30 flex flex-col items-center px-0.5 py-0.5 rounded bg-tokyo-red/15 text-tokyo-red hover:bg-tokyo-red/30 transition-colors cursor-pointer"
+            :style="nowScrollBtnStyle"
+          >
+            <template x-if="nowMarkerDirection === 'up'">
+              <svg
+                class="w-2.5 h-2.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="3"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M5 15l7-7 7 7"
+                />
+              </svg>
+            </template>
+            <span class="text-[7px] font-bold uppercase leading-tight"
+              >Now</span
+            >
+            <template x-if="nowMarkerDirection === 'down'">
+              <svg
+                class="w-2.5 h-2.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="3"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </template>
+          </button>
+
           <!-- ======================================================== -->
           <!-- Home Tab                                                 -->
           <!-- ======================================================== -->
@@ -323,7 +366,7 @@
 
             <!-- Timeline Section -->
             <div
-              class="mt-6 -mx-4 px-4 py-4 bg-tokyo-panel/30 border-y border-tokyo-panel"
+              class="timeline-section mt-6 -mx-4 px-4 py-4 bg-tokyo-panel/30 border-y border-tokyo-panel"
             >
               <div class="flex items-center justify-between mb-4">
                 <h2
@@ -366,7 +409,7 @@
               <template
                 x-if="timelineItems.length === 0 || !timelineItems.some(i => i.isPast)"
               >
-                <div class="flex items-center gap-3 mb-3">
+                <div class="now-marker flex items-center gap-3 mb-3">
                   <span
                     class="text-xs font-semibold text-red-400 uppercase tracking-wide whitespace-nowrap"
                   >
@@ -379,22 +422,26 @@
               </template>
 
               <!-- Timeline items with continuous vertical line -->
-              <div class="relative">
+              <div
+                class="relative"
+                x-effect="timelineItems.length; $nextTick(() => setupNowMarkerObserver())"
+              >
                 <!-- Vertical line running through bullets (positioned after time column) -->
                 <div
                   class="absolute top-0 bottom-0 left-[3.65rem] w-0.5 bg-[#313244]"
                 ></div>
 
                 <!-- Load earlier button -->
-                <template x-if="!timelineLoading && canLoadEarlier">
-                  <button
-                    @click="loadEarlierTimeline()"
-                    class="w-full py-2 text-xs text-tokyo-muted hover:text-tokyo-blue transition-colors flex items-center justify-center gap-1"
-                  >
-                    <span>↑</span>
-                    <span>Load earlier</span>
-                  </button>
-                </template>
+                <button
+                  x-show="!timelineLoading"
+                  @click="canLoadEarlier && loadEarlierTimeline()"
+                  :disabled="!canLoadEarlier"
+                  class="w-full py-2 text-xs transition-colors flex items-center justify-center gap-1"
+                  :class="!canLoadEarlier ? 'text-tokyo-muted opacity-30 cursor-default' : 'text-tokyo-blue hover:text-tokyo-text cursor-pointer'"
+                >
+                  <span>↑</span>
+                  <span>Load earlier</span>
+                </button>
 
                 <template x-if="timelineLoading">
                   <p class="text-sm text-tokyo-muted text-center py-3">
@@ -412,7 +459,7 @@
                   <div class="relative">
                     <!-- Now marker (shown before first future item) -->
                     <template x-if="item.showNowMarker">
-                      <div class="flex items-center py-2">
+                      <div class="now-marker flex items-center py-2">
                         <div class="w-14 shrink-0"></div>
                         <div class="flex-1 flex items-center gap-2">
                           <div class="h-0.5 w-8 bg-tokyo-red"></div>
@@ -524,15 +571,16 @@
                 </template>
 
                 <!-- Load later button -->
-                <template x-if="!timelineLoading && canLoadLater">
-                  <button
-                    @click="loadLaterTimeline()"
-                    class="w-full py-2 text-xs text-tokyo-muted hover:text-tokyo-blue transition-colors flex items-center justify-center gap-1"
-                  >
-                    <span>Load later</span>
-                    <span>↓</span>
-                  </button>
-                </template>
+                <button
+                  x-show="!timelineLoading"
+                  @click="canLoadLater && loadLaterTimeline()"
+                  :disabled="!canLoadLater"
+                  class="w-full py-2 text-xs transition-colors flex items-center justify-center gap-1"
+                  :class="!canLoadLater ? 'text-tokyo-muted opacity-30 cursor-default' : 'text-tokyo-blue hover:text-tokyo-text cursor-pointer'"
+                >
+                  <span>Load later</span>
+                  <span>↓</span>
+                </button>
               </div>
 
               <!-- Legend -->
@@ -3168,7 +3216,11 @@
         <!-- Popover header: drag handle + close -->
         <div class="flex items-center justify-between px-4 pt-3 pb-1 shrink-0">
           <div class="flex-1"></div>
-          <div class="popover-handle" aria-hidden="true" style="margin: 0"></div>
+          <div
+            class="popover-handle"
+            aria-hidden="true"
+            style="margin: 0"
+          ></div>
           <div class="flex-1 flex justify-end">
             <button
               @click="$store.mobile.closePopoverWithFocus()"
@@ -3176,8 +3228,15 @@
               aria-label="Close"
               title="Close"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-                <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"/>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                class="w-4 h-4"
+              >
+                <path
+                  d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"
+                />
               </svg>
             </button>
           </div>
@@ -3285,13 +3344,24 @@
               </template>
               <!-- Actions: inline row -->
               <div class="pt-4 flex items-center justify-center gap-4">
-                <template x-if="task && task.status !== 'completed' && task.status !== 'deleted'">
+                <template
+                  x-if="task && task.status !== 'completed' && task.status !== 'deleted'"
+                >
                   <button
                     @click="completeTask(task?.id); $store.mobile.closePopover()"
                     class="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300 transition-colors"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">
-                      <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd"/>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      class="w-3.5 h-3.5"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
+                        clip-rule="evenodd"
+                      />
                     </svg>
                     Complete
                   </button>
@@ -3300,8 +3370,17 @@
                   @click="deleteTask(task?.id); $store.mobile.closePopover()"
                   class="flex items-center gap-1.5 text-xs text-tokyo-muted/60 hover:text-tokyo-red transition-colors"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">
-                    <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clip-rule="evenodd"/>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class="w-3.5 h-3.5"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
+                      clip-rule="evenodd"
+                    />
                   </svg>
                   Delete
                 </button>
@@ -3360,8 +3439,17 @@
                   @click="$store.mobile.closePopover()"
                   class="flex items-center gap-1.5 text-xs text-tokyo-muted/60 hover:text-tokyo-red transition-colors"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">
-                    <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clip-rule="evenodd"/>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class="w-3.5 h-3.5"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
+                      clip-rule="evenodd"
+                    />
                   </svg>
                   Delete
                 </button>
@@ -3411,10 +3499,7 @@
                     Nothing scheduled
                   </p>
                 </template>
-                <template
-                  x-for="item in mobileCalendarDayItems"
-                  :key="item.id"
-                >
+                <template x-for="item in mobileCalendarDayItems" :key="item.id">
                   <button
                     @click="item.itemType === 'task'
                       ? $store.mobile.openPopoverWithFocus('task', item.task, $event.currentTarget)
@@ -3954,16 +4039,31 @@
                     <span class="model-badge" x-text="modelDisplayName"></span>
                     <!-- Context tag (shows what user is viewing) -->
                     <template x-if="chatContext">
-                      <div class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-tokyo-purple/10 text-tokyo-purple text-[10px] max-w-[120px] shrink-0">
-                        <span x-text="chatContext?.icon" class="text-[10px]"></span>
-                        <span x-text="chatContext?.title" class="truncate"></span>
+                      <div
+                        class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-tokyo-purple/10 text-tokyo-purple text-[10px] max-w-[120px] shrink-0"
+                      >
+                        <span
+                          x-text="chatContext?.icon"
+                          class="text-[10px]"
+                        ></span>
+                        <span
+                          x-text="chatContext?.title"
+                          class="truncate"
+                        ></span>
                         <button
                           @click="clearChatContext()"
                           class="w-3 h-3 rounded flex items-center justify-center hover:bg-tokyo-purple/20 transition-colors shrink-0"
                           title="Remove context"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-2 h-2">
-                            <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z"/>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 16 16"
+                            fill="currentColor"
+                            class="w-2 h-2"
+                          >
+                            <path
+                              d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z"
+                            />
                           </svg>
                         </button>
                       </div>
@@ -4063,6 +4163,6 @@
     <script src="js/chat-controls.js"></script>
     <script src="js/calendar.js?v=17"></script>
     <script src="js/components.js"></script>
-    <script src="js/app.js?v=17"></script>
+    <script src="js/app.js?v=28"></script>
   </body>
 </html>
