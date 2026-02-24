@@ -284,19 +284,54 @@ When initializing a plugin that needs download:
 }
 ```
 
-### `embeddings-ollama`
+### `embeddings-ollama` — M6-S1 Requirement
+
+> **Status:** Required for M6-S1 (not future work)
+> **Context:** Unraid server has Ollama at 10.10.10.2:11434 with RTX 5060 Ti (16GB VRAM)
+
+GPU-accelerated embeddings via Ollama server. Generic — supports any Ollama embedding model.
 
 ```typescript
 {
   id: "embeddings-ollama",
   name: "Ollama Embeddings",
-  description: "Local embeddings via Ollama server. Requires Ollama running.",
+  description: "GPU-accelerated embeddings via Ollama server",
 
-  async isReady() {
-    // Check if Ollama server is running
-    return await checkOllamaHealth();
-  },
+  // Configurable — not hardcoded
+  host: string,           // e.g., "http://10.10.10.2:11434"
+  model: string,          // e.g., "nomic-embed-text", "mxbai-embed-large"
+  dimensions: number,     // Model-dependent (768, 1024, etc.)
 }
+```
+
+**Behavior:**
+- Health check — `GET /api/tags` to verify server + model availability
+- Embed API — `POST /api/embed` with `{ model, input }`
+- Auto-detect dimensions — query model once, cache result
+- Graceful errors — clear message if Ollama unreachable or model not pulled
+
+**Config example:**
+
+```yaml
+# .my_agent/config.yaml
+memory:
+  embeddingsPlugin: "embeddings-ollama"  # or "embeddings-local"
+  plugins:
+    embeddings-ollama:
+      host: "http://10.10.10.2:11434"
+      model: "nomic-embed-text"
+    embeddings-local:
+      model: "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf"
+```
+
+**Validation before sprint:**
+
+```bash
+# On Ollama server
+ollama pull nomic-embed-text
+
+# Test from dev machine
+curl http://10.10.10.2:11434/api/embed -d '{"model":"nomic-embed-text","input":"test"}'
 ```
 
 ### `embeddings-voyage`
@@ -409,6 +444,7 @@ async function search(query: string): Promise<SearchResults> {
 - Plugin interface definition
 - Plugin registry
 - `embeddings-local` plugin (node-llama-cpp)
+- `embeddings-ollama` plugin (Ollama server)
 - Graceful fallback to FTS5
 
 **M6-S2:** Dashboard integration
@@ -418,7 +454,7 @@ async function search(query: string): Promise<SearchResults> {
 
 **Future:** Additional plugins
 - `embeddings-openai`
-- `embeddings-ollama`
+- `embeddings-voyage`
 - Community plugin support
 
 ---
