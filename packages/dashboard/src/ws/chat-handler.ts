@@ -100,6 +100,13 @@ export async function registerChatWebSocket(
   fastify.get("/api/chat/ws", { websocket: true }, (socket, req) => {
     fastify.log.info("Chat WebSocket connected");
 
+    // Keepalive: ping every 30s to prevent idle timeouts
+    const pingInterval = setInterval(() => {
+      if (socket.readyState === 1) {
+        socket.ping();
+      }
+    }, 30000);
+
     // Use shared ConversationManager from fastify decorator
     const conversationManager = fastify.conversationManager!;
 
@@ -422,6 +429,9 @@ export async function registerChatWebSocket(
 
     socket.on("close", async () => {
       fastify.log.info("Chat WebSocket disconnected");
+
+      // Stop keepalive pings
+      clearInterval(pingInterval);
 
       // Check if we need to queue abbreviation before removing from registry
       const wasLastViewer =
