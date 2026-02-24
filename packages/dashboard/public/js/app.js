@@ -159,6 +159,40 @@ function chat() {
     ],
 
     // ─────────────────────────────────────────────────────────────────
+    // Memory state (M6-S3)
+    // ─────────────────────────────────────────────────────────────────
+    memoryStatus: null, // { index, embeddings }
+    selectedEmbeddingsPlugin: "none",
+    embeddingsActivating: false,
+    embeddingsError: null,
+    memoryRebuilding: false,
+    memoryRebuildResult: null,
+    notebookTree: [], // { path, name, type, children?, size?, modified? }
+    notebookLoading: false,
+    selectedNotebookFile: null, // { path, name, content, loading }
+    memorySearchQuery: "",
+    memorySearchResults: null, // { notebook: [], daily: [], totalResults }
+    memorySearching: false,
+
+    // Notebook widget (homepage tabbed mini-notebook)
+    notebookTab: sessionStorage.getItem("notebookTab") || "orders", // orders | lists | daily | knowledge
+    notebookWidgetContent: {
+      orders: null, // standing-orders + external-communications content
+      lists: null, // reminders + contacts content
+      daily: null, // today's daily log
+      knowledge: null, // knowledge files summary
+    },
+    notebookWidgetLoading: false,
+
+    // Notebook browser sections (collapsed/expanded state)
+    notebookSections: {
+      orders: true, // expanded by default
+      lists: true,
+      daily: false,
+      knowledge: false,
+    },
+
+    // ─────────────────────────────────────────────────────────────────
     // Computed
     // ─────────────────────────────────────────────────────────────────
     get canSend() {
@@ -217,6 +251,26 @@ function chat() {
       return conv ? this.isReadOnlyConversation(conv) : false;
     },
 
+    // Notebook categories (for 4-category browser)
+    get notebookCategoryFiles() {
+      const tree = this.notebookTree || [];
+
+      // Helper to get files from a folder
+      const getFiles = (folderName) => {
+        const folder = tree.find(
+          (f) => f.name === folderName && f.type === "folder",
+        );
+        return folder?.children?.filter((c) => c.type === "file") || [];
+      };
+
+      return {
+        orders: getFiles("operations"),
+        lists: [...getFiles("lists"), ...getFiles("reference")],
+        daily: getFiles("daily"),
+        knowledge: getFiles("knowledge"),
+      };
+    },
+
     // ─────────────────────────────────────────────────────────────────
     // Lifecycle
     // ─────────────────────────────────────────────────────────────────
@@ -270,6 +324,11 @@ function chat() {
 
       // Load tasks (M5-S6)
       this.loadTasks();
+
+      // Load memory data (M6-S3)
+      this.loadNotebookTree();
+      this.loadMemoryStatus();
+      this.loadNotebookWidgetContent();
 
       // Configure marked.js
       marked.setOptions({
@@ -1339,6 +1398,14 @@ function chat() {
       // Initialize mini calendar when switching to home tab
       else if (id === "home") {
         this.$nextTick(() => this.initMiniCalendarView());
+      }
+      // Load memory status when switching to settings tab
+      else if (id === "settings") {
+        this.loadMemoryStatus();
+      }
+      // Load notebook tree when switching to notebook tab
+      else if (id === "notebook") {
+        this.loadNotebookTree();
       }
 
       this.saveUIState();
@@ -3431,6 +3498,400 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     clearTasksFilter() {
       this.tasksFilter = { status: null, type: null };
       this.loadTasks();
+    },
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Memory Methods (M6-S3)
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Load memory system status
+     */
+    async loadMemoryStatus() {
+      try {
+        const res = await fetch("/api/memory/status");
+        if (res.ok) {
+          this.memoryStatus = await res.json();
+          // Sync selected plugin with active plugin
+          if (this.memoryStatus.embeddings?.active) {
+            this.selectedEmbeddingsPlugin =
+              this.memoryStatus.embeddings.active.id;
+          } else {
+            this.selectedEmbeddingsPlugin = "none";
+          }
+        }
+      } catch (err) {
+        console.error("[App] Failed to load memory status:", err);
+        this.memoryStatus = null;
+      }
+    },
+
+    /**
+     * Rebuild memory index
+     */
+    async rebuildMemoryIndex() {
+      this.memoryRebuilding = true;
+      this.memoryRebuildResult = null;
+
+      try {
+        const res = await fetch("/api/memory/rebuild", { method: "POST" });
+        const data = await res.json();
+
+        if (res.ok) {
+          this.memoryRebuildResult = {
+            success: true,
+            message: `Indexed ${data.filesIndexed} files in ${data.durationMs}ms`,
+          };
+          // Refresh status
+          await this.loadMemoryStatus();
+        } else {
+          this.memoryRebuildResult = {
+            success: false,
+            message: data.error || "Rebuild failed",
+          };
+        }
+      } catch (err) {
+        console.error("[App] Failed to rebuild memory index:", err);
+        this.memoryRebuildResult = {
+          success: false,
+          message: err.message || "Request failed",
+        };
+      } finally {
+        this.memoryRebuilding = false;
+      }
+    },
+
+    /**
+     * Activate an embeddings plugin
+     */
+    async activateEmbeddingsPlugin() {
+      this.embeddingsActivating = true;
+      this.embeddingsError = null;
+
+      try {
+        const res = await fetch("/api/memory/embeddings/activate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pluginId: this.selectedEmbeddingsPlugin }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          // Refresh status to get updated state
+          await this.loadMemoryStatus();
+        } else {
+          this.embeddingsError = data.error || "Failed to activate plugin";
+          // Revert selection to match current active
+          if (this.memoryStatus?.embeddings?.active) {
+            this.selectedEmbeddingsPlugin =
+              this.memoryStatus.embeddings.active.id;
+          } else {
+            this.selectedEmbeddingsPlugin = "none";
+          }
+        }
+      } catch (err) {
+        console.error("[App] Failed to activate embeddings plugin:", err);
+        this.embeddingsError = err.message || "Request failed";
+      } finally {
+        this.embeddingsActivating = false;
+      }
+    },
+
+    /**
+     * Load notebook tree
+     */
+    async loadNotebookTree() {
+      this.notebookLoading = true;
+      try {
+        const res = await fetch("/api/notebook");
+        if (res.ok) {
+          const data = await res.json();
+          this.notebookTree = data.tree || [];
+        }
+      } catch (err) {
+        console.error("[App] Failed to load notebook tree:", err);
+        this.notebookTree = [];
+      } finally {
+        this.notebookLoading = false;
+      }
+    },
+
+    /**
+     * Set notebook widget tab and persist to sessionStorage
+     */
+    setNotebookTab(tab) {
+      this.notebookTab = tab;
+      sessionStorage.setItem("notebookTab", tab);
+    },
+
+    /**
+     * Load notebook widget content for homepage tabbed view
+     * Fetches content for each category tab
+     */
+    async loadNotebookWidgetContent() {
+      this.notebookWidgetLoading = true;
+      try {
+        // Fetch all files in parallel
+        const [
+          standingOrdersRes,
+          externalCommsRes,
+          remindersRes,
+          contactsRes,
+          todayRes,
+        ] = await Promise.allSettled([
+          fetch("/api/notebook/operations/standing-orders.md"),
+          fetch("/api/notebook/operations/external-communications.md"),
+          fetch("/api/notebook/lists/reminders.md"),
+          fetch("/api/notebook/reference/contacts.md"),
+          fetch(
+            `/api/notebook/daily/${new Date().toISOString().slice(0, 10)}.md`,
+          ),
+        ]);
+
+        // Helper to extract content from response
+        const getContent = async (res) => {
+          if (res.status === "fulfilled" && res.value.ok) {
+            const data = await res.value.json();
+            return data.content || "";
+          }
+          return null;
+        };
+
+        // Process results
+        const standingOrders = await getContent(standingOrdersRes);
+        const externalComms = await getContent(externalCommsRes);
+        const reminders = await getContent(remindersRes);
+        const contacts = await getContent(contactsRes);
+        const dailyLog = await getContent(todayRes);
+
+        // Combine content for each tab
+        // Orders: standing-orders + external-communications
+        let ordersContent = "";
+        if (standingOrders) {
+          ordersContent += standingOrders;
+        }
+        if (externalComms) {
+          if (ordersContent) ordersContent += "\n\n---\n\n";
+          ordersContent += externalComms;
+        }
+
+        // Lists: reminders + contacts
+        let listsContent = "";
+        if (reminders) {
+          listsContent += reminders;
+        }
+        if (contacts) {
+          if (listsContent) listsContent += "\n\n---\n\n";
+          listsContent += contacts;
+        }
+
+        this.notebookWidgetContent = {
+          orders: ordersContent || null,
+          lists: listsContent || null,
+          daily: dailyLog || null,
+          knowledge: null, // TODO: Load knowledge files
+        };
+
+        // Load knowledge files separately (may have multiple files)
+        this.loadNotebookKnowledge();
+      } catch (err) {
+        console.error("[App] Failed to load notebook widget content:", err);
+      } finally {
+        this.notebookWidgetLoading = false;
+      }
+    },
+
+    /**
+     * Load knowledge files for widget
+     */
+    async loadNotebookKnowledge() {
+      try {
+        const res = await fetch("/api/notebook");
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const knowledgeFolder = (data.tree || []).find(
+          (f) => f.name === "knowledge" && f.type === "folder",
+        );
+
+        if (knowledgeFolder && knowledgeFolder.children?.length > 0) {
+          // Get content from first knowledge file
+          const firstFile = knowledgeFolder.children.find(
+            (f) => f.type === "file",
+          );
+          if (firstFile) {
+            const fileRes = await fetch(
+              `/api/notebook/${encodeURIComponent(firstFile.path)}`,
+            );
+            if (fileRes.ok) {
+              const fileData = await fileRes.json();
+              this.notebookWidgetContent.knowledge = fileData.content || null;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[App] Failed to load knowledge files:", err);
+      }
+    },
+
+    /**
+     * Open notebook file from current widget tab
+     */
+    openNotebookFileFromTab() {
+      // Map tab to file path
+      const tabToPath = {
+        orders: "operations/standing-orders.md",
+        lists: "lists/reminders.md",
+        daily: `daily/${new Date().toISOString().slice(0, 10)}.md`,
+        knowledge: null, // Will find first knowledge file
+      };
+
+      const path = tabToPath[this.notebookTab];
+      if (path) {
+        this.openNotebookBrowser();
+        // Slight delay to let tab open
+        setTimeout(() => {
+          this.openNotebookFile(path, path.split("/").pop());
+        }, 100);
+      } else if (this.notebookTab === "knowledge") {
+        // Open notebook browser to knowledge section
+        this.openNotebookBrowser();
+      }
+    },
+
+    /**
+     * Search memory (notebook + daily)
+     */
+    async searchMemory() {
+      if (!this.memorySearchQuery.trim()) {
+        this.memorySearchResults = null;
+        return;
+      }
+
+      this.memorySearching = true;
+      try {
+        const q = encodeURIComponent(this.memorySearchQuery.trim());
+        const res = await fetch(`/api/memory/search?q=${q}&maxResults=20`);
+        if (res.ok) {
+          this.memorySearchResults = await res.json();
+        }
+      } catch (err) {
+        console.error("[App] Failed to search memory:", err);
+        this.memorySearchResults = { notebook: [], daily: [], totalResults: 0 };
+      } finally {
+        this.memorySearching = false;
+      }
+    },
+
+    /**
+     * Open notebook browser tab
+     */
+    openNotebookBrowser() {
+      // Check if already open
+      const existing = this.openTabs.find((t) => t.id === "notebook-browser");
+      if (existing) {
+        this.switchTab("notebook-browser");
+        return;
+      }
+
+      // Open new notebook browser tab
+      this.openTab({
+        id: "notebook-browser",
+        type: "notebook-browser",
+        title: "Notebook",
+        icon: "📓",
+        closeable: true,
+      });
+
+      // Load tree when opening
+      this.loadNotebookTree();
+    },
+
+    /**
+     * Open a notebook file in the preview panel
+     */
+    async openNotebookFile(path, name) {
+      this.selectedNotebookFile = {
+        path,
+        name,
+        content: null,
+        loading: true,
+      };
+
+      try {
+        const res = await fetch(`/api/notebook/${encodeURIComponent(path)}`);
+        if (res.ok) {
+          const data = await res.json();
+          this.selectedNotebookFile = {
+            path,
+            name,
+            content: data.content || "",
+            loading: false,
+          };
+        } else {
+          this.selectedNotebookFile = {
+            path,
+            name,
+            content: null,
+            loading: false,
+          };
+        }
+      } catch (err) {
+        console.error("[App] Failed to load notebook file:", err);
+        this.selectedNotebookFile = {
+          path,
+          name,
+          content: null,
+          loading: false,
+        };
+      }
+    },
+
+    /**
+     * Open memory search tab
+     */
+    openMemorySearch() {
+      // Check if already open
+      const existing = this.openTabs.find((t) => t.id === "memory-search");
+      if (existing) {
+        this.switchTab("memory-search");
+        return;
+      }
+
+      // Open new memory search tab
+      this.openTab({
+        id: "memory-search",
+        type: "memory-search",
+        title: "Memory Search",
+        icon: "🔍",
+        closeable: true,
+      });
+    },
+
+    /**
+     * Save notebook file content
+     */
+    async saveNotebookFile(path, content) {
+      try {
+        const res = await fetch(`/api/notebook/${encodeURIComponent(path)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed to save");
+        }
+
+        console.log("[App] Notebook file saved:", path);
+        return true;
+      } catch (err) {
+        console.error("[App] Failed to save notebook file:", err);
+        alert("Failed to save: " + err.message);
+        return false;
+      }
     },
   };
 }

@@ -267,7 +267,7 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 | ------ | ---------------------------------- | -------- | --------------------------------------------------- | ------------------------------------------------------- |
 | S1     | Infrastructure + Notebook Indexing | Complete | [plan](sprints/m6-s1-memory-infrastructure/plan.md) | [review](sprints/m6-s1-memory-infrastructure/review.md) |
 | S2     | Memory Tools + Prompt Integration  | Complete | [plan](sprints/m6-s2-memory-tools/plan.md)          | [review](sprints/m6-s2-memory-tools/review.md)          |
-| S3     | Dashboard + Conversation Search    | Planned  | —                                                   | —                                                       |
+| S3     | Memory Validation (Final)          | Active   | [plan](sprints/m6-s3-memory-validation/plan.md)     | —                                                       |
 
 **Architecture:**
 

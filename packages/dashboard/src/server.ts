@@ -14,6 +14,8 @@ import { registerDebugRoutes } from "./routes/debug.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerTaskRoutes } from "./routes/tasks.js";
+import { registerNotebookRoutes } from "./routes/notebook.js";
+import { registerMemoryRoutes } from "./routes/memory.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
@@ -183,9 +185,26 @@ export async function createServer(
     { prefix: "/api/admin" },
   );
 
-  // Notebook API - read runtime files
+  // Register notebook routes (M6-S3)
+  await fastify.register(
+    async (instance) => {
+      await registerNotebookRoutes(instance);
+    },
+    { prefix: "/api/notebook" },
+  );
+
+  // Register memory routes (M6-S3)
+  await fastify.register(
+    async (instance) => {
+      await registerMemoryRoutes(instance);
+    },
+    { prefix: "/api/memory" },
+  );
+
+  // Legacy notebook API - read runtime files (backward compatibility)
+  // TODO: Remove after migration to notebook/ is complete
   fastify.get<{ Params: { name: string } }>(
-    "/api/notebook/:name",
+    "/api/runtime/:name",
     async (request, reply) => {
       const { name } = request.params;
 
