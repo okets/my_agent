@@ -187,17 +187,17 @@ export class ChannelManager {
       return;
     }
 
-    // Don't auto-connect on startup — let user press "Reconnect" manually
-    // if (config.processing === "immediate") {
-    //   try {
-    //     await plugin.connect();
-    //     console.log(`[ChannelManager] Connected channel: ${id}`);
-    //   } catch (err) {
-    //     console.error(`[ChannelManager] Failed to connect ${id}:`, err);
-    //     entry.status.lastError =
-    //       err instanceof Error ? err.message : String(err);
-    //   }
-    // }
+    // Auto-connect on startup if credentials exist (will show QR if not)
+    if (config.processing === "immediate") {
+      try {
+        await plugin.connect();
+        console.log(`[ChannelManager] Connected channel: ${id}`);
+      } catch (err) {
+        console.error(`[ChannelManager] Failed to connect ${id}:`, err);
+        entry.status.lastError =
+          err instanceof Error ? err.message : String(err);
+      }
+    }
 
     // Start watchdog if applicable
     if (config.role === "dedicated" && config.processing === "immediate") {

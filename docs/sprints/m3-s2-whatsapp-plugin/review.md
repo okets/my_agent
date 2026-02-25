@@ -176,14 +176,13 @@ Sprint delivers a working WhatsApp dedicated channel with Baileys, QR pairing, i
 | Issue | Root Cause | Fix |
 |-------|------------|-----|
 | **Reconnect loop during QR scan** | Any disconnect triggered reconnect, even when intentionally waiting for QR | Added `entry.pairing` flag to suppress reconnects while QR is displayed |
-| **Auto-connect on server start unwanted** | `registerChannel()` auto-called `plugin.connect()` for immediate processing | Disabled auto-connect; user clicks "Pair" to initiate |
 | **515 restartRequired treated as logout** | Code 515 (restart required) was in `isLoggedOut` check | Only code 401 triggers logout state |
 
 ### UX Decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| **No auto-connect on startup** | User may not want WhatsApp connecting immediately; prefer manual control |
+| **Auto-connect on startup** | If credentials exist, reconnect automatically; shows QR if fresh pairing needed |
 | **QR countdown timer (20s)** | Visual feedback prevents confusion about why QR "isn't working" |
 | **Connecting countdown timer (80s)** | User knows how long until connection attempt times out |
 | **On-demand ownership verification** | Auth token flow is optional; user clicks "Verify Ownership" when changing numbers |
