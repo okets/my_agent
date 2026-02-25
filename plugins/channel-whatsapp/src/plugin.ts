@@ -52,6 +52,29 @@ interface CachedMessage {
 const MESSAGE_CACHE_SIZE = 100;
 
 // ─────────────────────────────────────────────────────────────────
+// Human-readable disconnect messages
+// ─────────────────────────────────────────────────────────────────
+
+const DISCONNECT_MESSAGES: Record<number, string> = {
+  401: "Logged out from WhatsApp. Re-pair your device to reconnect.",
+  403: "Access denied by WhatsApp.",
+  408: "Connection timed out. Check your internet connection.",
+  411: "Multi-device sync issue. Re-pair required.",
+  428: "Connection closed unexpectedly. Try re-pairing.",
+  440: "Logged in from another device. Re-pair to use here.",
+  500: "Session corrupted. Re-pair required.",
+  503: "WhatsApp service unavailable. Try again later.",
+  515: "Reconnecting...", // Normal restart, not shown as error
+};
+
+function getDisconnectMessage(statusCode: number | undefined, fallbackError?: string): string {
+  if (statusCode !== undefined && DISCONNECT_MESSAGES[statusCode]) {
+    return DISCONNECT_MESSAGES[statusCode];
+  }
+  return fallbackError || "Connection error. Try re-pairing your device.";
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Plugin class
 // ─────────────────────────────────────────────────────────────────
 
@@ -146,12 +169,12 @@ export class BaileysPlugin implements ChannelPlugin {
           // "create a fresh socket and reconnect" — normal after QR pairing.
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
-          const errorMessage =
+          const errorMessage = getDisconnectMessage(
+            statusCode,
             lastDisconnect?.error instanceof Error
               ? lastDisconnect.error.message
-              : statusCode !== undefined
-                ? `Disconnect code ${statusCode}`
-                : "Unknown disconnect";
+              : undefined
+          );
 
           if (isLoggedOut) {
             // Logged out — do not reconnect, clear credentials signal
