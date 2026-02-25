@@ -194,6 +194,12 @@ function chat() {
     },
 
     // ─────────────────────────────────────────────────────────────────
+    // Channel error UI state
+    // ─────────────────────────────────────────────────────────────────
+    expandedChannelErrors: {}, // { channelId: true/false }
+    channelHelpTasks: {}, // { channelId: taskId } — tracks "Ask Nina" tasks
+
+    // ─────────────────────────────────────────────────────────────────
     // Computed
     // ─────────────────────────────────────────────────────────────────
     get canSend() {
@@ -1939,7 +1945,14 @@ function chat() {
             this.channels = data.map((ch) => ({
               ...ch,
               reconnectAttempts: ch.statusDetail?.reconnectAttempts ?? 0,
+              lastError: ch.statusDetail?.lastError ?? null,
             }));
+            // Clear help task tags for channels that reconnected
+            for (const ch of this.channels) {
+              if (ch.status === "connected" && this.channelHelpTasks[ch.id]) {
+                delete this.channelHelpTasks[ch.id];
+              }
+            }
           }
         })
         .catch(() => {});
@@ -1967,6 +1980,63 @@ function chat() {
         tip += ` (attempt ${ch.reconnectAttempts})`;
       }
       return tip;
+    },
+
+    /**
+     * Toggle expanded error panel for a channel
+     */
+    toggleChannelError(channelId) {
+      this.expandedChannelErrors[channelId] =
+        !this.expandedChannelErrors[channelId];
+    },
+
+    /**
+     * Check if channel error panel is expanded
+     */
+    isChannelErrorExpanded(channelId) {
+      return !!this.expandedChannelErrors[channelId];
+    },
+
+    /**
+     * Create a help task for Nina to fix channel error
+     */
+    async askNinaAboutChannel(channelId) {
+      const channel = this.channels.find((ch) => ch.id === channelId);
+      if (!channel) return;
+
+      const errorMsg = channel.lastError || "Unknown error";
+      const title = `Fix ${channelId} connection`;
+      const instructions = `The WhatsApp channel "${channelId}" has an error: "${errorMsg}"\n\nPlease help diagnose and fix this connection issue.`;
+
+      try {
+        const res = await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "immediate",
+            sourceType: "manual",
+            title,
+            instructions,
+            createdBy: "user",
+          }),
+        });
+
+        if (res.ok) {
+          const task = await res.json();
+          this.channelHelpTasks[channelId] = task.id;
+          // Refresh tasks list
+          this.fetchTasks();
+        }
+      } catch (err) {
+        console.error("[App] Failed to create help task:", err);
+      }
+    },
+
+    /**
+     * Check if channel has an active help task
+     */
+    hasChannelHelpTask(channelId) {
+      return !!this.channelHelpTasks[channelId];
     },
 
     /** Get channel info for a conversation (returns null for web conversations) */

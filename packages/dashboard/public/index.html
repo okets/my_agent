@@ -947,9 +947,15 @@
                 <div class="space-y-3">
                   <template x-for="ch in channels" :key="ch.id">
                     <div
-                      class="bg-tokyo-card/50 rounded-lg p-4 border border-white/5"
+                      class="bg-tokyo-card/50 rounded-lg border border-white/5"
+                      :class="{ 'border-red-500/30': ch.status === 'error' }"
                     >
-                      <div class="flex items-center gap-3">
+                      <!-- Channel header (always visible) -->
+                      <div
+                        class="flex items-center gap-3 p-4"
+                        :class="{ 'cursor-pointer hover:bg-white/5': ch.status === 'error' }"
+                        @click="ch.status === 'error' && toggleChannelError(ch.id)"
+                      >
                         <!-- Channel icon -->
                         <div
                           class="w-8 h-8 rounded-lg bg-tokyo-panel flex items-center justify-center text-tokyo-muted shrink-0 channel-icon"
@@ -967,6 +973,17 @@
                               class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 font-medium"
                               x-text="ch.role"
                             ></span>
+                            <!-- Nina is on it tag -->
+                            <template x-if="hasChannelHelpTask(ch.id)">
+                              <span
+                                class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium flex items-center gap-1"
+                              >
+                                <span
+                                  class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
+                                ></span>
+                                Nina is on it
+                              </span>
+                            </template>
                           </div>
                           <div
                             class="text-xs text-tokyo-muted mt-0.5"
@@ -990,89 +1007,160 @@
                             }"
                             x-text="ch.status"
                           ></span>
+                          <!-- Expand chevron for error state -->
+                          <template x-if="ch.status === 'error'">
+                            <svg
+                              class="w-4 h-4 text-tokyo-muted transition-transform"
+                              :class="{ 'rotate-180': isChannelErrorExpanded(ch.id) }"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M19 9l-7 7-7-7"
+                              />
+                            </svg>
+                          </template>
                         </div>
                       </div>
 
-                      <!-- Channel actions -->
-                      <div
-                        class="flex items-center gap-2 mt-3 pt-3 border-t border-white/5"
-                      >
-                        <!-- Pair button (for disconnected/logged_out channels) -->
-                        <template
-                          x-if="ch.status !== 'connected' && ch.status !== 'connecting'"
+                      <!-- Expandable error panel -->
+                      <template x-if="ch.status === 'error'">
+                        <div
+                          x-show="isChannelErrorExpanded(ch.id)"
+                          x-collapse
+                          class="border-t border-white/5"
                         >
-                          <button
-                            @click="pairChannel(ch.id)"
-                            class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
-                            style="
-                              background: rgba(224, 122, 95, 0.15);
-                              color: #e07a5f;
-                            "
-                            :class="{ 'hover:bg-[rgba(224,122,95,0.25)]': true }"
-                          >
-                            Pair
-                          </button>
-                        </template>
+                          <div class="p-4 bg-red-500/5">
+                            <div class="flex items-start gap-3">
+                              <svg
+                                class="w-5 h-5 text-red-400 shrink-0 mt-0.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="2"
+                                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                />
+                              </svg>
+                              <div class="flex-1 min-w-0">
+                                <p
+                                  class="text-sm text-tokyo-text"
+                                  x-text="ch.lastError || 'Connection error'"
+                                ></p>
+                              </div>
+                            </div>
+                            <div class="flex items-center gap-2 mt-4">
+                              <button
+                                @click.stop="pairChannel(ch.id)"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
+                              >
+                                Re-pair Device
+                              </button>
+                              <button
+                                @click.stop="askNinaAboutChannel(ch.id)"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+                                :class="hasChannelHelpTask(ch.id)
+                                  ? 'bg-amber-500/15 text-amber-400 cursor-default'
+                                  : 'bg-tokyo-panel text-tokyo-text hover:bg-white/10'"
+                                :disabled="hasChannelHelpTask(ch.id)"
+                              >
+                                <span x-show="!hasChannelHelpTask(ch.id)"
+                                  >Ask Nina</span
+                                >
+                                <span
+                                  x-show="hasChannelHelpTask(ch.id)"
+                                  class="flex items-center gap-1"
+                                >
+                                  <svg
+                                    class="w-3 h-3"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M5 13l4 4L19 7"
+                                    />
+                                  </svg>
+                                  Asked
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
 
-                        <!-- Authorize button (for connected channels without a token yet) -->
-                        <template
-                          x-if="ch.status === 'connected' && !authTokens[ch.id]"
-                        >
-                          <button
-                            @click="requestAuthToken(ch.id)"
-                            class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
-                            style="
-                              background: rgba(224, 122, 95, 0.15);
-                              color: #e07a5f;
-                            "
-                            onmouseover="
-                              this.style.background = 'rgba(224,122,95,0.25)'
-                            "
-                            onmouseout="
-                              this.style.background = 'rgba(224,122,95,0.15)'
-                            "
+                      <!-- Channel actions (for non-error states) -->
+                      <template x-if="ch.status !== 'error'">
+                        <div class="flex items-center gap-2 px-4 pb-4 pt-0">
+                          <!-- Pair button (for disconnected/logged_out channels) -->
+                          <template
+                            x-if="ch.status !== 'connected' && ch.status !== 'connecting'"
                           >
-                            Authorize Owner
-                          </button>
-                        </template>
+                            <button
+                              @click="pairChannel(ch.id)"
+                              class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
+                            >
+                              Pair
+                            </button>
+                          </template>
 
-                        <!-- Disconnect button (for connected channels) -->
-                        <template x-if="ch.status === 'connected'">
-                          <button
-                            @click="disconnectChannel(ch.id)"
-                            class="text-xs px-3 py-1.5 rounded-lg font-medium text-tokyo-muted hover:text-tokyo-red hover:bg-tokyo-red/10 transition-colors"
+                          <!-- Authorize button (for connected channels without a token yet) -->
+                          <template
+                            x-if="ch.status === 'connected' && !authTokens[ch.id]"
                           >
-                            Disconnect
-                          </button>
-                        </template>
+                            <button
+                              @click="requestAuthToken(ch.id)"
+                              class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
+                            >
+                              Authorize Owner
+                            </button>
+                          </template>
 
-                        <!-- Reconnect attempts info -->
-                        <template x-if="ch.reconnectAttempts > 0">
-                          <span class="text-[10px] text-tokyo-muted ml-auto">
-                            Reconnect attempt
-                            <span x-text="ch.reconnectAttempts"></span>
-                          </span>
-                        </template>
-                      </div>
+                          <!-- Disconnect button (for connected channels) -->
+                          <template x-if="ch.status === 'connected'">
+                            <button
+                              @click="disconnectChannel(ch.id)"
+                              class="text-xs px-3 py-1.5 rounded-lg font-medium text-tokyo-muted hover:text-tokyo-red hover:bg-tokyo-red/10 transition-colors"
+                            >
+                              Disconnect
+                            </button>
+                          </template>
+
+                          <!-- Reconnect attempts info -->
+                          <template x-if="ch.reconnectAttempts > 0">
+                            <span class="text-[10px] text-tokyo-muted ml-auto">
+                              Reconnect attempt
+                              <span x-text="ch.reconnectAttempts"></span>
+                            </span>
+                          </template>
+                        </div>
+                      </template>
 
                       <!-- QR Code display (shown when pairing is active for this channel) -->
                       <template
                         x-if="pairingChannelId === ch.id && qrCodeDataUrl"
                       >
-                        <div
-                          class="mt-3 pt-3 border-t border-white/5 flex flex-col items-center gap-2"
-                        >
-                          <p class="text-xs text-tokyo-muted">
-                            Scan this QR code with WhatsApp
+                        <div class="p-4 border-t border-white/5">
+                          <p class="text-xs text-tokyo-muted mb-3">
+                            Scan this QR code with WhatsApp on your phone:
                           </p>
-                          <img
-                            :src="qrCodeDataUrl"
-                            alt="QR Code"
-                            class="w-48 h-48 rounded-lg bg-white p-2"
-                          />
-                          <p class="text-[10px] text-tokyo-muted">
-                            QR code expires in 3 minutes
-                          </p>
+                          <div class="bg-white p-3 rounded-lg inline-block">
+                            <img
+                              :src="qrCodeDataUrl"
+                              alt="QR Code"
+                              class="w-48 h-48"
+                            />
+                          </div>
                         </div>
                       </template>
 
@@ -1081,7 +1169,7 @@
                         x-if="authTokens[ch.id] && ch.status === 'connected'"
                       >
                         <div
-                          class="mt-3 pt-3 border-t border-white/5 flex flex-col items-center gap-3"
+                          class="mt-3 pt-3 border-t border-white/5 flex flex-col items-center gap-3 px-4 pb-4"
                         >
                           <div class="flex items-center gap-2">
                             <span
