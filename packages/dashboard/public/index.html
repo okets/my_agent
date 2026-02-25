@@ -544,7 +544,7 @@
                       'text-red-400': channel.status === 'error',
                       'text-tokyo-muted': channel.status === 'disconnected' || channel.status === 'logged_out'
                     }"
-                    x-text="channel.status"
+                    x-text="channel.status === 'connecting' && connectingTimers[channel.id] !== undefined ? 'connecting (' + connectingTimers[channel.id] + 's)' : channel.status"
                   ></span>
                 </div>
               </template>
@@ -1005,7 +1005,7 @@
                               'text-red-400': ch.status === 'error',
                               'text-tokyo-muted': ch.status === 'disconnected' || ch.status === 'logged_out'
                             }"
-                            x-text="ch.status"
+                            x-text="ch.status === 'connecting' && connectingTimers[ch.id] !== undefined ? 'connecting (' + connectingTimers[ch.id] + 's)' : ch.status"
                           ></span>
                           <!-- Expand chevron for error state -->
                           <template x-if="ch.status === 'error'">
@@ -1114,7 +1114,7 @@
                             </button>
                           </template>
 
-                          <!-- Authorize button (for connected channels without a token yet) -->
+                          <!-- Verify ownership button (for connected channels) -->
                           <template
                             x-if="ch.status === 'connected' && !authTokens[ch.id]"
                           >
@@ -1122,7 +1122,7 @@
                               @click="requestAuthToken(ch.id)"
                               class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
                             >
-                              Authorize Owner
+                              Verify Ownership
                             </button>
                           </template>
 
@@ -1146,17 +1146,26 @@
                         </div>
                       </template>
 
-                      <!-- QR Code display (shown when pairing is active for this channel) -->
+                      <!-- QR Code display (shown when pairing is active or channel is connecting with QR available) -->
                       <template
-                        x-if="pairingChannelId === ch.id && qrCodeDataUrl"
+                        x-if="(pairingChannelId === ch.id && qrCodeDataUrl) || (ch.status === 'connecting' && channelQrCodes[ch.id])"
                       >
                         <div class="p-4 border-t border-white/5">
-                          <p class="text-xs text-tokyo-muted mb-3">
-                            Scan this QR code with WhatsApp on your phone:
-                          </p>
+                          <div class="flex items-center justify-between mb-3">
+                            <p class="text-xs text-tokyo-muted">
+                              Scan this QR code with WhatsApp on your phone:
+                            </p>
+                            <template x-if="qrCountdowns[ch.id] > 0">
+                              <span
+                                class="text-xs font-mono px-2 py-0.5 rounded-full"
+                                :class="qrCountdowns[ch.id] <= 5 ? 'bg-red-500/20 text-red-400' : 'bg-tokyo-purple/20 text-tokyo-purple'"
+                                x-text="qrCountdowns[ch.id] + 's'"
+                              ></span>
+                            </template>
+                          </div>
                           <div class="bg-white p-3 rounded-lg inline-block">
                             <img
-                              :src="qrCodeDataUrl"
+                              :src="channelQrCodes[ch.id] || qrCodeDataUrl"
                               alt="QR Code"
                               class="w-48 h-48"
                             />
@@ -4625,7 +4634,7 @@
                               'text-red-400': channel.status === 'error',
                               'text-tokyo-muted': channel.status === 'disconnected' || channel.status === 'logged_out'
                             }"
-                            x-text="channel.status"
+                            x-text="channel.status === 'connecting' && connectingTimers[channel.id] !== undefined ? 'connecting (' + connectingTimers[channel.id] + 's)' : channel.status"
                           ></span>
                         </div>
                         <!-- Expand chevron for error -->
@@ -4702,7 +4711,7 @@
                         </div>
                       </template>
 
-                      <!-- Actions for non-error states -->
+                      <!-- Actions for disconnected/logged_out states -->
                       <template
                         x-if="channel.status !== 'error' && channel.status !== 'connected' && channel.status !== 'connecting'"
                       >
@@ -4716,17 +4725,46 @@
                         </div>
                       </template>
 
+                      <!-- Actions for connected channels -->
+                      <template x-if="channel.status === 'connected'">
+                        <div class="px-3 pb-3 flex gap-2">
+                          <template x-if="!authTokens[channel.id]">
+                            <button
+                              @click="requestAuthToken(channel.id)"
+                              class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
+                            >
+                              Verify Ownership
+                            </button>
+                          </template>
+                          <button
+                            @click="disconnectChannel(channel.id)"
+                            class="text-xs px-3 py-1.5 rounded-lg font-medium text-tokyo-muted active:text-tokyo-red active:bg-tokyo-red/10"
+                          >
+                            Disconnect
+                          </button>
+                        </div>
+                      </template>
+
                       <!-- QR Code display (mobile) -->
                       <template
-                        x-if="pairingChannelId === channel.id && qrCodeDataUrl"
+                        x-if="(pairingChannelId === channel.id && qrCodeDataUrl) || (channel.status === 'connecting' && channelQrCodes[channel.id])"
                       >
                         <div class="p-3 border-t border-white/5">
-                          <p class="text-xs text-tokyo-muted mb-2">
-                            Scan with WhatsApp:
-                          </p>
+                          <div class="flex items-center justify-between mb-2">
+                            <p class="text-xs text-tokyo-muted">
+                              Scan with WhatsApp:
+                            </p>
+                            <template x-if="qrCountdowns[channel.id] > 0">
+                              <span
+                                class="text-xs font-mono px-2 py-0.5 rounded-full"
+                                :class="qrCountdowns[channel.id] <= 5 ? 'bg-red-500/20 text-red-400' : 'bg-tokyo-purple/20 text-tokyo-purple'"
+                                x-text="qrCountdowns[channel.id] + 's'"
+                              ></span>
+                            </template>
+                          </div>
                           <div class="bg-white p-2 rounded-lg inline-block">
                             <img
-                              :src="qrCodeDataUrl"
+                              :src="channelQrCodes[channel.id] || qrCodeDataUrl"
                               alt="QR Code"
                               class="w-40 h-40"
                             />

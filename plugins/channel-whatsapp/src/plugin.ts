@@ -2,6 +2,8 @@ import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
   downloadMediaMessage,
+  Browsers,
+  fetchLatestBaileysVersion,
   type WASocket,
   type BaileysEventMap,
 } from "@whiskeysockets/baileys";
@@ -78,6 +80,26 @@ function getDisconnectMessage(
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Version fetching with fallback
+// ─────────────────────────────────────────────────────────────────
+
+// Fallback version if dynamic fetch fails (known working version)
+const FALLBACK_VERSION: [number, number, number] = [2, 3000, 1033846690];
+
+async function getWaVersion(): Promise<[number, number, number]> {
+  try {
+    const { version } = await fetchLatestBaileysVersion();
+    console.log(`[channel-whatsapp] Using WA version: ${version.join(".")}`);
+    return version as [number, number, number];
+  } catch (err) {
+    console.warn(
+      `[channel-whatsapp] Failed to fetch WA version, using fallback: ${FALLBACK_VERSION.join(".")}`,
+    );
+    return FALLBACK_VERSION;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Plugin class
 // ─────────────────────────────────────────────────────────────────
 
@@ -114,11 +136,35 @@ export class BaileysPlugin implements ChannelPlugin {
       throw new Error("[channel-whatsapp] connect() called before init()");
     }
 
+    // Clean up any existing socket before creating a new one
+    // This prevents old socket events from firing during reconnect
+    if (this.sock) {
+      console.log(
+        "[channel-whatsapp] Cleaning up existing socket before reconnect",
+      );
+      this.sock.ev.removeAllListeners("connection.update");
+      this.sock.ev.removeAllListeners("creds.update");
+      this.sock.ev.removeAllListeners("messages.upsert");
+      this.sock.end(undefined); // Close socket without triggering events
+      this.sock = null;
+
+      // CRITICAL: Wait for any pending credential saves to complete before
+      // creating a new socket. Without this, useMultiFileAuthState() may load
+      // stale/empty credentials because the save from the previous socket
+      // (e.g., after QR pairing) hasn't finished yet.
+      console.log("[channel-whatsapp] Flushing credential save queue...");
+      await this.saveQueue.flush();
+      console.log("[channel-whatsapp] Credential save queue flushed");
+    }
+
     const authDir = this.resolveAuthDir();
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
 
-    // Suppress Baileys verbose logging
-    const logger = pino({ level: "silent" });
+    // Fetch WhatsApp version (with fallback)
+    const version = await getWaVersion();
+
+    // Debug logging for troubleshooting pairing
+    const logger = pino({ level: "debug" });
 
     // CRITICAL: Always create a FRESH socket on each connect() call.
     // The old socket is dead after disconnect and must not be reused.
@@ -126,6 +172,10 @@ export class BaileysPlugin implements ChannelPlugin {
       auth: state,
       logger,
       printQRInTerminal: false,
+      // Explicit browser config for Linux/WSL2 compatibility
+      browser: Browsers.ubuntu("Chrome"),
+      // Explicit version to avoid dynamic fetch failures
+      version,
     });
 
     this.sock = sock;
@@ -138,6 +188,16 @@ export class BaileysPlugin implements ChannelPlugin {
 
         // QR code available — convert to data URL and emit
         if (qr) {
+          // Set running: true to indicate active pairing (waiting for QR scan)
+          this._status = {
+            ...this._status,
+            running: true,
+            connected: false,
+            lastEventAt: new Date(),
+            lastError: null,
+          };
+          this.emitStatus();
+
           qrToDataUrl(qr)
             .then((dataUrl) => {
               for (const handler of this.handlers.qr) {
@@ -195,17 +255,25 @@ export class BaileysPlugin implements ChannelPlugin {
               },
             };
           } else {
-            // Transient disconnect — signal manager to reconnect
+            // Reconnect scenarios:
+            // 1. restartRequired (515) = normal after QR pairing, MUST reconnect
+            // 2. Previously connected = transient disconnect, should reconnect
+            // 3. Never connected + not restartRequired = pairing failure, don't reconnect
+            const isRestartRequired =
+              statusCode === DisconnectReason.restartRequired;
+            const hadPriorConnection = this._status.lastConnectedAt !== null;
+            const shouldReconnect = isRestartRequired || hadPriorConnection;
+
             this._status = {
               ...this._status,
               connected: false,
-              running: true,
-              lastError: errorMessage,
+              running: shouldReconnect,
+              lastError: isRestartRequired ? null : errorMessage, // Don't show error for normal restart
               lastEventAt: new Date(),
               lastDisconnect: {
                 at: new Date(),
                 status: "disconnected",
-                error: errorMessage,
+                error: isRestartRequired ? null : errorMessage,
                 loggedOut: false,
               },
             };
@@ -213,9 +281,10 @@ export class BaileysPlugin implements ChannelPlugin {
 
           this.emitStatus();
         } else if (connection === "connecting") {
+          // Note: Don't set running: true here as it triggers reconnect logic
+          // Only set running: true when actually connected or when QR is shown
           this._status = {
             ...this._status,
-            running: true,
             connected: false,
             lastEventAt: new Date(),
           };

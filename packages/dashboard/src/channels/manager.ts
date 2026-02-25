@@ -41,6 +41,8 @@ interface ChannelEntry {
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   watchdogTimer: ReturnType<typeof setInterval> | null;
   debouncer: MessageDebouncer<IncomingMessage> | null;
+  /** Flag to suppress reconnects during QR pairing */
+  pairing: boolean;
 }
 
 /** Message handler signature */
@@ -153,6 +155,7 @@ export class ChannelManager {
       reconnectTimer: null,
       watchdogTimer: null,
       debouncer: null,
+      pairing: false,
     };
 
     // Wire up event handlers
@@ -163,6 +166,11 @@ export class ChannelManager {
     });
     plugin.on("status", (status) => this.handlePluginStatus(id, status));
     plugin.on("qr", (qrDataUrl: string) => {
+      // Set pairing flag to suppress reconnects while waiting for QR scan
+      entry.pairing = true;
+      console.log(
+        `[ChannelManager] QR received for ${id}, entering pairing mode`,
+      );
       if (this.qrCodeHandler) {
         this.qrCodeHandler(id, qrDataUrl);
       }
@@ -179,17 +187,17 @@ export class ChannelManager {
       return;
     }
 
-    // Connect if immediate processing
-    if (config.processing === "immediate") {
-      try {
-        await plugin.connect();
-        console.log(`[ChannelManager] Connected channel: ${id}`);
-      } catch (err) {
-        console.error(`[ChannelManager] Failed to connect ${id}:`, err);
-        entry.status.lastError =
-          err instanceof Error ? err.message : String(err);
-      }
-    }
+    // Don't auto-connect on startup — let user press "Reconnect" manually
+    // if (config.processing === "immediate") {
+    //   try {
+    //     await plugin.connect();
+    //     console.log(`[ChannelManager] Connected channel: ${id}`);
+    //   } catch (err) {
+    //     console.error(`[ChannelManager] Failed to connect ${id}:`, err);
+    //     entry.status.lastError =
+    //       err instanceof Error ? err.message : String(err);
+    //   }
+    // }
 
     // Start watchdog if applicable
     if (config.role === "dedicated" && config.processing === "immediate") {
@@ -310,6 +318,9 @@ export class ChannelManager {
     if (clearAuth && "clearAuth" in entry.plugin) {
       console.log(`[ChannelManager] Clearing auth for ${id}`);
       await (entry.plugin as { clearAuth: () => Promise<void> }).clearAuth();
+      // Set pairing flag to suppress reconnect logic during QR wait
+      entry.pairing = true;
+      console.log(`[ChannelManager] Entering pairing mode for ${id}`);
     }
 
     // Reset reconnect attempts for fresh pairing
@@ -440,25 +451,55 @@ export class ChannelManager {
     }
 
     // Handle reconnection logic
-    if (!newStatus.connected && newStatus.running) {
-      // Disconnected but still running
+    // Only consider reconnecting if there's an actual disconnect event
+    // (not just a status update during QR display or initial connection)
+    if (
+      !newStatus.connected &&
+      newStatus.running &&
+      newStatus.lastDisconnect !== null
+    ) {
+      // Disconnected but still running - check the disconnect type
       // Check if it's a logout (should NOT reconnect)
-      if (newStatus.lastDisconnect?.loggedOut) {
+      if (newStatus.lastDisconnect.loggedOut) {
         console.log(
           `[ChannelManager] Channel ${channelId} logged out — not reconnecting`,
         );
+        entry.pairing = false;
         return;
+      }
+
+      // In pairing mode - be more careful about reconnects
+      if (entry.pairing) {
+        // During pairing, only reconnect if it's a restartRequired (error is null)
+        const isRestartRequired = newStatus.lastDisconnect.error === null;
+
+        if (!isRestartRequired) {
+          // Disconnect with an actual error - pairing failed
+          console.log(
+            `[ChannelManager] Channel ${channelId} pairing failed:`,
+            newStatus.lastDisconnect.error,
+          );
+          entry.pairing = false;
+          return;
+        }
+
+        // restartRequired - pairing succeeded, clear flag and reconnect
+        console.log(
+          `[ChannelManager] Channel ${channelId} pairing complete (restartRequired), reconnecting...`,
+        );
+        entry.pairing = false;
       }
 
       // Start reconnection
       this.startReconnect(channelId);
     } else if (newStatus.connected) {
-      // Successfully connected — reset reconnect state
+      // Successfully connected — reset reconnect state and pairing flag
       if (entry.reconnectTimer) {
         clearTimeout(entry.reconnectTimer);
         entry.reconnectTimer = null;
       }
       entry.status.reconnectAttempts = 0;
+      entry.pairing = false;
       console.log(
         `[ChannelManager] Channel ${channelId} connected successfully`,
       );

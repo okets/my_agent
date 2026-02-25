@@ -65,6 +65,16 @@ function chat() {
     // QR pairing state
     pairingChannelId: null,
     qrCodeDataUrl: null,
+    // Per-channel QR codes for auto-pairing: { channelId: "data:image/png..." }
+    channelQrCodes: {},
+    // Per-channel QR countdown timers: { channelId: secondsRemaining }
+    qrCountdowns: {},
+    // Internal countdown interval IDs
+    _qrCountdownIntervals: {},
+    // Per-channel connecting duration timers: { channelId: secondsElapsed }
+    connectingTimers: {},
+    // Internal connecting timer interval IDs
+    _connectingIntervals: {},
 
     // Add channel form state
     showAddChannel: false,
@@ -1011,13 +1021,23 @@ function chat() {
           if (ch) {
             ch.status = data.status;
             ch.reconnectAttempts = data.reconnectAttempts;
+
+            // Manage connecting timer
+            if (data.status === "connecting") {
+              this.startConnectingTimer(data.channelId);
+            } else {
+              // Clear timer when no longer connecting (connected, error, stopped)
+              this.clearConnectingTimer(data.channelId);
+            }
+
             // Clear QR state if channel connected
-            if (
-              data.status === "connected" &&
-              this.pairingChannelId === data.channelId
-            ) {
-              this.pairingChannelId = null;
-              this.qrCodeDataUrl = null;
+            if (data.status === "connected") {
+              delete this.channelQrCodes[data.channelId];
+              this.clearQrCountdown(data.channelId);
+              if (this.pairingChannelId === data.channelId) {
+                this.pairingChannelId = null;
+                this.qrCodeDataUrl = null;
+              }
             }
           }
           break;
@@ -1025,6 +1045,11 @@ function chat() {
 
         case "channel_qr_code": {
           // QR code received from server during pairing
+          // Store per-channel for auto-display when connecting
+          this.channelQrCodes[data.channelId] = data.qrDataUrl;
+          // Start/reset countdown timer (QR codes expire in ~20 seconds)
+          this.startQrCountdown(data.channelId, 20);
+          // Also update legacy single QR if explicitly pairing this channel
           if (data.channelId === this.pairingChannelId) {
             this.qrCodeDataUrl = data.qrDataUrl;
           }
@@ -1032,15 +1057,14 @@ function chat() {
         }
 
         case "channel_paired": {
-          // Channel successfully paired — clear QR, request auth token
+          // Channel successfully paired — clear QR
           if (data.channelId === this.pairingChannelId) {
             this.pairingChannelId = null;
             this.qrCodeDataUrl = null;
           }
           // Refresh channel list to get updated status
           this.fetchChannels();
-          // Auto-request authorization token if channel has no owner yet
-          this.requestAuthToken(data.channelId);
+          // Skip auth token — owner is setting up their own channel
           break;
         }
 
@@ -1948,9 +1972,17 @@ function chat() {
               lastError: ch.statusDetail?.lastError ?? null,
             }));
             // Clear help task tags for channels that reconnected
+            // Start connecting timers for channels already in connecting state
             for (const ch of this.channels) {
               if (ch.status === "connected" && this.channelHelpTasks[ch.id]) {
                 delete this.channelHelpTasks[ch.id];
+              }
+              // Start timer for any channel currently connecting (e.g., on page load)
+              if (
+                ch.status === "connecting" &&
+                !this._connectingIntervals[ch.id]
+              ) {
+                this.startConnectingTimer(ch.id);
               }
             }
           }
@@ -2126,6 +2158,65 @@ function chat() {
         console.error("[App] Pair request failed:", err);
         this.pairingChannelId = null;
       }
+    },
+
+    /**
+     * Start a countdown timer for QR code expiration
+     */
+    startQrCountdown(channelId, seconds) {
+      // Clear any existing countdown for this channel
+      this.clearQrCountdown(channelId);
+      // Set initial countdown value
+      this.qrCountdowns[channelId] = seconds;
+      // Start interval to decrement
+      this._qrCountdownIntervals[channelId] = setInterval(() => {
+        if (this.qrCountdowns[channelId] > 0) {
+          this.qrCountdowns[channelId]--;
+        } else {
+          this.clearQrCountdown(channelId);
+        }
+      }, 1000);
+    },
+
+    /**
+     * Clear QR countdown timer for a channel
+     */
+    clearQrCountdown(channelId) {
+      if (this._qrCountdownIntervals[channelId]) {
+        clearInterval(this._qrCountdownIntervals[channelId]);
+        delete this._qrCountdownIntervals[channelId];
+      }
+      delete this.qrCountdowns[channelId];
+    },
+
+    /**
+     * Start a countdown timer for connecting phase
+     * WhatsApp generates ~4 QR codes at ~20s each = ~80s total before timeout
+     */
+    startConnectingTimer(channelId, seconds = 80) {
+      // Clear any existing timer for this channel
+      this.clearConnectingTimer(channelId);
+      // Start countdown
+      this.connectingTimers[channelId] = seconds;
+      // Decrement every second
+      this._connectingIntervals[channelId] = setInterval(() => {
+        if (this.connectingTimers[channelId] > 0) {
+          this.connectingTimers[channelId]--;
+        } else {
+          this.clearConnectingTimer(channelId);
+        }
+      }, 1000);
+    },
+
+    /**
+     * Clear connecting timer for a channel
+     */
+    clearConnectingTimer(channelId) {
+      if (this._connectingIntervals[channelId]) {
+        clearInterval(this._connectingIntervals[channelId]);
+        delete this._connectingIntervals[channelId];
+      }
+      delete this.connectingTimers[channelId];
     },
 
     async requestAuthToken(channelId) {

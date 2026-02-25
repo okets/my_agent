@@ -159,6 +159,54 @@ Sprint delivers a working WhatsApp dedicated channel with Baileys, QR pairing, i
 
 ---
 
+## Lessons Learned (2026-02-25 Session)
+
+### Baileys/WhatsApp Protocol
+
+| Issue | Root Cause | Fix |
+|-------|------------|-----|
+| **QR code flickering every 1-2s** | Manager triggered reconnects when `!connected && running`, but during QR display those flags are set *without* an actual disconnect | Check `newStatus.lastDisconnect !== null` before triggering reconnect |
+| **Credentials lost after QR scan** | Race condition: socket cleanup ran before credential save completed | Added `flush()` method to `CredentialSaveQueue`; await it before creating new socket |
+| **Single-use sockets** | Baileys sockets cannot be reused after disconnect | Always create fresh socket on reconnect; clean up old socket's event listeners first |
+| **QR codes expire silently** | QRs expire in ~20s, user has no visual feedback | Added countdown timer to QR display (turns red at ≤5s) |
+| **Connection timeout unclear** | ~80s total (4 QR cycles × 20s) before "QR refs attempts ended" error | Added countdown timer showing time until connection fails |
+
+### Reconnection Logic
+
+| Issue | Root Cause | Fix |
+|-------|------------|-----|
+| **Reconnect loop during QR scan** | Any disconnect triggered reconnect, even when intentionally waiting for QR | Added `entry.pairing` flag to suppress reconnects while QR is displayed |
+| **Auto-connect on server start unwanted** | `registerChannel()` auto-called `plugin.connect()` for immediate processing | Disabled auto-connect; user clicks "Pair" to initiate |
+| **515 restartRequired treated as logout** | Code 515 (restart required) was in `isLoggedOut` check | Only code 401 triggers logout state |
+
+### UX Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **No auto-connect on startup** | User may not want WhatsApp connecting immediately; prefer manual control |
+| **QR countdown timer (20s)** | Visual feedback prevents confusion about why QR "isn't working" |
+| **Connecting countdown timer (80s)** | User knows how long until connection attempt times out |
+| **On-demand ownership verification** | Auth token flow is optional; user clicks "Verify Ownership" when changing numbers |
+| **Human-readable disconnect messages** | "Connection timed out" instead of "Error: QR refs attempts ended" |
+
+### Key Files for Troubleshooting
+
+| File | What to Check |
+|------|---------------|
+| `plugins/channel-whatsapp/src/plugin.ts` | Socket lifecycle, credential flush, event handlers |
+| `plugins/channel-whatsapp/src/auth.ts` | `CredentialSaveQueue.flush()` for race conditions |
+| `packages/dashboard/src/channels/manager.ts` | Reconnect logic, pairing flag, status handling |
+| `packages/dashboard/public/js/app.js` | QR/connecting timers, channel status handlers |
+
+### Debug Tips
+
+1. **Enable Baileys debug logging**: Change `pino({ level: "silent" })` to `pino({ level: "debug" })` in plugin.ts
+2. **Watch for "QR received" logs**: Should only appear once per QR cycle, not repeatedly
+3. **Check pairing flag**: If reconnect loop happens during QR, `entry.pairing` isn't being set
+4. **Credential flush**: If pairing fails after QR scan, check `flush()` is awaited before new socket
+
+---
+
 ## Scope for S3
 
 S3 (Trust & External Communications) will build on S2's foundation:
