@@ -384,6 +384,12 @@ async function main() {
 
       // Start file watcher
       syncService.startWatching();
+
+      // Publish memory state to dashboard on every sync event
+      syncService.on("sync", () => {
+        server.statePublisher?.publishMemory();
+      });
+
       console.log("Memory file watcher started");
     } catch (err) {
       console.warn(

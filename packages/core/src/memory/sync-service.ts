@@ -5,9 +5,10 @@
  * @module memory/sync-service
  */
 
+import { EventEmitter } from 'node:events'
 import { watch, type FSWatcher } from 'chokidar'
 import { readFile, stat } from 'fs/promises'
-import { join, relative } from 'path'
+import { basename, join, relative } from 'path'
 import { MemoryDb } from './memory-db.js'
 import { chunkMarkdown, hashFileContent } from './chunker.js'
 import type { EmbeddingsPlugin } from './embeddings/types.js'
@@ -20,7 +21,7 @@ export interface SyncServiceOptions {
   debounceMs?: number
 }
 
-export class SyncService {
+export class SyncService extends EventEmitter {
   private notebookDir: string
   private db: MemoryDb
   private getPlugin: () => EmbeddingsPlugin | null
@@ -30,6 +31,7 @@ export class SyncService {
   private syncing = false
 
   constructor(options: SyncServiceOptions) {
+    super()
     this.notebookDir = options.notebookDir
     this.db = options.db
     this.getPlugin = options.getPlugin
@@ -43,18 +45,33 @@ export class SyncService {
     if (this.watcher) return
 
     this.watcher = watch(this.notebookDir, {
-      ignored: /(^|[\/\\])\../, // Ignore dotfiles
+      // Ignore dotfiles by checking basename only (not full path)
+      // This prevents .my_agent in parent path from being matched
+      ignored: (path: string) => basename(path).startsWith('.'),
       persistent: true,
       ignoreInitial: true,
-      awaitWriteFinish: {
-        stabilityThreshold: 500,
-        pollInterval: 100,
-      },
+      usePolling: true, // Use polling for WSL2 compatibility
+      interval: 1000, // Poll every second
     })
 
-    this.watcher.on('add', (path) => this.scheduleSync(path))
-    this.watcher.on('change', (path) => this.scheduleSync(path))
-    this.watcher.on('unlink', (path) => this.handleDelete(path))
+    this.watcher.on('ready', () => {
+      console.log(`[SyncService] Watcher ready, watching: ${this.notebookDir}`)
+    })
+    this.watcher.on('add', (path) => {
+      console.log(`[SyncService] File added: ${path}`)
+      this.scheduleSync(path)
+    })
+    this.watcher.on('change', (path) => {
+      console.log(`[SyncService] File changed: ${path}`)
+      this.scheduleSync(path)
+    })
+    this.watcher.on('unlink', (path) => {
+      console.log(`[SyncService] File deleted: ${path}`)
+      this.handleDelete(path)
+    })
+    this.watcher.on('error', (error) => {
+      console.error(`[SyncService] Watcher error:`, error)
+    })
   }
 
   /**
@@ -101,6 +118,7 @@ export class SyncService {
     const relativePath = relative(this.notebookDir, filePath)
     this.db.deleteChunksForFile(relativePath)
     this.db.deleteFile(relativePath)
+    this.emit('sync', { type: 'delete', path: relativePath })
   }
 
   /**
@@ -164,6 +182,8 @@ export class SyncService {
         size: fileStat.size,
         indexedAt: new Date().toISOString(),
       })
+
+      this.emit('sync', { type: 'file', path: relativePath })
     } catch (error) {
       console.error(`Failed to sync file ${relativePath}:`, error)
     }
@@ -280,6 +300,8 @@ export class SyncService {
       result.duration = Date.now() - startTime
     }
 
+    this.emit('sync', { type: 'full', ...result })
+
     return result
   }
 
@@ -288,6 +310,8 @@ export class SyncService {
    */
   async rebuild(): Promise<SyncResult> {
     this.db.clearAll()
-    return this.fullSync()
+    const result = await this.fullSync()
+    this.emit('sync', { type: 'rebuild', ...result })
+    return result
   }
 }
