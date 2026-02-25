@@ -4715,6 +4715,24 @@
                           </button>
                         </div>
                       </template>
+
+                      <!-- QR Code display (mobile) -->
+                      <template
+                        x-if="pairingChannelId === channel.id && qrCodeDataUrl"
+                      >
+                        <div class="p-3 border-t border-white/5">
+                          <p class="text-xs text-tokyo-muted mb-2">
+                            Scan with WhatsApp:
+                          </p>
+                          <div class="bg-white p-2 rounded-lg inline-block">
+                            <img
+                              :src="qrCodeDataUrl"
+                              alt="QR Code"
+                              class="w-40 h-40"
+                            />
+                          </div>
+                        </div>
+                      </template>
                     </div>
                   </template>
                 </div>
