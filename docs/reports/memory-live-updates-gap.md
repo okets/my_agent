@@ -27,6 +27,10 @@ During live dashboard testing, we discovered that the Memory system (M6) does no
 - **API Endpoints** (`packages/dashboard/src/routes/memory.ts`): REST-only
 - **State Publisher** (`packages/dashboard/src/state/state-publisher.ts`): No `publishMemory()` method
 
+## Rationale
+
+Most dashboard changes happen through the chat interface — the agent creates tasks, updates memory, schedules events while the user watches the dashboard. The UI must reflect agent actions in real-time without requiring manual refresh.
+
 ## Impact
 
 1. **User Experience**: Memory stats (files indexed, chunks, sync status) don't update in real-time
