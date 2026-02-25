@@ -67,7 +67,10 @@ const DISCONNECT_MESSAGES: Record<number, string> = {
   515: "Reconnecting...", // Normal restart, not shown as error
 };
 
-function getDisconnectMessage(statusCode: number | undefined, fallbackError?: string): string {
+function getDisconnectMessage(
+  statusCode: number | undefined,
+  fallbackError?: string,
+): string {
   if (statusCode !== undefined && DISCONNECT_MESSAGES[statusCode]) {
     return DISCONNECT_MESSAGES[statusCode];
   }
@@ -173,7 +176,7 @@ export class BaileysPlugin implements ChannelPlugin {
             statusCode,
             lastDisconnect?.error instanceof Error
               ? lastDisconnect.error.message
-              : undefined
+              : undefined,
           );
 
           if (isLoggedOut) {
@@ -378,6 +381,21 @@ export class BaileysPlugin implements ChannelPlugin {
     };
 
     this.emitStatus();
+  }
+
+  /**
+   * Clear auth credentials to force fresh QR pairing.
+   * Call this before connect() when re-pairing after logout/error.
+   */
+  async clearAuth(): Promise<void> {
+    const authDir = this.resolveAuthDir();
+    const fs = await import("fs/promises");
+    try {
+      await fs.rm(authDir, { recursive: true, force: true });
+      console.log(`[channel-whatsapp] Cleared auth directory: ${authDir}`);
+    } catch (err) {
+      console.error(`[channel-whatsapp] Failed to clear auth:`, err);
+    }
   }
 
   // ── Messaging ──────────────────────────────────────────────────

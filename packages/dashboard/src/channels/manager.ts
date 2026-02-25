@@ -290,12 +290,32 @@ export class ChannelManager {
 
   /**
    * Initiate connection for a single channel (triggers QR pairing flow for WhatsApp).
+   * Clears any pending reconnect timer first.
+   * If clearAuth is true, clears stored credentials to force fresh QR pairing.
    */
-  async connectChannel(id: string): Promise<void> {
+  async connectChannel(id: string, clearAuth = false): Promise<void> {
     const entry = this.channels.get(id);
     if (!entry) throw new Error(`Channel not found: ${id}`);
     if (entry.status.connected)
       throw new Error(`Channel already connected: ${id}`);
+
+    // Clear any pending reconnect timer to avoid conflicts
+    if (entry.reconnectTimer) {
+      clearTimeout(entry.reconnectTimer);
+      entry.reconnectTimer = null;
+      console.log(`[ChannelManager] Cleared reconnect timer for ${id}`);
+    }
+
+    // Clear auth if requested (for fresh QR pairing)
+    if (clearAuth && "clearAuth" in entry.plugin) {
+      console.log(`[ChannelManager] Clearing auth for ${id}`);
+      await (entry.plugin as { clearAuth: () => Promise<void> }).clearAuth();
+    }
+
+    // Reset reconnect attempts for fresh pairing
+    entry.status.reconnectAttempts = 0;
+    entry.status.lastError = null;
+
     await entry.plugin.connect();
   }
 

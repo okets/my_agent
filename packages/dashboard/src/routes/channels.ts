@@ -141,6 +141,7 @@ export async function registerChannelRoutes(
   );
 
   // POST /api/channels/:id/pair — trigger QR pairing
+  // If channel is in error/logged_out state, clears auth to force fresh QR
   fastify.post<{ Params: { id: string } }>(
     "/api/channels/:id/pair",
     async (request, reply) => {
@@ -156,7 +157,10 @@ export async function registerChannelRoutes(
         return reply.code(409).send({ error: "Channel already connected" });
       }
       try {
-        await channelManager.connectChannel(request.params.id);
+        // Clear auth for fresh QR if channel is in error/logged_out state
+        const needsFreshAuth =
+          info.status === "error" || info.status === "logged_out";
+        await channelManager.connectChannel(request.params.id, needsFreshAuth);
         return reply.send({ ok: true });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
