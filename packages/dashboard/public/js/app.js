@@ -318,6 +318,12 @@ function chat() {
       // Initialize theme
       this.initTheme();
 
+      // Initialize mobile viewport reset (fixes zoom lock issue)
+      this.initViewportReset();
+
+      // Initialize haptic feedback for buttons
+      this.initHapticFeedback();
+
       // Load agent name and check hatching status
       fetch("/api/hatching/status")
         .then((r) => r.json())
@@ -1648,6 +1654,66 @@ function chat() {
         root.classList.add("dark");
         root.classList.remove("light");
       }
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Mobile Viewport Reset (fixes zoom lock issue)
+    // ─────────────────────────────────────────────────────────────────
+
+    initViewportReset() {
+      // Debounce helper
+      const debounce = (fn, ms) => {
+        let timeout;
+        return (...args) => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => fn.apply(this, args), ms);
+        };
+      };
+
+      // Handle viewport reset
+      const handleViewportReset = () => {
+        const viewport = document.querySelector('meta[name="viewport"]');
+        if (viewport) {
+          // Force reset to 1.0 scale
+          viewport.content =
+            "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
+          // Then restore normal behavior
+          setTimeout(() => {
+            viewport.content = "width=device-width, initial-scale=1.0";
+          }, 100);
+        }
+        // Ensure body fills viewport
+        document.body.style.minHeight = window.innerHeight + "px";
+      };
+
+      // Listen for orientation changes (immediate)
+      window.addEventListener("orientationchange", handleViewportReset);
+
+      // Listen for resize (debounced)
+      window.addEventListener("resize", debounce(handleViewportReset, 100));
+
+      // Initial call
+      handleViewportReset();
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Haptic Feedback (subtle vibration on button clicks)
+    // ─────────────────────────────────────────────────────────────────
+
+    initHapticFeedback() {
+      // Only add if Vibration API is available
+      if (!navigator.vibrate) {
+        return;
+      }
+
+      // Add click listener to document (delegation)
+      document.addEventListener("click", (e) => {
+        const button = e.target.closest("button");
+        // Only vibrate for enabled buttons
+        if (button && !button.disabled) {
+          navigator.vibrate(10); // 10ms subtle pulse
+        }
+      });
     },
 
     // ─────────────────────────────────────────────────────────────────

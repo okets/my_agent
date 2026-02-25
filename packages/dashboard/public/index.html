@@ -2,7 +2,37 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <!-- Force viewport reset on stuck zoom -->
+    <script>
+      (function () {
+        // Immediate viewport fix for iOS Safari zoom lock
+        function resetViewport() {
+          var vp = document.querySelector('meta[name="viewport"]');
+          if (vp) {
+            vp.content =
+              "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
+          }
+          // Force layout recalc
+          document.body.style.width = "100vw";
+          document.body.style.minHeight = "100vh";
+          document.body.style.overflow = "hidden";
+        }
+        // Run on load
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", resetViewport);
+        } else {
+          resetViewport();
+        }
+        // Also on orientation change
+        window.addEventListener("orientationchange", function () {
+          setTimeout(resetViewport, 100);
+        });
+      })();
+    </script>
     <title>Dashboard</title>
 
     <!-- Fonts -->
@@ -554,9 +584,7 @@
             </div>
 
             <!-- Timeline Section -->
-            <div
-              class="timeline-section mt-6 -mx-4 px-4 py-4 bg-tokyo-panel/30 border-y border-tokyo-panel"
-            >
+            <div class="timeline-section mt-6 mx-0 px-4 py-4">
               <div class="flex items-center justify-between mb-4">
                 <h2
                   class="text-sm font-semibold text-tokyo-text uppercase tracking-wide flex items-center gap-2"
@@ -617,7 +645,7 @@
               >
                 <!-- Vertical line running through bullets (positioned after time column) -->
                 <div
-                  class="absolute top-0 bottom-0 left-[3.65rem] w-0.5 bg-[#313244]"
+                  class="absolute top-0 bottom-0 left-[3.65rem] w-0.5 bg-tokyo-card"
                 ></div>
 
                 <!-- Load earlier button -->

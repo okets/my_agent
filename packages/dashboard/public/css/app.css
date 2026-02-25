@@ -12,20 +12,28 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
   /* Shadows - subtle depth */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-elevated: 0 4px 20px rgba(0, 0, 0, 0.5);
   --shadow-glow-blue: 0 0 20px rgba(122, 162, 247, 0.15);
   --shadow-glow-purple: 0 0 20px rgba(187, 154, 247, 0.15);
+
+  /* Border radius scale */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
 
   /* Borders */
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-muted: rgba(255, 255, 255, 0.1);
   --border-accent: rgba(122, 162, 247, 0.3);
 
-  /* Glass backgrounds */
-  --glass-bg: rgba(30, 30, 46, 0.6);
-  --glass-bg-strong: rgba(30, 30, 46, 0.8);
+  /* Glass backgrounds - match new palette */
+  --glass-bg: rgba(26, 27, 38, 0.6);
+  --glass-bg-strong: rgba(31, 35, 53, 0.85);
   --glass-border: rgba(255, 255, 255, 0.06);
   --glass-border-strong: rgba(255, 255, 255, 0.08);
 
@@ -33,61 +41,62 @@
   --bubble-assistant: rgba(255, 255, 255, 0.03);
   --bubble-user: rgba(122, 162, 247, 0.12);
 
-  /* Theme colors - Catppuccin Mocha (dark) defaults */
-  --color-bg: #1e1e2e;
-  --color-surface: #181825;
-  --color-crust: #11111b;
-  --color-panel: #313244;
-  --color-card: #45475a;
-  --color-text: #cdd6f4;
-  --color-muted: #6c7086;
-  --color-gray: #7f849c;
-  --color-blue: #89b4fa;
-  --color-purple: #cba6f7;
-  --color-green: #a6e3a1;
-  --color-red: #f38ba8;
-  --color-orange: #fab387;
-  --color-cyan: #89dceb;
+  /* Theme colors - Tokyo Night inspired (dark) - softer, NOT pitch black */
+  --color-bg: #1a1b26;
+  --color-surface: #1e1e2e;
+  --color-crust: #1f2335;
+  --color-panel: #24283b;
+  --color-card: #2a2e42;
+  --color-text: #c0caf5;
+  --color-muted: #565f89;
+  --color-gray: #6c7086;
+  --color-blue: #7aa2f7;
+  --color-purple: #bb9af7;
+  --color-green: #9ece6a;
+  --color-red: #f7768e;
+  --color-orange: #ff9e64;
+  --color-cyan: #7dcfff;
 }
 
-/* Catppuccin Latte (light) overrides - soft lavender tones */
+/* Light mode - warmer, more vibrant (not bland lavender) */
 :root.light {
-  --color-bg: #faf8fc;
-  --color-surface: #f3eef7;
-  --color-crust: #ebe4f0;
-  --color-panel: #e8e0f0;
-  --color-card: #ddd4e8;
-  --color-text: #4c4f69;
-  --color-muted: #8c8fa1;
-  --color-gray: #9ca0b0;
-  --color-blue: #1e66f5;
-  --color-purple: #8839ef;
-  --color-green: #40a02b;
-  --color-red: #d20f39;
-  --color-orange: #fe640b;
-  --color-cyan: #04a5e5;
+  --color-bg: #f5f5f7;
+  --color-surface: #ffffff;
+  --color-crust: #e8e8ec;
+  --color-panel: #f0f0f3;
+  --color-card: #e5e5ea;
+  --color-text: #1d1d1f;
+  --color-muted: #6e6e73;
+  --color-gray: #86868b;
+  --color-blue: #007aff;
+  --color-purple: #af52de;
+  --color-green: #34c759;
+  --color-red: #ff3b30;
+  --color-orange: #ff9500;
+  --color-cyan: #5ac8fa;
 
-  /* Light mode shadows - softer */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --shadow-glow-blue: 0 0 20px rgba(30, 102, 245, 0.15);
-  --shadow-glow-purple: 0 0 20px rgba(136, 57, 239, 0.15);
+  /* Light mode shadows - subtle but visible */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-elevated: 0 4px 20px rgba(0, 0, 0, 0.12);
+  --shadow-glow-blue: 0 0 20px rgba(0, 122, 255, 0.2);
+  --shadow-glow-purple: 0 0 20px rgba(175, 82, 222, 0.2);
 
   /* Light mode borders */
   --border-subtle: rgba(0, 0, 0, 0.06);
-  --border-muted: rgba(0, 0, 0, 0.1);
-  --border-accent: rgba(30, 102, 245, 0.3);
+  --border-muted: rgba(0, 0, 0, 0.12);
+  --border-accent: rgba(0, 122, 255, 0.3);
 
-  /* Light mode glass - soft lavender */
-  --glass-bg: rgba(232, 224, 240, 0.6);
-  --glass-bg-strong: rgba(221, 212, 232, 0.85);
-  --glass-border: rgba(136, 57, 239, 0.08);
-  --glass-border-strong: rgba(136, 57, 239, 0.12);
+  /* Light mode glass - clean white */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-bg-strong: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-border-strong: rgba(0, 0, 0, 0.1);
 
-  /* Light mode chat bubbles - solid colors for visibility */
-  --bubble-assistant: #e2d5f0;
-  --bubble-user: #d4e4fc;
+  /* Light mode chat bubbles */
+  --bubble-assistant: #f0f0f3;
+  --bubble-user: #e3f2fd;
 }
 
 /* ── Alpine cloak ─────────────────────────────────────────────── */
@@ -852,10 +861,39 @@ body.sidebar-resizing {
 
 /* ── Workspace layout (M4-S2) ────────────────────────────────────── */
 
-/* Tab bar */
+/* Tab bar - softer background, not pitch black */
 .tab-bar {
-  background: var(--color-crust);
+  background: var(--color-surface);
   border-bottom: 1px solid var(--border-subtle);
+  padding: 4px 4px 0;
+}
+
+/* Tab buttons - rounded top corners */
+.tab-bar button {
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  margin-right: 2px;
+  border: 1px solid transparent;
+  border-bottom: none;
+}
+
+/* Active tab - elevated look */
+.tab-bar button.active,
+.tab-bar button[class*="bg-tokyo-bg"] {
+  background: var(--color-bg);
+  border-color: var(--border-muted);
+  border-bottom: 1px solid var(--color-bg);
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Inactive tabs */
+.tab-bar button:not(.active):not([class*="bg-tokyo-bg"]) {
+  background: transparent;
+}
+
+.tab-bar button:not(.active):not([class*="bg-tokyo-bg"]):hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* Chat panel resize handle */
@@ -1211,4 +1249,104 @@ button[title="Rename conversation"]:active {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* ── Timeline widget ─────────────────────────────────────────────── */
+
+/* Timeline section container */
+.timeline-section {
+  background: var(--color-panel);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-lg);
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Timeline header */
+.timeline-section h2 {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+/* Timeline vertical line */
+.timeline-section .absolute.w-0\.5 {
+  background: var(--color-card);
+}
+
+/* Timeline item cards */
+.timeline-section button.rounded-lg {
+  background: transparent;
+  border-radius: var(--radius-md);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.timeline-section button.rounded-lg:hover {
+  background: var(--color-card);
+}
+
+/* NOW marker styling */
+.now-marker {
+  color: var(--color-red);
+}
+
+/* TODAY badge */
+.today-badge {
+  background: var(--color-card);
+  color: var(--color-text);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Type badges - Task/Event */
+.type-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.type-badge.task {
+  background: rgba(158, 206, 106, 0.15);
+  color: var(--color-green);
+}
+
+.type-badge.event {
+  background: rgba(122, 162, 247, 0.15);
+  color: var(--color-blue);
+}
+
+/* ── Mobile elevated chat bar ────────────────────────────────────── */
+
+/* Mobile chat region - elevated look */
+@media (max-width: 768px) {
+  .mobile-chat-bar,
+  [class*="mobile-content-panel"] > [class*="region"] {
+    background: var(--color-panel);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border: 1px solid var(--border-muted);
+    border-bottom: none;
+    box-shadow: var(--shadow-elevated);
+    margin: 0 8px;
+  }
+}
+
+/* ── Mobile settings popover ─────────────────────────────────────── */
+
+/* Settings popover styling */
+[role="dialog"][aria-label*="settings"] {
+  background: var(--color-panel);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-xl);
+}
+
+/* Settings cards inside popover */
+.settings-card,
+[role="dialog"] .glass-strong {
+  background: var(--color-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
 }
