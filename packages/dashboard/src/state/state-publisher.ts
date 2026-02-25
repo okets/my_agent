@@ -15,10 +15,13 @@ import type {
   TaskSnapshot,
   CalendarEventSnapshot,
   ConversationMeta,
+  MemoryStats,
 } from "../ws/protocol.js";
 import type { Task, CalendarEvent, createCalDAVClient } from "@my-agent/core";
 import type { TaskManager } from "../tasks/index.js";
 import type { ConversationManager } from "../conversations/index.js";
+import type { MemoryDb } from "../memory/db.js";
+import type { PluginRegistry } from "../memory/plugins/registry.js";
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 100;
@@ -89,16 +92,33 @@ export class StatePublisher {
     | (() => ReturnType<typeof createCalDAVClient> | null)
     | null;
 
+  // Memory services (set after initialization via setMemoryServices)
+  private memoryDb: MemoryDb | null = null;
+  private pluginRegistry: PluginRegistry | null = null;
+
   // Debounce timers for each entity type
   private tasksTimer: ReturnType<typeof setTimeout> | null = null;
   private calendarTimer: ReturnType<typeof setTimeout> | null = null;
   private conversationsTimer: ReturnType<typeof setTimeout> | null = null;
+  private memoryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: StatePublisherOptions) {
     this.registry = options.connectionRegistry;
     this.taskManager = options.taskManager;
     this.conversationManager = options.conversationManager;
     this.getCalendarClient = options.getCalendarClient;
+  }
+
+  /**
+   * Set memory services after initialization.
+   * Called after memory system is initialized in index.ts.
+   */
+  setMemoryServices(
+    memoryDb: MemoryDb | null,
+    pluginRegistry: PluginRegistry | null,
+  ): void {
+    this.memoryDb = memoryDb;
+    this.pluginRegistry = pluginRegistry;
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────
@@ -134,6 +154,17 @@ export class StatePublisher {
     this.conversationsTimer = setTimeout(() => {
       this.conversationsTimer = null;
       this._broadcastConversations();
+    }, DEBOUNCE_MS);
+  }
+
+  /**
+   * Schedule a debounced broadcast of memory stats to all connected clients.
+   */
+  publishMemory(): void {
+    if (this.memoryTimer) clearTimeout(this.memoryTimer);
+    this.memoryTimer = setTimeout(() => {
+      this.memoryTimer = null;
+      this._broadcastMemory();
     }, DEBOUNCE_MS);
   }
 
@@ -207,6 +238,19 @@ export class StatePublisher {
         // Skip on error
       }
     }
+
+    // Memory stats
+    if (this.memoryDb) {
+      const stats = this._getMemoryStats();
+      const payload = JSON.stringify({
+        type: "state:memory",
+        stats,
+        timestamp,
+      });
+      if (socket.readyState === 1) {
+        socket.send(payload);
+      }
+    }
   }
 
   // ─── Private Broadcast Helpers ───────────────────────────────────────────
@@ -271,5 +315,48 @@ export class StatePublisher {
     } catch {
       // Skip on error
     }
+  }
+
+  private _broadcastMemory(): void {
+    if (!this.memoryDb) return;
+    const stats = this._getMemoryStats();
+    this.registry.broadcastToAll({
+      type: "state:memory",
+      stats,
+      timestamp: Date.now(),
+    });
+  }
+
+  private _getMemoryStats(): MemoryStats {
+    if (!this.memoryDb) {
+      return {
+        initialized: false,
+        filesIndexed: 0,
+        totalChunks: 0,
+        lastSync: null,
+        hasVectorIndex: false,
+        embeddingsReady: false,
+        activePlugin: null,
+      };
+    }
+
+    const status = this.memoryDb.getStatus();
+    const active = this.pluginRegistry?.getActive();
+
+    return {
+      initialized: true,
+      filesIndexed: status.filesIndexed,
+      totalChunks: status.totalChunks,
+      lastSync: status.lastSync,
+      hasVectorIndex: status.dimensions !== null,
+      embeddingsReady: status.embeddingsReady,
+      activePlugin: active
+        ? {
+            id: active.id,
+            name: active.name,
+            model: active.modelName,
+          }
+        : null,
+    };
   }
 }

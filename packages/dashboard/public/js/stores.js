@@ -19,6 +19,11 @@ document.addEventListener("alpine:init", () => {
     items: [],
   });
 
+  Alpine.store("memory", {
+    stats: null,
+    loading: false,
+  });
+
   // 'connected' | 'reconnecting' | 'offline'
   Alpine.store("connection", {
     status: "connected",

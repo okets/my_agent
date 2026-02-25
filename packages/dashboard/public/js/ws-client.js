@@ -81,6 +81,12 @@ class NinaWebSocket {
                 Alpine.store("conversations").items = data.conversations || [];
               }
               break;
+            case "state:memory":
+              if (Alpine.store("memory")) {
+                Alpine.store("memory").stats = data.stats || null;
+                Alpine.store("memory").loading = false;
+              }
+              break;
           }
         }
 

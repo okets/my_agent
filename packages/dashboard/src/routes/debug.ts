@@ -1077,4 +1077,27 @@ export async function registerDebugRoutes(
       })),
     };
   });
+
+  /**
+   * POST /memory/publish
+   *
+   * Trigger a memory state broadcast to all connected WebSocket clients.
+   * Used for testing live updates.
+   */
+  fastify.post("/memory/publish", async (request, reply) => {
+    const statePublisher = fastify.statePublisher;
+
+    if (!statePublisher) {
+      return reply.code(503).send({
+        error: "StatePublisher not initialized",
+      });
+    }
+
+    statePublisher.publishMemory();
+
+    return {
+      success: true,
+      message: "Memory state broadcast triggered",
+    };
+  });
 }

@@ -180,6 +180,11 @@ export type ServerMessage =
       type: "state:conversations";
       conversations: ConversationMeta[];
       timestamp: number;
+    }
+  | {
+      type: "state:memory";
+      stats: MemoryStats;
+      timestamp: number;
     };
 
 // ─── State Sync Messages ───────────────────────────────────────────────────
@@ -223,6 +228,21 @@ export interface CalendarEventSnapshot {
   taskId?: string;
   taskType?: string;
   action?: string;
+}
+
+// Memory status snapshot for live updates
+export interface MemoryStats {
+  initialized: boolean;
+  filesIndexed: number;
+  totalChunks: number;
+  lastSync: string | null;
+  hasVectorIndex: boolean;
+  embeddingsReady: boolean;
+  activePlugin: {
+    id: string;
+    name: string;
+    model: string;
+  } | null;
 }
 
 // Notification payload for WebSocket transport

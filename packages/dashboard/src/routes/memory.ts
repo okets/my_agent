@@ -146,6 +146,9 @@ export async function registerMemoryRoutes(
       fastify.log.info("[Memory] Starting index rebuild...");
       const result = await syncService.rebuild();
 
+      // Publish live update to all connected clients
+      fastify.statePublisher?.publishMemory();
+
       return {
         success: true,
         filesIndexed: result.added,
@@ -283,6 +286,7 @@ export async function registerMemoryRoutes(
       if (pluginId === "none") {
         pluginRegistry.setActive(null);
         fastify.log.info("[Memory] Disabled embeddings");
+        fastify.statePublisher?.publishMemory();
         return { success: true, pluginId: null };
       }
 
@@ -318,6 +322,9 @@ export async function registerMemoryRoutes(
         pluginRegistry.setActive(pluginId);
 
         fastify.log.info(`[Memory] Activated embeddings plugin: ${pluginId}`);
+
+        // Publish live update to all connected clients
+        fastify.statePublisher?.publishMemory();
 
         return {
           success: true,

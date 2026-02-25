@@ -369,6 +369,25 @@ function chat() {
           self.conversations = store.items;
         }
       });
+      Alpine.effect(() => {
+        const store = Alpine.store("memory");
+        if (store && store.stats) {
+          // Convert WebSocket stats format to REST API format
+          self.memoryStatus = {
+            initialized: store.stats.initialized,
+            index: {
+              filesIndexed: store.stats.filesIndexed,
+              totalChunks: store.stats.totalChunks,
+              lastSync: store.stats.lastSync,
+              hasVectorIndex: store.stats.hasVectorIndex,
+            },
+            embeddings: {
+              active: store.stats.activePlugin,
+              ready: store.stats.embeddingsReady,
+            },
+          };
+        }
+      });
 
       // Load memory data (M6-S3)
       this.loadNotebookTree();

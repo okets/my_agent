@@ -398,6 +398,11 @@ async function main() {
   server.searchService = searchService;
   server.pluginRegistry = pluginRegistry;
 
+  // Connect memory services to state publisher for live updates
+  if (server.statePublisher) {
+    server.statePublisher.setMemoryServices(memoryDb, pluginRegistry);
+  }
+
   try {
     await server.listen({ port, host: "0.0.0.0" });
     console.log(`\nDashboard running at http://localhost:${port}`);
