@@ -1409,8 +1409,8 @@
                   </button>
                   <span
                     x-show="memoryRebuildResult"
-                    x-text="memoryRebuildResult"
-                    class="text-xs text-tokyo-green"
+                    x-text="memoryRebuildResult?.message"
+                    :class="memoryRebuildResult?.success ? 'text-xs text-tokyo-green' : 'text-xs text-tokyo-red'"
                   ></span>
                 </div>
 
