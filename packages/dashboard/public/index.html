@@ -4586,28 +4586,135 @@
                 <div class="space-y-3">
                   <template x-for="channel in channels" :key="channel.id">
                     <div
-                      class="flex items-center gap-3 p-3 rounded-lg bg-tokyo-card/30 border border-white/5"
+                      class="rounded-lg bg-tokyo-card/30 border"
+                      :class="channel.status === 'error' ? 'border-red-500/30' : 'border-white/5'"
                     >
-                      <span
-                        class="channel-icon w-5 h-5 text-tokyo-muted"
-                        x-html="channel.icon"
-                      ></span>
-                      <div class="flex-1 min-w-0">
+                      <!-- Channel header -->
+                      <div
+                        class="flex items-center gap-3 p-3"
+                        :class="{ 'cursor-pointer active:bg-white/5': channel.status === 'error' }"
+                        @click="channel.status === 'error' && toggleChannelError(channel.id)"
+                      >
                         <span
-                          class="text-sm font-medium text-tokyo-text block truncate"
-                          x-text="channel.id"
+                          class="channel-icon w-5 h-5 text-tokyo-muted shrink-0"
+                          x-html="channel.icon"
                         ></span>
-                        <span
-                          class="text-xs"
-                          :class="{
-                          'text-green-400': channel.status === 'connected',
-                          'text-yellow-400': channel.status === 'connecting',
-                          'text-red-400': channel.status === 'error',
-                          'text-tokyo-muted': channel.status === 'disconnected'
-                        }"
-                          x-text="channel.status"
-                        ></span>
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <span
+                              class="text-sm font-medium text-tokyo-text truncate"
+                              x-text="channel.id"
+                            ></span>
+                            <!-- Nina is on it tag -->
+                            <template x-if="hasChannelHelpTask(channel.id)">
+                              <span
+                                class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium flex items-center gap-1"
+                              >
+                                <span
+                                  class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
+                                ></span>
+                                Nina is on it
+                              </span>
+                            </template>
+                          </div>
+                          <span
+                            class="text-xs"
+                            :class="{
+                              'text-green-400': channel.status === 'connected',
+                              'text-yellow-400': channel.status === 'connecting',
+                              'text-red-400': channel.status === 'error',
+                              'text-tokyo-muted': channel.status === 'disconnected' || channel.status === 'logged_out'
+                            }"
+                            x-text="channel.status"
+                          ></span>
+                        </div>
+                        <!-- Expand chevron for error -->
+                        <template x-if="channel.status === 'error'">
+                          <svg
+                            class="w-4 h-4 text-tokyo-muted transition-transform shrink-0"
+                            :class="{ 'rotate-180': isChannelErrorExpanded(channel.id) }"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </template>
                       </div>
+
+                      <!-- Expandable error panel -->
+                      <template x-if="channel.status === 'error'">
+                        <div
+                          x-show="isChannelErrorExpanded(channel.id)"
+                          x-collapse
+                          class="border-t border-white/5"
+                        >
+                          <div class="p-3 bg-red-500/5">
+                            <p
+                              class="text-xs text-tokyo-text mb-3"
+                              x-text="channel.lastError || 'Connection error'"
+                            ></p>
+                            <div class="flex flex-wrap gap-2">
+                              <button
+                                @click.stop="pairChannel(channel.id)"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
+                              >
+                                Re-pair Device
+                              </button>
+                              <button
+                                @click.stop="askNinaAboutChannel(channel.id)"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium"
+                                :class="hasChannelHelpTask(channel.id)
+                                  ? 'bg-amber-500/15 text-amber-400'
+                                  : 'bg-tokyo-panel text-tokyo-text active:bg-white/10'"
+                                :disabled="hasChannelHelpTask(channel.id)"
+                              >
+                                <span x-show="!hasChannelHelpTask(channel.id)"
+                                  >Ask Nina</span
+                                >
+                                <span
+                                  x-show="hasChannelHelpTask(channel.id)"
+                                  class="flex items-center gap-1"
+                                >
+                                  <svg
+                                    class="w-3 h-3"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M5 13l4 4L19 7"
+                                    />
+                                  </svg>
+                                  Asked
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- Actions for non-error states -->
+                      <template
+                        x-if="channel.status !== 'error' && channel.status !== 'connected' && channel.status !== 'connecting'"
+                      >
+                        <div class="px-3 pb-3">
+                          <button
+                            @click="pairChannel(channel.id)"
+                            class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
+                          >
+                            Pair
+                          </button>
+                        </div>
+                      </template>
                     </div>
                   </template>
                 </div>
