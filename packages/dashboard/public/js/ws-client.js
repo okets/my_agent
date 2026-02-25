@@ -49,7 +49,28 @@ class NinaWebSocket {
               break;
             case "state:calendar":
               if (Alpine.store("calendar")) {
-                Alpine.store("calendar").events = data.events || [];
+                // Transform WebSocket format to REST API format for timeline compatibility
+                const events = (data.events || []).map((e) => ({
+                  id: e.uid,
+                  title: e.title,
+                  start: e.start,
+                  end: e.end,
+                  allDay: e.allDay,
+                  color: "#89b4fa",
+                  textColor: "#ffffff",
+                  extendedProps: {
+                    calendarId: e.calendarId,
+                    description: e.description,
+                    location: e.location,
+                    status: e.status,
+                    transparency: e.transparency,
+                    taskId: e.taskId,
+                    taskType: e.taskType,
+                    action: e.action,
+                    rrule: e.rrule,
+                  },
+                }));
+                Alpine.store("calendar").events = events;
                 if (data.configs !== undefined) {
                   Alpine.store("calendar").configs = data.configs;
                 }

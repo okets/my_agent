@@ -348,6 +348,28 @@ function chat() {
       // Load tasks (M5-S6)
       this.loadTasks();
 
+      // Watch stores for live updates from WebSocket (M5-S10)
+      // ws-client.js updates Alpine stores — sync to local state for reactivity
+      const self = this;
+      Alpine.effect(() => {
+        const store = Alpine.store("tasks");
+        if (store && store.items) {
+          self.tasks = store.items;
+        }
+      });
+      Alpine.effect(() => {
+        const store = Alpine.store("calendar");
+        if (store && store.events) {
+          self.upcomingEvents = store.events;
+        }
+      });
+      Alpine.effect(() => {
+        const store = Alpine.store("conversations");
+        if (store && store.items) {
+          self.conversations = store.items;
+        }
+      });
+
       // Load memory data (M6-S3)
       this.loadNotebookTree();
       this.loadMemoryStatus();
