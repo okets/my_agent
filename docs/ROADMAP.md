@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-02-24
+> **Updated:** 2026-02-26
 
 ---
 
@@ -17,6 +17,7 @@
 | **M5: Task System**          | Complete | 10/10 sprints                |
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Active   | 2/3 sprints complete         |
+| **M6.5: Agent SDK Alignment**| Planned  | 3 sprints planned            |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
 | **M9: Email Channel**        | Planned  | Design complete, sprints TBD |
@@ -34,6 +35,7 @@ M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5
 [████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████░░]
    COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         ACTIVE
                                                                                                      (2/3 sprints)
+                                                                                                     M6.5 SDK Alignment
                                                                                                      M7 Coding Projects
                                                                                                      M8 Ops Dashboard
                                                                                                      M9 Email
@@ -319,6 +321,56 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 
 ---
 
+### M6.5: Agent SDK Alignment — PLANNED
+
+Retrofit the codebase to properly use Agent SDK features. Replaces prompt-injection session management with native SDK sessions, adds MCP tools, subagents, programmatic hooks, and enables server-side compaction.
+
+**Motivation:** Expert review revealed 6 critical gaps between the design doc and actual SDK usage. The brain uses only file system tools (no MCP), has no subagents, no SDK hooks, and manages sessions via text injection instead of SDK resumption. This milestone aligns the implementation with SDK best practices before building more features on a flawed foundation.
+
+| Sprint | Name              | Status  | Plan                                                   | Review |
+| ------ | ----------------- | ------- | ------------------------------------------------------ | ------ |
+| S1     | SDK Enhancement   | Planned | [plan](sprints/m6.5-s1-sdk-enhancement/plan.md)       | —      |
+| S2     | Session Rewrite   | Planned | [plan](sprints/m6.5-s2-session-rewrite/plan.md)       | —      |
+| S3     | E2E Validation    | Planned | [plan](sprints/m6.5-s3-e2e-validation/plan.md)        | —      |
+
+**Sprint structure:**
+
+- **S1 (Additive):** MCP tool infrastructure (memory server live, channel/task stubs), subagent definitions (researcher, executor, reviewer), trust-tiered hook factory (audit + safety), `settingSources` evaluation, CLAUDE.md SDK rule
+- **S2 (Destructive):** Full session management rewrite — `SessionManager` and `TaskExecutor` switch from prompt injection to `resume: sessionId`. Database schema adds `sdk_session_id`. Server-side compaction enabled via beta flag.
+- **S3 (Validation):** 50+ E2E tests across 9 phases (smoke → session resumption → MCP tools → hooks → tasks → memory → compaction → edge cases → semantic search). Fix-as-you-go protocol.
+
+**Deliverables:**
+
+- _(S1)_ Domain-separated MCP servers (memory live, channels/tasks as stubs)
+- _(S1)_ 3 core subagent definitions (researcher, executor, reviewer)
+- _(S1)_ Trust-tiered hook factory (brain/task/subagent levels) with audit logging + safety blocks
+- _(S1)_ `settingSources` evaluation document
+- _(S1)_ CLAUDE.md rule: Agent SDK skill required for SDK-touching work
+- _(S2)_ `brain.ts` extended with `resume` + `compaction` options
+- _(S2)_ `SessionManager` rewritten — no more `buildPromptWithHistory()`, uses `resume: sessionId`
+- _(S2)_ `TaskExecutor` rewritten — no more `loadPriorContext()` text injection, uses `resume: sessionId`
+- _(S2)_ `sdk_session_id` column in conversations + tasks tables
+- _(S2)_ Server-side compaction enabled (beta)
+- _(S3)_ Full E2E validation report with all phases passing
+
+**Key files affected:**
+
+| File | Sprint | Change |
+|------|--------|--------|
+| `packages/core/src/brain.ts` | S1, S2 | MCP servers, agents, hooks, resume, compaction |
+| `packages/core/src/mcp/` | S1 | New directory — memory, channel, task MCP servers |
+| `packages/core/src/agents/` | S1 | New directory — subagent definitions |
+| `packages/core/src/hooks/` | S1 | New directory — hook factory, audit, safety |
+| `packages/dashboard/src/agent/session-manager.ts` | S2 | Full rewrite — prompt injection → SDK sessions |
+| `packages/dashboard/src/tasks/task-executor.ts` | S2 | Full rewrite — text injection → SDK sessions |
+| `packages/dashboard/src/conversations/storage.ts` | S2 | Schema migration — `sdk_session_id` column |
+
+**Dependencies:** M6 (memory system — MCP wraps existing memory tools)
+
+**Risk:** S2 is a destructive rewrite of session management. Mitigated by: S1 is purely additive (no breakage), S2 has task-by-task testing, S3 validates everything end-to-end.
+
+---
+
 ### M7: Coding Projects — PLANNED
 
 Autonomous coding: internal self-development projects + user code session relay.
@@ -432,6 +484,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Navigable Timeline   | Deferred | Post-M5     | [design/navigable-timeline.md](design/navigable-timeline.md)     |
 | Memory               | Complete | M6          | [design/memory-system.md](design/memory-system.md)               |
 | Embeddings Plugin    | Complete | M6          | [design/embeddings-plugin.md](design/embeddings-plugin.md)       |
+| SDK Alignment        | Planned  | M6.5        | Sprint plans in `sprints/m6.5-s*/plan.md`                        |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Complete | M8          | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
@@ -448,24 +501,27 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                           ▼
                                                                   M5 Tasks (S10=Live)
                                                                           │
+                                                                          │
+                                                                          ▼
+                                                                      M6 Memory
+                                                                          │
+                                                                          ▼
+                                                                   M6.5 SDK Alignment
+                                                                          │
                                                    ┌──────────────────────┼──────────────────────┐
                                                    │                      │                      │
                                                    ▼                      ▼                      ▼
-                                               M6 Memory          M7 Coding Projects      M8 Ops Dashboard
+                                            M7 Coding Projects      M8 Ops Dashboard        M9 Email
                                                                                                  │
-                                                   │                      │                      │
-                                                   └──────────────────────┼──────────────────────┘
-                                                                          │
-                                                                          ▼
-                                                                      M9 Email
-                                                                          │
-                                                                          ▼
-                                                                 M10 External Comms
+                                                                                                 ▼
+                                                                                        M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete) → M6 Memory (2/3 sprints)
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete) → M6 Memory (2/3 sprints) → M6.5 SDK Alignment
 
-**M6 in progress (2/3 sprints).** Next: M6-S3 Dashboard + Conversation Search.
+**M6 in progress (2/3 sprints).** Next: M6-S3 Memory Validation, then M6.5 SDK Alignment.
+
+**M6.5 blocks M7+:** Session rewrite and MCP infrastructure must be in place before Coding Projects builds on top. All future milestones benefit from proper SDK sessions and native tools.
 
 **M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
 
@@ -596,4 +652,4 @@ After completion:
 
 ---
 
-_Updated: 2026-02-24_
+_Updated: 2026-02-26_
