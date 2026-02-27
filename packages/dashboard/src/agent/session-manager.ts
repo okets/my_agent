@@ -7,13 +7,8 @@ import {
   loadCalendarConfig,
   loadCalendarCredentials,
 } from "@my-agent/core";
-import type { Query, ContentBlock, PromptContent } from "@my-agent/core";
+import type { Query, ContentBlock, BrainConfig } from "@my-agent/core";
 import { processStream, type StreamEvent } from "./stream-processor.js";
-
-interface TurnRecord {
-  role: "user" | "assistant";
-  content: string;
-}
 
 interface StreamOptions {
   /** Override the default model */
@@ -25,18 +20,27 @@ interface StreamOptions {
 export class SessionManager {
   private conversationId: string | null;
   private contextInjection: string | null;
-  private config: { model: string; brainDir: string } | null = null;
+  private sdkSessionId: string | null;
+  private config: BrainConfig | null = null;
   private baseSystemPrompt: string | null = null;
   private initPromise: Promise<void> | null = null;
   private activeQuery: Query | null = null;
-  private turns: TurnRecord[] = [];
 
   constructor(
     conversationId?: string | null,
     contextInjection?: string | null,
+    sdkSessionId?: string | null,
   ) {
     this.conversationId = conversationId ?? null;
     this.contextInjection = contextInjection ?? null;
+    this.sdkSessionId = sdkSessionId ?? null;
+  }
+
+  /**
+   * Get the current SDK session ID (for persistence by the caller).
+   */
+  getSessionId(): string | null {
+    return this.sdkSessionId;
   }
 
   private ensureInitialized(): Promise<void> {
@@ -87,59 +91,11 @@ export class SessionManager {
     );
   }
 
-  /**
-   * Build system prompt with conversation history.
-   *
-   * The SDK's `continue: true` resumes the last subprocess globally,
-   * not per conversation. So we always start fresh and inject history.
-   */
-  private buildPromptWithHistory(): string {
-    let prompt = this.baseSystemPrompt!;
-
-    // Inject conversation ID for task-conversation linking (M5-S5)
-    // Brain can use this when calling task APIs to create links
-    if (this.conversationId) {
-      prompt += `\n\n[Session Context]\nCurrent conversation ID: ${this.conversationId}\n[End Session Context]`;
-    }
-
-    // Add cold-start context injection (abbreviation + older turns from transcript)
-    if (this.contextInjection) {
-      prompt += `\n\n${this.contextInjection}`;
-    }
-
-    // Add in-session conversation history
-    if (this.turns.length > 0) {
-      prompt += "\n\n[Current conversation]\n";
-      for (const turn of this.turns) {
-        const role = turn.role === "user" ? "User" : "Assistant";
-        prompt += `${role}: ${turn.content}\n`;
-      }
-      prompt += "[End conversation history]\n";
-    }
-
-    return prompt;
-  }
-
   async *streamMessage(
     content: string | ContentBlock[],
     options?: StreamOptions,
   ): AsyncGenerator<StreamEvent> {
     await this.ensureInitialized();
-
-    // Record user turn (extract text for history)
-    const textContent =
-      typeof content === "string"
-        ? content
-        : content
-            .filter(
-              (b): b is { type: "text"; text: string } => b.type === "text",
-            )
-            .map((b) => b.text)
-            .join("\n");
-    this.turns.push({ role: "user", content: textContent });
-
-    // Build prompt with full history — each query is independent
-    const systemPrompt = this.buildPromptWithHistory();
 
     // Use override model if provided, otherwise use config default
     const model = options?.model || this.config!.model;
@@ -153,32 +109,106 @@ export class SessionManager {
     const isHaiku = model.includes("haiku");
     const reasoning = options?.reasoning && !isHaiku;
 
-    const q = createBrainQuery(content, {
-      model,
-      systemPrompt,
-      continue: false, // Always fresh — SDK continue is global, not per-conversation
-      includePartialMessages: true,
-      reasoning,
-    });
+    const q = this.buildQuery(content, model, reasoning);
 
     this.activeQuery = q;
     let assistantContent = "";
 
     try {
-      for await (const event of processStream(q)) {
-        if (event.type === "text_delta") {
-          assistantContent += event.text;
-        }
-        yield event;
-      }
+      try {
+        for await (const event of processStream(q)) {
+          if (event.type === "session_init") {
+            this.sdkSessionId = event.sessionId;
+            console.log(
+              `[SessionManager] Captured SDK session ID: ${this.sdkSessionId}`,
+            );
+          }
 
-      // Record assistant turn for future history
-      if (assistantContent) {
-        this.turns.push({ role: "assistant", content: assistantContent });
+          if (event.type === "text_delta") {
+            assistantContent += event.text;
+          }
+          yield event;
+        }
+      } catch (resumeError) {
+        // If we were resuming and it failed, fall back to a fresh session
+        if (!this.sdkSessionId) throw resumeError; // Already fresh — nothing to fall back to
+
+        console.warn(
+          `[SessionManager] SDK session resume failed (${this.sdkSessionId}), falling back to fresh session: ${resumeError instanceof Error ? resumeError.message : String(resumeError)}`,
+        );
+
+        // Clear stale session ID so caller persists null
+        this.sdkSessionId = null;
+        assistantContent = "";
+
+        // Build fresh query and retry
+        const freshQ = this.buildQuery(content, model, reasoning);
+        this.activeQuery = freshQ;
+
+        for await (const event of processStream(freshQ)) {
+          if (event.type === "session_init") {
+            this.sdkSessionId = event.sessionId;
+            console.log(
+              `[SessionManager] Captured SDK session ID (fresh fallback): ${this.sdkSessionId}`,
+            );
+          }
+
+          if (event.type === "text_delta") {
+            assistantContent += event.text;
+          }
+          yield event;
+        }
       }
     } finally {
       this.activeQuery = null;
     }
+  }
+
+  /**
+   * Build the appropriate brain query — resume if we have a session ID, fresh otherwise.
+   */
+  private buildQuery(
+    content: string | ContentBlock[],
+    model: string,
+    reasoning: boolean | undefined,
+  ): Query {
+    if (this.sdkSessionId) {
+      // Resume existing session — SDK has full context (system prompt, history)
+      console.log(
+        `[SessionManager] Resuming SDK session: ${this.sdkSessionId}`,
+      );
+      return createBrainQuery(content, {
+        model,
+        resume: this.sdkSessionId,
+        includePartialMessages: true,
+        reasoning,
+        compaction: this.config!.compaction ?? true,
+      });
+    }
+
+    // First message — build system prompt with context injection
+    let systemPrompt = this.baseSystemPrompt!;
+
+    // Inject conversation ID for task-conversation linking
+    if (this.conversationId) {
+      systemPrompt += `\n\n[Session Context]\nCurrent conversation ID: ${this.conversationId}\n[End Session Context]`;
+    }
+
+    // Add cold-start context injection (abbreviation + older turns from transcript)
+    if (this.contextInjection) {
+      systemPrompt += `\n\n${this.contextInjection}`;
+    }
+
+    console.log(
+      `[SessionManager] Starting new SDK session (systemPrompt: ${systemPrompt.length} chars)`,
+    );
+    return createBrainQuery(content, {
+      model,
+      systemPrompt,
+      continue: false,
+      includePartialMessages: true,
+      reasoning,
+    });
   }
 
   async abort(): Promise<void> {

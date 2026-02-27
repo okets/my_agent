@@ -9,6 +9,7 @@
 
 import type { CalendarEvent } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
+import type { ConversationDatabase } from "../conversations/db.js";
 import { TaskManager, TaskLogStorage, TaskExecutor } from "../tasks/index.js";
 import type { CreateTaskInput } from "../tasks/index.js";
 
@@ -23,6 +24,8 @@ interface EventHandlerConfig {
   taskManager: TaskManager;
   logStorage: TaskLogStorage;
   agentDir: string;
+  /** Database for SDK session persistence (M6.5-S2) */
+  db: ConversationDatabase;
 }
 
 /**
@@ -97,7 +100,7 @@ export async function spawnEventQuery(
   event: CalendarEvent,
   config: EventHandlerConfig,
 ): Promise<string> {
-  const { conversationManager, taskManager, logStorage, agentDir } = config;
+  const { conversationManager, taskManager, logStorage, agentDir, db } = config;
 
   console.log(`[EventHandler] Processing event: "${event.title}"`);
 
@@ -176,6 +179,7 @@ export async function spawnEventQuery(
     taskManager,
     logStorage,
     agentDir,
+    db,
   });
 
   const result = await executor.run(task);

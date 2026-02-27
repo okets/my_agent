@@ -20,6 +20,7 @@ import type {
   DeliveryAction,
 } from "@my-agent/core";
 import type { TranscriptTurn } from "../conversations/types.js";
+import type { ConversationDatabase } from "../conversations/db.js";
 import { TaskManager } from "./task-manager.js";
 import { TaskLogStorage } from "./log-storage.js";
 
@@ -30,6 +31,8 @@ export interface TaskExecutorConfig {
   taskManager: TaskManager;
   logStorage: TaskLogStorage;
   agentDir: string;
+  /** Database for reading/writing SDK session IDs (M6.5-S2 session resumption) */
+  db: ConversationDatabase;
 }
 
 /**
@@ -119,11 +122,13 @@ export class TaskExecutor {
   private taskManager: TaskManager;
   private logStorage: TaskLogStorage;
   private agentDir: string;
+  private db: ConversationDatabase;
 
   constructor(config: TaskExecutorConfig) {
     this.taskManager = config.taskManager;
     this.logStorage = config.logStorage;
     this.agentDir = config.agentDir;
+    this.db = config.db;
   }
 
   /**
@@ -332,6 +337,9 @@ Explain your reason in the working section above.`;
 
   /**
    * Execute the brain query
+   *
+   * Uses SDK session resumption for recurring tasks that have a stored session ID.
+   * Falls back to text-injected prior context for first executions.
    */
   private async executeQuery(
     task: Task,
@@ -340,6 +348,62 @@ Explain your reason in the working section above.`;
     // Load brain configuration
     const brainConfig = loadConfig();
 
+    // Check for stored SDK session ID (M6.5-S2: native session resumption)
+    const storedSessionId = this.db.getTaskSdkSessionId(task.id);
+
+    // Try resume path first, fall back to fresh if stale
+    if (storedSessionId) {
+      try {
+        return await this.iterateBrainQuery(
+          task,
+          this.buildResumeQuery(task, brainConfig, storedSessionId),
+        );
+      } catch (resumeError) {
+        console.warn(
+          `[TaskExecutor] SDK session resume failed (${storedSessionId}) for task "${task.title}", falling back to fresh session: ${resumeError instanceof Error ? resumeError.message : String(resumeError)}`,
+        );
+        // Clear stale session ID so next execution starts fresh
+        this.db.updateTaskSdkSessionId(task.id, null);
+      }
+    }
+
+    // Fresh execution — build full system prompt with context
+    const freshQuery = await this.buildFreshQuery(
+      task,
+      brainConfig,
+      priorContext,
+    );
+    return this.iterateBrainQuery(task, freshQuery);
+  }
+
+  /**
+   * Build a resume query for an existing SDK session.
+   */
+  private buildResumeQuery(
+    task: Task,
+    brainConfig: { model: string; compaction?: boolean },
+    sessionId: string,
+  ) {
+    console.log(
+      `[TaskExecutor] Resuming SDK session ${sessionId} for task "${task.title}"`,
+    );
+
+    return createBrainQuery(this.buildUserMessage(task), {
+      model: brainConfig.model,
+      resume: sessionId,
+      includePartialMessages: false,
+      compaction: brainConfig.compaction ?? true,
+    });
+  }
+
+  /**
+   * Build a fresh query with full system prompt and prior context.
+   */
+  private async buildFreshQuery(
+    task: Task,
+    brainConfig: { model: string; brainDir: string },
+    priorContext: TranscriptTurn[],
+  ) {
     // Extract calendarId from sourceRef (format: "calendarId:uid")
     let calendarId = "system";
     if (task.sourceType === "caldav" && task.sourceRef) {
@@ -379,7 +443,7 @@ Explain your reason in the working section above.`;
       scheduledTaskContext,
     });
 
-    // Build the full prompt including prior context
+    // Build the full prompt including prior context (text injection fallback)
     let fullPrompt = "";
 
     if (priorContext.length > 0) {
@@ -393,19 +457,34 @@ Explain your reason in the working section above.`;
 
     fullPrompt += this.buildUserMessage(task);
 
-    // Spawn brain query
-    const shouldContinue = !!task.recurrenceId && priorContext.length > 0;
-
-    const query = createBrainQuery(fullPrompt, {
+    // Spawn brain query — fresh session
+    return createBrainQuery(fullPrompt, {
       model: brainConfig.model,
       systemPrompt,
-      continue: shouldContinue,
       includePartialMessages: false,
     });
+  }
 
-    // Collect response
+  /**
+   * Iterate a brain query, collecting response text and capturing the SDK session ID.
+   */
+  private async iterateBrainQuery(
+    task: Task,
+    brainQuery: ReturnType<typeof createBrainQuery>,
+  ): Promise<string> {
     let response = "";
-    for await (const msg of query) {
+    let sdkSessionId: string | null = null;
+
+    for await (const msg of brainQuery) {
+      // Capture session ID from SDK init message
+      if (
+        msg.type === "system" &&
+        (msg as any).subtype === "init" &&
+        (msg as any).session_id
+      ) {
+        sdkSessionId = (msg as any).session_id;
+      }
+
       if (msg.type === "assistant") {
         const textBlocks = msg.message.content.filter(
           (block: { type: string }) => block.type === "text",
@@ -416,6 +495,14 @@ Explain your reason in the working section above.`;
           }
         }
       }
+    }
+
+    // Persist SDK session ID for future resumption
+    if (sdkSessionId) {
+      this.db.updateTaskSdkSessionId(task.id, sdkSessionId);
+      console.log(
+        `[TaskExecutor] Stored SDK session ${sdkSessionId} for task "${task.title}"`,
+      );
     }
 
     return response;

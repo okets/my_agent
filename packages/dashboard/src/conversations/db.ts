@@ -112,6 +112,13 @@ export class ConversationDatabase {
       );
     }
 
+    // Migration: add SDK session ID for Agent SDK session resumption (M6.5-S2)
+    if (!columns.some((c) => c.name === "sdk_session_id")) {
+      this.db.exec(
+        "ALTER TABLE conversations ADD COLUMN sdk_session_id TEXT DEFAULT NULL",
+      );
+    }
+
     // Create FTS5 virtual table for full-text search
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS turns_fts USING fts5(
@@ -207,6 +214,13 @@ export class ConversationDatabase {
     }
     if (!taskColumns.some((c) => c.name === "delivery")) {
       this.db.exec("ALTER TABLE tasks ADD COLUMN delivery TEXT DEFAULT NULL");
+    }
+
+    // Migration: add SDK session ID for Agent SDK session resumption (M6.5-S2)
+    if (!taskColumns.some((c) => c.name === "sdk_session_id")) {
+      this.db.exec(
+        "ALTER TABLE tasks ADD COLUMN sdk_session_id TEXT DEFAULT NULL",
+      );
     }
 
     // Create task_conversations junction table (M5-S5)
@@ -562,6 +576,52 @@ export class ConversationDatabase {
     });
 
     transaction();
+  }
+
+  /**
+   * Get the SDK session ID for a conversation (M6.5-S2)
+   */
+  getSdkSessionId(conversationId: string): string | null {
+    const stmt = this.db.prepare(
+      "SELECT sdk_session_id FROM conversations WHERE id = ?",
+    );
+    const row = stmt.get(conversationId) as
+      | { sdk_session_id: string | null }
+      | undefined;
+    return row?.sdk_session_id ?? null;
+  }
+
+  /**
+   * Update the SDK session ID for a conversation (M6.5-S2)
+   */
+  updateSdkSessionId(conversationId: string, sessionId: string | null): void {
+    const stmt = this.db.prepare(
+      "UPDATE conversations SET sdk_session_id = ? WHERE id = ?",
+    );
+    stmt.run(sessionId, conversationId);
+  }
+
+  /**
+   * Get the SDK session ID for a task (M6.5-S2)
+   */
+  getTaskSdkSessionId(taskId: string): string | null {
+    const stmt = this.db.prepare(
+      "SELECT sdk_session_id FROM tasks WHERE id = ?",
+    );
+    const row = stmt.get(taskId) as
+      | { sdk_session_id: string | null }
+      | undefined;
+    return row?.sdk_session_id ?? null;
+  }
+
+  /**
+   * Update the SDK session ID for a task (M6.5-S2)
+   */
+  updateTaskSdkSessionId(taskId: string, sessionId: string | null): void {
+    const stmt = this.db.prepare(
+      "UPDATE tasks SET sdk_session_id = ? WHERE id = ?",
+    );
+    stmt.run(sessionId, taskId);
   }
 
   /**

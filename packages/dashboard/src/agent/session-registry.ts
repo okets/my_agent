@@ -29,11 +29,13 @@ export class SessionRegistry {
    *
    * @param conversationId - The conversation ID
    * @param manager - ConversationManager for loading history
+   * @param sdkSessionId - Optional SDK session ID for resumption (from DB)
    * @returns SessionManager (warm if cached, cold if new)
    */
   async getOrCreate(
     conversationId: string,
     manager: ConversationManager,
+    sdkSessionId?: string | null,
   ): Promise<SessionManager> {
     // Check if session exists (warm)
     if (this.sessions.has(conversationId)) {
@@ -65,8 +67,12 @@ export class SessionRegistry {
       );
     }
 
-    // Create new session
-    const session = new SessionManager(conversationId, contextInjection);
+    // Create new session with optional SDK session ID for resumption
+    const session = new SessionManager(
+      conversationId,
+      contextInjection,
+      sdkSessionId,
+    );
 
     // Evict LRU if at capacity
     if (this.sessions.size >= this.maxSessions) {

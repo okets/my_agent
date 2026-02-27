@@ -3,6 +3,7 @@ export type StreamEvent =
   | { type: "text_delta"; text: string }
   | { type: "thinking_delta"; text: string }
   | { type: "thinking_end" }
+  | { type: "session_init"; sessionId: string }
   | {
       type: "done";
       cost?: number;
@@ -17,7 +18,7 @@ export type StreamEvent =
  * - "stream_event" — raw SSE events (content_block_start/delta/stop) — token-level granularity
  * - "assistant" — partial/complete messages with content blocks
  * - "result" — final result with cost/usage
- * - "system" — system messages (ignored)
+ * - "system" — system messages (init contains session_id for resumption)
  *
  * IMPORTANT: The SDK sends BOTH stream_event AND assistant for the same content.
  * We use only stream_event for streaming (finer granularity) and ignore assistant messages.
@@ -67,6 +68,17 @@ export async function* processStream(
     // Skip assistant messages — SDK sends these alongside stream_event
     // and we'd double-count content if we processed both
     if (msg.type === "assistant") {
+      continue;
+    }
+
+    // Handle system init message — contains SDK session ID for resumption
+    if (msg.type === "system") {
+      if ((msg as any).subtype === "init" && (msg as any).session_id) {
+        yield {
+          type: "session_init",
+          sessionId: (msg as any).session_id as string,
+        };
+      }
       continue;
     }
 

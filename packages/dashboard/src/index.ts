@@ -203,6 +203,7 @@ async function main() {
       taskManager,
       logStorage,
       agentDir,
+      db: conversationManager.getConversationDb(),
     });
 
     // Initialize notification service (before task processor so it can be passed in)
@@ -281,6 +282,7 @@ async function main() {
           taskManager,
           logStorage,
           agentDir,
+          db: conversationManager.getConversationDb(),
         });
 
         calendarScheduler = new CalendarScheduler(caldavClient, {
@@ -502,63 +504,67 @@ async function main() {
     }
 
     // Wire health change events
-    healthMonitor.on(
-      "health_changed",
-      async (event: HealthChangedEvent) => {
-        if (event.pluginType === "embeddings") {
-          // ── Embeddings: detection + recovery ──
-          if (event.current.healthy && event.previous && !event.previous.healthy) {
-            // Recovery: degraded → healthy (only when the intended plugin itself reports healthy)
-            const intendedId = pluginRegistry!.getIntendedPluginId();
-            if (intendedId && intendedId === event.pluginId) {
-              const plugin = pluginRegistry!.get(intendedId);
-              if (plugin) {
-                try {
-                  await plugin.initialize();
-                  const isReady = await plugin.isReady();
-                  if (isReady) {
-                    await pluginRegistry!.setActive(intendedId);
-                    const dims = plugin.getDimensions();
-                    if (dims && memoryDb) {
-                      memoryDb.initVectorTable(dims);
-                    }
-                    console.log(
-                      `[HealthMonitor] Embeddings recovered: ${intendedId} (${plugin.modelName})`,
-                    );
-                    syncService!.fullSync().catch(() => {});
+    healthMonitor.on("health_changed", async (event: HealthChangedEvent) => {
+      if (event.pluginType === "embeddings") {
+        // ── Embeddings: detection + recovery ──
+        if (
+          event.current.healthy &&
+          event.previous &&
+          !event.previous.healthy
+        ) {
+          // Recovery: degraded → healthy (only when the intended plugin itself reports healthy)
+          const intendedId = pluginRegistry!.getIntendedPluginId();
+          if (intendedId && intendedId === event.pluginId) {
+            const plugin = pluginRegistry!.get(intendedId);
+            if (plugin) {
+              try {
+                await plugin.initialize();
+                const isReady = await plugin.isReady();
+                if (isReady) {
+                  await pluginRegistry!.setActive(intendedId);
+                  const dims = plugin.getDimensions();
+                  if (dims && memoryDb) {
+                    memoryDb.initVectorTable(dims);
                   }
-                } catch {
-                  // Recovery attempt failed — will retry next poll
+                  console.log(
+                    `[HealthMonitor] Embeddings recovered: ${intendedId} (${plugin.modelName})`,
+                  );
+                  syncService!.fullSync().catch(() => {});
                 }
+              } catch {
+                // Recovery attempt failed — will retry next poll
               }
             }
-          } else if (!event.current.healthy && (!event.previous || event.previous.healthy)) {
-            // Detection: healthy → degraded (only when the active plugin itself fails)
-            const active = pluginRegistry!.getActive();
-            if (active && active.id === event.pluginId) {
-              pluginRegistry!.setIntended(active.id);
-              pluginRegistry!.setDegraded({
-                ...event.current,
-                since: event.current.since ?? new Date(),
-              });
-              console.warn(
-                `[HealthMonitor] Embeddings plugin ${active.id} failed health check — entering degraded mode`,
-              );
-            }
           }
-          server.statePublisher?.publishMemory();
-        }
-
-        if (event.pluginType === "channel") {
-          // ── Channels: observation-only logging ──
-          if (!event.current.healthy) {
+        } else if (
+          !event.current.healthy &&
+          (!event.previous || event.previous.healthy)
+        ) {
+          // Detection: healthy → degraded (only when the active plugin itself fails)
+          const active = pluginRegistry!.getActive();
+          if (active && active.id === event.pluginId) {
+            pluginRegistry!.setIntended(active.id);
+            pluginRegistry!.setDegraded({
+              ...event.current,
+              since: event.current.since ?? new Date(),
+            });
             console.warn(
-              `[HealthMonitor] Channel ${event.pluginId} health check failed: ${event.current.message ?? "unknown"}`,
+              `[HealthMonitor] Embeddings plugin ${active.id} failed health check — entering degraded mode`,
             );
           }
         }
-      },
-    );
+        server.statePublisher?.publishMemory();
+      }
+
+      if (event.pluginType === "channel") {
+        // ── Channels: observation-only logging ──
+        if (!event.current.healthy) {
+          console.warn(
+            `[HealthMonitor] Channel ${event.pluginId} health check failed: ${event.current.message ?? "unknown"}`,
+          );
+        }
+      }
+    });
 
     await healthMonitor.start();
     console.log("HealthMonitor started");

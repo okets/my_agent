@@ -15,12 +15,16 @@ export interface BrainSessionOptions {
   includePartialMessages?: boolean
   /** Enable extended thinking (adaptive mode with high effort) */
   reasoning?: boolean
+  /** Resume an existing SDK session by ID (replaces prompt injection) */
+  resume?: string
   /** MCP servers to attach (e.g., memory, channels, tasks) */
   mcpServers?: Options['mcpServers']
   /** Subagent definitions (e.g., researcher, executor, reviewer) */
   agents?: Record<string, AgentDefinition>
   /** Programmatic hooks for safety and auditing */
   hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>
+  /** Enable compaction beta (auto-summarize context near 200K limit) */
+  compaction?: boolean
 }
 
 /** Content block types for multimodal messages */
@@ -75,6 +79,9 @@ export function createBrainQuery(prompt: PromptContent, options: BrainSessionOpt
     queryOptions.hooks = options.hooks
   }
   console.log(`[Brain] Full queryOptions: model=${queryOptions.model}`)
+  if (options.resume) {
+    queryOptions.resume = options.resume
+  }
   if (options.continue) {
     queryOptions.continue = true
   }
@@ -87,6 +94,12 @@ export function createBrainQuery(prompt: PromptContent, options: BrainSessionOpt
     queryOptions.effort = 'high'
   } else {
     queryOptions.thinking = { type: 'disabled' }
+  }
+
+  // Compaction beta — auto-summarize context when approaching 200K limit
+  // Note: SDK types may lag behind API support; cast needed until SDK adds this beta to SdkBeta union
+  if (options.compaction) {
+    ;(queryOptions as any).betas = [...((queryOptions as any).betas ?? []), 'compact-2026-01-12']
   }
 
   // Handle content blocks (for images) vs plain text

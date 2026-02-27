@@ -1,7 +1,7 @@
 # my_agent — Design Document
 
-> **Status:** M1 Complete — M2 In Progress
-> **Date:** 2026-02-12 (updated 2026-02-14)
+> **Status:** M1-M6 Complete — M6.5 In Progress
+> **Date:** 2026-02-12 (updated 2026-02-27)
 > **Decision:** Replace OpenClaw with Claude Agent SDK-based architecture
 > **Project name:** `my_agent`
 > **Platform:** WSL (Linux)
@@ -129,12 +129,13 @@ A long-running Agent SDK session that IS the agent. It has:
 - **Hooks** — safety guards, audit logging, notifications
 - **Skills** — brain-level skills (email management, customer support, etc.)
 
-**Session persistence:**
+**Session persistence (M6.5-S2: SDK session resumption):**
 
-- The brain is a persistent session that maintains conversation history
-- Auto-compresses when approaching context limits
-- If process restarts, resumes from disk
-- For long time gaps, folder state (task.md) rescues context
+- Each conversation stores its SDK session ID in the database
+- On subsequent messages, the session resumes natively via `resume: sessionId` — no prompt injection of prior turns
+- Cold-start context injection (abbreviation + recent turns from transcript) is used only when no stored SDK session ID exists (e.g., first message in a conversation with history, or after a server migration)
+- Compaction (SDK-managed) handles long-running sessions by compressing older context automatically
+- If the process restarts, warm sessions are lost from the in-memory LRU cache, but the stored SDK session ID allows native resumption on the next message
 
 **The brain handles:**
 
@@ -908,3 +909,4 @@ Email channel plugin with **both roles** (dedicated + personal).
 
 _Design document created: 2026-02-12_
 _Updated: 2026-02-14 — Channel architecture, milestone clarifications_
+_Updated: 2026-02-27 — Session architecture: SDK session resumption replaces prompt injection (M6.5-S2)_

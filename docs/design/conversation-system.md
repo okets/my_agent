@@ -141,15 +141,16 @@ On creation:
 
 A conversation can be resumed after:
 
-- **Page refresh / reconnection** (web): The server loads the most recent active web conversation and hydrates the working context from the transcript tail.
-- **Process restart**: Same as refresh. The transcript is the durable state.
-- **Explicit selection**: User picks a past conversation from the sidebar. The transcript is loaded and the agent resumes with context from that conversation.
+- **Page refresh / reconnection** (web): The server loads the most recent active web conversation. If a stored SDK session ID exists, it resumes natively via `resume: sessionId`.
+- **Process restart**: Same as refresh. The SDK session ID is persisted in the database and used for native resumption.
+- **Explicit selection**: User picks a past conversation from the sidebar. The stored SDK session ID (if any) allows seamless native resumption.
 
-Resume mechanics:
+Resume mechanics (M6.5-S2: SDK session resumption):
 
-1. Read the transcript file (tail N turns for working context)
-2. Create a new Agent SDK query with `continue: true` and the loaded context as preceding turns
-3. The conversation continues seamlessly
+1. Look up the conversation's stored SDK session ID from the database
+2. **If session ID exists (primary path):** Create a new Agent SDK query with `resume: sessionId`. The SDK has full context (system prompt, history, compacted state) — no prompt injection needed.
+3. **If no session ID (cold-start fallback):** Build a context injection from the conversation abbreviation + recent transcript turns, inject into system prompt, and create a fresh SDK session. The new session ID is captured and persisted for future resumption.
+4. The conversation continues seamlessly in both cases
 
 ### Abbreviation Trigger (Idle Timeout)
 
@@ -639,22 +640,34 @@ The abbreviation is stored both in the transcript (as an `abbreviation` event) a
 
 ## Working Context
 
-The working context is the ephemeral, in-memory representation of the conversation as seen by the Agent SDK. It is **not** persisted directly --- it is rebuilt from the transcript when needed.
+The working context is the conversation state as seen by the Agent SDK. With SDK session resumption (M6.5-S2), it is managed natively by the SDK rather than rebuilt from transcripts.
 
 ### Contents
 
-- **System prompt:** Personality, skills, core memory (always loaded)
-- **Conversation history:** Recent turns from the transcript
-- **Compression summary:** If the SDK has compressed earlier turns, the summary is part of the working context
+- **System prompt:** Personality, skills, core memory (set on first message only)
+- **Conversation history:** Maintained internally by the SDK session
+- **Compacted state:** Long-running sessions are automatically compacted by the SDK, compressing older context while preserving continuity
 
-### Hydration (Loading from Transcript)
+### Session Resumption (Primary Path — M6.5-S2)
 
-When resuming a conversation:
+When resuming a conversation with a stored SDK session ID:
 
-1. Read the transcript file
-2. Load the last N turns (configurable, default: 20 turns or last 8000 tokens, whichever is smaller)
-3. If a compression event exists in the transcript, include the compression summary as a "preceding context" block
-4. Create a new Agent SDK query with this context
+1. Look up the stored `sdk_session_id` from the conversations database
+2. Create a new Agent SDK query with `resume: sessionId`
+3. The SDK restores the full session state (system prompt, history, compacted context) — no transcript reading needed
+
+This is the primary path for all conversations that have been active at least once since M6.5-S2.
+
+### Cold-Start Context Injection (Fallback Path)
+
+When no SDK session ID is available (first message in a conversation with history, or after data migration):
+
+1. Load the conversation abbreviation (if available) and recent transcript turns (last 10)
+2. Build a context injection string with the abbreviation + recent messages
+3. Inject into the system prompt and create a fresh SDK session
+4. Capture and persist the new SDK session ID for future native resumption
+
+This path is handled by `context-builder.ts` and is only used as a fallback.
 
 ### Compression Events
 

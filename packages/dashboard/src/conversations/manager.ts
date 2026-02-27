@@ -306,6 +306,14 @@ export class ConversationManager {
   }
 
   /**
+   * Expose the ConversationDatabase instance for direct access to DB methods
+   * (e.g., getTaskSdkSessionId, updateTaskSdkSessionId)
+   */
+  getConversationDb(): ConversationDatabase {
+    return this.db;
+  }
+
+  /**
    * Close database connection
    */
   close(): void {

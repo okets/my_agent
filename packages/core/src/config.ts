@@ -53,6 +53,7 @@ interface YamlConfig {
   brain?: {
     model?: string
     dir?: string
+    compaction?: boolean
   }
   channels?: {
     defaults?: {
@@ -212,6 +213,7 @@ export function loadConfig(): BrainConfig {
       (yaml?.brain?.dir ? path.resolve(agentDir, yaml.brain.dir) : path.join(agentDir, 'brain')),
     channels: loadChannelConfigs(yaml),
     health: yaml?.health,
+    compaction: yaml?.brain?.compaction,
   }
 }
 

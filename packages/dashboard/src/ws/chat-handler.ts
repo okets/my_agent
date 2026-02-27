@@ -495,10 +495,14 @@ export async function registerChatWebSocket(
         currentConversationId = conversation.id;
         currentTurnNumber = conversation.turnCount;
 
-        // Get or create session for this conversation
+        // Get or create session for this conversation (load stored SDK session ID for resumption)
+        const storedSessionId = conversationManager
+          .getConversationDb()
+          .getSdkSessionId(conversation.id);
         sessionManager = await sessionRegistry.getOrCreate(
           conversation.id,
           conversationManager,
+          storedSessionId,
         );
 
         // Update registry
@@ -618,10 +622,14 @@ export async function registerChatWebSocket(
       currentConversationId = conversation.id;
       currentTurnNumber = conversation.turnCount;
 
-      // Switch to session for new conversation
+      // Switch to session for new conversation (load stored SDK session ID for resumption)
+      const storedSessionId = conversationManager
+        .getConversationDb()
+        .getSdkSessionId(conversationId);
       sessionManager = await sessionRegistry.getOrCreate(
         conversationId,
         conversationManager,
+        storedSessionId,
       );
 
       // Update registry
@@ -903,9 +911,13 @@ export async function registerChatWebSocket(
         // Update conversation model
         await conversationManager.setModel(currentConversationId, newModelId);
 
-        // Invalidate cached session so next message uses the new model
+        // Invalidate cached session and stored SDK session so next message uses the new model fresh
         sessionRegistry.remove(currentConversationId);
         sessionManager = null;
+        // Clear stored SDK session — model change requires a fresh SDK session
+        conversationManager
+          .getConversationDb()
+          .updateSdkSessionId(currentConversationId, null);
 
         const modelName = modelArg.charAt(0).toUpperCase() + modelArg.slice(1);
         send({ type: "start" });
@@ -963,15 +975,19 @@ export async function registerChatWebSocket(
         fastify.statePublisher?.publishConversations();
       }
 
-      // Get or create session for this conversation
+      // Get or create session for this conversation (load stored SDK session ID for resumption)
       if (!sessionManager) {
+        const storedSid = conversationManager
+          .getConversationDb()
+          .getSdkSessionId(currentConversationId);
         sessionManager = await sessionRegistry.getOrCreate(
           currentConversationId,
           conversationManager,
+          storedSid,
         );
         const isWarm = sessionRegistry.isWarm(currentConversationId);
         fastify.log.info(
-          `Session ${isWarm ? "warm" : "cold"} for conversation ${currentConversationId}`,
+          `Session ${isWarm ? "warm" : "cold"} for conversation ${currentConversationId}, sdkSessionId: ${storedSid ?? "none"}`,
         );
       }
 
@@ -1169,6 +1185,14 @@ export async function registerChatWebSocket(
           currentConversationId,
           assistantTurn,
         );
+
+        // Persist SDK session ID for future resumption (cold starts, server restarts)
+        const sdkSid = sessionManager?.getSessionId();
+        if (sdkSid && currentConversationId) {
+          conversationManager
+            .getConversationDb()
+            .updateSdkSessionId(currentConversationId, sdkSid);
+        }
 
         // Touch idle timer on assistant response complete
         if (idleTimerManager) {

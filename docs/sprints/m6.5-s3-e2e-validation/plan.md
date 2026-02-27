@@ -76,6 +76,7 @@ Verify SDK sessions work correctly (S2 changes).
 | 2.3 | Send 5+ messages in conversation | All responses contextually aware; no "[Current conversation]" in system prompt | |
 | 2.4 | Restart dashboard server, send message in existing conversation | Session resumes from persisted sessionId | |
 | 2.5 | Check server logs | No `buildPromptWithHistory` calls; `resume:` appears in query logs | |
+| 2.6 | Skip reset. Open a pre-S2 conversation (no stored session). Send a message. | Falls back to fresh session with context injection. New `sdk_session_id` persisted afterward. | |
 
 ### Phase 3: Memory MCP Tools (S1)
 
@@ -128,6 +129,8 @@ Consolidation of phases 1-4 from `docs/testing/task-e2e-testing.md`.
 | 5.8 | Create a recurring task, let it execute twice | Second execution uses `resume: sessionId`, not fresh prompt | |
 | 5.9 | Check tasks table after execution | `sdk_session_id` populated | |
 | 5.10 | Check task execution log | No "Prior context from this recurring task:" text injection | |
+| 5.11 | Create two recurring tasks scheduled 1 minute apart. Let both execute. | Both complete independently, no cross-contamination in responses. | |
+| 5.12 | After 5.8 completes, manually set task's `sdk_session_id` to `'fake_expired_session'` in SQLite, re-trigger execution. | Server logs show "SDK session resume failed", task falls back to fresh session, completes successfully. | |
 
 ### Phase 6: Memory System (from existing E2E tests)
 
