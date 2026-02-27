@@ -17,11 +17,15 @@ import type {
   ConversationMeta,
   MemoryStats,
 } from "../ws/protocol.js";
-import type { Task, CalendarEvent, createCalDAVClient } from "@my-agent/core";
+import type {
+  Task,
+  CalendarEvent,
+  createCalDAVClient,
+  MemoryDb,
+  PluginRegistry,
+} from "@my-agent/core";
 import type { TaskManager } from "../tasks/index.js";
 import type { ConversationManager } from "../conversations/index.js";
-import type { MemoryDb } from "../memory/db.js";
-import type { PluginRegistry } from "../memory/plugins/registry.js";
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 100;
@@ -337,6 +341,7 @@ export class StatePublisher {
         hasVectorIndex: false,
         embeddingsReady: false,
         activePlugin: null,
+        degraded: null,
         availablePlugins: [],
       };
     }
@@ -344,6 +349,8 @@ export class StatePublisher {
     const status = this.memoryDb.getStatus();
     const active = this.pluginRegistry?.getActive();
     const available = this.pluginRegistry?.list() || [];
+
+    const degraded = this.pluginRegistry?.getDegradedState();
 
     return {
       initialized: true,
@@ -357,6 +364,16 @@ export class StatePublisher {
             id: active.id,
             name: active.name,
             model: active.modelName,
+          }
+        : null,
+      degraded: degraded
+        ? {
+            pluginId: degraded.pluginId,
+            pluginName: degraded.pluginName,
+            model: degraded.model,
+            error: degraded.error,
+            resolution: degraded.resolution,
+            since: degraded.since,
           }
         : null,
       availablePlugins: available.map((p) => ({

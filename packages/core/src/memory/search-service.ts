@@ -6,7 +6,7 @@
  */
 
 import { MemoryDb } from './memory-db.js'
-import type { EmbeddingsPlugin } from './embeddings/types.js'
+import type { EmbeddingsPlugin, PluginDegradedState } from './embeddings/types.js'
 import type { SearchResult, RecallResult, SearchOptions } from './types.js'
 
 const DEFAULT_MAX_RESULTS = 15
@@ -16,15 +16,18 @@ const RRF_K = 60 // Reciprocal Rank Fusion constant
 export interface SearchServiceOptions {
   db: MemoryDb
   getPlugin: () => EmbeddingsPlugin | null
+  getDegradedState?: () => PluginDegradedState | null
 }
 
 export class SearchService {
   private db: MemoryDb
   private getPlugin: () => EmbeddingsPlugin | null
+  private getDegradedState: () => PluginDegradedState | null
 
   constructor(options: SearchServiceOptions) {
     this.db = options.db
     this.getPlugin = options.getPlugin
+    this.getDegradedState = options.getDegradedState ?? (() => null)
   }
 
   /**
@@ -66,6 +69,20 @@ export class SearchService {
         daily.push(result)
       } else {
         notebook.push(result)
+      }
+    }
+
+    // Attach degraded info if embeddings plugin is down
+    const degraded = this.getDegradedState()
+    if (degraded) {
+      return {
+        notebook,
+        daily,
+        degraded: {
+          pluginName: degraded.pluginName,
+          error: degraded.error,
+          resolution: degraded.resolution,
+        },
       }
     }
 

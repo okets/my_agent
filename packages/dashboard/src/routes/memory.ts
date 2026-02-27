@@ -8,6 +8,46 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
 /**
+ * Attempt lazy recovery of a degraded embeddings plugin.
+ * Called at the top of search/rebuild handlers so the user
+ * gets fresh results if the service came back between health checks.
+ */
+async function tryLazyRecovery(fastify: FastifyInstance): Promise<void> {
+  const pluginRegistry = fastify.pluginRegistry;
+  if (!pluginRegistry?.isDegraded()) return;
+
+  const degraded = pluginRegistry.getDegradedState();
+  if (!degraded) return;
+
+  const plugin = pluginRegistry.get(degraded.pluginId);
+  if (!plugin) return;
+
+  try {
+    await plugin.initialize();
+    const isReady = await plugin.isReady();
+    if (isReady) {
+      await pluginRegistry.setActive(degraded.pluginId);
+      const dims = plugin.getDimensions();
+      if (dims && fastify.memoryDb) {
+        fastify.memoryDb.initVectorTable(dims);
+      }
+      fastify.log.info(
+        `[Memory] Lazy recovery succeeded: ${degraded.pluginId}`,
+      );
+      // Re-embed files that arrived while degraded (non-blocking)
+      fastify.syncService?.fullSync().catch(() => {});
+      fastify.statePublisher?.publishMemory();
+    }
+  } catch {
+    // Still degraded — update lastAttempt
+    pluginRegistry.setDegraded({
+      ...degraded,
+      lastAttempt: new Date().toISOString(),
+    });
+  }
+}
+
+/**
  * Register memory routes
  */
 export async function registerMemoryRoutes(
@@ -25,6 +65,9 @@ export async function registerMemoryRoutes(
       maxResults?: string;
     };
   }>("/search", async (request, reply) => {
+    // Try lazy recovery before searching
+    await tryLazyRecovery(fastify);
+
     const searchService = fastify.searchService;
 
     if (!searchService) {
@@ -69,6 +112,7 @@ export async function registerMemoryRoutes(
           lines: r.lines,
         })),
         totalResults: results.notebook.length + results.daily.length,
+        ...(results.degraded && { degraded: results.degraded }),
       };
     } catch (err) {
       fastify.log.error(err, "[Memory] Search failed");
@@ -100,6 +144,7 @@ export async function registerMemoryRoutes(
     const status = memoryDb.getStatus();
     const active = pluginRegistry?.getActive();
     const available = pluginRegistry?.list() || [];
+    const degraded = pluginRegistry?.getDegradedState();
 
     return {
       initialized: true,
@@ -118,6 +163,16 @@ export async function registerMemoryRoutes(
               dimensions: active.getDimensions(),
             }
           : null,
+        degraded: degraded
+          ? {
+              pluginId: degraded.pluginId,
+              pluginName: degraded.pluginName,
+              model: degraded.model,
+              error: degraded.error,
+              resolution: degraded.resolution,
+              since: degraded.since,
+            }
+          : null,
         available: available.map((p) => ({
           id: p.id,
           name: p.name,
@@ -134,6 +189,9 @@ export async function registerMemoryRoutes(
    * Rebuild memory index (user-facing, simplified)
    */
   fastify.post("/rebuild", async (request, reply) => {
+    // Try lazy recovery before rebuilding
+    await tryLazyRecovery(fastify);
+
     const syncService = fastify.syncService;
 
     if (!syncService) {
@@ -149,11 +207,16 @@ export async function registerMemoryRoutes(
       // Publish live update to all connected clients
       fastify.statePublisher?.publishMemory();
 
+      const degraded = fastify.pluginRegistry?.getDegradedState();
       return {
         success: true,
         filesIndexed: result.added,
         errors: result.errors.length,
         durationMs: result.duration,
+        ...(degraded && {
+          warning:
+            "Embeddings plugin is degraded — rebuild indexed text only (no new vectors).",
+        }),
       };
     } catch (err) {
       fastify.log.error(err, "[Memory] Rebuild failed");

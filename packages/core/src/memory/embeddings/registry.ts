@@ -5,11 +5,13 @@
  * @module memory/embeddings/registry
  */
 
-import type { EmbeddingsPlugin, EmbeddingsConfig } from './types.js'
+import type { EmbeddingsPlugin, EmbeddingsConfig, PluginDegradedState } from './types.js'
 
 export class PluginRegistry {
   private plugins = new Map<string, EmbeddingsPlugin>()
   private activePluginId: string | null = null
+  private intendedPluginId: string | null = null
+  private degradedState: PluginDegradedState | null = null
   private config: EmbeddingsConfig
 
   constructor(config?: EmbeddingsConfig) {
@@ -67,6 +69,8 @@ export class PluginRegistry {
   /**
    * Set the active plugin.
    * Does NOT initialize the plugin — call plugin.initialize() separately.
+   * On success also records as intended and clears any degraded state.
+   * On setActive(null) (user disables), clears intended and degraded state.
    */
   async setActive(pluginId: string | null): Promise<void> {
     if (pluginId !== null && !this.plugins.has(pluginId)) {
@@ -81,6 +85,63 @@ export class PluginRegistry {
 
     this.activePluginId = pluginId
     this.config.activePlugin = pluginId
+
+    if (pluginId !== null) {
+      this.intendedPluginId = pluginId
+      this.degradedState = null
+    } else {
+      this.intendedPluginId = null
+      this.degradedState = null
+    }
+  }
+
+  // ─── Degraded Mode ──────────────────────────────────────────────────────
+
+  /**
+   * Record the user's intended plugin choice.
+   * Persists through degradation so we know what to recover.
+   */
+  setIntended(pluginId: string | null): void {
+    this.intendedPluginId = pluginId
+  }
+
+  /**
+   * Get the intended plugin ID (what the user chose, even if currently degraded).
+   */
+  getIntendedPluginId(): string | null {
+    return this.intendedPluginId
+  }
+
+  /**
+   * Mark the registry as degraded.
+   * Keeps activePluginId = null so no embed calls happen,
+   * but preserves intendedPluginId for recovery.
+   */
+  setDegraded(state: PluginDegradedState): void {
+    this.degradedState = state
+    this.activePluginId = null
+    this.config.activePlugin = null
+  }
+
+  /**
+   * Clear degraded state (called on recovery).
+   */
+  clearDegraded(): void {
+    this.degradedState = null
+  }
+
+  /**
+   * Get current degraded state, or null if not degraded.
+   */
+  getDegradedState(): PluginDegradedState | null {
+    return this.degradedState
+  }
+
+  /**
+   * Check if the registry is in degraded mode.
+   */
+  isDegraded(): boolean {
+    return this.degradedState !== null
   }
 
   /**

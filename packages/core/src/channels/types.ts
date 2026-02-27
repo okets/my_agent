@@ -187,6 +187,8 @@ export interface ChannelPlugin {
   on(event: 'qr', handler: (qrDataUrl: string) => void): void
   /** Get current status */
   status(): ChannelStatus
+  /** Optional active liveness probe — returns true if the channel is healthy */
+  healthCheck?(): Promise<boolean>
 }
 
 /** Factory function to create a plugin instance */

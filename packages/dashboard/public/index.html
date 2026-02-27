@@ -317,11 +317,57 @@
             class="p-6"
             x-cloak
           >
-            <!-- Header with live status -->
+            <!-- Header with status icons -->
             <div class="flex items-center justify-between mb-6">
               <h1 class="text-2xl font-bold">Dashboard</h1>
-              <div class="flex items-center gap-2 text-xs text-tokyo-muted">
-                <span class="w-2 h-2 rounded-full bg-green-400"></span>
+              <div class="flex items-center gap-3 text-xs text-tokyo-muted">
+                <!-- Channel status icons with notification dot -->
+                <template x-for="channel in channels" :key="channel.id">
+                  <button
+                    @click="openSettingsSection('settings-channels')"
+                    class="relative w-5 h-5 text-tokyo-muted cursor-pointer"
+                    :title="channel.id + ': ' + channel.status"
+                  >
+                    <span
+                      class="channel-icon w-5 h-5"
+                      x-html="channel.icon"
+                    ></span>
+                    <span
+                      class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#1a1b26]"
+                      :class="{
+                        'bg-green-400': channel.status === 'connected',
+                        'bg-amber-400': channel.status === 'connecting',
+                        'bg-red-400': channel.status === 'error' || channel.status === 'disconnected',
+                        'bg-gray-500': channel.status === 'logged_out'
+                      }"
+                    ></span>
+                  </button>
+                </template>
+                <!-- Memory status icon with notification dot -->
+                <button
+                  @click="openSettingsSection('settings-memory')"
+                  class="relative w-5 h-5 text-tokyo-muted cursor-pointer"
+                  :title="isMemoryDegraded() ? 'Memory: degraded — ' + memoryDegradedInfo()?.error : memoryStatus?.embeddings?.active ? 'Memory: ' + memoryStatus.embeddings.active.name : 'Memory: no embeddings'"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class="w-5 h-5"
+                  >
+                    <path
+                      d="M10 1a6 6 0 0 0-3.815 10.631C7.237 12.5 8 13.443 8 14.456v.644a.75.75 0 0 0 .572.729 6.016 6.016 0 0 0 2.856 0A.75.75 0 0 0 12 15.1v-.644c0-1.013.762-1.957 1.815-2.825A6 6 0 0 0 10 1ZM8.863 17.414a.75.75 0 0 0-.226 1.483 9.066 9.066 0 0 0 2.726 0 .75.75 0 0 0-.226-1.483 7.553 7.553 0 0 1-2.274 0Z"
+                    />
+                  </svg>
+                  <span
+                    class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#1a1b26]"
+                    :class="{
+                      'bg-green-400': memoryStatus?.embeddings?.active,
+                      'bg-amber-400 animate-pulse': isMemoryDegraded(),
+                      'bg-gray-500': !memoryStatus?.embeddings?.active && !isMemoryDegraded()
+                    }"
+                  ></span>
+                </button>
                 <span x-text="formatTimeNow()"></span>
               </div>
             </div>
@@ -549,38 +595,6 @@
                   Browse all &rarr;
                 </button>
               </div>
-            </div>
-
-            <!-- Channel status - compact inline -->
-            <div class="flex items-center gap-3 mb-4 flex-wrap">
-              <span class="text-xs text-tokyo-muted">Channels:</span>
-              <template x-for="channel in channels" :key="channel.id">
-                <div
-                  class="flex items-center gap-2 px-2 py-1 rounded-lg glass-strong text-xs"
-                >
-                  <span
-                    class="channel-icon w-4 h-4 text-tokyo-muted"
-                    x-html="channel.icon"
-                  ></span>
-                  <span class="font-medium" x-text="channel.id"></span>
-                  <span
-                    class="w-1.5 h-1.5 rounded-full"
-                    :class="channelDotClass(channel.status)"
-                  ></span>
-                  <span
-                    :class="{
-                      'text-green-400': channel.status === 'connected',
-                      'text-yellow-400': channel.status === 'connecting',
-                      'text-red-400': channel.status === 'error',
-                      'text-tokyo-muted': channel.status === 'disconnected' || channel.status === 'logged_out'
-                    }"
-                    x-text="channel.status === 'connecting' && connectingTimers[channel.id] !== undefined ? 'connecting (' + connectingTimers[channel.id] + 's)' : channel.status"
-                  ></span>
-                </div>
-              </template>
-              <template x-if="channels.length === 0">
-                <span class="text-xs text-tokyo-muted">None configured</span>
-              </template>
             </div>
 
             <!-- Timeline Section -->
@@ -880,7 +894,7 @@
               </div>
 
               <!-- Channels section -->
-              <div class="glass-strong rounded-xl p-5">
+              <div id="settings-channels" class="glass-strong rounded-xl p-5">
                 <h3
                   class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
                 >
@@ -1235,7 +1249,7 @@
               </div>
 
               <!-- Memory section (M6-S3) -->
-              <div class="glass-strong rounded-xl p-5">
+              <div id="settings-memory" class="glass-strong rounded-xl p-5">
                 <h3
                   class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
                 >
@@ -1281,8 +1295,12 @@
                     >
                     <span
                       class="text-sm font-medium"
-                      :class="memoryStatus?.embeddings?.active ? 'text-tokyo-green' : 'text-tokyo-muted'"
-                      x-text="memoryStatus?.embeddings?.active?.model || 'None (FTS only)'"
+                      :class="{
+                        'text-tokyo-green': memoryStatus?.embeddings?.active,
+                        'text-amber-400': isMemoryDegraded(),
+                        'text-tokyo-muted': !memoryStatus?.embeddings?.active && !isMemoryDegraded()
+                      }"
+                      x-text="isMemoryDegraded() ? memoryDegradedInfo()?.model + ' (degraded)' : memoryStatus?.embeddings?.active?.model || 'None (FTS only)'"
                     ></span>
                   </div>
                 </div>
@@ -1386,6 +1404,55 @@
                           <span
                             class="text-tokyo-text"
                             x-text="memoryStatus.embeddings.active.dimensions || 'Unknown'"
+                          ></span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- Degraded plugin info panel -->
+                  <template x-if="isMemoryDegraded()">
+                    <div
+                      class="mt-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20"
+                    >
+                      <div class="flex items-center gap-2 mb-2">
+                        <div
+                          class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"
+                        ></div>
+                        <span class="text-xs font-medium text-amber-400"
+                          >Degraded</span
+                        >
+                      </div>
+                      <div class="space-y-1 text-xs">
+                        <div class="flex justify-between">
+                          <span class="text-tokyo-muted">Plugin</span>
+                          <span
+                            class="text-tokyo-text"
+                            x-text="memoryDegradedInfo()?.pluginName"
+                          ></span>
+                        </div>
+                        <div class="flex justify-between">
+                          <span class="text-tokyo-muted">Model</span>
+                          <span
+                            class="text-tokyo-text"
+                            x-text="memoryDegradedInfo()?.model"
+                          ></span>
+                        </div>
+                        <div class="mt-2">
+                          <p
+                            class="text-xs text-amber-300/80"
+                            x-text="memoryDegradedInfo()?.error"
+                          ></p>
+                          <p
+                            class="text-xs text-tokyo-muted mt-1"
+                            x-text="'Fix: ' + memoryDegradedInfo()?.resolution"
+                          ></p>
+                        </div>
+                        <div class="flex justify-between mt-1">
+                          <span class="text-tokyo-muted">Since</span>
+                          <span
+                            class="text-tokyo-text"
+                            x-text="memoryDegradedInfo()?.since ? new Date(memoryDegradedInfo().since).toLocaleTimeString() : '—'"
                           ></span>
                         </div>
                       </div>
@@ -4633,7 +4700,10 @@
                   </select>
                 </div>
               </div>
-              <div class="glass-strong rounded-xl p-4">
+              <div
+                id="mobile-settings-channels"
+                class="glass-strong rounded-xl p-4"
+              >
                 <h3 class="text-sm font-semibold text-tokyo-text mb-3">
                   Channels
                 </h3>
@@ -4825,7 +4895,10 @@
               </div>
 
               <!-- Memory section (mobile) -->
-              <div class="glass-strong rounded-xl p-4">
+              <div
+                id="mobile-settings-memory"
+                class="glass-strong rounded-xl p-4"
+              >
                 <h3 class="text-sm font-semibold text-tokyo-text mb-3">
                   Memory
                 </h3>
@@ -4929,6 +5002,35 @@
                         x-text="memoryStatus.embeddings.active.model"
                       ></span>
                     </div>
+                  </div>
+                </template>
+
+                <!-- Degraded plugin info (mobile) -->
+                <template x-if="isMemoryDegraded()">
+                  <div
+                    class="p-2 rounded bg-amber-500/5 border border-amber-500/20 mb-3"
+                  >
+                    <div class="flex items-center gap-1.5 mb-1">
+                      <div
+                        class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
+                      ></div>
+                      <span class="text-[10px] font-medium text-amber-400"
+                        >Degraded</span
+                      >
+                    </div>
+                    <div class="text-[10px] text-tokyo-muted">
+                      <span x-text="memoryDegradedInfo()?.pluginName"></span>
+                      •
+                      <span x-text="memoryDegradedInfo()?.model"></span>
+                    </div>
+                    <p
+                      class="text-[10px] text-amber-300/80 mt-1"
+                      x-text="memoryDegradedInfo()?.error"
+                    ></p>
+                    <p
+                      class="text-[10px] text-tokyo-muted mt-0.5"
+                      x-text="'Fix: ' + memoryDegradedInfo()?.resolution"
+                    ></p>
                   </div>
                 </template>
 

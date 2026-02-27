@@ -69,6 +69,10 @@ export class MockChannelPlugin implements ChannelPlugin {
     return { ...this._status };
   }
 
+  async healthCheck(): Promise<boolean> {
+    return this._status.connected;
+  }
+
   // ── Test Methods ───────────────────────────────────────────────
 
   /** Simulate an incoming message */

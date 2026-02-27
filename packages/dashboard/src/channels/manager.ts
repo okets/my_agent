@@ -344,6 +344,45 @@ export class ChannelManager {
   }
 
   /**
+   * Active liveness probe for a single channel.
+   * Calls plugin.healthCheck() if available, falls back to status().connected.
+   */
+  async checkHealth(channelId: string): Promise<boolean> {
+    const entry = this.channels.get(channelId);
+    if (!entry) return false;
+
+    if (entry.plugin.healthCheck) {
+      try {
+        return await entry.plugin.healthCheck();
+      } catch {
+        return false;
+      }
+    }
+
+    return entry.status.connected;
+  }
+
+  /**
+   * Active liveness probe for all channels (parallel).
+   * Returns a map of channelId → healthy (boolean).
+   */
+  async checkAllHealth(): Promise<Map<string, boolean>> {
+    const ids = Array.from(this.channels.keys());
+    const checks = ids.map(async (id) => {
+      const healthy = await this.checkHealth(id);
+      return [id, healthy] as const;
+    });
+    const settled = await Promise.allSettled(checks);
+    const results = new Map<string, boolean>();
+    for (const result of settled) {
+      if (result.status === "fulfilled") {
+        results.set(result.value[0], result.value[1]);
+      }
+    }
+    return results;
+  }
+
+  /**
    * Disconnect all channels and clear timers.
    */
   async disconnectAll(): Promise<void> {

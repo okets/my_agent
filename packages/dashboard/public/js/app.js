@@ -385,6 +385,7 @@ function chat() {
             },
             embeddings: {
               active: store.stats.activePlugin,
+              degraded: store.stats.degraded || null,
               available:
                 store.stats.availablePlugins ||
                 self.memoryStatus?.embeddings?.available ||
@@ -3779,6 +3780,48 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     // ═══════════════════════════════════════════════════════════════════
     // Memory Methods (M6-S3)
     // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if memory embeddings are in degraded mode.
+     */
+    isMemoryDegraded() {
+      return (
+        !this.memoryStatus?.embeddings?.active &&
+        !!this.memoryStatus?.embeddings?.degraded
+      );
+    },
+
+    /**
+     * Get degraded state info (or null if not degraded).
+     */
+    memoryDegradedInfo() {
+      return this.memoryStatus?.embeddings?.degraded || null;
+    },
+
+    /**
+     * Navigate to a settings section by scrolling to its anchor.
+     * On mobile, opens the settings popover and scrolls within it.
+     */
+    openSettingsSection(sectionId) {
+      const mobile = Alpine.store("mobile");
+      if (mobile && mobile.isMobile) {
+        mobile.openPopoverWithFocus("settings");
+        this.$nextTick(() => {
+          setTimeout(() => {
+            document
+              .getElementById("mobile-" + sectionId)
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 150);
+        });
+      } else {
+        this.activeTab = "settings";
+        this.$nextTick(() => {
+          document
+            .getElementById(sectionId)
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+    },
 
     /**
      * Load memory system status

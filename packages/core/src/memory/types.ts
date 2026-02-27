@@ -48,6 +48,11 @@ export interface SearchResult {
 export interface RecallResult {
   notebook: SearchResult[] // lists/ + reference/ + knowledge/
   daily: SearchResult[] // daily/
+  degraded?: {
+    pluginName: string
+    error: string
+    resolution: string
+  }
 }
 
 export interface SearchOptions {

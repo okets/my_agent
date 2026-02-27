@@ -151,6 +151,7 @@ export {
   PluginRegistry,
   LocalEmbeddingsPlugin,
   OllamaEmbeddingsPlugin,
+  deriveResolution,
   // Tools (M6-S2)
   recall,
   notebookRead,
@@ -177,6 +178,7 @@ export type {
   InitializeOptions,
   PluginConfig,
   EmbeddingsConfig,
+  PluginDegradedState,
   SyncServiceOptions,
   SearchServiceOptions,
   // Tool types (M6-S2)

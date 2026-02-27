@@ -50,3 +50,37 @@ export interface EmbeddingsConfig {
   activePlugin: string | null
   plugins: Record<string, Record<string, unknown>>
 }
+
+export interface PluginDegradedState {
+  pluginId: string
+  pluginName: string
+  model: string
+  error: string
+  resolution: string // Actionable fix guidance
+  since: string // ISO 8601
+  lastAttempt: string | null
+}
+
+/**
+ * Map common embeddings errors to actionable resolution guidance.
+ */
+export function deriveResolution(pluginId: string, error: string): string {
+  const msg = error.toLowerCase()
+
+  if (msg.includes('connect') || msg.includes('econnrefused') || msg.includes('fetch failed')) {
+    if (pluginId.includes('ollama')) {
+      return 'Start the Ollama Docker container or check that the host is reachable.'
+    }
+    return 'Check that the embeddings server is running and reachable.'
+  }
+
+  if (msg.includes('does not support embedding') || msg.includes('not an embedding model')) {
+    return "Use an embeddings model like 'nomic-embed-text'."
+  }
+
+  if (msg.includes('model not found') || msg.includes('not found')) {
+    return "Pull the model first (e.g., 'ollama pull nomic-embed-text')."
+  }
+
+  return 'Check the embeddings plugin configuration and server status.'
+}

@@ -508,6 +508,10 @@ export class BaileysPlugin implements ChannelPlugin {
     return { ...this._status };
   }
 
+  async healthCheck(): Promise<boolean> {
+    return this._status.connected;
+  }
+
   // ── Private helpers ────────────────────────────────────────────
 
   private resolveAuthDir(): string {

@@ -145,6 +145,15 @@ export async function notebookRead(
 export function formatRecallResults(results: RecallResult): string {
   const lines: string[] = []
 
+  // Degradation preamble — agent always knows when semantic search is unavailable
+  if (results.degraded) {
+    lines.push(`NOTE: Semantic search unavailable — ${results.degraded.pluginName} is down.`)
+    lines.push(`Reason: ${results.degraded.error}`)
+    lines.push(`Fix: ${results.degraded.resolution}`)
+    lines.push('Results below are keyword-only and may miss semantically relevant content.')
+    lines.push('')
+  }
+
   if (results.notebook.length > 0) {
     lines.push(`NOTEBOOK (${results.notebook.length} results)`)
     for (const result of results.notebook) {

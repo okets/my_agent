@@ -243,6 +243,14 @@ export interface MemoryStats {
     name: string;
     model: string;
   } | null;
+  degraded: {
+    pluginId: string;
+    pluginName: string;
+    model: string;
+    error: string;
+    resolution: string;
+    since: string;
+  } | null;
   availablePlugins: Array<{
     id: string;
     name: string;

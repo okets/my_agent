@@ -42,7 +42,14 @@ export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
   }
 
   async isReady(): Promise<boolean> {
-    return this.ready
+    if (!this.ready) return false
+    // Probe the server to verify it's still reachable
+    const healthy = await this.checkHealth()
+    if (!healthy) {
+      this.ready = false
+      return false
+    }
+    return true
   }
 
   async needsDownload(): Promise<boolean> {
