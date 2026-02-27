@@ -3,6 +3,9 @@ import {
   type Query,
   type Options,
   type SDKUserMessage,
+  type HookEvent,
+  type HookCallbackMatcher,
+  type AgentDefinition,
 } from '@anthropic-ai/claude-agent-sdk'
 
 export interface BrainSessionOptions {
@@ -12,6 +15,12 @@ export interface BrainSessionOptions {
   includePartialMessages?: boolean
   /** Enable extended thinking (adaptive mode with high effort) */
   reasoning?: boolean
+  /** MCP servers to attach (e.g., memory, channels, tasks) */
+  mcpServers?: Options['mcpServers']
+  /** Subagent definitions (e.g., researcher, executor, reviewer) */
+  agents?: Record<string, AgentDefinition>
+  /** Programmatic hooks for safety and auditing */
+  hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>
 }
 
 /** Content block types for multimodal messages */
@@ -37,13 +46,33 @@ export function createBrainQuery(prompt: PromptContent, options: BrainSessionOpt
     )
   }
 
+  // Build allowed tools list — add Task tool when agents are provided
+  const allowedTools = ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep']
+  if (options.agents && Object.keys(options.agents).length > 0) {
+    allowedTools.push('Task')
+  }
+
   const queryOptions: Options = {
     model: options.model,
     systemPrompt: options.systemPrompt,
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
-    // Explicitly allow Bash and other tools for calendar operations
-    allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
+    allowedTools,
+  }
+
+  // Wire MCP servers (memory, channels, tasks)
+  if (options.mcpServers) {
+    queryOptions.mcpServers = options.mcpServers
+  }
+
+  // Wire subagent definitions
+  if (options.agents) {
+    queryOptions.agents = options.agents
+  }
+
+  // Wire programmatic hooks
+  if (options.hooks) {
+    queryOptions.hooks = options.hooks
   }
   console.log(`[Brain] Full queryOptions: model=${queryOptions.model}`)
   if (options.continue) {

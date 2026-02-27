@@ -128,6 +128,25 @@ This is kept private since it contains paths specific to the development machine
 - **Platform:** WSL (Linux on Windows)
 - **Services:** systemd user services
 
+## Agent SDK Development Rule
+
+When modifying any of the following, **invoke the `claude-developer-platform` skill first** to verify current SDK APIs and types:
+
+- `packages/core/src/brain.ts` — query options, session management
+- `packages/core/src/mcp/` — MCP tool definitions, `createSdkMcpServer` usage
+- `packages/core/src/agents/` — subagent definitions (`AgentDefinition` shape)
+- `packages/core/src/hooks/` — hook callbacks, `HookCallbackMatcher` wiring
+- Any file importing from `@anthropic-ai/claude-agent-sdk`
+
+**Why:** The Agent SDK evolves across releases. Type signatures, option shapes, and hook event names may change. Always check the current SDK docs before assuming an API shape.
+
+**Key SDK types (M6.5-S1):**
+- `Options.mcpServers` — MCP server configs (use `createSdkMcpServer()`)
+- `Options.agents` — `Record<string, AgentDefinition>`
+- `Options.hooks` — `Partial<Record<HookEvent, HookCallbackMatcher[]>>`
+- `HookCallback` — `(input: HookInput, toolUseID, options) => Promise<HookJSONOutput>`
+- `tool(name, description, schema, handler)` — creates MCP tool definitions
+
 ## Build & Run
 
 ```bash

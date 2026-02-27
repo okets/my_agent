@@ -13,7 +13,28 @@ export type {
   ImageBlock,
   PromptContent,
 } from './brain.js'
-export type { Query } from '@anthropic-ai/claude-agent-sdk'
+export type {
+  Query,
+  HookEvent,
+  HookCallbackMatcher,
+  AgentDefinition,
+} from '@anthropic-ai/claude-agent-sdk'
+
+// MCP servers (M6.5-S1)
+export { createMemoryServer, createChannelServer, createTaskServer } from './mcp/index.js'
+export type { MemoryServerDeps } from './mcp/index.js'
+
+// Subagent definitions (M6.5-S1)
+export { coreAgents } from './agents/index.js'
+
+// Hooks (M6.5-S1)
+export {
+  createHooks,
+  createAuditHook,
+  createBashBlocker,
+  createPathRestrictor,
+} from './hooks/index.js'
+export type { TrustLevel, HookFactoryOptions } from './hooks/index.js'
 
 export {
   loadConfig,
