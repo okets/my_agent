@@ -62,6 +62,10 @@ interface YamlConfig {
     }
     [key: string]: unknown
   }
+  health?: {
+    defaults?: { intervalMs?: number }
+    plugins?: Record<string, { intervalMs?: number }>
+  }
 }
 
 function loadYamlConfig(agentDir: string): YamlConfig | null {
@@ -207,6 +211,7 @@ export function loadConfig(): BrainConfig {
       process.env.MY_AGENT_BRAIN_DIR ??
       (yaml?.brain?.dir ? path.resolve(agentDir, yaml.brain.dir) : path.join(agentDir, 'brain')),
     channels: loadChannelConfigs(yaml),
+    health: yaml?.health,
   }
 }
 

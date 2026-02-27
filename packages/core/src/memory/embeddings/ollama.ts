@@ -65,6 +65,8 @@ export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
   }
 
   async initialize(_options?: InitializeOptions): Promise<void> {
+    if (this.ready) return // Idempotent — safe to call from HealthMonitor + tryLazyRecovery
+
     // Check server is reachable
     const healthResult = await this.healthCheck()
     if (!healthResult.healthy) {

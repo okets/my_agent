@@ -47,6 +47,7 @@ export interface Plugin {
   readonly name: string
   readonly type: PluginType
   readonly icon: string // SVG string (viewBox="0 0 24 24")
+  readonly healthCheckIntervalMs?: number // Override default poll interval (ms)
   healthCheck(): Promise<HealthResult>
   status(): PluginStatus
 }

@@ -16,7 +16,7 @@
 | **M4.5: Calendar System**    | Complete | 5/5 sprints                  |
 | **M5: Task System**          | Complete | 10/10 sprints                |
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
-| **M6: Memory**               | Active   | 7/8 sprints (S8 planned)     |
+| **M6: Memory**               | Complete | 8/8 sprints                  |
 | **M6.5: Agent SDK Alignment**| Planned  | 3 sprints planned            |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -255,7 +255,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 
 ---
 
-### M6: Memory — Active (S8)
+### M6: Memory — COMPLETE
 
 Markdown-first notebook memory: files are the source of truth, SQLite is a derived search index. Hybrid BM25 + vector search. Local embeddings via plugin system.
 
@@ -272,8 +272,8 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 | S4     | Memory File Watcher Events         | Complete | [plan](sprints/m6-s4-memory-events/plan.md)         | [review](sprints/m6-s4-memory-events/review.md)         |
 | S5     | Embeddings Validation (E2E)        | Complete | —                                                   | [review](sprints/m6-s5-embeddings-validation/review.md) |
 | S6     | Embeddings Degraded Mode           | Complete | [plan](sprints/m6-s6-embeddings-degraded-mode/plan.md) | [review](sprints/m6-s6-embeddings-degraded-mode/review.md) |
-| S7     | Unified Plugin Interface           | Complete | [plan](sprints/m6-s7-unified-plugin-interface/plan.md) | — |
-| S8     | Configurable Health Monitor        | Planned  | [plan](sprints/m6-s8-health-monitor/plan.md) | — |
+| S7     | Unified Plugin Interface           | Complete | [plan](sprints/m6-s7-unified-plugin-interface/plan.md) | [review](sprints/m6-s7-unified-plugin-interface/review.md) |
+| S8     | Configurable Health Monitor        | Complete | [plan](sprints/m6-s8-health-monitor/plan.md) | [review](sprints/m6-s8-health-monitor/review.md) |
 
 **Architecture:**
 
@@ -528,7 +528,7 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
 
 **Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 (all complete) → M6.5 SDK Alignment
 
-**M6 active (7/8 sprints).** S7 complete, S8 (Health Monitor) planned. Then: M6.5 SDK Alignment.
+**M6 complete (8/8 sprints).** Next: M6.5 SDK Alignment.
 
 **M6.5 blocks M7+:** Session rewrite and MCP infrastructure must be in place before Coding Projects builds on top. All future milestones benefit from proper SDK sessions and native tools.
 
@@ -661,4 +661,4 @@ After completion:
 
 ---
 
-_Updated: 2026-02-26_
+_Updated: 2026-02-27_

@@ -175,6 +175,7 @@ export async function registerMemoryRoutes(
           id: p.id,
           name: p.name,
           model: p.modelName,
+          settings: p.getSettings?.(),
         })),
         ready: status.embeddingsReady,
       },

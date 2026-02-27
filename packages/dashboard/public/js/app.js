@@ -3838,6 +3838,13 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
           } else {
             this.selectedEmbeddingsPlugin = "none";
           }
+          // Sync Ollama host from backend settings
+          const ollamaPlugin = this.memoryStatus.embeddings?.available?.find(
+            (p) => p.id === "embeddings-ollama",
+          );
+          if (ollamaPlugin?.settings?.host) {
+            this.ollamaHost = ollamaPlugin.settings.host;
+          }
         }
       } catch (err) {
         console.error("[App] Failed to load memory status:", err);

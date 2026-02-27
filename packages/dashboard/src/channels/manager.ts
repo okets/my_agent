@@ -7,6 +7,7 @@
  */
 
 import type {
+  Plugin,
   ChannelPlugin,
   PluginFactory,
   ChannelInstanceConfig,
@@ -282,6 +283,13 @@ export class ChannelManager {
    */
   getChannelConfig(id: string): ChannelInstanceConfig | undefined {
     return this.channels.get(id)?.config;
+  }
+
+  /**
+   * Get all channel plugin instances (for HealthMonitor registration).
+   */
+  getPlugins(): Plugin[] {
+    return Array.from(this.channels.values()).map((entry) => entry.plugin);
   }
 
   /**

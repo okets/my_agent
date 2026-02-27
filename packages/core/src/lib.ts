@@ -2,6 +2,8 @@
 
 // Plugin base types
 export type { Plugin, PluginType, PluginState, HealthResult, PluginStatus } from './plugin/index.js'
+export { HealthMonitor } from './plugin/index.js'
+export type { HealthSnapshot, HealthChangedEvent, HealthMonitorOptions } from './plugin/index.js'
 
 export { createBrainQuery, streamResponse } from './brain.js'
 export type {
@@ -21,7 +23,7 @@ export {
   loadAgentFullName,
   saveChannelToConfig,
 } from './config.js'
-export type { BrainConfig } from './types.js'
+export type { BrainConfig, HealthConfig } from './types.js'
 
 export { assembleSystemPrompt } from './prompt.js'
 
