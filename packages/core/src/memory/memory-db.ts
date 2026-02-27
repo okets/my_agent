@@ -140,11 +140,7 @@ export class MemoryDb {
    * Reset vector index if the embeddings model/plugin changed.
    * Detects changes by comparing against stored meta, drops stale data if needed.
    */
-  resetVectorIndex(
-    pluginId: string,
-    model: string,
-    dimensions: number,
-  ): { modelChanged: boolean } {
+  resetVectorIndex(pluginId: string, model: string, dimensions: number): { modelChanged: boolean } {
     const currentPlugin = this.getMeta('embeddingsPlugin')
     const currentModel = this.getMeta('embeddingsModel')
     const currentDims = this.getDimensions()
@@ -206,9 +202,13 @@ export class MemoryDb {
 
   setIndexMeta(meta: Partial<IndexMeta>): void {
     if (meta.embeddingsPlugin !== undefined)
-      meta.embeddingsPlugin ? this.setMeta('embeddingsPlugin', meta.embeddingsPlugin) : this.deleteMeta('embeddingsPlugin')
+      meta.embeddingsPlugin
+        ? this.setMeta('embeddingsPlugin', meta.embeddingsPlugin)
+        : this.deleteMeta('embeddingsPlugin')
     if (meta.embeddingsModel !== undefined)
-      meta.embeddingsModel ? this.setMeta('embeddingsModel', meta.embeddingsModel) : this.deleteMeta('embeddingsModel')
+      meta.embeddingsModel
+        ? this.setMeta('embeddingsModel', meta.embeddingsModel)
+        : this.deleteMeta('embeddingsModel')
     if (meta.dimensions !== undefined) {
       if (meta.dimensions) {
         this.setMeta('dimensions', String(meta.dimensions))
