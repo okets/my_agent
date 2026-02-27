@@ -16,7 +16,7 @@
 | **M4.5: Calendar System**    | Complete | 5/5 sprints                  |
 | **M5: Task System**          | Complete | 10/10 sprints                |
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
-| **M6: Memory**               | Complete | 6/6 sprints                  |
+| **M6: Memory**               | Active   | 6/7 sprints (S7 planned)     |
 | **M6.5: Agent SDK Alignment**| Planned  | 3 sprints planned            |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -255,7 +255,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 
 ---
 
-### M6: Memory — Complete
+### M6: Memory — Active (S7)
 
 Markdown-first notebook memory: files are the source of truth, SQLite is a derived search index. Hybrid BM25 + vector search. Local embeddings via plugin system.
 
@@ -272,6 +272,7 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 | S4     | Memory File Watcher Events         | Complete | [plan](sprints/m6-s4-memory-events/plan.md)         | [review](sprints/m6-s4-memory-events/review.md)         |
 | S5     | Embeddings Validation (E2E)        | Complete | —                                                   | [review](sprints/m6-s5-embeddings-validation/review.md) |
 | S6     | Embeddings Degraded Mode           | Complete | [plan](sprints/m6-s6-embeddings-degraded-mode/plan.md) | [review](sprints/m6-s6-embeddings-degraded-mode/review.md) |
+| S7     | Unified Plugin Interface           | Planned  | [plan](sprints/m6-s7-unified-plugin-interface/plan.md) | — |
 
 **Architecture:**
 
@@ -307,6 +308,7 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 - _(S4)_ SyncService EventEmitter for file change notifications, WSL2 file watcher fix, dashboard live updates for memory
 - _(S5)_ E2E validation of both embeddings plugins (local + Ollama), `resetVectorIndex()` for safe plugin switching, plugin persistence across restarts, `OLLAMA_HOST` env var, Delete Local Model UI button
 - _(S6)_ Degraded mode: plugin stays selected but unhealthy when Ollama goes down, 60s liveness timer with runtime detection + auto-recovery, home tab status icons (WhatsApp + Memory), degraded badge in settings (desktop + mobile), `healthCheck()` on ChannelPlugin, `isReady()` now probes the actual server
+- _(S7)_ Unified `Plugin` base interface (id, name, type, icon, healthCheck, status) that both `ChannelPlugin` and `EmbeddingsPlugin` extend. Standardizes `HealthResult` and `PluginStatus` across all plugin types. Removes `PluginDegradedState` in favor of structured `HealthResult`.
 
 **Key decisions (2026-02-24):**
 
@@ -524,7 +526,7 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
 
 **Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 (all complete) → M6.5 SDK Alignment
 
-**M6 complete (6/6 sprints).** Next: M6.5 SDK Alignment.
+**M6 active (6/7 sprints).** S7 (Unified Plugin Interface) planned. Then: M6.5 SDK Alignment.
 
 **M6.5 blocks M7+:** Session rewrite and MCP infrastructure must be in place before Coding Projects builds on top. All future milestones benefit from proper SDK sessions and native tools.
 
