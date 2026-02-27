@@ -136,6 +136,41 @@ export class MemoryDb {
     this.setMeta('dimensions', String(dimensions))
   }
 
+  /**
+   * Reset vector index if the embeddings model/plugin changed.
+   * Detects changes by comparing against stored meta, drops stale data if needed.
+   */
+  resetVectorIndex(
+    pluginId: string,
+    model: string,
+    dimensions: number,
+  ): { modelChanged: boolean } {
+    const currentPlugin = this.getMeta('embeddingsPlugin')
+    const currentModel = this.getMeta('embeddingsModel')
+    const currentDims = this.getDimensions()
+
+    const changed =
+      currentPlugin !== pluginId ||
+      currentModel !== model ||
+      (currentDims !== null && currentDims !== dimensions)
+
+    if (changed) {
+      // Drop stale vector table and embedding cache
+      this.db.prepare('DROP TABLE IF EXISTS chunks_vec').run()
+      this.db.prepare('DELETE FROM embedding_cache').run()
+      this.dimensions = null
+    }
+
+    // (Re)create vector table with correct dimensions
+    this.initVectorTable(dimensions)
+
+    // Persist which plugin/model is active
+    this.setMeta('embeddingsPlugin', pluginId)
+    this.setMeta('embeddingsModel', model)
+
+    return { modelChanged: changed }
+  }
+
   getDimensions(): number | null {
     if (this.dimensions !== null) return this.dimensions
     const val = this.getMeta('dimensions')
@@ -171,13 +206,25 @@ export class MemoryDb {
 
   setIndexMeta(meta: Partial<IndexMeta>): void {
     if (meta.embeddingsPlugin !== undefined)
-      this.setMeta('embeddingsPlugin', meta.embeddingsPlugin ?? '')
+      meta.embeddingsPlugin ? this.setMeta('embeddingsPlugin', meta.embeddingsPlugin) : this.deleteMeta('embeddingsPlugin')
     if (meta.embeddingsModel !== undefined)
-      this.setMeta('embeddingsModel', meta.embeddingsModel ?? '')
-    if (meta.dimensions !== undefined) this.setMeta('dimensions', String(meta.dimensions ?? ''))
+      meta.embeddingsModel ? this.setMeta('embeddingsModel', meta.embeddingsModel) : this.deleteMeta('embeddingsModel')
+    if (meta.dimensions !== undefined) {
+      if (meta.dimensions) {
+        this.setMeta('dimensions', String(meta.dimensions))
+        this.dimensions = meta.dimensions
+      } else {
+        this.deleteMeta('dimensions')
+        this.dimensions = null
+      }
+    }
     if (meta.chunkTokens !== undefined) this.setMeta('chunkTokens', String(meta.chunkTokens))
     if (meta.chunkOverlap !== undefined) this.setMeta('chunkOverlap', String(meta.chunkOverlap))
     if (meta.builtAt !== undefined) this.setMeta('builtAt', meta.builtAt)
+  }
+
+  deleteMeta(key: string): void {
+    this.db.prepare('DELETE FROM meta WHERE key = ?').run(key)
   }
 
   // ============================================================

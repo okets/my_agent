@@ -663,7 +663,23 @@ export async function registerAdminRoutes(
       }
 
       // Set as active
-      pluginRegistry.setActive(pluginId);
+      await pluginRegistry.setActive(pluginId);
+
+      // Reset vector index if plugin/model changed (clears stale embeddings)
+      let warning: string | undefined;
+      const dims = plugin.getDimensions();
+      if (dims && fastify.memoryDb) {
+        const { modelChanged } = fastify.memoryDb.resetVectorIndex(
+          pluginId,
+          plugin.modelName,
+          dims,
+        );
+        if (modelChanged) {
+          warning =
+            "Embeddings model changed. Vector index cleared — rebuild needed.";
+          fastify.log.warn(`[Admin] ${warning}`);
+        }
+      }
 
       fastify.log.info(`[Admin] Activated embeddings plugin: ${pluginId}`);
 
@@ -672,8 +688,8 @@ export async function registerAdminRoutes(
         pluginId,
         name: plugin.name,
         model: plugin.modelName,
-        dimensions: plugin.getDimensions(),
-        note: "Vector index may need rebuild if dimensions changed",
+        dimensions: dims,
+        ...(warning && { warning }),
       };
     } catch (err) {
       fastify.log.error(err, `[Admin] Failed to activate plugin ${pluginId}`);

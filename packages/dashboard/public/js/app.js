@@ -178,6 +178,8 @@ function chat() {
     embeddingsError: null,
     memoryRebuilding: false,
     memoryRebuildResult: null,
+    localModelDeleting: false,
+    localModelDeleteResult: null,
     notebookTree: [], // { path, name, type, children?, size?, modified? }
     notebookLoading: false,
     selectedNotebookFile: null, // { path, name, content, loading }
@@ -383,6 +385,10 @@ function chat() {
             },
             embeddings: {
               active: store.stats.activePlugin,
+              available:
+                store.stats.availablePlugins ||
+                self.memoryStatus?.embeddings?.available ||
+                [],
               ready: store.stats.embeddingsReady,
             },
           };
@@ -1198,7 +1204,8 @@ function chat() {
         case "state:tasks":
         case "state:calendar":
         case "state:conversations":
-          // Silently handled — state is already synced via individual events
+        case "state:memory":
+          // Silently handled — state is already synced via Alpine stores
           break;
 
         default:
@@ -3870,6 +3877,45 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         this.embeddingsError = err.message || "Request failed";
       } finally {
         this.embeddingsActivating = false;
+      }
+    },
+
+    /**
+     * Delete downloaded local embeddings model to free disk space
+     */
+    async deleteLocalModel() {
+      if (
+        !confirm(
+          "Delete the local embeddings model? You can re-download it later by activating the local plugin.",
+        )
+      )
+        return;
+      this.localModelDeleting = true;
+      this.localModelDeleteResult = null;
+      try {
+        const res = await fetch("/api/admin/memory/embeddings/local-model", {
+          method: "DELETE",
+          headers: { "X-Confirm-Destructive": "true" },
+        });
+        const data = await res.json();
+        if (res.ok) {
+          this.localModelDeleteResult = {
+            success: true,
+            message: `Deleted — freed ${data.freedMB || 0} MB`,
+          };
+        } else {
+          this.localModelDeleteResult = {
+            success: false,
+            message: data.error || "Delete failed",
+          };
+        }
+      } catch (err) {
+        this.localModelDeleteResult = {
+          success: false,
+          message: err.message || "Request failed",
+        };
+      } finally {
+        this.localModelDeleting = false;
       }
     },
 

@@ -70,8 +70,27 @@ export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
       )
     }
 
-    // Detect dimensions with a test embedding
-    const testEmbedding = await this.embedInternal('test')
+    // Detect dimensions with a test embedding — also validates the model supports embeddings
+    let testEmbedding: number[]
+    try {
+      testEmbedding = await this.embedInternal('test')
+    } catch (err) {
+      throw new Error(
+        `Model '${this.model}' does not support embeddings. ` +
+          `Use an embeddings model like 'nomic-embed-text' or 'mxbai-embed-large'.`,
+      )
+    }
+
+    if (
+      testEmbedding.length === 0 ||
+      !testEmbedding.every((v) => typeof v === 'number' && !Number.isNaN(v))
+    ) {
+      throw new Error(
+        `Model '${this.model}' returned invalid embeddings. ` +
+          `Use an embeddings model like 'nomic-embed-text' or 'mxbai-embed-large'.`,
+      )
+    }
+
     this.dimensions = testEmbedding.length
     this.ready = true
   }

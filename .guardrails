@@ -20,6 +20,9 @@ sk-ant-[a-zA-Z0-9_-]{30,}
 ANTHROPIC_API_KEY=
 MS365_CLIENT_SECRET=
 
+# Private network addresses
+10\.10\.10\.
+
 # Private paths that shouldn't be hardcoded
 /home/nina/.openclaw
 /home/nina/my_agent/.my_agent

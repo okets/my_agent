@@ -354,7 +354,7 @@ async function main() {
       pluginRegistry.register(new LocalEmbeddingsPlugin(agentDir));
       pluginRegistry.register(
         new OllamaEmbeddingsPlugin({
-          host: "http://localhost:11434",
+          host: process.env.OLLAMA_HOST ?? "http://localhost:11434",
           model: "nomic-embed-text",
         }),
       );
@@ -375,6 +375,43 @@ async function main() {
         db: memoryDb,
         getPlugin: () => pluginRegistry?.getActive() ?? null,
       });
+
+      // Try to restore previously active embeddings plugin
+      const indexMeta = memoryDb.getIndexMeta();
+      if (indexMeta.embeddingsPlugin) {
+        const savedPluginId = indexMeta.embeddingsPlugin;
+        const savedPlugin = pluginRegistry.get(savedPluginId);
+        if (savedPlugin) {
+          try {
+            await savedPlugin.initialize();
+            const isReady = await savedPlugin.isReady();
+            if (isReady) {
+              await pluginRegistry.setActive(savedPluginId);
+              // Re-initialize vector table with saved dimensions
+              const dims = savedPlugin.getDimensions();
+              if (dims) {
+                memoryDb.initVectorTable(dims);
+              }
+              console.log(
+                `Restored embeddings plugin: ${savedPluginId} (${savedPlugin.modelName})`,
+              );
+            } else {
+              console.warn(
+                `Embeddings plugin ${savedPluginId} not ready after initialize — continuing without embeddings`,
+              );
+            }
+          } catch (err) {
+            console.warn(
+              `Failed to restore embeddings plugin ${savedPluginId}:`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        } else {
+          console.warn(
+            `Saved embeddings plugin ${savedPluginId} not found — continuing without embeddings`,
+          );
+        }
+      }
 
       // Run initial sync on startup
       const syncResult = await syncService.fullSync();

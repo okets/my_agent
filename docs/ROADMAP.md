@@ -16,7 +16,7 @@
 | **M4.5: Calendar System**    | Complete | 5/5 sprints                  |
 | **M5: Task System**          | Complete | 10/10 sprints                |
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
-| **M6: Memory**               | Active   | 2/3 sprints complete         |
+| **M6: Memory**               | Complete | 5/5 sprints                  |
 | **M6.5: Agent SDK Alignment**| Planned  | 3 sprints planned            |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -32,9 +32,8 @@
 ├─────────────────────────────────────────────────────────────────────►
 
 M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory
-[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████░░]
-   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         ACTIVE
-                                                                                                     (2/3 sprints)
+[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]
+   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE
                                                                                                      M6.5 SDK Alignment
                                                                                                      M7 Coding Projects
                                                                                                      M8 Ops Dashboard
@@ -256,7 +255,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 
 ---
 
-### M6: Memory — ACTIVE
+### M6: Memory — COMPLETE
 
 Markdown-first notebook memory: files are the source of truth, SQLite is a derived search index. Hybrid BM25 + vector search. Local embeddings via plugin system.
 
@@ -269,7 +268,9 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 | ------ | ---------------------------------- | -------- | --------------------------------------------------- | ------------------------------------------------------- |
 | S1     | Infrastructure + Notebook Indexing | Complete | [plan](sprints/m6-s1-memory-infrastructure/plan.md) | [review](sprints/m6-s1-memory-infrastructure/review.md) |
 | S2     | Memory Tools + Prompt Integration  | Complete | [plan](sprints/m6-s2-memory-tools/plan.md)          | [review](sprints/m6-s2-memory-tools/review.md)          |
-| S3     | Memory Validation (Final)          | Active   | [plan](sprints/m6-s3-memory-validation/plan.md)     | —                                                       |
+| S3     | Memory Validation (Final)          | Complete | [plan](sprints/m6-s3-memory-validation/plan.md)     | [review](sprints/m6-s3-memory-validation/review.md)     |
+| S4     | Memory File Watcher Events         | Complete | [plan](sprints/m6-s4-memory-events/plan.md)         | [review](sprints/m6-s4-memory-events/review.md)         |
+| S5     | Embeddings Validation (E2E)        | Complete | —                                                   | [review](sprints/m6-s5-embeddings-validation/review.md) |
 
 **Architecture:**
 
@@ -302,6 +303,8 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 - Dashboard: notebook browser, memory search UI, "Rebuild Memory Index" button
 - Debug API: memory status, search, file listing, rebuild, notebook CRUD, simulation endpoints
 - Migration from existing `runtime/` files into `notebook/reference/`
+- _(S4)_ SyncService EventEmitter for file change notifications, WSL2 file watcher fix, dashboard live updates for memory
+- _(S5)_ E2E validation of both embeddings plugins (local + Ollama), `resetVectorIndex()` for safe plugin switching, plugin persistence across restarts, `OLLAMA_HOST` env var, Delete Local Model UI button
 
 **Key decisions (2026-02-24):**
 
@@ -517,9 +520,9 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                                         M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 (all complete) → M6 Memory (2/3 sprints) → M6.5 SDK Alignment
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 (all complete) → M6.5 SDK Alignment
 
-**M6 in progress (2/3 sprints).** Next: M6-S3 Memory Validation, then M6.5 SDK Alignment.
+**M6 complete (4/4 sprints).** Next: M6.5 SDK Alignment.
 
 **M6.5 blocks M7+:** Session rewrite and MCP infrastructure must be in place before Coding Projects builds on top. All future milestones benefit from proper SDK sessions and native tools.
 

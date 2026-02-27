@@ -284,7 +284,13 @@ export async function registerMemoryRoutes(
 
       // Handle "none" to disable embeddings
       if (pluginId === "none") {
-        pluginRegistry.setActive(null);
+        await pluginRegistry.setActive(null);
+        // Clear persisted meta so plugin isn't restored on restart
+        fastify.memoryDb?.setIndexMeta({
+          embeddingsPlugin: null,
+          embeddingsModel: null,
+          dimensions: null,
+        });
         fastify.log.info("[Memory] Disabled embeddings");
         fastify.statePublisher?.publishMemory();
         return { success: true, pluginId: null };
@@ -319,7 +325,23 @@ export async function registerMemoryRoutes(
         }
 
         // Set as active
-        pluginRegistry.setActive(pluginId);
+        await pluginRegistry.setActive(pluginId);
+
+        // Reset vector index if plugin/model changed (clears stale embeddings)
+        let warning: string | undefined;
+        const dims = plugin.getDimensions();
+        if (dims && fastify.memoryDb) {
+          const { modelChanged } = fastify.memoryDb.resetVectorIndex(
+            pluginId,
+            plugin.modelName,
+            dims,
+          );
+          if (modelChanged) {
+            warning =
+              "Embeddings model changed. Vector index cleared — rebuild needed.";
+            fastify.log.warn(`[Memory] ${warning}`);
+          }
+        }
 
         fastify.log.info(`[Memory] Activated embeddings plugin: ${pluginId}`);
 
@@ -331,8 +353,8 @@ export async function registerMemoryRoutes(
           pluginId,
           name: plugin.name,
           model: plugin.modelName,
-          dimensions: plugin.getDimensions(),
-          note: "Vector index may need rebuild if dimensions changed",
+          dimensions: dims,
+          ...(warning && { warning }),
         };
       } catch (err) {
         fastify.log.error(

@@ -10,7 +10,7 @@ import type { EmbeddingsPlugin } from './embeddings/types.js'
 import type { SearchResult, RecallResult, SearchOptions } from './types.js'
 
 const DEFAULT_MAX_RESULTS = 15
-const DEFAULT_MIN_SCORE = 0.25
+const DEFAULT_MIN_SCORE = 0.005
 const RRF_K = 60 // Reciprocal Rank Fusion constant
 
 export interface SearchServiceOptions {

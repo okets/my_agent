@@ -1295,6 +1295,7 @@
                   >
                   <select
                     x-model="selectedEmbeddingsPlugin"
+                    x-effect="$nextTick(() => $el.value = selectedEmbeddingsPlugin)"
                     @change="activateEmbeddingsPlugin()"
                     class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text focus:outline-none focus:border-tokyo-green/50 transition-colors cursor-pointer"
                   >
@@ -1411,6 +1412,25 @@
                     x-show="memoryRebuildResult"
                     x-text="memoryRebuildResult?.message"
                     :class="memoryRebuildResult?.success ? 'text-xs text-tokyo-green' : 'text-xs text-tokyo-red'"
+                  ></span>
+                </div>
+
+                <!-- Delete local model button -->
+                <div class="flex items-center gap-3 mt-2">
+                  <button
+                    @click="deleteLocalModel()"
+                    :disabled="localModelDeleting || memoryStatus?.embeddings?.active?.id === 'embeddings-local'"
+                    class="text-xs px-4 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    style="background: rgba(247, 118, 142, 0.1); color: #f7768e"
+                    :title="memoryStatus?.embeddings?.active?.id === 'embeddings-local' ? 'Deactivate local plugin first' : 'Delete downloaded model to free disk space'"
+                  >
+                    <span x-show="!localModelDeleting">Delete Local Model</span>
+                    <span x-show="localModelDeleting">Deleting...</span>
+                  </button>
+                  <span
+                    x-show="localModelDeleteResult"
+                    x-text="localModelDeleteResult?.message"
+                    :class="localModelDeleteResult?.success ? 'text-xs text-tokyo-green' : 'text-xs text-tokyo-red'"
                   ></span>
                 </div>
 
@@ -4834,6 +4854,7 @@
                 >
                 <select
                   x-model="selectedEmbeddingsPlugin"
+                  x-effect="$nextTick(() => $el.value = selectedEmbeddingsPlugin)"
                   @change="activateEmbeddingsPlugin()"
                   class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text mb-2"
                 >
@@ -4924,6 +4945,23 @@
                   x-show="memoryRebuildResult"
                   x-text="memoryRebuildResult"
                   class="text-[10px] text-tokyo-green mt-1"
+                ></p>
+
+                <!-- Delete local model button -->
+                <button
+                  @click="deleteLocalModel()"
+                  :disabled="localModelDeleting || memoryStatus?.embeddings?.active?.id === 'embeddings-local'"
+                  class="w-full text-xs px-3 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                  style="background: rgba(247, 118, 142, 0.1); color: #f7768e"
+                  :title="memoryStatus?.embeddings?.active?.id === 'embeddings-local' ? 'Deactivate local plugin first' : 'Delete downloaded model to free disk space'"
+                >
+                  <span x-show="!localModelDeleting">Delete Local Model</span>
+                  <span x-show="localModelDeleting">Deleting...</span>
+                </button>
+                <p
+                  x-show="localModelDeleteResult"
+                  x-text="localModelDeleteResult?.message"
+                  :class="localModelDeleteResult?.success ? 'text-[10px] text-tokyo-green mt-1' : 'text-[10px] text-tokyo-red mt-1'"
                 ></p>
               </div>
             </div>

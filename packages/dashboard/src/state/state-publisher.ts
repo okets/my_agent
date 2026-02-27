@@ -337,11 +337,13 @@ export class StatePublisher {
         hasVectorIndex: false,
         embeddingsReady: false,
         activePlugin: null,
+        availablePlugins: [],
       };
     }
 
     const status = this.memoryDb.getStatus();
     const active = this.pluginRegistry?.getActive();
+    const available = this.pluginRegistry?.list() || [];
 
     return {
       initialized: true,
@@ -357,6 +359,11 @@ export class StatePublisher {
             model: active.modelName,
           }
         : null,
+      availablePlugins: available.map((p) => ({
+        id: p.id,
+        name: p.name,
+        model: p.modelName,
+      })),
     };
   }
 }

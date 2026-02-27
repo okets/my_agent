@@ -243,6 +243,11 @@ export interface MemoryStats {
     name: string;
     model: string;
   } | null;
+  availablePlugins: Array<{
+    id: string;
+    name: string;
+    model: string;
+  }>;
 }
 
 // Notification payload for WebSocket transport
