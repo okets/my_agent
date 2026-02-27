@@ -16,6 +16,12 @@ dist/
 .playwright_output/
 .playwright-mcp/
 
+# Model files
+*.gguf
+*.ggml
+*.bin
+*.safetensors
+
 # OS
 .DS_Store
 Thumbs.db
