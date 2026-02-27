@@ -8,6 +8,7 @@
 import { join } from 'path'
 import { existsSync, rmSync } from 'fs'
 import type { EmbeddingsPlugin, InitializeOptions } from './types.js'
+import type { HealthResult, PluginStatus } from '../../plugin/types.js'
 
 const MODEL_URI = 'hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf'
 const MODEL_SIZE = '328MB'
@@ -49,6 +50,9 @@ export class LocalEmbeddingsPlugin implements EmbeddingsPlugin {
   readonly version = '1.0.0'
   readonly modelName = 'embeddinggemma-300M'
   readonly modelSize = MODEL_SIZE
+  readonly type = 'embeddings' as const
+  readonly icon =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>'
 
   private modelsDir: string
   private llama: Llama | null = null
@@ -66,6 +70,32 @@ export class LocalEmbeddingsPlugin implements EmbeddingsPlugin {
 
   async isReady(): Promise<boolean> {
     return this.context !== null
+  }
+
+  async healthCheck(): Promise<HealthResult> {
+    if (this.context !== null) {
+      return { healthy: true }
+    }
+    const needsDl = await this.needsDownload()
+    if (needsDl) {
+      return {
+        healthy: false,
+        message: 'Model not downloaded',
+        resolution: 'Initialize the plugin to download the model.',
+      }
+    }
+    return {
+      healthy: false,
+      message: 'Plugin not initialized',
+      resolution: 'Call initialize() to load the model.',
+    }
+  }
+
+  status(): PluginStatus {
+    if (this.context !== null) {
+      return { state: 'active', lastHealthCheck: new Date() }
+    }
+    return { state: 'disconnected' }
   }
 
   async needsDownload(): Promise<boolean> {

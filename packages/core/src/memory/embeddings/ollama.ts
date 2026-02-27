@@ -6,6 +6,7 @@
  * @module memory/embeddings/ollama
  */
 
+import type { HealthResult, PluginStatus } from '../../plugin/types.js'
 import type { EmbeddingsPlugin, InitializeOptions } from './types.js'
 
 const DEFAULT_HOST = 'http://localhost:11434'
@@ -19,6 +20,9 @@ export interface OllamaPluginConfig {
 export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
   readonly id = 'embeddings-ollama'
   readonly name = 'Ollama Embeddings'
+  readonly type = 'embeddings' as const
+  readonly icon =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
   readonly description =
     'GPU-accelerated embeddings via Ollama server. Requires Ollama running with an embedding model.'
   readonly version = '1.0.0'
@@ -43,9 +47,8 @@ export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
 
   async isReady(): Promise<boolean> {
     if (!this.ready) return false
-    // Probe the server to verify it's still reachable
-    const healthy = await this.checkHealth()
-    if (!healthy) {
+    const result = await this.healthCheck()
+    if (!result.healthy) {
       this.ready = false
       return false
     }
@@ -63,8 +66,8 @@ export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
 
   async initialize(_options?: InitializeOptions): Promise<void> {
     // Check server is reachable
-    const healthy = await this.checkHealth()
-    if (!healthy) {
+    const healthResult = await this.healthCheck()
+    if (!healthResult.healthy) {
       throw new Error(`Cannot connect to Ollama at ${this.host}. Is the server running?`)
     }
 
@@ -150,21 +153,39 @@ export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
     }
   }
 
-  // ============================================================
-  // PRIVATE METHODS
-  // ============================================================
-
-  private async checkHealth(): Promise<boolean> {
+  async healthCheck(): Promise<HealthResult> {
     try {
       const response = await fetch(`${this.host}/api/tags`, {
         method: 'GET',
         signal: AbortSignal.timeout(5000),
       })
-      return response.ok
+      if (response.ok) {
+        return { healthy: true }
+      }
+      return {
+        healthy: false,
+        message: `Ollama returned HTTP ${response.status}`,
+        resolution: 'Check that the Ollama server is running correctly.',
+      }
     } catch {
-      return false
+      return {
+        healthy: false,
+        message: `Cannot connect to Ollama at ${this.host}`,
+        resolution: 'Start the Ollama Docker container or check that the host is reachable.',
+      }
     }
   }
+
+  status(): PluginStatus {
+    if (this.ready) {
+      return { state: 'active', lastHealthCheck: new Date() }
+    }
+    return { state: 'disconnected' }
+  }
+
+  // ============================================================
+  // PRIVATE METHODS
+  // ============================================================
 
   private async checkModelAvailable(): Promise<boolean> {
     try {

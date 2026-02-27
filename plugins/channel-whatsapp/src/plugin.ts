@@ -15,6 +15,8 @@ import type {
   IncomingMessage,
   OutgoingMessage,
   ChannelAttachment,
+  HealthResult,
+  PluginStatus,
 } from "@my-agent/core";
 import { initialStatus } from "@my-agent/core";
 import { CredentialSaveQueue } from "./auth.js";
@@ -104,8 +106,10 @@ async function getWaVersion(): Promise<[number, number, number]> {
 // ─────────────────────────────────────────────────────────────────
 
 export class BaileysPlugin implements ChannelPlugin {
-  name = "baileys";
-  icon = WHATSAPP_ICON;
+  readonly id: string;
+  readonly name = "baileys";
+  readonly type = "channel" as const;
+  readonly icon = WHATSAPP_ICON;
 
   private config: ChannelInstanceConfig | null = null;
   private sock: WASocket | null = null;
@@ -121,6 +125,7 @@ export class BaileysPlugin implements ChannelPlugin {
   };
 
   constructor(config: ChannelInstanceConfig) {
+    this.id = config.id;
     this.config = config;
     this._status = initialStatus();
   }
@@ -273,7 +278,7 @@ export class BaileysPlugin implements ChannelPlugin {
               lastDisconnect: {
                 at: new Date(),
                 status: "disconnected",
-                error: isRestartRequired ? null : errorMessage,
+                error: isRestartRequired ? undefined : errorMessage,
                 loggedOut: false,
               },
             };
@@ -504,12 +509,27 @@ export class BaileysPlugin implements ChannelPlugin {
 
   // ── Status ─────────────────────────────────────────────────────
 
-  status(): ChannelStatus {
+  channelStatus(): ChannelStatus {
     return { ...this._status };
   }
 
-  async healthCheck(): Promise<boolean> {
-    return this._status.connected;
+  async healthCheck(): Promise<HealthResult> {
+    if (this._status.connected) {
+      return { healthy: true };
+    }
+    return {
+      healthy: false,
+      message: this._status.lastError ?? "Not connected",
+      resolution: "Check WhatsApp connection in Settings.",
+    };
+  }
+
+  status(): PluginStatus {
+    if (this._status.connected) return { state: "active" };
+    if (this._status.lastDisconnect?.loggedOut)
+      return { state: "error", error: "Logged out" };
+    if (this._status.running) return { state: "connecting" };
+    return { state: "disconnected" };
   }
 
   // ── Private helpers ────────────────────────────────────────────

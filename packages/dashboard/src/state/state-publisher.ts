@@ -350,7 +350,11 @@ export class StatePublisher {
     const active = this.pluginRegistry?.getActive();
     const available = this.pluginRegistry?.list() || [];
 
-    const degraded = this.pluginRegistry?.getDegradedState();
+    const degradedHealth = this.pluginRegistry?.getDegradedHealth();
+    const intendedId = this.pluginRegistry?.getIntendedPluginId();
+    const intendedPlugin = intendedId
+      ? this.pluginRegistry?.get(intendedId)
+      : null;
 
     return {
       initialized: true,
@@ -366,14 +370,16 @@ export class StatePublisher {
             model: active.modelName,
           }
         : null,
-      degraded: degraded
+      degraded: degradedHealth
         ? {
-            pluginId: degraded.pluginId,
-            pluginName: degraded.pluginName,
-            model: degraded.model,
-            error: degraded.error,
-            resolution: degraded.resolution,
-            since: degraded.since,
+            pluginId: intendedId ?? "unknown",
+            pluginName: intendedPlugin?.name ?? "Unknown",
+            model: intendedPlugin?.modelName ?? "unknown",
+            error: degradedHealth.message ?? "Plugin unhealthy",
+            resolution:
+              degradedHealth.resolution ?? "Check plugin configuration.",
+            since:
+              degradedHealth.since?.toISOString() ?? new Date().toISOString(),
           }
         : null,
       availablePlugins: available.map((p) => ({

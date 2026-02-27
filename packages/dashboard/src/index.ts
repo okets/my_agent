@@ -19,7 +19,6 @@ import {
   initNotebook,
   migrateToNotebook,
   needsMigration,
-  deriveResolution,
 } from "@my-agent/core";
 import { join } from "node:path";
 import { createEventHandler } from "./scheduler/event-handler.js";
@@ -375,7 +374,7 @@ async function main() {
       searchService = new SearchService({
         db: memoryDb,
         getPlugin: () => pluginRegistry?.getActive() ?? null,
-        getDegradedState: () => pluginRegistry?.getDegradedState() ?? null,
+        getDegradedHealth: () => pluginRegistry?.getDegradedHealth() ?? null,
       });
 
       // Try to restore previously active embeddings plugin
@@ -399,17 +398,17 @@ async function main() {
               );
             } else {
               // Plugin initialized but not ready — enter degraded mode
-              const errMsg = `Plugin not ready after initialization`;
               pluginRegistry.setIntended(savedPluginId);
-              pluginRegistry.setDegraded({
-                pluginId: savedPluginId,
-                pluginName: savedPlugin.name,
-                model: savedPlugin.modelName,
-                error: errMsg,
-                resolution: deriveResolution(savedPluginId, errMsg),
-                since: new Date().toISOString(),
-                lastAttempt: null,
-              });
+              const health = await savedPlugin.healthCheck();
+              pluginRegistry.setDegraded(
+                health.healthy
+                  ? {
+                      healthy: false,
+                      message: "Plugin not ready after initialization",
+                      since: new Date(),
+                    }
+                  : { ...health, since: health.since ?? new Date() },
+              );
               // Preserve existing vector table from saved dimensions
               if (indexMeta.dimensions) {
                 memoryDb.initVectorTable(indexMeta.dimensions);
@@ -423,13 +422,14 @@ async function main() {
             const errMsg = err instanceof Error ? err.message : String(err);
             pluginRegistry.setIntended(savedPluginId);
             pluginRegistry.setDegraded({
-              pluginId: savedPluginId,
-              pluginName: savedPlugin.name,
-              model: savedPlugin.modelName,
-              error: errMsg,
-              resolution: deriveResolution(savedPluginId, errMsg),
-              since: new Date().toISOString(),
-              lastAttempt: null,
+              healthy: false,
+              message: errMsg,
+              resolution:
+                errMsg.toLowerCase().includes("connect") ||
+                errMsg.toLowerCase().includes("fetch failed")
+                  ? "Start the Ollama Docker container or check that the host is reachable."
+                  : "Check the embeddings plugin configuration.",
+              since: new Date(),
             });
             // Preserve existing vector table from saved dimensions
             if (indexMeta.dimensions) {
@@ -489,78 +489,46 @@ async function main() {
       try {
         // ── Branch 1: Recovery (degraded → healthy) ──
         if (pluginRegistry.isDegraded()) {
-          const degraded = pluginRegistry.getDegradedState();
-          if (!degraded) return;
+          const intendedId = pluginRegistry.getIntendedPluginId();
+          if (!intendedId) return;
 
-          const plugin = pluginRegistry.get(degraded.pluginId);
+          const plugin = pluginRegistry.get(intendedId);
           if (!plugin) return;
 
           try {
             await plugin.initialize();
             const isReady = await plugin.isReady();
             if (isReady) {
-              await pluginRegistry.setActive(degraded.pluginId);
+              await pluginRegistry.setActive(intendedId);
               const dims = plugin.getDimensions();
               if (dims && memoryDb) {
                 memoryDb.initVectorTable(dims);
               }
               console.log(
-                `[Liveness] Embeddings recovered: ${degraded.pluginId} (${plugin.modelName})`,
+                `[Liveness] Embeddings recovered: ${intendedId} (${plugin.modelName})`,
               );
               // Sync new files that arrived while degraded
               syncService.fullSync().catch(() => {});
               server.statePublisher?.publishMemory();
-            } else {
-              pluginRegistry.setDegraded({
-                ...degraded,
-                lastAttempt: new Date().toISOString(),
-              });
             }
+            // Still not ready — leave degraded state as-is
           } catch {
-            pluginRegistry.setDegraded({
-              ...degraded,
-              lastAttempt: new Date().toISOString(),
-            });
+            // Still failing — leave degraded state as-is
           }
           // ── Branch 2: Detection (healthy → degraded) ──
         } else {
           const active = pluginRegistry.getActive();
           if (!active) return; // No plugin active — nothing to check
 
-          try {
-            const isReady = await active.isReady();
-            if (!isReady) {
-              const errMsg =
-                "Plugin stopped responding (isReady returned false)";
-              pluginRegistry.setIntended(active.id);
-              pluginRegistry.setDegraded({
-                pluginId: active.id,
-                pluginName: active.name,
-                model: active.modelName,
-                error: errMsg,
-                resolution: deriveResolution(active.id, errMsg),
-                since: new Date().toISOString(),
-                lastAttempt: null,
-              });
-              console.warn(
-                `[Liveness] Embeddings plugin ${active.id} failed health check — entering degraded mode`,
-              );
-              server.statePublisher?.publishMemory();
-            }
-          } catch (err) {
-            const errMsg = err instanceof Error ? err.message : String(err);
+          const health = await active.healthCheck();
+          if (!health.healthy) {
             pluginRegistry.setIntended(active.id);
             pluginRegistry.setDegraded({
-              pluginId: active.id,
-              pluginName: active.name,
-              model: active.modelName,
-              error: errMsg,
-              resolution: deriveResolution(active.id, errMsg),
-              since: new Date().toISOString(),
-              lastAttempt: null,
+              ...health,
+              since: health.since ?? new Date(),
             });
             console.warn(
-              `[Liveness] Embeddings plugin ${active.id} threw during health check — entering degraded mode: ${errMsg}`,
+              `[Liveness] Embeddings plugin ${active.id} failed health check — entering degraded mode`,
             );
             server.statePublisher?.publishMemory();
           }

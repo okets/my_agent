@@ -5,6 +5,8 @@
  * and resilience configuration.
  */
 
+import type { Plugin, HealthResult, PluginStatus } from '../plugin/types.js'
+
 // ─────────────────────────────────────────────────────────────────
 // Status
 // ─────────────────────────────────────────────────────────────────
@@ -167,11 +169,8 @@ export interface ChannelInstanceConfig {
 }
 
 /** Channel plugin interface — implemented by each channel type */
-export interface ChannelPlugin {
-  /** Plugin name (e.g., "mock", "baileys") */
-  name: string
-  /** SVG icon string (viewBox="0 0 24 24") */
-  icon: string
+export interface ChannelPlugin extends Plugin {
+  readonly type: 'channel'
   /** Initialize plugin with instance config */
   init(config: ChannelInstanceConfig): Promise<void>
   /** Connect to the external service */
@@ -185,10 +184,8 @@ export interface ChannelPlugin {
   on(event: 'error', handler: (err: Error) => void): void
   on(event: 'status', handler: (status: ChannelStatus) => void): void
   on(event: 'qr', handler: (qrDataUrl: string) => void): void
-  /** Get current status */
-  status(): ChannelStatus
-  /** Optional active liveness probe — returns true if the channel is healthy */
-  healthCheck?(): Promise<boolean>
+  /** Get channel-specific rich status (internal detail) */
+  channelStatus(): ChannelStatus
 }
 
 /** Factory function to create a plugin instance */

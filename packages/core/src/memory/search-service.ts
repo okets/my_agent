@@ -5,8 +5,9 @@
  * @module memory/search-service
  */
 
+import type { HealthResult } from '../plugin/types.js'
 import { MemoryDb } from './memory-db.js'
-import type { EmbeddingsPlugin, PluginDegradedState } from './embeddings/types.js'
+import type { EmbeddingsPlugin } from './embeddings/types.js'
 import type { SearchResult, RecallResult, SearchOptions } from './types.js'
 
 const DEFAULT_MAX_RESULTS = 15
@@ -16,18 +17,18 @@ const RRF_K = 60 // Reciprocal Rank Fusion constant
 export interface SearchServiceOptions {
   db: MemoryDb
   getPlugin: () => EmbeddingsPlugin | null
-  getDegradedState?: () => PluginDegradedState | null
+  getDegradedHealth?: () => HealthResult | null
 }
 
 export class SearchService {
   private db: MemoryDb
   private getPlugin: () => EmbeddingsPlugin | null
-  private getDegradedState: () => PluginDegradedState | null
+  private getDegradedHealth: () => HealthResult | null
 
   constructor(options: SearchServiceOptions) {
     this.db = options.db
     this.getPlugin = options.getPlugin
-    this.getDegradedState = options.getDegradedState ?? (() => null)
+    this.getDegradedHealth = options.getDegradedHealth ?? (() => null)
   }
 
   /**
@@ -73,15 +74,15 @@ export class SearchService {
     }
 
     // Attach degraded info if embeddings plugin is down
-    const degraded = this.getDegradedState()
-    if (degraded) {
+    const health = this.getDegradedHealth()
+    if (health) {
       return {
         notebook,
         daily,
         degraded: {
-          pluginName: degraded.pluginName,
-          error: degraded.error,
-          resolution: degraded.resolution,
+          pluginName: 'Embeddings',
+          error: health.message ?? 'Plugin unhealthy',
+          resolution: health.resolution ?? 'Check plugin configuration.',
         },
       }
     }

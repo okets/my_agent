@@ -5,13 +5,14 @@
  * @module memory/embeddings/registry
  */
 
-import type { EmbeddingsPlugin, EmbeddingsConfig, PluginDegradedState } from './types.js'
+import type { HealthResult } from '../../plugin/types.js'
+import type { EmbeddingsPlugin, EmbeddingsConfig } from './types.js'
 
 export class PluginRegistry {
   private plugins = new Map<string, EmbeddingsPlugin>()
   private activePluginId: string | null = null
   private intendedPluginId: string | null = null
-  private degradedState: PluginDegradedState | null = null
+  private degradedHealth: HealthResult | null = null
   private config: EmbeddingsConfig
 
   constructor(config?: EmbeddingsConfig) {
@@ -88,10 +89,10 @@ export class PluginRegistry {
 
     if (pluginId !== null) {
       this.intendedPluginId = pluginId
-      this.degradedState = null
+      this.degradedHealth = null
     } else {
       this.intendedPluginId = null
-      this.degradedState = null
+      this.degradedHealth = null
     }
   }
 
@@ -117,8 +118,8 @@ export class PluginRegistry {
    * Keeps activePluginId = null so no embed calls happen,
    * but preserves intendedPluginId for recovery.
    */
-  setDegraded(state: PluginDegradedState): void {
-    this.degradedState = state
+  setDegraded(health: HealthResult): void {
+    this.degradedHealth = health
     this.activePluginId = null
     this.config.activePlugin = null
   }
@@ -127,21 +128,21 @@ export class PluginRegistry {
    * Clear degraded state (called on recovery).
    */
   clearDegraded(): void {
-    this.degradedState = null
+    this.degradedHealth = null
   }
 
   /**
-   * Get current degraded state, or null if not degraded.
+   * Get the degraded health result, or null if not degraded.
    */
-  getDegradedState(): PluginDegradedState | null {
-    return this.degradedState
+  getDegradedHealth(): HealthResult | null {
+    return this.degradedHealth
   }
 
   /**
    * Check if the registry is in degraded mode.
    */
   isDegraded(): boolean {
-    return this.degradedState !== null
+    return this.degradedHealth !== null
   }
 
   /**

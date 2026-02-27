@@ -345,21 +345,17 @@ export class ChannelManager {
 
   /**
    * Active liveness probe for a single channel.
-   * Calls plugin.healthCheck() if available, falls back to status().connected.
    */
   async checkHealth(channelId: string): Promise<boolean> {
     const entry = this.channels.get(channelId);
     if (!entry) return false;
 
-    if (entry.plugin.healthCheck) {
-      try {
-        return await entry.plugin.healthCheck();
-      } catch {
-        return false;
-      }
+    try {
+      const result = await entry.plugin.healthCheck();
+      return result.healthy;
+    } catch {
+      return false;
     }
-
-    return entry.status.connected;
   }
 
   /**

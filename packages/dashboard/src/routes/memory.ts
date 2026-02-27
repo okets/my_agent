@@ -16,34 +16,28 @@ async function tryLazyRecovery(fastify: FastifyInstance): Promise<void> {
   const pluginRegistry = fastify.pluginRegistry;
   if (!pluginRegistry?.isDegraded()) return;
 
-  const degraded = pluginRegistry.getDegradedState();
-  if (!degraded) return;
+  const intendedId = pluginRegistry.getIntendedPluginId();
+  if (!intendedId) return;
 
-  const plugin = pluginRegistry.get(degraded.pluginId);
+  const plugin = pluginRegistry.get(intendedId);
   if (!plugin) return;
 
   try {
     await plugin.initialize();
     const isReady = await plugin.isReady();
     if (isReady) {
-      await pluginRegistry.setActive(degraded.pluginId);
+      await pluginRegistry.setActive(intendedId);
       const dims = plugin.getDimensions();
       if (dims && fastify.memoryDb) {
         fastify.memoryDb.initVectorTable(dims);
       }
-      fastify.log.info(
-        `[Memory] Lazy recovery succeeded: ${degraded.pluginId}`,
-      );
+      fastify.log.info(`[Memory] Lazy recovery succeeded: ${intendedId}`);
       // Re-embed files that arrived while degraded (non-blocking)
       fastify.syncService?.fullSync().catch(() => {});
       fastify.statePublisher?.publishMemory();
     }
   } catch {
-    // Still degraded — update lastAttempt
-    pluginRegistry.setDegraded({
-      ...degraded,
-      lastAttempt: new Date().toISOString(),
-    });
+    // Still degraded — leave state as-is, liveness loop will retry
   }
 }
 
@@ -144,7 +138,9 @@ export async function registerMemoryRoutes(
     const status = memoryDb.getStatus();
     const active = pluginRegistry?.getActive();
     const available = pluginRegistry?.list() || [];
-    const degraded = pluginRegistry?.getDegradedState();
+    const degradedHealth = pluginRegistry?.getDegradedHealth();
+    const intendedId = pluginRegistry?.getIntendedPluginId();
+    const intendedPlugin = intendedId ? pluginRegistry?.get(intendedId) : null;
 
     return {
       initialized: true,
@@ -163,14 +159,16 @@ export async function registerMemoryRoutes(
               dimensions: active.getDimensions(),
             }
           : null,
-        degraded: degraded
+        degraded: degradedHealth
           ? {
-              pluginId: degraded.pluginId,
-              pluginName: degraded.pluginName,
-              model: degraded.model,
-              error: degraded.error,
-              resolution: degraded.resolution,
-              since: degraded.since,
+              pluginId: intendedId ?? "unknown",
+              pluginName: intendedPlugin?.name ?? "Unknown",
+              model: intendedPlugin?.modelName ?? "unknown",
+              error: degradedHealth.message ?? "Plugin unhealthy",
+              resolution:
+                degradedHealth.resolution ?? "Check plugin configuration.",
+              since:
+                degradedHealth.since?.toISOString() ?? new Date().toISOString(),
             }
           : null,
         available: available.map((p) => ({
@@ -207,7 +205,7 @@ export async function registerMemoryRoutes(
       // Publish live update to all connected clients
       fastify.statePublisher?.publishMemory();
 
-      const degraded = fastify.pluginRegistry?.getDegradedState();
+      const degraded = fastify.pluginRegistry?.getDegradedHealth();
       return {
         success: true,
         filesIndexed: result.added,

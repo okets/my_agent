@@ -1,4 +1,8 @@
 // Public API for consumption by other packages (dashboard, plugins)
+
+// Plugin base types
+export type { Plugin, PluginType, PluginState, HealthResult, PluginStatus } from './plugin/index.js'
+
 export { createBrainQuery, streamResponse } from './brain.js'
 export type {
   BrainSessionOptions,
@@ -151,7 +155,6 @@ export {
   PluginRegistry,
   LocalEmbeddingsPlugin,
   OllamaEmbeddingsPlugin,
-  deriveResolution,
   // Tools (M6-S2)
   recall,
   notebookRead,
@@ -178,7 +181,6 @@ export type {
   InitializeOptions,
   PluginConfig,
   EmbeddingsConfig,
-  PluginDegradedState,
   SyncServiceOptions,
   SearchServiceOptions,
   // Tool types (M6-S2)

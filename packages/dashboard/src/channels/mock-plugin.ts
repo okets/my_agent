@@ -4,12 +4,16 @@ import type {
   ChannelStatus,
   IncomingMessage,
   OutgoingMessage,
+  HealthResult,
+  PluginStatus,
 } from "@my-agent/core";
 import { initialStatus } from "@my-agent/core";
 
 export class MockChannelPlugin implements ChannelPlugin {
-  name = "mock";
-  icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+  readonly id = "mock";
+  readonly name = "mock";
+  readonly type = "channel" as const;
+  readonly icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
 
   private config: ChannelInstanceConfig | null = null;
   private _status: ChannelStatus;
@@ -65,12 +69,17 @@ export class MockChannelPlugin implements ChannelPlugin {
     else if (event === "status") this.handlers.status.push(handler as any);
   }
 
-  status(): ChannelStatus {
+  channelStatus(): ChannelStatus {
     return { ...this._status };
   }
 
-  async healthCheck(): Promise<boolean> {
-    return this._status.connected;
+  async healthCheck(): Promise<HealthResult> {
+    return { healthy: this._status.connected };
+  }
+
+  status(): PluginStatus {
+    if (this._status.connected) return { state: "active" };
+    return { state: "disconnected" };
   }
 
   // ── Test Methods ───────────────────────────────────────────────
