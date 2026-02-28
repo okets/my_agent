@@ -171,9 +171,15 @@ function chat() {
     // ─────────────────────────────────────────────────────────────────
     // Memory state (M6-S3)
     // ─────────────────────────────────────────────────────────────────
-    memoryStatus: null, // { index, embeddings }
-    selectedEmbeddingsPlugin: "none",
+    memoryStatus: null, // { index, embeddings, pluginState }
+    // M6-S9: Inline action buttons (no zone switching)
+    showPluginSelector: false, // For active state: expand plugin options
+    showOllamaSetup: false, // For not_set_up/error: show Ollama config form
+    showErrorReconfigure: false, // For error state: show reconfigure options
     ollamaHost: "http://localhost:11434", // Ollama server URL for embeddings
+    ollamaModel: "", // Ollama model name (selected from list)
+    ollamaModels: [], // Available models from Ollama server
+    ollamaModelsLoading: false, // Loading state for model list
     embeddingsActivating: false,
     embeddingsError: null,
     memoryRebuilding: false,
@@ -374,9 +380,14 @@ function chat() {
       Alpine.effect(() => {
         const store = Alpine.store("memory");
         if (store && store.stats) {
+          const prevState = self.memoryStatus?.pluginState;
+          const newState = store.stats.pluginState;
+
           // Convert WebSocket stats format to REST API format
           self.memoryStatus = {
             initialized: store.stats.initialized,
+            pluginState: newState, // M6-S9: 4-state status
+            activePlugin: store.stats.activePlugin, // M6-S9: For header icon
             index: {
               filesIndexed: store.stats.filesIndexed,
               totalChunks: store.stats.totalChunks,
@@ -391,8 +402,19 @@ function chat() {
                 self.memoryStatus?.embeddings?.available ||
                 [],
               ready: store.stats.embeddingsReady,
+              localModelCached: store.stats.localModelCached,
             },
+            degraded: store.stats.degraded || null, // M6-S9: For error panel
           };
+
+          // M6-S9: Reset inline UI state on state transitions
+          if (newState !== prevState) {
+            // Reset inline UI when state changes
+            self.showPluginSelector = false;
+            self.showOllamaSetup = false;
+            self.showErrorReconfigure = false;
+            self.embeddingsError = null;
+          }
         }
       });
 
@@ -3839,12 +3861,23 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
           } else {
             this.selectedEmbeddingsPlugin = "none";
           }
-          // Sync Ollama host from backend settings
+          // Sync Ollama settings from backend
           const ollamaPlugin = this.memoryStatus.embeddings?.available?.find(
             (p) => p.id === "embeddings-ollama",
           );
           if (ollamaPlugin?.settings?.host) {
             this.ollamaHost = ollamaPlugin.settings.host;
+          }
+          if (ollamaPlugin?.settings?.model) {
+            this.ollamaModel = ollamaPlugin.settings.model;
+          }
+          // If Ollama is active and we have host, auto-load models (if not already loaded)
+          if (
+            this.selectedEmbeddingsPlugin === "embeddings-ollama" &&
+            this.ollamaHost &&
+            this.ollamaModels.length === 0
+          ) {
+            this.loadOllamaModels();
           }
         }
       } catch (err) {
@@ -3889,45 +3922,218 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     },
 
     /**
-     * Activate an embeddings plugin
+     * Retry connection to Ollama (M6-S9: Error recovery)
      */
-    async activateEmbeddingsPlugin() {
+    async retryOllama() {
+      this.embeddingsActivating = true;
+      try {
+        // Re-activate the Ollama plugin (triggers health check + init)
+        const res = await fetch("/api/memory/embeddings/activate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pluginId: "embeddings-ollama",
+            ollamaHost: this.ollamaHost,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Retry failed");
+
+        // Close config on success
+        this.resetMemoryUI();
+      } catch (err) {
+        console.error("[App] Retry Ollama failed:", err);
+        this.embeddingsError = err.message || "Retry failed";
+      } finally {
+        this.embeddingsActivating = false;
+      }
+    },
+
+    /**
+     * Switch to local embeddings (M6-S9: Error fallback)
+     */
+    async useLocalEmbeddings() {
+      // Use activatePlugin which handles save + activate + close
+      await this.activatePlugin("embeddings-local");
+    },
+
+    /**
+     * Load available models from Ollama server (M6-S9: Setup flow)
+     */
+    async loadOllamaModels() {
+      this.ollamaModelsLoading = true;
+      this.embeddingsError = null;
+      this.ollamaModels = [];
+
+      try {
+        const res = await fetch(
+          `/api/memory/embeddings/ollama/models?host=${encodeURIComponent(this.ollamaHost)}`,
+        );
+        const data = await res.json();
+
+        if (!res.ok) {
+          this.embeddingsError = data.error || "Failed to load models";
+          return;
+        }
+
+        this.ollamaModels = data.models || [];
+        if (this.ollamaModels.length === 0) {
+          this.embeddingsError =
+            "No models found on server. Run 'ollama pull <model>' first.";
+        }
+      } catch (err) {
+        console.error("[App] Failed to load Ollama models:", err);
+        this.embeddingsError = err.message || "Failed to connect to Ollama";
+      } finally {
+        this.ollamaModelsLoading = false;
+      }
+    },
+
+    /**
+     * Reset all inline Memory UI state (M6-S9)
+     */
+    resetMemoryUI() {
+      this.showPluginSelector = false;
+      this.showOllamaSetup = false;
+      this.showErrorReconfigure = false;
+      this.embeddingsError = null;
+      this.ollamaModels = [];
+      this.ollamaModel = "";
+    },
+
+    /**
+     * Select a plugin from inline options (M6-S9)
+     */
+    selectPlugin(pluginId) {
+      if (pluginId === "embeddings-ollama") {
+        // Show Ollama setup form inline
+        this.showOllamaSetup = true;
+        this.showPluginSelector = false;
+        this.showErrorReconfigure = false;
+        this.ollamaModels = [];
+        this.ollamaModel = "";
+      } else {
+        // Activate immediately for non-Ollama plugins
+        this.activatePlugin(pluginId);
+      }
+    },
+
+    /**
+     * Activate a plugin (disabled/local) and close config
+     */
+    async activatePlugin(pluginId) {
       this.embeddingsActivating = true;
       this.embeddingsError = null;
 
       try {
-        // Build request body with optional ollamaHost for Ollama plugin
-        const body = { pluginId: this.selectedEmbeddingsPlugin };
-        if (this.selectedEmbeddingsPlugin === "embeddings-ollama") {
-          body.ollamaHost = this.ollamaHost;
+        // Save config
+        const configPayload =
+          pluginId === "none"
+            ? { plugin: "disabled" }
+            : pluginId === "embeddings-local"
+              ? { plugin: "local" }
+              : null;
+
+        if (configPayload) {
+          const configRes = await fetch("/api/memory/embeddings/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(configPayload),
+          });
+          if (!configRes.ok) {
+            throw new Error("Failed to save config");
+          }
         }
 
+        // Activate plugin
         const res = await fetch("/api/memory/embeddings/activate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ pluginId }),
         });
 
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Activation failed");
 
-        if (res.ok) {
-          // Refresh status to get updated state
-          await this.loadMemoryStatus();
-        } else {
-          this.embeddingsError = data.error || "Failed to activate plugin";
-          // Revert selection to match current active
-          if (this.memoryStatus?.embeddings?.active) {
-            this.selectedEmbeddingsPlugin =
-              this.memoryStatus.embeddings.active.id;
-          } else {
-            this.selectedEmbeddingsPlugin = "none";
-          }
-        }
+        // Close config on success
+        this.resetMemoryUI();
       } catch (err) {
-        console.error("[App] Failed to activate embeddings plugin:", err);
-        this.embeddingsError = err.message || "Request failed";
+        console.error("[App] Plugin activation failed:", err);
+        this.embeddingsError = err.message || "Activation failed";
       } finally {
         this.embeddingsActivating = false;
+      }
+    },
+
+    /**
+     * Set up Ollama with current host/model settings (M6-S9: Setup form)
+     */
+    async setupOllama() {
+      if (!this.ollamaModel) {
+        this.embeddingsError = "Please select a model";
+        return;
+      }
+
+      this.embeddingsActivating = true;
+      this.embeddingsError = null;
+
+      try {
+        // Save config first
+        const configRes = await fetch("/api/memory/embeddings/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plugin: "ollama",
+            host: this.ollamaHost,
+            model: this.ollamaModel,
+          }),
+        });
+
+        if (!configRes.ok) {
+          const data = await configRes.json();
+          throw new Error(data.error || "Failed to save config");
+        }
+
+        // Then activate
+        const res = await fetch("/api/memory/embeddings/activate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pluginId: "embeddings-ollama",
+            ollamaHost: this.ollamaHost,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Activation failed");
+
+        // Close config on success
+        this.resetMemoryUI();
+      } catch (err) {
+        console.error("[App] Setup Ollama failed:", err);
+        this.embeddingsError = err.message || "Setup failed";
+      } finally {
+        this.embeddingsActivating = false;
+      }
+    },
+
+    /**
+     * Test model load by performing a search (M6-S9: Active state action)
+     */
+    async testModelLoad() {
+      try {
+        const res = await fetch("/api/memory/search?q=test&maxResults=1");
+        if (res.ok) {
+          this.showNotification?.("Model loaded successfully!", "success");
+        } else {
+          this.showNotification?.("Model load test failed", "error");
+        }
+      } catch (err) {
+        this.showNotification?.(
+          "Model load test failed: " + err.message,
+          "error",
+        );
       }
     },
 

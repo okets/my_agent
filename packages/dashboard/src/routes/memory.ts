@@ -6,6 +6,12 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { existsSync, readdirSync } from "fs";
+import { join } from "path";
+import {
+  saveEmbeddingsConfig,
+  type YamlEmbeddingsConfig,
+} from "@my-agent/core";
 
 /**
  * Attempt lazy recovery of a degraded embeddings plugin.
@@ -142,8 +148,27 @@ export async function registerMemoryRoutes(
     const intendedId = pluginRegistry?.getIntendedPluginId();
     const intendedPlugin = intendedId ? pluginRegistry?.get(intendedId) : null;
 
+    // Determine 4-state plugin status (M6-S9)
+    let pluginState: "not_set_up" | "connecting" | "active" | "error" =
+      "not_set_up";
+    if (active) {
+      pluginState = "active";
+    } else if (degradedHealth) {
+      pluginState = "error";
+    } else if (intendedId) {
+      pluginState = "connecting";
+    }
+
     return {
       initialized: true,
+      pluginState, // M6-S9: 4-state status for header icon
+      activePlugin: active
+        ? {
+            id: active.id,
+            name: active.name,
+            model: active.modelName,
+          }
+        : null,
       index: {
         filesIndexed: status.filesIndexed,
         totalChunks: status.totalChunks,
@@ -178,6 +203,20 @@ export async function registerMemoryRoutes(
           settings: p.getSettings?.(),
         })),
         ready: status.embeddingsReady,
+        // Check if local model is cached (for "Delete Local Model" visibility)
+        localModelCached: (() => {
+          const agentDir = (memoryDb as any)?.agentDir as string | undefined;
+          if (!agentDir) return false;
+          const modelsDir = join(agentDir, "cache", "models");
+          if (!existsSync(modelsDir)) return false;
+          // Check if directory has any files
+          try {
+            const files = readdirSync(modelsDir);
+            return files.length > 0;
+          } catch {
+            return false;
+          }
+        })(),
       },
     };
   });
@@ -430,4 +469,102 @@ export async function registerMemoryRoutes(
       }
     },
   );
+
+  /**
+   * GET /api/memory/embeddings/ollama/models
+   *
+   * List available models from an Ollama server.
+   * Used by UI to populate model dropdown after user enters host.
+   */
+  fastify.get<{
+    Querystring: { host?: string };
+  }>("/embeddings/ollama/models", async (request, reply) => {
+    const host = request.query.host || "http://localhost:11434";
+
+    try {
+      const response = await fetch(`${host}/api/tags`, {
+        method: "GET",
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!response.ok) {
+        return reply.code(502).send({
+          error: `Ollama server returned HTTP ${response.status}`,
+          models: [],
+        });
+      }
+
+      const data = (await response.json()) as {
+        models: Array<{ name: string; size: number; modified_at: string }>;
+      };
+
+      // Return all models (no filtering — user responsibility to pick embedding model)
+      const models = data.models.map((m) => ({
+        name: m.name,
+        size: m.size,
+      }));
+
+      return { models, host };
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to connect to Ollama";
+      fastify.log.warn(`[Memory] Failed to list Ollama models: ${message}`);
+      return reply.code(502).send({
+        error: `Cannot reach Ollama server at ${host}`,
+        models: [],
+      });
+    }
+  });
+
+  /**
+   * POST /api/memory/embeddings/config
+   *
+   * Save embeddings configuration to config.yaml
+   */
+  fastify.post<{
+    Body: YamlEmbeddingsConfig;
+  }>("/embeddings/config", async (request, reply) => {
+    const { plugin, host, model } = request.body || {};
+
+    if (!plugin || !["ollama", "local", "disabled"].includes(plugin)) {
+      return reply.code(400).send({
+        error: "Invalid plugin. Must be 'ollama', 'local', or 'disabled'.",
+      });
+    }
+
+    const config: YamlEmbeddingsConfig = { plugin };
+    if (plugin === "ollama") {
+      config.host = host ?? "http://localhost:11434";
+      config.model = model ?? "nomic-embed-text";
+    }
+
+    try {
+      // Get agent directory from memoryDb (it knows the agentDir)
+      const agentDir = (fastify.memoryDb as any)?.agentDir as
+        | string
+        | undefined;
+      saveEmbeddingsConfig(config, agentDir);
+
+      // Update running plugin if Ollama
+      if (plugin === "ollama" && fastify.pluginRegistry) {
+        const ollamaPlugin = fastify.pluginRegistry.get("embeddings-ollama");
+        if (ollamaPlugin?.configure) {
+          await ollamaPlugin.configure({
+            host: config.host,
+            model: config.model,
+          });
+        }
+      }
+
+      fastify.log.info(
+        `[Memory] Saved embeddings config: ${JSON.stringify(config)}`,
+      );
+      return reply.send({ success: true, config });
+    } catch (err) {
+      fastify.log.error(err, "[Memory] Failed to save embeddings config");
+      return reply.code(500).send({
+        error: "Failed to save embeddings config",
+      });
+    }
+  });
 }

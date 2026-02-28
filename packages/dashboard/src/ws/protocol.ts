@@ -233,6 +233,7 @@ export interface CalendarEventSnapshot {
 // Memory status snapshot for live updates
 export interface MemoryStats {
   initialized: boolean;
+  pluginState: "not_set_up" | "connecting" | "active" | "error";
   filesIndexed: number;
   totalChunks: number;
   lastSync: string | null;
@@ -256,6 +257,7 @@ export interface MemoryStats {
     name: string;
     model: string;
   }>;
+  localModelCached?: boolean; // M6-S9: For "Delete Local Model" visibility
 }
 
 // Notification payload for WebSocket transport

@@ -10,6 +10,8 @@
  */
 
 import type { WebSocket } from "@fastify/websocket";
+import { existsSync, readdirSync } from "fs";
+import { join } from "path";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import type {
   TaskSnapshot,
@@ -335,6 +337,7 @@ export class StatePublisher {
     if (!this.memoryDb) {
       return {
         initialized: false,
+        pluginState: "not_set_up",
         filesIndexed: 0,
         totalChunks: 0,
         lastSync: null,
@@ -356,8 +359,21 @@ export class StatePublisher {
       ? this.pluginRegistry?.get(intendedId)
       : null;
 
+    // Determine 4-state plugin status
+    let pluginState: "not_set_up" | "connecting" | "active" | "error" =
+      "not_set_up";
+    if (active) {
+      pluginState = "active";
+    } else if (degradedHealth) {
+      pluginState = "error";
+    } else if (intendedId) {
+      // Has intended but not active — connecting or recovering
+      pluginState = "connecting";
+    }
+
     return {
       initialized: true,
+      pluginState,
       filesIndexed: status.filesIndexed,
       totalChunks: status.totalChunks,
       lastSync: status.lastSync,
@@ -387,6 +403,19 @@ export class StatePublisher {
         name: p.name,
         model: p.modelName,
       })),
+      // M6-S9: Check if local model is cached for "Delete Local Model" visibility
+      localModelCached: (() => {
+        const agentDir = (this.memoryDb as any)?.agentDir as string | undefined;
+        if (!agentDir) return false;
+        const modelsDir = join(agentDir, "cache", "models");
+        if (!existsSync(modelsDir)) return false;
+        try {
+          const files = readdirSync(modelsDir);
+          return files.length > 0;
+        } catch {
+          return false;
+        }
+      })(),
     };
   }
 }
