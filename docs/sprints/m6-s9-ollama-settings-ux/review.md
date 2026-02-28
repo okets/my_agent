@@ -2,7 +2,7 @@
 
 > **Reviewer:** Opus (Tech Lead)
 > **Date:** 2026-02-28
-> **Build:** e308e59
+> **Build:** 950eb53
 > **Mode:** Normal sprint
 > **Status:** COMPLETE
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Redesigned the Memory settings panel with inline action buttons and fixed a critical bug where files indexed during Ollama downtime never received embeddings.
+Redesigned the Memory settings panel with inline action buttons, added embeddings config persistence, enhanced the Ollama plugin with retry logic and degraded callbacks, and fixed a critical bug where files indexed during Ollama downtime never received embeddings.
 
 ---
 
@@ -127,6 +127,50 @@ if (existingFile && existingFile.hash === hash) {
 - `packages/core/src/memory/memory-db.ts` — schema, migration, CRUD methods
 - `packages/core/src/memory/sync-service.ts` — updated skip logic in `syncFile()` and `fullSync()`
 
+### 7. Embeddings Config Persistence
+
+**Problem:** Ollama host was set via `OLLAMA_HOST` env var or defaulted to localhost. UI config changes were in-memory only, lost on restart.
+
+**Solution:** Store embeddings settings in `config.yaml`:
+
+```yaml
+embeddings:
+  plugin: ollama           # "ollama" | "local" | "disabled"
+  host: http://your-ollama-server:11434
+  model: nomic-embed-text
+```
+
+**Files changed:**
+- `packages/core/src/config.ts` — added `loadEmbeddingsConfig()`, `saveEmbeddingsConfig()`
+- `packages/core/src/lib.ts` — exports for config functions
+- `packages/dashboard/src/index.ts` — loads config on startup, passes to plugin
+
+### 8. Ollama Plugin Enhancements
+
+**Improvements:**
+- **Retry logic:** Exponential backoff (3 attempts) for embedding generation
+- **onDegraded callback:** Notifies registry and triggers UI update when health changes
+- **Enhanced healthCheck:** Verifies both server reachability AND model availability
+
+```typescript
+// packages/core/src/memory/embeddings/ollama.ts
+const ollamaPlugin = new OllamaEmbeddingsPlugin({
+  host: embeddingsConfig.host ?? "http://localhost:11434",
+  model: embeddingsConfig.model ?? "nomic-embed-text",
+  onDegraded: (health) => {
+    pluginRegistry.setDegraded(health);
+    statePublisher?.publishMemory();
+  },
+});
+```
+
+### 9. Tests
+
+Added comprehensive test coverage:
+
+- `packages/core/tests/ollama-plugin.test.ts` — Unit tests for Ollama plugin edge cases (mocked fetch, healthCheck states, retry logic)
+- `packages/dashboard/tests/ollama-api.test.ts` — API endpoint tests for memory routes
+
 ---
 
 ## E2E Verification
@@ -169,10 +213,18 @@ Used real Unraid GraphQL API to control Ollama Docker container:
 | `packages/dashboard/public/index.html` | Memory section rewrite, breakpoint fix |
 | `packages/dashboard/public/js/app.js` | Simplified state, `resetMemoryUI()`, `openSettingsSection()` fix |
 | `packages/dashboard/src/routes/memory.ts` | Added `/api/memory/sync` endpoint |
+| `packages/dashboard/src/index.ts` | Load embeddings config, wire onDegraded callback |
+| `packages/core/src/config.ts` | Added `loadEmbeddingsConfig()`, `saveEmbeddingsConfig()` |
+| `packages/core/src/lib.ts` | Export config functions |
 | `packages/core/src/memory/types.ts` | Added `indexedWithEmbeddings` to `FileRecord` |
 | `packages/core/src/memory/memory-db.ts` | Schema, migration, getFile/upsertFile/listFiles |
 | `packages/core/src/memory/sync-service.ts` | Updated skip logic in `syncFile()` and `fullSync()` |
+| `packages/core/src/memory/embeddings/ollama.ts` | Retry logic, onDegraded callback, enhanced healthCheck |
+| `packages/core/tests/ollama-plugin.test.ts` | Unit tests for Ollama plugin |
+| `packages/dashboard/tests/ollama-api.test.ts` | API endpoint tests |
 | `docs/design/database-schema.md` | Added `indexed_with_embeddings` column |
+| `docs/design/ollama-settings-ux.md` | Design spec |
+| `docs/plans/2026-02-28-ollama-settings-ux.md` | Implementation plan |
 
 ---
 
@@ -186,6 +238,10 @@ Used real Unraid GraphQL API to control Ollama Docker container:
 - [x] Health status icons open Settings tab properly
 - [x] Files indexed during degraded mode get embeddings on recovery
 - [x] `/api/memory/sync` does incremental sync (not full rebuild)
+- [x] Embeddings config persisted to config.yaml
+- [x] Ollama plugin retries with exponential backoff
+- [x] onDegraded callback triggers UI update
+- [x] Unit tests pass (`npx vitest run`)
 - [x] `npx tsc --noEmit` passes
 - [x] Server tested with real Ollama shutdown/restart
 
