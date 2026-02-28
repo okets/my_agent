@@ -43,7 +43,10 @@ export {
   loadAgentNickname,
   loadAgentFullName,
   saveChannelToConfig,
+  loadEmbeddingsConfig,
+  saveEmbeddingsConfig,
 } from './config.js'
+export type { YamlEmbeddingsConfig } from './config.js'
 export type { BrainConfig, HealthConfig } from './types.js'
 
 export { assembleSystemPrompt } from './prompt.js'

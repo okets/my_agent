@@ -67,6 +67,17 @@ interface YamlConfig {
     defaults?: { intervalMs?: number }
     plugins?: Record<string, { intervalMs?: number }>
   }
+  embeddings?: YamlEmbeddingsConfig
+}
+
+/**
+ * Embeddings plugin configuration for config.yaml.
+ * Note: Named YamlEmbeddingsConfig to avoid collision with EmbeddingsConfig in memory/embeddings.
+ */
+export interface YamlEmbeddingsConfig {
+  plugin: 'ollama' | 'local' | 'disabled'
+  host?: string // Ollama only
+  model?: string // Ollama only
 }
 
 function loadYamlConfig(agentDir: string): YamlConfig | null {
@@ -215,6 +226,57 @@ export function loadConfig(): BrainConfig {
     health: yaml?.health,
     compaction: yaml?.brain?.compaction,
   }
+}
+
+/**
+ * Load embeddings configuration.
+ * Priority: config.yaml > OLLAMA_HOST env var > defaults
+ */
+export function loadEmbeddingsConfig(agentDir?: string): YamlEmbeddingsConfig {
+  const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
+  const yaml = loadYamlConfig(dir)
+
+  // If config.yaml has embeddings section, use it
+  if (yaml?.embeddings) {
+    return {
+      plugin: yaml.embeddings.plugin ?? 'disabled',
+      host: yaml.embeddings.host,
+      model: yaml.embeddings.model,
+    }
+  }
+
+  // Migration: if OLLAMA_HOST env var set but no config, migrate it
+  const envHost = process.env.OLLAMA_HOST
+  if (envHost) {
+    return {
+      plugin: 'ollama',
+      host: envHost,
+      model: 'nomic-embed-text',
+    }
+  }
+
+  // Default: disabled
+  return { plugin: 'disabled' }
+}
+
+/**
+ * Save embeddings configuration to config.yaml.
+ */
+export function saveEmbeddingsConfig(embeddings: YamlEmbeddingsConfig, agentDir?: string): void {
+  const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
+  const configPath = path.join(dir, CONFIG_FILENAME)
+
+  let yaml: Record<string, unknown> = {}
+  if (existsSync(configPath)) {
+    try {
+      yaml = (parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>) ?? {}
+    } catch {
+      yaml = {}
+    }
+  }
+
+  yaml.embeddings = embeddings
+  writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
 }
 
 /**

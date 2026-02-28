@@ -3,6 +3,7 @@ import {
   resolveAuth,
   isHatched,
   loadConfig,
+  loadEmbeddingsConfig,
   toDisplayStatus,
   CalendarScheduler,
   createCalDAVClient,
@@ -357,12 +358,32 @@ async function main() {
       // Create plugin registry and register available plugins
       pluginRegistry = new PluginRegistry();
       pluginRegistry.register(new LocalEmbeddingsPlugin(agentDir));
-      pluginRegistry.register(
-        new OllamaEmbeddingsPlugin({
-          host: process.env.OLLAMA_HOST ?? "http://localhost:11434",
-          model: "nomic-embed-text",
-        }),
-      );
+
+      // Load embeddings config from config.yaml
+      const embeddingsConfig = loadEmbeddingsConfig(agentDir);
+
+      // Create Ollama plugin with config settings and degraded callback
+      const ollamaPlugin = new OllamaEmbeddingsPlugin({
+        host:
+          embeddingsConfig.plugin === "ollama"
+            ? (embeddingsConfig.host ?? "http://localhost:11434")
+            : "http://localhost:11434",
+        model: embeddingsConfig.model ?? "nomic-embed-text",
+        onDegraded: (health) => {
+          if (pluginRegistry) {
+            pluginRegistry.setDegraded(health);
+            server.statePublisher?.publishMemory();
+          }
+        },
+      });
+      pluginRegistry.register(ollamaPlugin);
+
+      // Log migration if env var was used but no config exists
+      if (process.env.OLLAMA_HOST && embeddingsConfig.plugin === "ollama") {
+        console.log(
+          `Using embeddings config: plugin=${embeddingsConfig.plugin}, host=${embeddingsConfig.host}`,
+        );
+      }
 
       // Create memory database
       memoryDb = new MemoryDb(agentDir);

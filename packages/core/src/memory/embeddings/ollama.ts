@@ -15,6 +15,7 @@ const DEFAULT_MODEL = 'nomic-embed-text'
 export interface OllamaPluginConfig {
   host?: string
   model?: string
+  onDegraded?: (health: HealthResult) => void
 }
 
 export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
@@ -31,10 +32,12 @@ export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
   private model: string
   private dimensions: number | null = null
   private ready = false
+  private onDegraded?: (health: HealthResult) => void
 
   constructor(config?: OllamaPluginConfig) {
     this.host = config?.host ?? DEFAULT_HOST
     this.model = config?.model ?? DEFAULT_MODEL
+    this.onDegraded = config?.onDegraded
   }
 
   get modelName(): string {
@@ -67,22 +70,20 @@ export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
   async initialize(_options?: InitializeOptions): Promise<void> {
     if (this.ready) return // Idempotent — safe to call from HealthMonitor + tryLazyRecovery
 
-    // Check server is reachable
+    // Check server is reachable and model is available
     const healthResult = await this.healthCheck()
     if (!healthResult.healthy) {
-      throw new Error(`Cannot connect to Ollama at ${this.host}. Is the server running?`)
+      throw new Error(healthResult.message ?? 'Ollama health check failed')
     }
 
-    // Check model is available
-    const hasModel = await this.checkModelAvailable()
-    if (!hasModel) {
-      throw new Error(
-        `Model '${this.model}' not found on Ollama server. ` +
-          `Run 'ollama pull ${this.model}' on the server.`,
-      )
+    // If we already know dimensions from a previous successful init, skip test embed
+    // This avoids unnecessary cold load during recovery
+    if (this.dimensions !== null) {
+      this.ready = true
+      return
     }
 
-    // Detect dimensions with a test embedding — also validates the model supports embeddings
+    // First-time init: detect dimensions with a test embedding
     let testEmbedding: number[]
     try {
       testEmbedding = await this.embedInternal('test')
@@ -156,26 +157,57 @@ export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
   }
 
   async healthCheck(): Promise<HealthResult> {
+    // Step 1: Check server is reachable
+    let tagsResponse: Response
     try {
-      const response = await fetch(`${this.host}/api/tags`, {
+      tagsResponse = await fetch(`${this.host}/api/tags`, {
         method: 'GET',
         signal: AbortSignal.timeout(5000),
       })
-      if (response.ok) {
-        return { healthy: true }
-      }
+    } catch {
       return {
         healthy: false,
-        message: `Ollama returned HTTP ${response.status}`,
+        message: `Cannot reach Ollama server at ${this.host}`,
+        resolution: 'Check that Ollama is running and the host is correct.',
+      }
+    }
+
+    if (!tagsResponse.ok) {
+      return {
+        healthy: false,
+        message: `Ollama server returned HTTP ${tagsResponse.status}`,
         resolution: 'Check that the Ollama server is running correctly.',
+      }
+    }
+
+    // Step 2: Check model is available
+    try {
+      const data = (await tagsResponse.json()) as {
+        models: Array<{ name: string }>
+      }
+      const modelFound = data.models.some(
+        (m) =>
+          m.name === this.model ||
+          m.name.startsWith(this.model + ':') ||
+          m.name === this.model + ':latest',
+      )
+
+      if (!modelFound) {
+        return {
+          healthy: false,
+          message: `Model '${this.model}' is not installed on the Ollama server`,
+          resolution: `Run 'ollama pull ${this.model}' on the Ollama server.`,
+        }
       }
     } catch {
       return {
         healthy: false,
-        message: `Cannot connect to Ollama at ${this.host}`,
-        resolution: 'Start the Ollama Docker container or check that the host is reachable.',
+        message: 'Failed to parse Ollama server response',
+        resolution: 'Check that the Ollama server is running correctly.',
       }
     }
+
+    return { healthy: true }
   }
 
   status(): PluginStatus {
@@ -212,67 +244,110 @@ export class OllamaEmbeddingsPlugin implements EmbeddingsPlugin {
   }
 
   private async embedInternal(text: string): Promise<number[]> {
-    const response = await fetch(`${this.host}/api/embed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: this.model,
-        input: text,
-      }),
-      signal: AbortSignal.timeout(30000),
-    })
+    let lastError: Error | null = null
 
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`Ollama embed failed: ${error}`)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await fetch(`${this.host}/api/embed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: this.model,
+            input: text,
+          }),
+          signal: AbortSignal.timeout(30000),
+        })
+
+        if (!response.ok) {
+          const error = await response.text()
+          throw new Error(`Ollama embed failed: ${error}`)
+        }
+
+        const data = (await response.json()) as {
+          embeddings: number[][]
+        }
+
+        if (!data.embeddings || data.embeddings.length === 0) {
+          throw new Error('Ollama returned no embeddings')
+        }
+
+        const embedding = data.embeddings[0]
+
+        // Normalize to unit length (L2 norm)
+        const norm = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0))
+        return embedding.map((v) => v / norm)
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err))
+        if (attempt === 0) {
+          // First failure — retry once
+          continue
+        }
+      }
     }
 
-    const data = (await response.json()) as {
-      embeddings: number[][]
+    // Both attempts failed — trigger degraded callback
+    if (this.onDegraded) {
+      this.onDegraded({
+        healthy: false,
+        message: `Model '${this.model}' failed to produce embeddings`,
+        resolution: 'Check that Ollama is running and the model is loaded.',
+      })
     }
-
-    if (!data.embeddings || data.embeddings.length === 0) {
-      throw new Error('Ollama returned no embeddings')
-    }
-
-    const embedding = data.embeddings[0]
-
-    // Normalize to unit length (L2 norm)
-    const norm = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0))
-    return embedding.map((v) => v / norm)
+    throw lastError ?? new Error('Embed failed after retry')
   }
 
   private async embedBatchInternal(texts: string[]): Promise<number[][]> {
-    const response = await fetch(`${this.host}/api/embed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: this.model,
-        input: texts,
-      }),
-      signal: AbortSignal.timeout(60000),
-    })
+    let lastError: Error | null = null
 
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`Ollama embed batch failed: ${error}`)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await fetch(`${this.host}/api/embed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: this.model,
+            input: texts,
+          }),
+          signal: AbortSignal.timeout(60000),
+        })
+
+        if (!response.ok) {
+          const error = await response.text()
+          throw new Error(`Ollama embed batch failed: ${error}`)
+        }
+
+        const data = (await response.json()) as {
+          embeddings: number[][]
+        }
+
+        if (!data.embeddings || data.embeddings.length !== texts.length) {
+          throw new Error(
+            `Ollama returned ${data.embeddings?.length ?? 0} embeddings for ${texts.length} inputs`,
+          )
+        }
+
+        // Normalize all embeddings
+        return data.embeddings.map((embedding) => {
+          const norm = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0))
+          return embedding.map((v) => v / norm)
+        })
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err))
+        if (attempt === 0) {
+          continue
+        }
+      }
     }
 
-    const data = (await response.json()) as {
-      embeddings: number[][]
+    // Both attempts failed — trigger degraded callback
+    if (this.onDegraded) {
+      this.onDegraded({
+        healthy: false,
+        message: `Model '${this.model}' failed to produce embeddings`,
+        resolution: 'Check that Ollama is running and the model is loaded.',
+      })
     }
-
-    if (!data.embeddings || data.embeddings.length !== texts.length) {
-      throw new Error(
-        `Ollama returned ${data.embeddings?.length ?? 0} embeddings for ${texts.length} inputs`,
-      )
-    }
-
-    // Normalize all embeddings
-    return data.embeddings.map((embedding) => {
-      const norm = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0))
-      return embedding.map((v) => v / norm)
-    })
+    throw lastError ?? new Error('Embed batch failed after retry')
   }
 }
 
