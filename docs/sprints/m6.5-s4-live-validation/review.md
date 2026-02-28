@@ -4,6 +4,7 @@
 > **Date:** 2026-02-28
 > **Build:** 79500ec
 > **Mode:** Normal sprint
+> **Status:** PAUSED — blocked by M6-S9. Resume after M6-S9 completes.
 
 ---
 
@@ -15,7 +16,7 @@
 | 5.7 | Self-referential scheduled task | **PASS** | Brain introspected its own task system, listed all 3 tasks (including itself as "running"), produced structured deliverable. `sdk_session_id` persisted. |
 | 5.11 | Two recurring tasks | **PASS** | Both calendar-fired tasks executed independently (~1 min apart), no cross-contamination. Each got its own SDK session. |
 | 5.6 | Scheduled task + WhatsApp delivery | | |
-| 2.6-live | Pre-S2 conversation fallback | | |
+| 2.6-live | Pre-S2 conversation fallback | **PASS** | Opened conv with `sdk_session_id=NULL`, brain received context injection (6 prior turns, 16154 char system prompt), responded with full history awareness, new `sdk_session_id` persisted (`de60efc3-...`). |
 | 8.6 | WhatsApp inbound message | | |
 | 7.1 | Sustained conversation (20+ msgs) | | |
 | 7.2 | Compaction indicators in logs | | |
@@ -195,5 +196,32 @@ RESULTS: 18/18 passed, 0 failed — Consistency: 100%
 - [x] No empty-title tasks created in DB
 - [x] Single-task messages still work correctly (regression check)
 - [x] tsc --noEmit passes, prettier applied
+
+---
+
+## Test 2.6-live: Pre-S2 Conversation Fallback — PASS
+
+**Setup:** Identified conversation `conv-01KJHHKBC21W590SE5RCGHM7VN` ("Scheduled Events") with `sdk_session_id = NULL`, 6 prior turns containing task deliverables (space facts, day/month info, task summaries).
+
+**Test:** Sent "What was the last thing we talked about?" via QA WebSocket.
+
+**Evidence (server logs):**
+```
+[SessionManager] Starting new SDK session (systemPrompt: 16154 chars)
+[SessionManager] Captured SDK session ID: de60efc3-f8bf-4258-bc5a-e770b3efd10d
+```
+
+**Brain response:** Full context awareness — mentioned Venus space fact, Friday, February 2026, random number 42, task summaries. Context injection working correctly (6 turns injected into 16154-char system prompt).
+
+**DB state after:**
+- `sdk_session_id`: `NULL` → `'de60efc3-f8bf-4258-bc5a-e770b3efd10d'`
+
+**Fallback mechanism:** `session-manager.ts:buildQuery()` — when `this.sdkSessionId` is null, builds fresh query with `systemPrompt` containing context injection from `buildContextInjection(recentTurns, abbreviation, updated)`. No resume attempted.
+
+---
+
+## Deliverable: Database Schema Documentation
+
+Created `docs/design/database-schema.md` — comprehensive schema reference covering both `agent.db` and `memory.db`, all tables, columns, types, indexes, migrations, and quick-access query examples. Prevents agents from fumbling with DB paths and table names.
 
 ---

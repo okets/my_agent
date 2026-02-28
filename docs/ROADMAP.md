@@ -16,8 +16,8 @@
 | **M4.5: Calendar System**    | Complete | 5/5 sprints                  |
 | **M5: Task System**          | Complete | 10/10 sprints                |
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
-| **M6: Memory**               | Complete | 8/8 sprints                  |
-| **M6.5: Agent SDK Alignment**| In Progress | 3/4 sprints (S4 remaining)  |
+| **M6: Memory**               | In Progress | 8/9 sprints (S9 added)     |
+| **M6.5: Agent SDK Alignment**| Paused   | S4 paused at 4/9 tests, blocked by M6-S9 |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
 | **M9: Email Channel**        | Planned  | Design complete, sprints TBD |
@@ -32,8 +32,8 @@
 ├─────────────────────────────────────────────────────────────────────►
 
 M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory        M6.5 SDK
-[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
-   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
+[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████░░░░]   [████████░░░░]
+   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE        S9 PLANNED      S4 PAUSED
                                                                                                      M7 Coding Projects
                                                                                                      M8 Ops Dashboard
                                                                                                      M9 Email
@@ -254,7 +254,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 
 ---
 
-### M6: Memory — COMPLETE
+### M6: Memory — IN PROGRESS
 
 Markdown-first notebook memory: files are the source of truth, SQLite is a derived search index. Hybrid BM25 + vector search. Local embeddings via plugin system.
 
@@ -273,6 +273,7 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 | S6     | Embeddings Degraded Mode           | Complete | [plan](sprints/m6-s6-embeddings-degraded-mode/plan.md) | [review](sprints/m6-s6-embeddings-degraded-mode/review.md) |
 | S7     | Unified Plugin Interface           | Complete | [plan](sprints/m6-s7-unified-plugin-interface/plan.md) | [review](sprints/m6-s7-unified-plugin-interface/review.md) |
 | S8     | Configurable Health Monitor        | Complete | [plan](sprints/m6-s8-health-monitor/plan.md) | [review](sprints/m6-s8-health-monitor/review.md) |
+| S9     | TBD                                | Planned  | — | — |
 
 **Architecture:**
 
@@ -329,7 +330,7 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 
 ---
 
-### M6.5: Agent SDK Alignment — COMPLETE
+### M6.5: Agent SDK Alignment — PAUSED
 
 Retrofit the codebase to properly use Agent SDK features. Replaces prompt-injection session management with native SDK sessions, adds MCP tools, subagents, programmatic hooks, and enables server-side compaction.
 
@@ -340,7 +341,7 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 | S1     | SDK Enhancement   | Complete | [plan](sprints/m6.5-s1-sdk-enhancement/plan.md)       | [review](sprints/m6.5-s1-sdk-enhancement/review.md)       |
 | S2     | Session Rewrite   | Complete | [plan](sprints/m6.5-s2-session-rewrite/plan.md)       | [review](sprints/m6.5-s2-session-rewrite/review.md)       |
 | S3     | E2E Validation    | Complete | [plan](sprints/m6.5-s3-e2e-validation/plan.md)        | [review](sprints/m6.5-s3-e2e-validation/review.md)        |
-| S4     | Live Validation   | In Progress | [plan](sprints/m6.5-s4-live-validation/plan.md)     | [review](sprints/m6.5-s4-live-validation/review.md)        |
+| S4     | Live Validation   | Paused      | [plan](sprints/m6.5-s4-live-validation/plan.md)     | [review](sprints/m6.5-s4-live-validation/review.md)        |
 
 **Sprint structure:**
 
@@ -362,7 +363,7 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 - _(S2)_ `sdk_session_id` column in conversations + tasks tables
 - _(S2)_ Server-side compaction enabled (beta)
 - _(S3)_ E2E validation: 48 pass, 7 partial, 0 fail across 61 tests. All Run 1 bugs fixed.
-- _(S4)_ Live validation: 3/9 tests pass (5.12, 5.7, 5.11). Bug fix: TaskExtractor multi-task extraction (100% consistency). 6 tests remaining (WhatsApp, compaction).
+- _(S4, paused)_ Live validation: 4/9 tests pass (5.12, 5.7, 5.11, 2.6-live). Bug fixes: Alpine notification panel crash, TaskExtractor multi-task extraction (100% consistency). DB schema doc created. 5 tests remaining (WhatsApp, compaction). Paused — blocked by M6-S9.
 
 **Key files affected:**
 
@@ -530,9 +531,9 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
 
 **Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 (all complete) → M7/M8/M9
 
-**M6.5 S1-S3 complete.** S4 (live validation of skipped tests) remaining. M7+ can start in parallel — S4 is validation only, no code changes expected.
+**M6-S9 blocks M6.5-S4.** M6.5-S4 paused at 4/9 tests. Resume after M6-S9 completes.
 
-**M6.5 complete — M7+ unblocked:** Session rewrite and MCP infrastructure are in place. All future milestones benefit from proper SDK sessions and native tools.
+**M6.5 S1-S3 complete.** S4 paused pending M6-S9. M7+ can start in parallel — S4 is validation only, no code changes expected.
 
 **M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
 
