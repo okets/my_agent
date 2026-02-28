@@ -28,6 +28,9 @@ const MAX_NOTEBOOK_CHARS = 8000
 // Total limit for all reference files combined
 const MAX_REFERENCE_TOTAL_CHARS = 32000
 
+// Directories to exclude from the notebook tree (test artifacts, etc.)
+const NOTEBOOK_TREE_IGNORE = new Set(['.DS_Store', 'Thumbs.db'])
+
 // Skills whose full content should be included in the system prompt (not just commands)
 const SKILL_CONTENT_FILES = ['task-api.md', 'channels.md', 'notebook.md']
 
@@ -85,6 +88,57 @@ function getYesterdayDate(): string {
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
   return yesterday.toISOString().split('T')[0]
+}
+
+/**
+ * Build a concise directory tree of the notebook for system prompt inclusion.
+ * Helps the brain know exactly which files exist and where.
+ */
+async function buildNotebookTree(agentDir: string): Promise<string | null> {
+  const notebookDir = path.join(agentDir, 'notebook')
+
+  if (!existsSync(notebookDir)) {
+    return null
+  }
+
+  const lines: string[] = []
+
+  async function walk(dir: string, prefix: string): Promise<void> {
+    let entries: string[]
+    try {
+      entries = await readdir(dir)
+    } catch {
+      return
+    }
+
+    const filtered = entries.filter((e) => !NOTEBOOK_TREE_IGNORE.has(e)).sort()
+
+    for (const entry of filtered) {
+      const fullPath = path.join(dir, entry)
+      let isDir = false
+      try {
+        const { statSync } = await import('node:fs')
+        isDir = statSync(fullPath).isDirectory()
+      } catch {
+        continue
+      }
+
+      if (isDir) {
+        lines.push(`${prefix}${entry}/`)
+        await walk(fullPath, prefix + '  ')
+      } else {
+        lines.push(`${prefix}${entry}`)
+      }
+    }
+  }
+
+  await walk(notebookDir, '  ')
+
+  if (lines.length === 0) {
+    return null
+  }
+
+  return `## Notebook Directory\n\nThese are the files currently in your notebook. Use exact paths when reading/writing.\n\n\`\`\`\nnotebook/\n${lines.join('\n')}\n\`\`\``
 }
 
 /**
@@ -378,6 +432,12 @@ export async function assembleSystemPrompt(
     const dailyLogs = await loadDailyLogs(agentDir)
     if (dailyLogs) {
       sections.push(dailyLogs)
+    }
+
+    // Include notebook directory tree so the brain knows exact file paths
+    const notebookTree = await buildNotebookTree(agentDir)
+    if (notebookTree) {
+      sections.push(notebookTree)
     }
   } else {
     // Fall back to legacy runtime files

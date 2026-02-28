@@ -1074,6 +1074,7 @@ export async function registerDebugRoutes(
         name: p.name,
         model: p.modelName,
         dimensions: p.getDimensions(),
+        settings: p.getSettings?.() ?? null,
       })),
     };
   });

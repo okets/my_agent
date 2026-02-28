@@ -44,6 +44,7 @@ import {
 } from "./tasks/index.js";
 import { connectionRegistry, sessionRegistry } from "./ws/chat-handler.js";
 import { StatePublisher } from "./state/state-publisher.js";
+import { initMcpServers } from "./agent/session-manager.js";
 
 // Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
 // When the dashboard is started from within a Claude Code session (e.g. during dev),
@@ -477,6 +478,12 @@ async function main() {
   server.syncService = syncService;
   server.searchService = searchService;
   server.pluginRegistry = pluginRegistry;
+
+  // Wire MCP memory tools into brain sessions
+  if (searchService) {
+    const notebookDir = join(agentDir, "notebook");
+    initMcpServers(searchService, notebookDir);
+  }
 
   // Connect memory services to state publisher for live updates
   if (server.statePublisher) {

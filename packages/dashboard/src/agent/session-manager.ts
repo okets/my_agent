@@ -6,9 +6,37 @@ import {
   createCalDAVClient,
   loadCalendarConfig,
   loadCalendarCredentials,
+  createHooks,
+  createMemoryServer,
 } from "@my-agent/core";
-import type { Query, ContentBlock, BrainConfig } from "@my-agent/core";
+import type {
+  Query,
+  ContentBlock,
+  BrainConfig,
+  HookEvent,
+  HookCallbackMatcher,
+  SearchService,
+} from "@my-agent/core";
+import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { processStream, type StreamEvent } from "./stream-processor.js";
+
+/** Cached MCP servers — initialized once via initMcpServers() */
+let sharedMcpServers: Options["mcpServers"] | null = null;
+
+/**
+ * Initialize MCP servers for brain sessions.
+ * Call once from index.ts after searchService is ready.
+ */
+export function initMcpServers(
+  searchService: SearchService,
+  notebookDir: string,
+): void {
+  const memoryServer = createMemoryServer({ notebookDir, searchService });
+  sharedMcpServers = { memory: memoryServer };
+  console.log(
+    `[SessionManager] MCP servers initialized (memory → ${notebookDir})`,
+  );
+}
 
 interface StreamOptions {
   /** Override the default model */
@@ -23,6 +51,8 @@ export class SessionManager {
   private sdkSessionId: string | null;
   private config: BrainConfig | null = null;
   private baseSystemPrompt: string | null = null;
+  private hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> | null =
+    null;
   private initPromise: Promise<void> | null = null;
   private activeQuery: Query | null = null;
 
@@ -86,6 +116,14 @@ export class SessionManager {
     this.baseSystemPrompt = await assembleSystemPrompt(this.config.brainDir, {
       calendarContext,
     });
+
+    // Wire hooks for audit logging and safety
+    const agentDir = this.config.brainDir.replace(/\/brain$/, "");
+    this.hooks = createHooks("brain", { agentDir });
+    console.log(
+      `[SessionManager] Hooks wired (trust: brain, dir: ${agentDir})`,
+    );
+
     console.log(
       `[SessionManager] System prompt assembled (${this.baseSystemPrompt?.length ?? 0} chars), has calendar: ${!!calendarContext}`,
     );
@@ -183,6 +221,8 @@ export class SessionManager {
         includePartialMessages: true,
         reasoning,
         compaction: this.config!.compaction ?? true,
+        hooks: this.hooks ?? undefined,
+        mcpServers: sharedMcpServers ?? undefined,
       });
     }
 
@@ -208,6 +248,8 @@ export class SessionManager {
       continue: false,
       includePartialMessages: true,
       reasoning,
+      hooks: this.hooks ?? undefined,
+      mcpServers: sharedMcpServers ?? undefined,
     });
   }
 

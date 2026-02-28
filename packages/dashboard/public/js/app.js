@@ -1147,6 +1147,7 @@ function chat() {
         case "notification": {
           // New or updated notification
           const notification = data.notification;
+          if (!notification || !notification.id) break;
           const existing = this.notifications.findIndex(
             (n) => n.id === notification.id,
           );
@@ -1161,8 +1162,8 @@ function chat() {
 
         case "notification_list": {
           // Full notification list (on request)
-          this.notifications = data.notifications;
-          this.pendingNotificationCount = data.pendingCount;
+          this.notifications = data.notifications || [];
+          this.pendingNotificationCount = data.pendingCount || 0;
           break;
         }
 
