@@ -211,4 +211,8 @@ export interface ChannelInfo {
   statusDetail: ChannelStatus
   /** SVG icon string */
   icon: string
+  /** Whether channel has authorized owner(s) */
+  hasOwner: boolean
+  /** Owner's phone number (if available from JID) */
+  ownerNumber?: string
 }

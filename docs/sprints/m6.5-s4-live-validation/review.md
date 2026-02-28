@@ -2,9 +2,9 @@
 
 > **Reviewer:** Opus (Tech Lead)
 > **Date:** 2026-02-28
-> **Build:** 79500ec (tests 1-4), latest master (tests 7.x + bug fixes)
+> **Build:** 8fc93b0 (latest master)
 > **Mode:** Normal sprint
-> **Status:** COMPLETE — 5 PASS, 2 N/A (compaction), 2 TODO (WhatsApp — next task)
+> **Status:** IN PROGRESS — 5 PASS, 2 N/A, 5 TODO (WhatsApp blocked on re-pairing)
 
 ---
 
@@ -390,7 +390,120 @@ Added `process.on('unhandledRejection')` handler in `packages/dashboard/src/inde
 | 7.3 | Post-compaction memory | **N/A** (code-verified) |
 | 5.6 | Scheduled + WhatsApp delivery | **TODO** |
 | 8.6 | WhatsApp inbound | **TODO** |
+| 8.7 | `/new` — baseline active conversation | **TODO** |
+| 8.8 | `/new` — reset active conversation | **TODO** |
+| 8.9 | `/new` — route to new conversation | **TODO** |
 
-**Result: 5 PASS, 2 N/A (verified by code review), 2 TODO (WhatsApp — next task).**
+**Result: 5 PASS, 2 N/A (verified by code review), 5 TODO (WhatsApp — blocked on re-pairing).**
 
-**Bug fixes shipped:** Compaction beta removal, unhandledRejection crash guard, stderr diagnostic logging.
+**Bug fixes shipped:** Compaction beta removal, unhandledRejection crash guard, stderr diagnostic logging, disconnect flow, QR refresh rate.
+
+---
+
+## WhatsApp Integration Fixes (During Live Validation Attempt)
+
+Attempted tests 8.7-8.9 during session. Discovered multiple blocking issues that were fixed before UX redesign.
+
+### Bug Fix: Disconnect Button Not Clearing Auth
+
+**Symptom:** Clicking "Disconnect" disconnected the WebSocket but didn't clear auth files. Re-pairing showed cached credentials instead of fresh QR.
+
+**Fix:** Added `clearAuth()` call to `disconnectChannel()` in `packages/dashboard/src/channels/manager.ts`.
+
+### Bug Fix: QR Code Refreshing Every 2-3 Seconds
+
+**Symptom:** During pairing, QR code cycled every 2-3 seconds — too fast to scan.
+
+**Root cause:** Race condition between Baileys' internal QR refresh (which causes brief disconnect) and ChannelManager's reconnect logic. Each QR refresh triggered a new socket, creating a cascade.
+
+**Fix:** Set `entry.pairing = true` in `connectChannel()` before starting connection. Reconnect logic now suppresses during pairing mode.
+
+**File:** `packages/dashboard/src/channels/manager.ts`
+
+### Config Fix: Owner Identity Mismatch
+
+**Symptom:** WhatsApp messages from owner were being treated as "external" instead of routed to brain.
+
+**Root cause:** `owner_identities` in config.yaml had wrong LID (Nina's device LID instead of user's).
+
+**Fix:** Updated `.my_agent/config.yaml` with correct owner LID `262264275869855`.
+
+### Current Blocker: Nina's WhatsApp Needs Re-pairing
+
+**Issue:** Nina's WhatsApp was previously paired as a "linked device" to the user's account rather than as a standalone account on Nina's dedicated phone (+1 480 246-6489).
+
+**Evidence:** `creds.json` showed user's phone number as "me" — indicating linked device setup, not dedicated account.
+
+**Resolution:** Need to re-pair with Nina's actual phone. Tests 8.7-8.9 blocked until re-pairing completes.
+
+---
+
+## Channel Settings UX Redesign
+
+During live validation, user noticed UX confusion in channel settings:
+- "dedicated" badge shown even when disconnected (technical jargon)
+- "Pair" vs "Re-pair Device" inconsistent
+- QR instructions didn't specify which phone to use
+
+### Changes Implemented
+
+| Element | Before | After |
+|---------|--------|-------|
+| Channel name | `ninas_whatsapp` (raw ID) | `Ninas Whatsapp` (title-cased) |
+| Role badge | `[dedicated]` badge | `Agent-owned` inline text |
+| Role: personal | `[personal]` | `Your account` |
+| Status text | `connecting (73s)` | `Connecting...` |
+| Button: disconnected | `Pair` | `Connect` |
+| Button: error | `Re-pair Device` | `Reconnect` |
+| QR: dedicated | "on your phone" | "on the phone Nina will use" |
+| QR: personal | "on your phone" | "on your phone to link" |
+
+### Files Changed
+
+| File | Changes |
+|------|---------|
+| `packages/dashboard/public/js/app.js` | Added `friendlyRole()`, `channelTitle()`, `friendlyStatus()`, `channelActionLabel()` helpers |
+| `packages/dashboard/public/index.html` | Updated card header, status, buttons, QR instructions |
+| `packages/dashboard/src/routes/channels.ts` | API now accepts `role` parameter |
+
+### Add Channel Form Enhanced
+
+Added role selection to the Add Channel form:
+- "Agent-owned" (dedicated) — default
+- "Your account" (personal)
+
+User can now add multiple channels with different roles from the UI.
+
+### Channel Remove Functionality
+
+Added ability to remove channels from the UI:
+- DELETE `/api/channels/:id` endpoint
+- `removeChannelFromConfig()` in core package
+- `removeChannel()` in ChannelManager (clears auth + removes from runtime)
+- "Remove" button in channel card (with confirmation dialog)
+
+### Additional Bug Fixes (Session 2)
+
+**515 "Restart Required" Detection:**
+- **Symptom:** After successful QR scan, pairing didn't complete
+- **Root cause:** Plugin sets `error: undefined` for 515, but manager checked `error === null`
+- **Fix:** Changed to `error == null` (loose equality) in `manager.ts`
+
+**QR Auto-Refresh on Expiry:**
+- **Symptom:** QR countdown reached 0, no new QR generated
+- **Fix:** Added auto-refresh in `app.js` — when countdown expires, automatically calls `pairChannel()` if still connecting
+
+**Owner Authorization UX:**
+- Button: "Verify Ownership" → "Authorize Owner" (when no owner)
+- After authorization: Shows "Owner: +1234567890" with "Change" button
+- For LID-based owners: Shows "Owner: Authorized" (LIDs don't contain phone numbers)
+- Added `hasOwner` and `ownerNumber` to ChannelInfo API response
+
+**Dynamic Agent Name in QR Instructions:**
+- QR instruction text now uses `agentNickname` instead of hardcoded "Nina"
+
+---
+
+## Ready for Next Session
+
+Tests 8.7-8.9 are ready to execute now that WhatsApp pairing is working. Channel is connected and owner is authorized.

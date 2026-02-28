@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { saveChannelToConfig } from "@my-agent/core";
+import { saveChannelToConfig, removeChannelFromConfig } from "@my-agent/core";
 import type { ChannelInstanceConfig } from "@my-agent/core";
 
 export async function registerChannelRoutes(
@@ -12,9 +12,10 @@ export async function registerChannelRoutes(
       id: string;
       plugin: string;
       identity?: string;
+      role?: "dedicated" | "personal";
     };
   }>("/api/channels", async (request, reply) => {
-    const { id, plugin, identity } = request.body ?? {};
+    const { id, plugin, identity, role } = request.body ?? {};
     if (!id || !plugin) {
       return reply
         .code(400)
@@ -29,6 +30,9 @@ export async function registerChannelRoutes(
       });
     }
 
+    // Validate role if provided
+    const channelRole = role === "personal" ? "personal" : "dedicated";
+
     // Check for duplicates
     const channelManager = fastify.channelManager;
     if (channelManager?.getChannelInfo(id)) {
@@ -38,7 +42,7 @@ export async function registerChannelRoutes(
     // Build channel config for YAML persistence
     const channelData: Record<string, unknown> = {
       plugin,
-      role: "dedicated",
+      role: channelRole,
       processing: "immediate",
       auth_dir: join(fastify.agentDir, "auth", id),
     };
@@ -59,7 +63,7 @@ export async function registerChannelRoutes(
     const config: ChannelInstanceConfig = {
       id,
       plugin,
-      role: "dedicated",
+      role: channelRole,
       identity: identity ?? "",
       processing: "immediate",
       authDir,
@@ -90,7 +94,7 @@ export async function registerChannelRoutes(
     return reply.send({
       id,
       plugin,
-      role: "dedicated",
+      role: channelRole,
       identity: identity ?? "",
       status: "disconnected",
       statusDetail: {},
@@ -200,6 +204,31 @@ export async function registerChannelRoutes(
       }
       try {
         await channelManager.disconnectChannel(request.params.id);
+        return reply.send({ ok: true });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return reply.code(500).send({ error: message });
+      }
+    },
+  );
+
+  // DELETE /api/channels/:id — remove a channel entirely
+  fastify.delete<{ Params: { id: string } }>(
+    "/api/channels/:id",
+    async (request, reply) => {
+      const channelManager = fastify.channelManager;
+      if (!channelManager) {
+        return reply.code(404).send({ error: "No channels configured" });
+      }
+      const info = channelManager.getChannelInfo(request.params.id);
+      if (!info) {
+        return reply.code(404).send({ error: "Channel not found" });
+      }
+      try {
+        // Remove from runtime
+        await channelManager.removeChannel(request.params.id);
+        // Remove from config.yaml
+        removeChannelFromConfig(request.params.id, fastify.agentDir);
         return reply.send({ ok: true });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

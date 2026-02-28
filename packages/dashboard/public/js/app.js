@@ -80,7 +80,7 @@ function chat() {
     showAddChannel: false,
     addingChannel: false,
     addChannelError: null,
-    newChannel: { id: "" },
+    newChannel: { id: "", role: "dedicated" },
 
     // Authorization tokens: { channelId: "TOKEN" }
     authTokens: {},
@@ -2144,6 +2144,56 @@ function chat() {
       }
     },
 
+    /**
+     * Convert technical role to user-friendly text
+     */
+    friendlyRole(role) {
+      return role === "dedicated" ? "Agent-owned" : "Your account";
+    },
+
+    /**
+     * Get display title for a channel (fallback to ID)
+     */
+    channelTitle(ch) {
+      // Could add ch.title support later; for now use ID with formatting
+      return ch.id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    },
+
+    /**
+     * Get friendly status text
+     */
+    friendlyStatus(status) {
+      switch (status) {
+        case "connected":
+          return "Connected";
+        case "connecting":
+          return "Connecting...";
+        case "error":
+          return "Error";
+        case "logged_out":
+          return "Logged out";
+        case "disconnected":
+          return "Disconnected";
+        default:
+          return status;
+      }
+    },
+
+    /**
+     * Get action button label based on status
+     */
+    channelActionLabel(status) {
+      switch (status) {
+        case "disconnected":
+          return "Connect";
+        case "error":
+        case "logged_out":
+          return "Reconnect";
+        default:
+          return null;
+      }
+    },
+
     channelTooltip(ch) {
       let tip = ch.status || "unknown";
       if (ch.reconnectAttempts > 0) {
@@ -2252,6 +2302,7 @@ function chat() {
           body: JSON.stringify({
             id: this.newChannel.id.trim().replace(/\s+/g, "_").toLowerCase(),
             plugin: "baileys",
+            role: this.newChannel.role || "dedicated",
           }),
         });
 
@@ -2267,7 +2318,7 @@ function chat() {
         // Reset form and trigger pairing
         const channelId = data.id;
         this.showAddChannel = false;
-        this.newChannel = { id: "" };
+        this.newChannel = { id: "", role: "dedicated" };
 
         // Auto-trigger QR pairing
         await this.pairChannel(channelId);
@@ -2312,6 +2363,12 @@ function chat() {
           this.qrCountdowns[channelId]--;
         } else {
           this.clearQrCountdown(channelId);
+          // QR expired - check if channel is still connecting and request new QR
+          const ch = this.channels.find((c) => c.id === channelId);
+          if (ch && ch.status === "connecting") {
+            console.log(`[App] QR expired for ${channelId}, requesting new QR`);
+            this.pairChannel(channelId);
+          }
         }
       }, 1000);
     },
@@ -2385,6 +2442,26 @@ function chat() {
         }
       } catch (err) {
         console.error("[App] Disconnect request failed:", err);
+      }
+    },
+
+    async removeChannel(channelId) {
+      if (!confirm(`Remove channel "${channelId}"? This will delete all auth data.`)) {
+        return;
+      }
+      try {
+        const res = await fetch(`/api/channels/${channelId}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.error("[App] Remove failed:", data.error || res.statusText);
+          return;
+        }
+        // Remove from local state
+        this.channels = this.channels.filter((ch) => ch.id !== channelId);
+      } catch (err) {
+        console.error("[App] Remove request failed:", err);
       }
     },
 

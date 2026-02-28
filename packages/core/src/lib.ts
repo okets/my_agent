@@ -43,6 +43,7 @@ export {
   loadAgentNickname,
   loadAgentFullName,
   saveChannelToConfig,
+  removeChannelFromConfig,
   loadEmbeddingsConfig,
   saveEmbeddingsConfig,
 } from './config.js'

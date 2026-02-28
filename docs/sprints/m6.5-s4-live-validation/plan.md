@@ -50,6 +50,9 @@ Requires sustained conversation to approach the 200K context limit.
 | # | Test | Expected | Notes |
 |---|------|----------|-------|
 | 8.6 | Send a WhatsApp message to the agent | Message creates/routes to a conversation with SDK session | Requires phone |
+| 8.7 | `/new` — Establish baseline active conversation | Send normal WhatsApp message → pinned conversation exists | Prerequisite for 8.8 |
+| 8.8 | `/new` — Reset active conversation | Send `/new` via WhatsApp → old conv unpinned, new conv pinned, user gets confirmation | Verifies `/new` handler |
+| 8.9 | `/new` — Subsequent message routes correctly | Send follow-up after `/new` → message lands in new conv, old conv untouched | Verifies routing post-reset |
 
 ### Group D: Pre-S2 Conversation Live Test
 

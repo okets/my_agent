@@ -190,6 +190,11 @@ export class ChannelManager {
 
     // Auto-connect on startup if credentials exist (will show QR if not)
     if (config.processing === "immediate") {
+      // Enter pairing mode before connect to suppress reconnect loops during QR display.
+      // If the channel has valid credentials, it will connect successfully and clear this flag.
+      // If it needs QR pairing, this prevents rapid reconnect loops.
+      entry.pairing = true;
+      console.log(`[ChannelManager] Entering pairing mode for ${id} (startup)`);
       try {
         await plugin.connect();
         console.log(`[ChannelManager] Connected channel: ${id}`);
@@ -242,11 +247,33 @@ export class ChannelManager {
   }
 
   /**
+   * Extract phone number from JID if it's a phone-based JID (not a LID).
+   * Returns formatted number or undefined for LIDs.
+   */
+  private extractOwnerNumber(ownerJid?: string): string | undefined {
+    if (!ownerJid) return undefined;
+    // LIDs end with @lid, phone JIDs end with @s.whatsapp.net
+    if (ownerJid.endsWith("@lid")) return undefined;
+    const match = ownerJid.match(/^(\d+)@/);
+    if (!match) return undefined;
+    // Format: +1 234 567 8901
+    const digits = match[1];
+    if (digits.length >= 10) {
+      return "+" + digits;
+    }
+    return digits;
+  }
+
+  /**
    * Get all channel infos for REST API.
    */
   getChannelInfos(): ChannelInfo[] {
     const infos: ChannelInfo[] = [];
     for (const [id, entry] of this.channels.entries()) {
+      const hasOwner = !!(
+        entry.config.ownerIdentities && entry.config.ownerIdentities.length > 0
+      );
+      const ownerNumber = this.extractOwnerNumber(entry.config.ownerJid);
       infos.push({
         id,
         plugin: entry.config.plugin,
@@ -255,6 +282,8 @@ export class ChannelManager {
         status: toDisplayStatus(entry.status),
         statusDetail: entry.status,
         icon: entry.plugin.icon,
+        hasOwner,
+        ownerNumber,
       });
     }
     return infos;
@@ -267,6 +296,10 @@ export class ChannelManager {
     const entry = this.channels.get(id);
     if (!entry) return null;
 
+    const hasOwner = !!(
+      entry.config.ownerIdentities && entry.config.ownerIdentities.length > 0
+    );
+    const ownerNumber = this.extractOwnerNumber(entry.config.ownerJid);
     return {
       id,
       plugin: entry.config.plugin,
@@ -275,6 +308,8 @@ export class ChannelManager {
       status: toDisplayStatus(entry.status),
       statusDetail: entry.status,
       icon: entry.plugin.icon,
+      hasOwner,
+      ownerNumber,
     };
   }
 
@@ -326,10 +361,14 @@ export class ChannelManager {
     if (clearAuth && "clearAuth" in entry.plugin) {
       console.log(`[ChannelManager] Clearing auth for ${id}`);
       await (entry.plugin as { clearAuth: () => Promise<void> }).clearAuth();
-      // Set pairing flag to suppress reconnect logic during QR wait
-      entry.pairing = true;
-      console.log(`[ChannelManager] Entering pairing mode for ${id}`);
     }
+
+    // ALWAYS enter pairing mode when connecting a non-connected channel.
+    // This suppresses reconnect logic during QR display. If the channel has
+    // valid credentials, it will connect immediately and clear this flag.
+    // If it needs QR pairing, this prevents rapid reconnect loops.
+    entry.pairing = true;
+    console.log(`[ChannelManager] Entering pairing mode for ${id}`);
 
     // Reset reconnect attempts for fresh pairing
     entry.status.reconnectAttempts = 0;
@@ -340,15 +379,61 @@ export class ChannelManager {
 
   /**
    * Disconnect a single channel and clear its reconnect timer.
+   * If clearAuth is true (default), clears stored credentials so re-pairing is required.
    */
-  async disconnectChannel(id: string): Promise<void> {
+  async disconnectChannel(id: string, clearAuth = true): Promise<void> {
     const entry = this.channels.get(id);
     if (!entry) throw new Error(`Channel not found: ${id}`);
+
+    // Clear any pending reconnect timer
     if (entry.reconnectTimer) {
       clearTimeout(entry.reconnectTimer);
       entry.reconnectTimer = null;
     }
+
+    // Disconnect the socket first
     await entry.plugin.disconnect();
+
+    // Clear auth credentials if requested (default: yes)
+    if (clearAuth && "clearAuth" in entry.plugin) {
+      console.log(`[ChannelManager] Clearing auth for ${id}`);
+      await (entry.plugin as { clearAuth: () => Promise<void> }).clearAuth();
+    }
+  }
+
+  /**
+   * Remove a channel entirely (disconnect + clear auth + remove from manager).
+   * Does NOT remove from config.yaml — caller should do that separately.
+   */
+  async removeChannel(id: string): Promise<void> {
+    const entry = this.channels.get(id);
+    if (!entry) throw new Error(`Channel not found: ${id}`);
+
+    // Clear reconnect timer
+    if (entry.reconnectTimer) {
+      clearTimeout(entry.reconnectTimer);
+      entry.reconnectTimer = null;
+    }
+
+    // Stop watchdog
+    if (entry.watchdogTimer) {
+      clearInterval(entry.watchdogTimer);
+      entry.watchdogTimer = null;
+    }
+
+    // Disconnect and clear auth
+    try {
+      await entry.plugin.disconnect();
+      if ("clearAuth" in entry.plugin) {
+        await (entry.plugin as { clearAuth: () => Promise<void> }).clearAuth();
+      }
+    } catch {
+      // Ignore errors during cleanup
+    }
+
+    // Remove from internal map
+    this.channels.delete(id);
+    console.log(`[ChannelManager] Removed channel: ${id}`);
   }
 
   /**
@@ -511,26 +596,33 @@ export class ChannelManager {
         return;
       }
 
-      // In pairing mode - be more careful about reconnects
+      // In pairing mode - suppress all reconnects
+      // During QR pairing, Baileys closes and reopens the connection multiple times
+      // as QR codes refresh. This is normal behavior. We should:
+      // 1. NOT treat these as failures
+      // 2. NOT trigger reconnection (Baileys handles this internally)
+      // 3. Wait for either success (connection: "open") or definitive failure (loggedOut)
       if (entry.pairing) {
-        // During pairing, only reconnect if it's a restartRequired (error is null)
-        const isRestartRequired = newStatus.lastDisconnect.error === null;
+        // restartRequired (error is null/undefined) means pairing succeeded - proceed to reconnect
+        // Note: plugin sets error to undefined (not null) for 515 restartRequired
+        const isRestartRequired = newStatus.lastDisconnect.error == null;
 
-        if (!isRestartRequired) {
-          // Disconnect with an actual error - pairing failed
+        if (isRestartRequired) {
+          // Pairing succeeded - clear flag and reconnect to establish session
           console.log(
-            `[ChannelManager] Channel ${channelId} pairing failed:`,
-            newStatus.lastDisconnect.error,
+            `[ChannelManager] Channel ${channelId} pairing complete (restartRequired), reconnecting...`,
           );
           entry.pairing = false;
+          // Fall through to start reconnection
+        } else {
+          // During pairing, any other disconnect is likely a QR refresh or timeout.
+          // Let Baileys handle the QR refresh internally - don't trigger our reconnect logic.
+          // The plugin will emit a new QR code when ready.
+          console.log(
+            `[ChannelManager] Channel ${channelId} disconnect during pairing (likely QR refresh), waiting for new QR...`,
+          );
           return;
         }
-
-        // restartRequired - pairing succeeded, clear flag and reconnect
-        console.log(
-          `[ChannelManager] Channel ${channelId} pairing complete (restartRequired), reconnecting...`,
-        );
-        entry.pairing = false;
       }
 
       // Start reconnection

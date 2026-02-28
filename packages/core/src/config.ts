@@ -309,3 +309,34 @@ export function saveChannelToConfig(
 
   writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
 }
+
+/**
+ * Remove a channel from config.yaml
+ */
+export function removeChannelFromConfig(
+  channelId: string,
+  agentDir?: string,
+): void {
+  const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
+  const configPath = path.join(dir, CONFIG_FILENAME)
+
+  if (!existsSync(configPath)) {
+    return
+  }
+
+  let yaml: Record<string, unknown> = {}
+  try {
+    yaml = (parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>) ?? {}
+  } catch {
+    return
+  }
+
+  if (!yaml.channels || typeof yaml.channels !== 'object') {
+    return
+  }
+
+  const channels = yaml.channels as Record<string, unknown>
+  delete channels[channelId]
+
+  writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
+}
