@@ -42,7 +42,8 @@ export class MemoryDb {
         hash TEXT NOT NULL,
         mtime TEXT NOT NULL,
         size INTEGER NOT NULL,
-        indexed_at TEXT NOT NULL
+        indexed_at TEXT NOT NULL,
+        indexed_with_embeddings INTEGER NOT NULL DEFAULT 0
       )
     `,
       )
@@ -108,6 +109,17 @@ export class MemoryDb {
     `,
       )
       .run()
+
+    // Migration: add indexed_with_embeddings column if missing (for existing DBs)
+    const columns = this.db
+      .prepare("PRAGMA table_info(files)")
+      .all() as Array<{ name: string }>
+    const hasEmbeddingsCol = columns.some((c) => c.name === "indexed_with_embeddings")
+    if (!hasEmbeddingsCol) {
+      this.db
+        .prepare("ALTER TABLE files ADD COLUMN indexed_with_embeddings INTEGER NOT NULL DEFAULT 0")
+        .run()
+    }
   }
 
   /**
@@ -239,6 +251,7 @@ export class MemoryDb {
           mtime: string
           size: number
           indexed_at: string
+          indexed_with_embeddings: number
         }
       | undefined
     if (!row) return null
@@ -248,16 +261,17 @@ export class MemoryDb {
       mtime: row.mtime,
       size: row.size,
       indexedAt: row.indexed_at,
+      indexedWithEmbeddings: row.indexed_with_embeddings === 1,
     }
   }
 
   upsertFile(file: FileRecord): void {
     this.db
       .prepare(
-        `INSERT OR REPLACE INTO files (path, hash, mtime, size, indexed_at)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO files (path, hash, mtime, size, indexed_at, indexed_with_embeddings)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(file.path, file.hash, file.mtime, file.size, file.indexedAt)
+      .run(file.path, file.hash, file.mtime, file.size, file.indexedAt, file.indexedWithEmbeddings ? 1 : 0)
   }
 
   deleteFile(path: string): void {
@@ -271,6 +285,7 @@ export class MemoryDb {
       mtime: string
       size: number
       indexed_at: string
+      indexed_with_embeddings: number
     }>
     return rows.map((row) => ({
       path: row.path,
@@ -278,6 +293,7 @@ export class MemoryDb {
       mtime: row.mtime,
       size: row.size,
       indexedAt: row.indexed_at,
+      indexedWithEmbeddings: row.indexed_with_embeddings === 1,
     }))
   }
 

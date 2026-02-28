@@ -137,6 +137,7 @@ Channel messages from non-owner contacts (M5-S3). Source: `packages/dashboard/sr
 | `mtime` | TEXT NOT NULL | Modified time |
 | `size` | INTEGER NOT NULL | Bytes |
 | `indexed_at` | TEXT NOT NULL | ISO 8601 |
+| `indexed_with_embeddings` | INTEGER NOT NULL DEFAULT 0 | 1 if embeddings generated |
 
 ### chunks
 

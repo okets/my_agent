@@ -265,6 +265,51 @@ export async function registerMemoryRoutes(
   });
 
   /**
+   * POST /api/memory/sync
+   *
+   * Incremental sync — only indexes new/changed files (does NOT clear existing index)
+   */
+  fastify.post("/sync", async (request, reply) => {
+    // Try lazy recovery before syncing
+    await tryLazyRecovery(fastify);
+
+    const syncService = fastify.syncService;
+
+    if (!syncService) {
+      return reply.code(503).send({
+        error: "Sync service not initialized",
+      });
+    }
+
+    try {
+      fastify.log.info("[Memory] Starting incremental sync...");
+      const result = await syncService.fullSync();
+
+      // Publish live update to all connected clients
+      fastify.statePublisher?.publishMemory();
+
+      const degraded = fastify.pluginRegistry?.getDegradedHealth();
+      return {
+        success: true,
+        added: result.added,
+        updated: result.updated,
+        removed: result.removed,
+        errors: result.errors.length,
+        durationMs: result.duration,
+        ...(degraded && {
+          warning:
+            "Embeddings plugin is degraded — sync indexed text only (no new vectors).",
+        }),
+      };
+    } catch (err) {
+      fastify.log.error(err, "[Memory] Sync failed");
+      return reply.code(500).send({
+        error: err instanceof Error ? err.message : "Sync failed",
+      });
+    }
+  });
+
+  /**
    * GET /api/memory/conversations/search
    *
    * Search conversation transcripts (FTS)

@@ -225,3 +225,76 @@ RESULTS: 18/18 passed, 0 failed — Consistency: 100%
 Created `docs/design/database-schema.md` — comprehensive schema reference covering both `agent.db` and `memory.db`, all tables, columns, types, indexes, migrations, and quick-access query examples. Prevents agents from fumbling with DB paths and table names.
 
 ---
+
+## Bug Fix: Degraded Mode Embeddings Recovery (M6-S9)
+
+**Discovered during:** E2E testing of Memory settings UX redesign.
+
+### Problem
+
+Files indexed while Ollama (embeddings provider) was unavailable never received embeddings, even after Ollama recovered.
+
+**Flow:**
+1. File created while Ollama is down
+2. File watcher detects file → `syncFile()` runs
+3. `plugin.isReady()` returns `false` → FTS chunks created, **no embeddings**
+4. File hash recorded in `files` table
+5. Ollama comes back up → HealthMonitor triggers `fullSync()`
+6. `fullSync()` sees file hash matches → **skips file** (embeddings never generated)
+
+**Root cause:** Sync logic used hash-only skip condition:
+```typescript
+if (existingFile && existingFile.hash === hash) {
+  continue; // BUG: doesn't check if embeddings exist!
+}
+```
+
+### Solution
+
+Added `indexed_with_embeddings` boolean to `files` table. Skip only if hash matches AND embeddings were generated.
+
+**Files changed:**
+- `packages/core/src/memory/types.ts` — added `indexedWithEmbeddings: boolean` to `FileRecord`
+- `packages/core/src/memory/memory-db.ts` — schema, migration, getFile/upsertFile/listFiles
+- `packages/core/src/memory/sync-service.ts` — updated skip logic in `syncFile()` and `fullSync()`
+- `packages/dashboard/src/routes/memory.ts` — added `/api/memory/sync` endpoint for incremental sync
+
+**New skip logic:**
+```typescript
+if (existingFile && existingFile.hash === hash) {
+  // Skip only if embeddings complete OR embeddings unavailable
+  if (existingFile.indexedWithEmbeddings || !embeddingsAvailable) {
+    continue;
+  }
+  // Hash matches but missing embeddings — reprocess
+}
+```
+
+### Verification
+
+**E2E test using real Unraid API to control Ollama Docker:**
+
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Stop Ollama via Unraid GraphQL API | Container state: EXITED |
+| 2 | Create test file in notebook | File created |
+| 3 | Wait for file watcher | `indexed_with_embeddings: 0`, no embeddings |
+| 4 | Start Ollama via Unraid API | Container state: RUNNING |
+| 5 | HealthMonitor detects recovery | Triggers `fullSync()` |
+| 6 | Check file state | `indexed_with_embeddings: 1`, embeddings exist |
+
+**Logs confirming auto-recovery:**
+```
+[HealthMonitor] Embeddings recovered: embeddings-ollama (nomic-embed-text:latest)
+```
+
+### Edge Cases Handled
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| File indexed while degraded | No embeddings forever | Reprocessed on recovery |
+| File updated while healthy | Reprocess (hash change) | Same (hash takes precedence) |
+| File updated while degraded | FTS only, stuck | Reprocessed when healthy |
+| Model/plugin change | `resetVectorIndex()` clears cache | Same (existing mechanism) |
+
+---

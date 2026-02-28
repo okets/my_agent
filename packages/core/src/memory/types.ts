@@ -13,6 +13,7 @@ export interface FileRecord {
   mtime: string // ISO 8601 modified time
   size: number // File size in bytes
   indexedAt: string // When we last indexed this file
+  indexedWithEmbeddings: boolean // True if embeddings were generated during indexing
 }
 
 // ============================================================

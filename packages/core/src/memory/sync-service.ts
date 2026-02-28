@@ -132,11 +132,19 @@ export class SyncService extends EventEmitter {
       const fileStat = await stat(filePath)
       const hash = hashFileContent(content)
 
-      // Check if file has changed
+      // Get embeddings plugin status
+      const plugin = this.getPlugin()
+      const embeddingsAvailable = plugin && (await plugin.isReady())
+
+      // Check if file needs reprocessing
       const existingFile = this.db.getFile(relativePath)
       if (existingFile && existingFile.hash === hash) {
-        // No change
-        return
+        // Hash matches — skip only if embeddings are complete OR embeddings unavailable
+        // (no point reprocessing if embeddings still unavailable)
+        if (existingFile.indexedWithEmbeddings || !embeddingsAvailable) {
+          return
+        }
+        // Hash matches but missing embeddings and embeddings now available — reprocess
       }
 
       // Delete existing chunks for this file
@@ -145,9 +153,8 @@ export class SyncService extends EventEmitter {
       // Chunk the content
       const chunks = chunkMarkdown(content)
 
-      // Get embeddings plugin
-      const plugin = this.getPlugin()
       const model = plugin?.modelName ?? 'none'
+      let generatedEmbeddings = false
 
       // Insert new chunks
       for (const chunk of chunks) {
@@ -161,16 +168,17 @@ export class SyncService extends EventEmitter {
         })
 
         // Generate and store embedding if plugin available
-        if (plugin && (await plugin.isReady())) {
+        if (embeddingsAvailable) {
           // Check embedding cache first
           let embedding = this.db.getCachedEmbedding(chunk.hash, model)
 
           if (!embedding) {
-            embedding = await plugin.embed(chunk.text)
+            embedding = await plugin!.embed(chunk.text)
             this.db.cacheEmbedding(chunk.hash, model, embedding)
           }
 
           this.db.insertChunkVector(chunkId, embedding)
+          generatedEmbeddings = true
         }
       }
 
@@ -181,6 +189,7 @@ export class SyncService extends EventEmitter {
         mtime: fileStat.mtime.toISOString(),
         size: fileStat.size,
         indexedAt: new Date().toISOString(),
+        indexedWithEmbeddings: generatedEmbeddings,
       })
 
       this.emit('sync', { type: 'file', path: relativePath })
@@ -220,6 +229,11 @@ export class SyncService extends EventEmitter {
       // Get currently indexed files
       const indexedFiles = new Set(this.db.listFiles().map((f) => f.path))
 
+      // Get embeddings plugin status (check once, reuse)
+      const plugin = this.getPlugin()
+      const embeddingsAvailable = plugin && (await plugin.isReady())
+      const model = plugin?.modelName ?? 'none'
+
       // Sync each file
       for (const relativePath of files) {
         const filePath = join(this.notebookDir, relativePath)
@@ -231,10 +245,14 @@ export class SyncService extends EventEmitter {
           const fileStat = await stat(filePath)
           const hash = hashFileContent(content)
 
-          // Check if file has changed
+          // Check if file needs reprocessing
           const existingFile = this.db.getFile(relativePath)
           if (existingFile && existingFile.hash === hash) {
-            continue // No change
+            // Hash matches — skip only if embeddings complete OR embeddings unavailable
+            if (existingFile.indexedWithEmbeddings || !embeddingsAvailable) {
+              continue
+            }
+            // Hash matches but missing embeddings and embeddings now available — reprocess
           }
 
           // Delete existing chunks
@@ -242,8 +260,7 @@ export class SyncService extends EventEmitter {
 
           // Chunk and index
           const chunks = chunkMarkdown(content)
-          const plugin = this.getPlugin()
-          const model = plugin?.modelName ?? 'none'
+          let generatedEmbeddings = false
 
           for (const chunk of chunks) {
             const chunkId = this.db.insertChunk({
@@ -255,13 +272,14 @@ export class SyncService extends EventEmitter {
               hash: chunk.hash,
             })
 
-            if (plugin && (await plugin.isReady())) {
+            if (embeddingsAvailable) {
               let embedding = this.db.getCachedEmbedding(chunk.hash, model)
               if (!embedding) {
-                embedding = await plugin.embed(chunk.text)
+                embedding = await plugin!.embed(chunk.text)
                 this.db.cacheEmbedding(chunk.hash, model, embedding)
               }
               this.db.insertChunkVector(chunkId, embedding)
+              generatedEmbeddings = true
             }
           }
 
@@ -272,6 +290,7 @@ export class SyncService extends EventEmitter {
             mtime: fileStat.mtime.toISOString(),
             size: fileStat.size,
             indexedAt: new Date().toISOString(),
+            indexedWithEmbeddings: generatedEmbeddings,
           })
 
           if (existed) {
