@@ -3292,7 +3292,7 @@
           <!-- Notification list -->
           <div class="divide-y divide-white/5">
             <template
-              x-for="notif in getPendingNotifications()"
+              x-for="notif in (showNotificationPanel ? getPendingNotifications() : [])"
               :key="notif.id"
             >
               <div class="p-3 hover:bg-tokyo-card/30 transition-colors">
