@@ -340,7 +340,7 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 | S1     | SDK Enhancement   | Complete | [plan](sprints/m6.5-s1-sdk-enhancement/plan.md)       | [review](sprints/m6.5-s1-sdk-enhancement/review.md)       |
 | S2     | Session Rewrite   | Complete | [plan](sprints/m6.5-s2-session-rewrite/plan.md)       | [review](sprints/m6.5-s2-session-rewrite/review.md)       |
 | S3     | E2E Validation    | Complete | [plan](sprints/m6.5-s3-e2e-validation/plan.md)        | [review](sprints/m6.5-s3-e2e-validation/review.md)        |
-| S4     | Live Validation   | Planned  | [plan](sprints/m6.5-s4-live-validation/plan.md)        | —                                                          |
+| S4     | Live Validation   | In Progress | [plan](sprints/m6.5-s4-live-validation/plan.md)     | [review](sprints/m6.5-s4-live-validation/review.md)        |
 
 **Sprint structure:**
 
@@ -362,7 +362,7 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 - _(S2)_ `sdk_session_id` column in conversations + tasks tables
 - _(S2)_ Server-side compaction enabled (beta)
 - _(S3)_ E2E validation: 48 pass, 7 partial, 0 fail across 61 tests. All Run 1 bugs fixed.
-- _(S4)_ Live validation of remaining 11 tests (scheduled tasks, compaction, WhatsApp)
+- _(S4)_ Live validation: 3/9 tests pass (5.12, 5.7, 5.11). Bug fix: TaskExtractor multi-task extraction (100% consistency). 6 tests remaining (WhatsApp, compaction).
 
 **Key files affected:**
 

@@ -16,7 +16,10 @@ import type { ConversationManager } from "../conversations/index.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
 import { ConnectionRegistry } from "./connection-registry.js";
 import { AttachmentService } from "../conversations/attachments.js";
-import { extractTaskFromMessage } from "../tasks/task-extractor.js";
+import {
+  extractTaskFromMessage,
+  type ExtractedTask,
+} from "../tasks/task-extractor.js";
 import type {
   Attachment,
   ClientMessage,
@@ -1272,95 +1275,103 @@ export async function registerChatWebSocket(
               );
 
               if (extraction.shouldCreateTask && extraction.task) {
-                const task = fastify.taskManager!.create({
-                  type: extraction.task.type,
-                  sourceType: "conversation",
-                  title: extraction.task.title,
-                  instructions: extraction.task.instructions,
-                  work: extraction.task.work,
-                  delivery: extraction.task.delivery,
-                  scheduledFor: extraction.task.scheduledFor
-                    ? new Date(extraction.task.scheduledFor)
-                    : undefined,
-                  createdBy: "agent",
-                });
+                // Build list of tasks to create: use tasks[] if multiple, otherwise single task
+                const extractedTasks: ExtractedTask[] =
+                  extraction.tasks && extraction.tasks.length > 1
+                    ? extraction.tasks
+                    : [extraction.task];
 
-                // Link task to conversation
-                fastify.taskManager!.linkTaskToConversation(
-                  task.id,
-                  convIdForTask,
-                );
+                for (const extracted of extractedTasks) {
+                  const task = fastify.taskManager!.create({
+                    type: extracted.type,
+                    sourceType: "conversation",
+                    title: extracted.title,
+                    instructions: extracted.instructions,
+                    work: extracted.work,
+                    delivery: extracted.delivery,
+                    scheduledFor: extracted.scheduledFor
+                      ? new Date(extracted.scheduledFor)
+                      : undefined,
+                    createdBy: "agent",
+                  });
 
-                fastify.log.info(
-                  `[TaskExtractor] Created task "${task.title}" (${task.id}) for conversation ${convIdForTask}`,
-                );
+                  // Link task to conversation
+                  fastify.taskManager!.linkTaskToConversation(
+                    task.id,
+                    convIdForTask,
+                  );
 
-                // Create calendar event for scheduled tasks (bidirectional linking)
-                if (task.type === "scheduled" && task.scheduledFor) {
-                  try {
-                    const calConfig = loadCalendarConfig(fastify.agentDir);
-                    const credentials = loadCalendarCredentials(
-                      fastify.agentDir,
-                    );
-                    if (calConfig && credentials) {
-                      const calendarClient = createCalDAVClient(
-                        calConfig,
-                        credentials,
+                  fastify.log.info(
+                    `[TaskExtractor] Created task "${task.title}" (${task.id}) for conversation ${convIdForTask}`,
+                  );
+
+                  // Create calendar event for scheduled tasks (bidirectional linking)
+                  if (task.type === "scheduled" && task.scheduledFor) {
+                    try {
+                      const calConfig = loadCalendarConfig(fastify.agentDir);
+                      const credentials = loadCalendarCredentials(
+                        fastify.agentDir,
                       );
-                      // Use the "user" calendar (personal calendar)
-                      const calendarId = "user";
-                      const endTime = new Date(
-                        task.scheduledFor.getTime() + 5 * 60 * 1000,
-                      ); // 5 min duration
-                      const calEvent = await calendarClient.createEvent(
-                        calendarId,
-                        {
+                      if (calConfig && credentials) {
+                        const calendarClient = createCalDAVClient(
+                          calConfig,
+                          credentials,
+                        );
+                        // Use the "user" calendar (personal calendar)
+                        const calendarId = "user";
+                        const endTime = new Date(
+                          task.scheduledFor.getTime() + 5 * 60 * 1000,
+                        ); // 5 min duration
+                        const calEvent = await calendarClient.createEvent(
                           calendarId,
-                          title: task.title,
-                          start: task.scheduledFor,
-                          end: endTime,
-                          description: task.instructions,
-                          taskId: task.id, // Link calendar event to task
-                          taskType: "scheduled",
-                          allDay: false,
-                          status: "confirmed",
-                          transparency: "opaque",
-                        },
-                      );
-                      // Store calendar event UID back to task (bidirectional link)
-                      fastify.taskManager!.update(task.id, {
-                        sourceRef: `${calendarId}:${calEvent.uid}`,
-                      });
-                      fastify.log.info(
-                        `[TaskExtractor] Created calendar event ${calEvent.uid} for scheduled task "${task.title}"`,
+                          {
+                            calendarId,
+                            title: task.title,
+                            start: task.scheduledFor,
+                            end: endTime,
+                            description: task.instructions,
+                            taskId: task.id, // Link calendar event to task
+                            taskType: "scheduled",
+                            allDay: false,
+                            status: "confirmed",
+                            transparency: "opaque",
+                          },
+                        );
+                        // Store calendar event UID back to task (bidirectional link)
+                        fastify.taskManager!.update(task.id, {
+                          sourceRef: `${calendarId}:${calEvent.uid}`,
+                        });
+                        fastify.log.info(
+                          `[TaskExtractor] Created calendar event ${calEvent.uid} for scheduled task "${task.title}"`,
+                        );
+                      }
+                    } catch (calErr) {
+                      fastify.log.warn(
+                        calErr,
+                        `[TaskExtractor] Failed to create calendar event for task ${task.id}`,
                       );
                     }
-                  } catch (calErr) {
-                    fastify.log.warn(
-                      calErr,
-                      `[TaskExtractor] Failed to create calendar event for task ${task.id}`,
-                    );
                   }
+
+                  // Trigger immediate task execution
+                  fastify.taskProcessor!.onTaskCreated(task);
+
+                  // Broadcast task creation to clients
+                  connectionRegistry.broadcastToConversation(convIdForTask, {
+                    type: "task:created",
+                    task: {
+                      id: task.id,
+                      title: task.title,
+                      type: task.type,
+                      status: task.status,
+                      work: task.work,
+                      delivery: task.delivery,
+                    },
+                  } as any);
                 }
 
-                // Trigger immediate task execution
-                fastify.taskProcessor!.onTaskCreated(task);
-
-                // Broadcast updated task list as state snapshot
+                // Broadcast updated task list as state snapshot (once, after all tasks created)
                 fastify.statePublisher?.publishTasks();
-
-                // Broadcast task creation to clients
-                connectionRegistry.broadcastToConversation(convIdForTask, {
-                  type: "task:created",
-                  task: {
-                    id: task.id,
-                    title: task.title,
-                    type: task.type,
-                    status: task.status,
-                    work: task.work,
-                    delivery: task.delivery,
-                  },
-                } as any);
               }
             } catch (err) {
               fastify.log.error(

@@ -20,6 +20,7 @@ export interface ExtractedTask {
 export interface ExtractionResult {
   shouldCreateTask: boolean;
   task?: ExtractedTask;
+  tasks?: ExtractedTask[]; // For multi-task extraction
 }
 
 /**
@@ -27,7 +28,13 @@ export interface ExtractionResult {
  */
 function buildExtractionPrompt(currentTime: Date): string {
   const isoTime = currentTime.toISOString();
-  // Example: if current time is 08:03, "in 5 minutes" = 08:08
+  // Example timestamps for prompt examples
+  const oneMinuteLater = new Date(
+    currentTime.getTime() + 1 * 60 * 1000,
+  ).toISOString();
+  const twoMinutesLater = new Date(
+    currentTime.getTime() + 2 * 60 * 1000,
+  ).toISOString();
   const fiveMinutesLater = new Date(currentTime.getTime() + 5 * 60 * 1000);
   const exampleScheduledTime = fiveMinutesLater.toISOString();
 
@@ -61,6 +68,10 @@ If a task should be created, extract:
 5. type: "immediate" or "scheduled"
 6. scheduledFor: ISO datetime calculated from CURRENT TIME (e.g., "in 5 minutes" = CURRENT TIME + 5 minutes)
 
+MULTIPLE TASKS:
+If the user requests multiple distinct tasks in one message, return ALL of them in a "tasks" array (not "task").
+Each task must be fully self-contained with its own title, instructions, work, delivery, type, and scheduledFor.
+
 EXAMPLES:
 
 User: "Research Bangkok attractions and send me the list on WhatsApp"
@@ -69,13 +80,18 @@ User: "Research Bangkok attractions and send me the list on WhatsApp"
 User: "In 5 minutes send me a WhatsApp saying Don't forget to call mom" (if current time is ${isoTime})
 {"shouldCreateTask": true, "task": {"title": "Send WhatsApp reminder", "instructions": "Send a WhatsApp message with the exact text provided.", "work": [], "delivery": [{"channel": "whatsapp", "content": "Don't forget to call mom"}], "type": "scheduled", "scheduledFor": "${exampleScheduledTime}"}}
 
+User: "In 1 minute tell me what day it is, and in 2 minutes tell me what month it is" (if current time is ${isoTime})
+{"shouldCreateTask": true, "tasks": [{"title": "Tell user what day it is", "instructions": "Tell the user what day of the week it is today.", "work": [{"description": "Determine current day of the week"}], "delivery": [{"channel": "dashboard"}], "type": "scheduled", "scheduledFor": "${oneMinuteLater}"}, {"title": "Tell user what month it is", "instructions": "Tell the user what month we are currently in.", "work": [{"description": "Determine current month"}], "delivery": [{"channel": "dashboard"}], "type": "scheduled", "scheduledFor": "${twoMinutesLater}"}]}
+
 User: "What's the weather like?"
 {"shouldCreateTask": false}
 
 OUTPUT FORMAT (no other text allowed):
 {"shouldCreateTask": false}
-or
-{"shouldCreateTask": true, "task": {"title": "...", "instructions": "...", "work": [...], "delivery": [...], "type": "immediate"}}`;
+or (single task):
+{"shouldCreateTask": true, "task": {"title": "...", "instructions": "...", "work": [...], "delivery": [...], "type": "..."}}
+or (multiple tasks):
+{"shouldCreateTask": true, "tasks": [{"title": "...", "instructions": "...", "work": [...], "delivery": [...], "type": "..."}, ...]}`;
 }
 
 /**
@@ -174,15 +190,55 @@ export async function extractTaskFromMessage(
         return { shouldCreateTask: false };
       }
 
-      const result = JSON.parse(jsonMatch[0]);
+      let result: any;
+      try {
+        result = JSON.parse(jsonMatch[0]);
+      } catch {
+        // Fallback: Haiku may have concatenated multiple JSON objects ({...}{...})
+        // Try to parse the first complete object only
+        const firstObj = response.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
+        if (firstObj) {
+          try {
+            result = JSON.parse(firstObj[0]);
+          } catch {
+            throw new Error(
+              `Malformed JSON in extraction response: ${jsonMatch[0].substring(0, 200)}`,
+            );
+          }
+        } else {
+          throw new Error(
+            `Malformed JSON in extraction response: ${jsonMatch[0].substring(0, 200)}`,
+          );
+        }
+      }
 
       if (!result.shouldCreateTask) {
         return { shouldCreateTask: false };
       }
 
+      // Normalize to array — prefer "tasks" array when present, fall back to "task"
+      const rawTasks: any[] =
+        Array.isArray(result.tasks) && result.tasks.length > 0
+          ? result.tasks
+          : result.task
+            ? [result.task]
+            : [];
+
+      const normalized = rawTasks
+        .map(normalizeExtractedTask)
+        .filter((t: ExtractedTask) => t.title);
+
+      if (normalized.length === 0) {
+        console.warn(
+          "[TaskExtractor] No tasks with valid titles extracted, discarding",
+        );
+        return { shouldCreateTask: false };
+      }
+
       return {
         shouldCreateTask: true,
-        task: normalizeExtractedTask(result.task),
+        task: normalized[0],
+        tasks: normalized,
       };
     } catch (err) {
       if (attempt < MAX_ATTEMPTS) {
