@@ -3837,7 +3837,14 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
           }, 150);
         });
       } else {
-        this.activeTab = "settings";
+        // Open settings tab properly (adds to tab bar)
+        this.openTab({
+          id: "settings",
+          type: "settings",
+          title: "Settings",
+          icon: "⚙️",
+          closeable: true,
+        });
         this.$nextTick(() => {
           document
             .getElementById(sectionId)
