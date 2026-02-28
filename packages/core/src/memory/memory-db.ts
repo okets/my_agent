@@ -111,13 +111,11 @@ export class MemoryDb {
       .run()
 
     // Migration: add indexed_with_embeddings column if missing (for existing DBs)
-    const columns = this.db
-      .prepare("PRAGMA table_info(files)")
-      .all() as Array<{ name: string }>
-    const hasEmbeddingsCol = columns.some((c) => c.name === "indexed_with_embeddings")
+    const columns = this.db.prepare('PRAGMA table_info(files)').all() as Array<{ name: string }>
+    const hasEmbeddingsCol = columns.some((c) => c.name === 'indexed_with_embeddings')
     if (!hasEmbeddingsCol) {
       this.db
-        .prepare("ALTER TABLE files ADD COLUMN indexed_with_embeddings INTEGER NOT NULL DEFAULT 0")
+        .prepare('ALTER TABLE files ADD COLUMN indexed_with_embeddings INTEGER NOT NULL DEFAULT 0')
         .run()
     }
   }
@@ -271,7 +269,14 @@ export class MemoryDb {
         `INSERT OR REPLACE INTO files (path, hash, mtime, size, indexed_at, indexed_with_embeddings)
          VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(file.path, file.hash, file.mtime, file.size, file.indexedAt, file.indexedWithEmbeddings ? 1 : 0)
+      .run(
+        file.path,
+        file.hash,
+        file.mtime,
+        file.size,
+        file.indexedAt,
+        file.indexedWithEmbeddings ? 1 : 0,
+      )
   }
 
   deleteFile(path: string): void {

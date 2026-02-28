@@ -220,7 +220,6 @@ export class SessionManager {
         resume: this.sdkSessionId,
         includePartialMessages: true,
         reasoning,
-        compaction: this.config!.compaction ?? true,
         hooks: this.hooks ?? undefined,
         mcpServers: sharedMcpServers ?? undefined,
       });

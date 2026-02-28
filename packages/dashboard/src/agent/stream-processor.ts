@@ -71,13 +71,19 @@ export async function* processStream(
       continue;
     }
 
-    // Handle system init message — contains SDK session ID for resumption
+    // Handle system messages — init (session ID) and compact_boundary (auto-compact)
     if (msg.type === "system") {
-      if ((msg as any).subtype === "init" && (msg as any).session_id) {
+      const subtype = (msg as any).subtype;
+      if (subtype === "init" && (msg as any).session_id) {
         yield {
           type: "session_init",
           sessionId: (msg as any).session_id as string,
         };
+      } else if (subtype === "compact_boundary") {
+        const meta = (msg as any).compact_metadata;
+        console.log(
+          `[Stream] Context compacted (trigger: ${meta?.trigger ?? "unknown"}, pre_tokens: ${meta?.pre_tokens ?? "?"})`,
+        );
       }
       continue;
     }

@@ -10,6 +10,4 @@ export interface BrainConfig {
   brainDir: string
   channels: Record<string, ChannelInstanceConfig>
   health?: HealthConfig
-  /** Enable compaction beta (auto-summarize context near 200K limit) */
-  compaction?: boolean
 }

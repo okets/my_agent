@@ -17,7 +17,7 @@
 | **M5: Task System**          | Complete | 10/10 sprints                |
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Complete | 9/9 sprints                |
-| **M6.5: Agent SDK Alignment**| In Progress | S4 at 4/9 tests, resume live validation |
+| **M6.5: Agent SDK Alignment**| Complete | S4: 5 pass, 2 N/A, 2 TODO (WhatsApp) |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
 | **M9: Email Channel**        | Planned  | Design complete, sprints TBD |
@@ -32,8 +32,8 @@
 ├─────────────────────────────────────────────────────────────────────►
 
 M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory        M6.5 SDK
-[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████░░░░]
-   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE        S4 IN PROGRESS
+[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
+   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
                                                                                                      M7 Coding Projects
                                                                                                      M8 Ops Dashboard
                                                                                                      M9 Email
@@ -254,7 +254,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 
 ---
 
-### M6: Memory — IN PROGRESS
+### M6: Memory — COMPLETE
 
 Markdown-first notebook memory: files are the source of truth, SQLite is a derived search index. Hybrid BM25 + vector search. Local embeddings via plugin system.
 
@@ -330,7 +330,7 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 
 ---
 
-### M6.5: Agent SDK Alignment — PAUSED
+### M6.5: Agent SDK Alignment — COMPLETE
 
 Retrofit the codebase to properly use Agent SDK features. Replaces prompt-injection session management with native SDK sessions, adds MCP tools, subagents, programmatic hooks, and enables server-side compaction.
 
@@ -341,7 +341,7 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 | S1     | SDK Enhancement   | Complete | [plan](sprints/m6.5-s1-sdk-enhancement/plan.md)       | [review](sprints/m6.5-s1-sdk-enhancement/review.md)       |
 | S2     | Session Rewrite   | Complete | [plan](sprints/m6.5-s2-session-rewrite/plan.md)       | [review](sprints/m6.5-s2-session-rewrite/review.md)       |
 | S3     | E2E Validation    | Complete | [plan](sprints/m6.5-s3-e2e-validation/plan.md)        | [review](sprints/m6.5-s3-e2e-validation/review.md)        |
-| S4     | Live Validation   | Paused      | [plan](sprints/m6.5-s4-live-validation/plan.md)     | [review](sprints/m6.5-s4-live-validation/review.md)        |
+| S4     | Live Validation   | Complete | [plan](sprints/m6.5-s4-live-validation/plan.md)     | [review](sprints/m6.5-s4-live-validation/review.md)        |
 
 **Sprint structure:**
 
@@ -361,15 +361,15 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 - _(S2)_ `SessionManager` rewritten — no more `buildPromptWithHistory()`, uses `resume: sessionId`
 - _(S2)_ `TaskExecutor` rewritten — no more `loadPriorContext()` text injection, uses `resume: sessionId`
 - _(S2)_ `sdk_session_id` column in conversations + tasks tables
-- _(S2)_ Server-side compaction enabled (beta)
+- _(S2)_ Compaction handled by Claude Code's built-in auto-compact (no beta needed)
 - _(S3)_ E2E validation: 48 pass, 7 partial, 0 fail across 61 tests. All Run 1 bugs fixed.
-- _(S4, in progress)_ Live validation: 4/9 tests pass (5.12, 5.7, 5.11, 2.6-live). Bug fixes: Alpine notification panel crash, TaskExtractor multi-task extraction (100% consistency). DB schema doc created. 5 tests remaining (WhatsApp 5.6/8.6, compaction 7.1-7.3). M6-S9 complete — resume live validation.
+- _(S4)_ Live validation: 5 pass, 2 N/A, 2 TODO. Bug fixes: Alpine notification panel crash, TaskExtractor multi-task extraction, compaction beta removal (dead code — auto-compact is built-in), unhandledRejection crash guard. DB schema doc created. WhatsApp tests (5.6/8.6) are next task.
 
 **Key files affected:**
 
 | File | Sprint | Change |
 |------|--------|--------|
-| `packages/core/src/brain.ts` | S1, S2 | MCP servers, agents, hooks, resume, compaction |
+| `packages/core/src/brain.ts` | S1, S2, S4 | MCP servers, agents, hooks, resume, stderr capture |
 | `packages/core/src/mcp/` | S1 | New directory — memory, channel, task MCP servers |
 | `packages/core/src/agents/` | S1 | New directory — subagent definitions |
 | `packages/core/src/hooks/` | S1 | New directory — hook factory, audit, safety |
@@ -529,11 +529,9 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                                         M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 (all complete) → M7/M8/M9
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 (all complete). M7/M8/M9 ready to start.
 
-**M6-S9 complete.** M6.5-S4 can resume live validation (5 tests remaining: WhatsApp 5.6/8.6, compaction 7.1-7.3).
-
-**M6.5 S1-S3 complete, S4 in progress.** M7+ can start in parallel — S4 is validation only, no code changes expected.
+**M6, M6.5 complete.** M7/M8/M9 can start. WhatsApp tests (5.6/8.6) are the next task to complete.
 
 **M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
 

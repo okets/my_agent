@@ -381,7 +381,7 @@ Explain your reason in the working section above.`;
    */
   private buildResumeQuery(
     task: Task,
-    brainConfig: { model: string; compaction?: boolean },
+    brainConfig: { model: string },
     sessionId: string,
   ) {
     console.log(
@@ -392,7 +392,6 @@ Explain your reason in the working section above.`;
       model: brainConfig.model,
       resume: sessionId,
       includePartialMessages: false,
-      compaction: brainConfig.compaction ?? true,
     });
   }
 

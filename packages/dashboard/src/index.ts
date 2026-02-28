@@ -52,6 +52,18 @@ import { initMcpServers } from "./agent/session-manager.js";
 // this var would otherwise block nested claude processes.
 delete process.env.CLAUDECODE;
 
+// Prevent unhandled promise rejections from crashing the server.
+// The Agent SDK has fire-and-forget control request handlers that can reject
+// when a Claude Code subprocess exits during MCP tool processing.
+process.on("unhandledRejection", (reason, promise) => {
+  const msg =
+    reason instanceof Error ? reason.message : String(reason ?? "unknown");
+  console.error(`[Server] Unhandled rejection: ${msg}`);
+  if (reason instanceof Error && reason.stack) {
+    console.error(`[Server] Stack: ${reason.stack}`);
+  }
+});
+
 async function main() {
   // Find agent directory
   const agentDir = findAgentDir();
