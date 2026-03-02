@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-02-28
+> **Updated:** 2026-03-01
 
 ---
 
@@ -18,6 +18,7 @@
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | S4: 5 pass, 2 N/A, 2 TODO (WhatsApp) |
+| **M6.6: Agentic Lifecycle**  | Planned  | Design complete, 4 sprints   |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
 | **M9: Email Channel**        | Planned  | Design complete, sprints TBD |
@@ -34,10 +35,15 @@
 M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory        M6.5 SDK
 [████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
    COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
-                                                                                                     M7 Coding Projects
-                                                                                                     M8 Ops Dashboard
-                                                                                                     M9 Email
-                                                                                                     M10 External Comms
+                                                                                                                      M6.6 Agentic Lifecycle
+                                                                                                                      [░░░░░░░░░░░░]
+                                                                                                                         PLANNED
+                                                                                                                           │
+                                                                                                                     ┌─────┼─────┐
+                                                                                                                     ▼     ▼     ▼
+                                                                                                                    M7    M8    M9
+                                                                                                                               │
+                                                                                                                              M10
 ```
 
 ---
@@ -383,9 +389,70 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 
 ---
 
+### M6.6: Agentic Lifecycle — PLANNED
+
+The agent gets a life outside of conversations. Background work loop maintains context, learns from conversations passively, and executes responsibilities proactively. Foundational for all subsequent milestones.
+
+**Design spec:** [memory-first-agent-design.md](plans/2026-03-01-memory-first-agent-design.md)
+
+| Sprint | Name | Scope |
+|--------|------|-------|
+| S1 | Context Foundation | `current-state.md` (manual), temporal context injection in system prompt, context refresher on resume (scoped mtime check on `operations/` + `reference/`) |
+| S2 | Work Loop Scheduler | `WorkLoopScheduler` (cron-like, follows `TaskScheduler` pattern), background query utility (Haiku), morning-prep job, daily-summary job, heartbeat with cadence-based responsibility filtering, restart persistence |
+| S3 | Passive Learning + Hatching | Fact extraction in parallel with summarization (on original transcript), `notebook/knowledge/` writes, weekly-review job, `work-patterns.md` hatching step, effort-based prioritization |
+| S4 | E2E Validation + Human Test | Automated E2E tests for all lifecycle phases (context refresher, work loop triggers, fact extraction, heartbeat filtering), plus one comprehensive human-in-the-loop test covering the full daily cycle |
+
+**Key design decisions:**
+
+- **No session invalidation.** Conversations are always resumable. When notebook changes, a context refresher is injected alongside the next message — the model gets both conversation history and fresh state.
+- **Scoped change detection.** Only `operations/` and `reference/` mtime triggers refreshers. Changes to `knowledge/`, `lists/`, `daily/` do not.
+- **Heartbeat as retry.** If a work loop job fails, the heartbeat retries on next cycle. No per-job retry logic.
+- **Haiku for all background work.** Main model reserved for conversations only.
+- **Fact extraction on original transcript.** Not chained after summarization — different goals, run in parallel.
+- **Terms of responsibility.** Standing obligations with scope, autonomy level, cadence, expiry. Entered via conversations → tasks → `work-patterns.md`.
+- **Effort by context compaction.** Low (fits in context → do), Medium (needs session → idle), High (needs compaction → suggest to user).
+
+**Deliverables:**
+
+- _(S1)_ `current-state.md` in `notebook/operations/`, temporal context in system prompt, context refresher mechanism on conversation resume
+- _(S2)_ `WorkLoopScheduler` with morning-prep and daily-summary jobs, heartbeat with cadence-filtered responsibility scanning, background Haiku query utility, `lastRun` persistence across restarts
+- _(S3)_ Parallel fact extraction pipeline in `AbbreviationQueue`, `notebook/knowledge/` fact storage, weekly review job for fact promotion/archival, `work-patterns.md` schema + hatching step
+- _(S4)_ E2E test suite, human test walkthrough (user stories), sprint review
+
+**Architecture:**
+
+```
+HATCHING (once)
+└─ Produces: identity, personality, restrictions (LOCKED)
+└─ Produces: work-patterns.md (OPERATIONAL — terms of responsibility)
+
+DAILY CYCLE (repeats)
+├── Morning Prep (scheduled, Haiku) → writes current-state.md
+├── Conversations (reactive) → new: fresh session / resumed: SDK session + refresher
+├── Post-Conversation (idle trigger) → fact extraction + medium-effort responsibilities
+├── Heartbeat (every N min, Haiku) → scan responsibilities by cadence, triage by effort
+└── Daily Summary (scheduled, Haiku) → consolidate, spot patterns, seed next morning
+
+EVOLUTION (continuous)
+└─ New responsibilities from conversations → tasks → work-patterns.md
+└─ Weekly review promotes facts, archives stale, prunes responsibilities
+```
+
+**Dependencies:** M6.5 (SDK alignment — MCP tools, session management, hooks)
+
+**Risk mitigations:**
+
+- Context refresher preserves conversation continuity (no session invalidation)
+- Scoped mtime prevents unnecessary refresher injection
+- Token budget for `current-state.md` capped at 500-1000 chars
+- Heartbeat retries failed jobs automatically
+- `expiresAfter` field prevents stale responsibilities from accumulating
+
+---
+
 ### M7: Coding Projects — PLANNED
 
-Autonomous coding: internal self-development projects + user code session relay.
+Autonomous coding: internal self-development projects + user code session relay. Work loop powers autonomous project spawning via responsibilities.
 
 **Design spec:** [coding-projects.md](design/coding-projects.md)
 
@@ -396,10 +463,11 @@ Autonomous coding: internal self-development projects + user code session relay.
 - Active session streaming (stream-json via WebSocket, 100-event rolling buffer)
 - Process supervision (non-LLM): alive/dead/blocked checks, crash recovery
 - systemd watchdog with exponential backoff for internet/API recovery
-- /whats-next deterministic self-sync skill
+- `/whats-next` reads `current-state.md` and `work-patterns.md` to determine next work
 - NotificationService integration for escalation routing
+- **Final sprint: E2E tests + human-in-the-loop validation**
 
-**Dependencies:** M5 (task system, NotificationService)
+**Dependencies:** M6.6 (agentic lifecycle — work loop powers autonomous project spawning)
 
 **Note:** Sprint 1 must validate prototype checklist (folder-scoped --continue, stream-json format, concurrent sessions, SIGINT behavior, NotificationService). Results shape the architecture.
 
@@ -407,7 +475,7 @@ Autonomous coding: internal self-development projects + user code session relay.
 
 ### M8: Operations Dashboard — PLANNED
 
-Expand web UI with task management and memory viewer.
+Expand web UI with task management, memory viewer, and agentic lifecycle visibility.
 
 **Design spec:** [operations-dashboard.md](design/operations-dashboard.md)
 
@@ -416,16 +484,19 @@ Expand web UI with task management and memory viewer.
 - Task browser: inbox/projects/ongoing
 - Project detail view with approve/reject
 - Memory viewer (notebook lists, entries, search)
+- Work loop status panel: `current-state.md` contents, active responsibilities, last morning prep time, next scheduled job
+- Responsibility manager: view/edit `work-patterns.md` entries
 - Settings: auth, models, channels
 - "Open in VS Code" deep links
+- **Final sprint: E2E tests + human-in-the-loop validation**
 
-**Dependencies:** M5 (task system), M6 (memory)
+**Dependencies:** M6.6 (agentic lifecycle — work loop status, responsibilities UI)
 
 ---
 
 ### M9: Email Channel — PLANNED
 
-Email plugin with both dedicated and personal roles.
+Email plugin with both dedicated and personal roles. Email monitoring in "personal role" maps to a responsibility in `work-patterns.md`.
 
 **Design reference:** [channels.md](design/channels.md) (complete design)
 
@@ -433,15 +504,16 @@ Email plugin with both dedicated and personal roles.
 
 - Microsoft Graph MCP plugin
 - Dedicated role: agent's email (info@company.com)
-- Personal role: user's email (on-demand only)
+- Personal role: user's email (on-demand only, heartbeat-triggered via responsibility)
 - OAuth 2.0 auth flow
 - Thread management
+- **Final sprint: E2E tests + human-in-the-loop validation**
 
 **Includes:**
 
 - Channel-specific conversation naming (subject line + thread context). See `docs/design/conversation-system.md` §Conversation Naming.
 
-**Dependencies:** M3 (channel pattern established), M5 (for email-triggered projects)
+**Dependencies:** M6.6 (agentic lifecycle — email monitoring as responsibility), M3 (channel pattern)
 
 ---
 
@@ -461,6 +533,8 @@ Cross-channel external communications: personal channel role, ruleset model, app
 - External communications UI with approval flow for drafts
 
 **Dependencies:** M5 (task system, notebook_edit tool)
+
+**Final sprint: E2E tests + human-in-the-loop validation**
 
 **Note:** This milestone consolidates deferred work from M3-S4 and M4-S3/S4. Requires solid agentic flow from M5 before implementation.
 
@@ -497,6 +571,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Memory               | Complete | M6          | [design/memory-system.md](design/memory-system.md)               |
 | Embeddings Plugin    | Complete | M6          | [design/embeddings-plugin.md](design/embeddings-plugin.md)       |
 | SDK Alignment        | Planned  | M6.5        | Sprint plans in `sprints/m6.5-s*/plan.md`                        |
+| Agentic Lifecycle    | Complete | M6.6        | [plans/2026-03-01-memory-first-agent-design.md](plans/2026-03-01-memory-first-agent-design.md) |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Complete | M8          | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
@@ -513,12 +588,14 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                           ▼
                                                                   M5 Tasks (S10=Live)
                                                                           │
-                                                                          │
                                                                           ▼
                                                                       M6 Memory
                                                                           │
                                                                           ▼
                                                                    M6.5 SDK Alignment
+                                                                          │
+                                                                          ▼
+                                                                M6.6 Agentic Lifecycle
                                                                           │
                                                    ┌──────────────────────┼──────────────────────┐
                                                    │                      │                      │
@@ -529,13 +606,17 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                                         M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 (all complete). M7/M8/M9 ready to start.
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.6. All complete through M6.5. M6.6 is next.
 
-**M6, M6.5 complete.** M7/M8/M9 can start. WhatsApp tests (5.6/8.6) are the next task to complete.
+**M6.6 is foundational.** The agentic lifecycle (work loop, context refresher, fact extraction, responsibilities) powers autonomous behavior in M7-M10.
+
+**M7 requires M6.6:** Autonomous coding projects are triggered by the work loop's responsibility system. `/whats-next` reads `current-state.md` and `work-patterns.md`.
+
+**M8 requires M6.6:** Ops Dashboard surfaces work loop status, responsibilities, and `current-state.md`.
 
 **M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
 
-**M7 requires prototyping:** Coding Projects Sprint 1 validates key assumptions (folder-scoped resume, stream-json, concurrent sessions). Results shape the architecture.
+**Sprint quality gate:** Every future milestone's final sprint includes E2E automated tests + one comprehensive human-in-the-loop test walkthrough.
 
 ---
 
@@ -649,6 +730,14 @@ After completion:
 - Generate user stories for testing
 - Document in `review.md`
 - Update ROADMAP status
+
+### 6. Milestone Final Sprint (E2E + Human Test)
+
+Every milestone's **last sprint** follows a consistent quality gate:
+
+- **Automated E2E tests:** Smoke → integration → cross-component → regression → edge cases
+- **Human-in-the-loop test:** User stories with step-by-step flows, covering the happy path + at least one failure/recovery scenario, delivered as a checklist the CTO can walk through
+- **Deliverables:** `test-report.md`, `user-stories.md`, `review.md`
 
 ---
 
