@@ -520,6 +520,10 @@ function chat() {
 
     createNewConversation() {
       if (!this.wsConnected) return;
+
+      // Haptic feedback for primary action
+      window.haptic?.strong();
+
       // Reset chat immediately so the UI switches to the empty state
       this.resetChatState();
       this.currentConversationId = null;
@@ -533,6 +537,10 @@ function chat() {
     switchConversation(conversationId) {
       if (!this.wsConnected || conversationId === this.currentConversationId)
         return;
+
+      // Haptic feedback for selection
+      window.haptic?.medium();
+
       this.ws.send({ type: "switch_conversation", conversationId });
     },
 
@@ -578,6 +586,9 @@ function chat() {
       if (this.isResponding && !this.isHatching && !this.composeHintControlId) {
         return;
       }
+
+      // Haptic feedback for primary action
+      window.haptic?.strong();
 
       // Show masked or actual text in user bubble
       const displayText = this.composePasswordMode
@@ -1267,6 +1278,9 @@ function chat() {
     },
 
     respondToNotification(notificationId, response) {
+      // Haptic feedback for selection
+      window.haptic?.medium();
+
       if (this.ws && this.wsConnected) {
         this.ws.send(
           JSON.stringify({
@@ -1288,6 +1302,9 @@ function chat() {
     },
 
     dismissNotification(notificationId) {
+      // Haptic feedback for dismiss
+      window.haptic?.light();
+
       if (this.ws && this.wsConnected) {
         this.ws.send(
           JSON.stringify({ type: "notification_dismiss", notificationId }),
@@ -1370,6 +1387,9 @@ function chat() {
     },
 
     stopResponse() {
+      // Haptic feedback for interrupt action
+      window.haptic?.heavy();
+
       this.ws.send({ type: "abort" });
       this.isResponding = false;
       this.isThinking = false;
@@ -1430,6 +1450,9 @@ function chat() {
     // Model selection
     // ─────────────────────────────────────────────────────────────────
     onModelChange(model) {
+      // Haptic feedback for selection
+      window.haptic?.medium();
+
       this.selectedModel = model;
       // Haiku doesn't support extended thinking — disable reasoning if switching to Haiku
       if (model.includes("haiku")) {
@@ -1451,6 +1474,9 @@ function chat() {
     },
 
     cancelDelete() {
+      // Haptic feedback for cancel
+      window.haptic?.light();
+
       this.deleteConfirmOpen = false;
       this.deleteTargetId = null;
       this.deleteTargetTitle = null;
@@ -1458,6 +1484,10 @@ function chat() {
 
     executeDelete() {
       if (!this.deleteTargetId || !this.wsConnected) return;
+
+      // Haptic feedback for destructive action
+      window.haptic?.warning();
+
       this.ws.send({
         type: "delete_conversation",
         conversationId: this.deleteTargetId,
@@ -2064,6 +2094,9 @@ function chat() {
      * Remove attachment at index
      */
     removeAttachment(index) {
+      // Haptic feedback for removal
+      window.haptic?.light();
+
       this.attachments.splice(index, 1);
     },
 
@@ -2429,6 +2462,9 @@ function chat() {
     },
 
     async disconnectChannel(channelId) {
+      // Haptic feedback for destructive action
+      window.haptic?.warning();
+
       try {
         const res = await fetch(`/api/channels/${channelId}/disconnect`, {
           method: "POST",
@@ -2446,9 +2482,17 @@ function chat() {
     },
 
     async removeChannel(channelId) {
-      if (!confirm(`Remove channel "${channelId}"? This will delete all auth data.`)) {
+      if (
+        !confirm(
+          `Remove channel "${channelId}"? This will delete all auth data.`,
+        )
+      ) {
         return;
       }
+
+      // Haptic feedback for destructive action
+      window.haptic?.warning();
+
       try {
         const res = await fetch(`/api/channels/${channelId}`, {
           method: "DELETE",
@@ -2954,6 +2998,9 @@ function chat() {
     async saveEvent() {
       if (!this.eventForm.title) return;
 
+      // Haptic feedback for primary action
+      window.haptic?.strong();
+
       const eventData = {
         calendarId: this.eventForm.calendarId,
         title: this.eventForm.title,
@@ -3168,6 +3215,9 @@ function chat() {
 
       const confirmed = confirm(`Delete "${event.title}"?`);
       if (!confirmed) return;
+
+      // Haptic feedback for destructive action
+      window.haptic?.warning();
 
       const calendarId = event.extendedProps?.calendarId;
       const success = await CalendarModule.deleteCalendarEvent(
@@ -3707,6 +3757,9 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
      * Mark task as completed
      */
     async completeTask(taskId) {
+      // Haptic feedback for completion
+      window.haptic?.success();
+
       try {
         const body = {};
         if (this.currentConversationId) {
@@ -3742,6 +3795,9 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       const task = this.tasks.find((t) => t.id === taskId);
       const confirmed = confirm(`Delete "${task?.title || "this task"}"?`);
       if (!confirmed) return;
+
+      // Haptic feedback for destructive action
+      window.haptic?.warning();
 
       try {
         const res = await fetch(`/api/tasks/${taskId}`, {
@@ -3788,6 +3844,9 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         alert("Title and instructions are required");
         return;
       }
+
+      // Haptic feedback for primary action
+      window.haptic?.strong();
 
       try {
         const body = {

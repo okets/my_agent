@@ -99,6 +99,9 @@ document.addEventListener("alpine:init", () => {
       if (!this.isMobile) return;
       if (state !== "peek" && state !== "half" && state !== "full") return;
 
+      // Haptic feedback for navigation
+      window.haptic?.light();
+
       // Close conv switcher if collapsing to peek
       if (state === "peek" && this.convSwitcherOpen) {
         this.convSwitcherOpen = false;
@@ -138,6 +141,9 @@ document.addEventListener("alpine:init", () => {
     openPopover(type, data) {
       if (!this.isMobile) return;
 
+      // Haptic feedback for navigation
+      window.haptic?.light();
+
       this.popover = { type: type, data: data || null };
 
       // Set chat context tag (mirrors desktop tab behavior)
@@ -145,6 +151,9 @@ document.addEventListener("alpine:init", () => {
     },
 
     closePopover() {
+      // Haptic feedback for navigation
+      window.haptic?.light();
+
       this.popover = null;
       this._clearChatContext();
     },
@@ -200,10 +209,14 @@ document.addEventListener("alpine:init", () => {
 
     openConvSwitcher() {
       if (!this.isMobile || this.chatState === "peek") return;
+      // Haptic feedback for navigation
+      window.haptic?.light();
       this.convSwitcherOpen = true;
     },
 
     closeConvSwitcher() {
+      // Haptic feedback for navigation
+      window.haptic?.light();
       this.convSwitcherOpen = false;
     },
 
@@ -516,6 +529,8 @@ function initSheetGesture(el, options) {
 
     // Dismiss if past threshold or flicked fast enough
     if (fraction > opts.dismissThreshold || velocity > opts.velocityThreshold) {
+      // Haptic feedback for gesture completion
+      window.haptic?.light();
       opts.onDismiss();
     }
   }
@@ -699,6 +714,9 @@ function initChatSheetGesture(el) {
       setChatRatio(nearestPreset(startRatio));
       return;
     }
+
+    // Haptic feedback for gesture snap
+    window.haptic?.light();
 
     if (isFastSwipe) {
       /* Fast swipe: skip to next/previous preset based on direction */

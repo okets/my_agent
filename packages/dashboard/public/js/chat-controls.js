@@ -53,6 +53,9 @@ function renderCards(control, msgId) {
 }
 
 function submitControlFromButton(btnEl, controlId, value) {
+  // Haptic feedback for selection
+  window.haptic?.medium();
+
   // Mark as selected, disable all siblings
   const container = btnEl.parentElement;
   container.querySelectorAll(".chat-control-btn").forEach((b) => {
@@ -69,6 +72,9 @@ function submitControlFromButton(btnEl, controlId, value) {
 }
 
 function submitControlFromCard(cardEl, controlId, value) {
+  // Haptic feedback for selection
+  window.haptic?.medium();
+
   // Mark as selected, disable all siblings
   const container = cardEl.parentElement;
   container.querySelectorAll(".chat-control-card").forEach((c) => {
