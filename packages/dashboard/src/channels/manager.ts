@@ -247,6 +247,17 @@ export class ChannelManager {
   }
 
   /**
+   * Send typing indicator through a channel (if supported by the plugin).
+   */
+  async sendTypingIndicator(channelId: string, to: string): Promise<void> {
+    const entry = this.channels.get(channelId);
+    if (!entry?.status.connected) return;
+    if ("sendTypingIndicator" in entry.plugin) {
+      await (entry.plugin as any).sendTypingIndicator(to);
+    }
+  }
+
+  /**
    * Extract phone number from JID if it's a phone-based JID (not a LID).
    * Returns formatted number or undefined for LIDs.
    */

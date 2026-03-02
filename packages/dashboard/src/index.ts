@@ -142,6 +142,8 @@ async function main() {
       connectionRegistry,
       sendViaChannel: (channelId, to, message) =>
         channelManager!.send(channelId, to, message),
+      sendTypingIndicator: (channelId, to) =>
+        channelManager!.sendTypingIndicator(channelId, to),
       getChannelConfig: (channelId) =>
         channelManager!.getChannelConfig(channelId),
       updateChannelConfig: (channelId, update) =>

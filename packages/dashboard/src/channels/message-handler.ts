@@ -42,6 +42,7 @@ interface MessageHandlerDeps {
     to: string,
     message: OutgoingMessage,
   ) => Promise<void>;
+  sendTypingIndicator: (channelId: string, to: string) => Promise<void>;
   getChannelConfig: (channelId: string) => ChannelInstanceConfig | undefined;
   updateChannelConfig: (
     channelId: string,
@@ -470,6 +471,9 @@ export class ChannelMessageHandler {
         ...(savedAttachments.length > 0 && { attachments: savedAttachments }),
       },
     });
+
+    // Send typing indicator on WhatsApp while brain processes
+    await this.deps.sendTypingIndicator(channelId, replyTo);
 
     // Get or create session for this conversation
     const sessionManager = await this.deps.sessionRegistry.getOrCreate(

@@ -486,6 +486,16 @@ export class BaileysPlugin implements ChannelPlugin {
     }
   }
 
+  async sendTypingIndicator(to: string): Promise<void> {
+    if (!this.sock) return;
+    try {
+      await this.sock.sendPresenceUpdate("composing", to);
+    } catch (err) {
+      // Non-critical — don't let typing indicator failure break message flow
+      console.warn("[channel-whatsapp] Failed to send typing indicator:", err);
+    }
+  }
+
   // ── Event emitter ──────────────────────────────────────────────
 
   on(event: "message", handler: MessageHandler): void;
