@@ -4,7 +4,7 @@
 > **Date:** 2026-02-28
 > **Build:** 8fc93b0 (latest master)
 > **Mode:** Normal sprint
-> **Status:** IN PROGRESS — 5 PASS, 2 N/A, 5 TODO (WhatsApp blocked on re-pairing)
+> **Status:** COMPLETE — 10 PASS, 2 N/A
 
 ---
 
@@ -388,13 +388,13 @@ Added `process.on('unhandledRejection')` handler in `packages/dashboard/src/inde
 | 7.1 | Sustained conversation | **PASS** |
 | 7.2 | Compaction indicators | **N/A** (code-verified) |
 | 7.3 | Post-compaction memory | **N/A** (code-verified) |
-| 5.6 | Scheduled + WhatsApp delivery | **TODO** |
-| 8.6 | WhatsApp inbound | **TODO** |
-| 8.7 | `/new` — baseline active conversation | **TODO** |
-| 8.8 | `/new` — reset active conversation | **TODO** |
-| 8.9 | `/new` — route to new conversation | **TODO** |
+| 5.6 | Scheduled + WhatsApp delivery | **PASS** |
+| 8.6 | WhatsApp inbound | **PASS** |
+| 8.7 | `/new` — baseline active conversation | **PASS** |
+| 8.8 | `/new` — reset active conversation | **PASS** |
+| 8.9 | `/new` — route to new conversation | **PASS** |
 
-**Result: 5 PASS, 2 N/A (verified by code review), 5 TODO (WhatsApp — blocked on re-pairing).**
+**Result: 10 PASS, 2 N/A (verified by code review). All live tests complete.**
 
 **Bug fixes shipped:** Compaction beta removal, unhandledRejection crash guard, stderr diagnostic logging, disconnect flow, QR refresh rate.
 
@@ -504,6 +504,65 @@ Added ability to remove channels from the UI:
 
 ---
 
-## Ready for Next Session
+## WhatsApp Live Tests (Session 3 — 2026-03-02)
 
-Tests 8.7-8.9 are ready to execute now that WhatsApp pairing is working. Channel is connected and owner is authorized.
+All previously blocked WhatsApp tests executed and passed.
+
+### Test 8.6 + 8.7: WhatsApp Inbound + Baseline — PASS
+
+**Action:** Sent "Hello Nina" via WhatsApp.
+
+**Evidence:**
+- Message routed to pinned conversation `conv-01KJK5HBEG43NJYY4TZ6AFZ2FH`
+- Brain responded: "Hello! 👋 How can I help you today?"
+- Turn count incremented to 2
+- Conversation `updated` timestamp refreshed
+
+**Routing verified:** Owner LID `41433650172129@lid` correctly matched → routed to pinned conversation.
+
+### Test 8.8: `/new` Reset — PASS
+
+**Action:** Sent `/new` via WhatsApp.
+
+**Evidence (DB state):**
+- New conversation created: `conv-01KJPDT9F5P36CR7TWBKJKF02R` (pinned=1)
+- Old conversation unpinned: `conv-01KJK5HBEG43NJYY4TZ6AFZ2FH` (pinned=0)
+
+### Test 8.9: `/new` Routing — PASS
+
+**Action:** Sent "what day is it?" via WhatsApp after `/new`.
+
+**Evidence:**
+- Message landed in NEW conversation `conv-01KJPDT9F5P36CR7TWBKJKF02R` (turn 1)
+- Brain responded: "Today is **Monday, March 2nd, 2026**."
+- Old conversation untouched (last entry still from test 8.6/8.7)
+
+### Test 5.6: Scheduled Task + WhatsApp Delivery — PASS
+
+**Action:** Sent scheduling request via dashboard: "In 1 minute, send me a WhatsApp message saying 'Test 5.6 passed!'"
+
+**Evidence:**
+- Task created: `task-01KJPE9407RKJY3SAKYJMN7VKT` ("Send WhatsApp message")
+- Scheduled for: `2026-03-02T04:54:01.700Z`
+- Status: `completed` at `2026-03-02T04:54:22.157Z`
+- WhatsApp message delivered to owner's phone
+
+### Observation: SDK Session Not Persisted for WhatsApp Conversations
+
+All WhatsApp conversations show `sdk_session_id = NULL` after brain responses. Web conversations correctly persist SDK sessions. This is a non-blocking observation — conversations work correctly without session persistence (fresh session + context injection on each message). Session persistence for WhatsApp channels can be investigated in a future sprint.
+
+---
+
+## Sprint Complete
+
+**Final verdict: 10 PASS, 2 N/A. M6.5 validation is 100% complete.**
+
+All live end-to-end tests passed. The agent correctly:
+- Routes WhatsApp messages to pinned conversations
+- Responds via WhatsApp
+- Handles `/new` conversation reset with correct pin/unpin
+- Routes post-reset messages to the new conversation
+- Executes scheduled tasks with WhatsApp delivery
+- Falls back gracefully on expired SDK sessions
+- Resumes pre-S2 conversations with context injection
+- Sustains multi-turn conversations without overflow

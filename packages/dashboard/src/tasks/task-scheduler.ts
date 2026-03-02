@@ -86,7 +86,9 @@ export class TaskScheduler {
       );
 
       for (const task of scheduledTasks) {
-        console.log(`[TaskScheduler] Executing due task: ${task.title}`);
+        console.log(
+          `[TaskScheduler] Executing due task: ${task.title} (${task.id})`,
+        );
         try {
           await this.processor.executeAndDeliver(task);
         } catch (err) {

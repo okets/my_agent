@@ -174,6 +174,14 @@ export async function spawnEventQuery(
     }
   }
 
+  // Guard: only execute tasks that are still pending
+  if (task.status !== "pending") {
+    console.log(
+      `[EventHandler] Skipping task ${task.id} — status is "${task.status}", not "pending"`,
+    );
+    return "";
+  }
+
   // Create executor and run
   const executor = new TaskExecutor({
     taskManager,

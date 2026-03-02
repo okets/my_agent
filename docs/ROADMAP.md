@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-01
+> **Updated:** 2026-03-02
 
 ---
 
@@ -17,7 +17,7 @@
 | **M5: Task System**          | Complete | 10/10 sprints                |
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Complete | 9/9 sprints                |
-| **M6.5: Agent SDK Alignment**| Complete | S4: 5 pass, 2 N/A, 2 TODO (WhatsApp) |
+| **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
 | **M6.6: Agentic Lifecycle**  | Planned  | Design complete, 4 sprints   |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -617,6 +617,16 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
 **M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
 
 **Sprint quality gate:** Every future milestone's final sprint includes E2E automated tests + one comprehensive human-in-the-loop test walkthrough.
+
+---
+
+## Ad-Hoc Sprints
+
+Quick fixes and small enhancements outside the milestone structure.
+
+| Sprint | Name | Status | Plan | Review |
+| ------ | ---- | ------ | ---- | ------ |
+| — | WhatsApp Typing Indicator | Planned | [plan](sprints/adhoc-whatsapp-typing-indicator/plan.md) | — |
 
 ---
 
