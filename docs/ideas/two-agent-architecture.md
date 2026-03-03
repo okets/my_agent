@@ -134,7 +134,7 @@ Working agents develop tools in their task folder (source). When ready, the tool
   },
   "recurrence": "FREQ=MINUTELY;INTERVAL=5;COUNT=3",
   "delivery": {
-    "channel": "ninas_watsapp"
+    "channel": "ninas_whatsapp"
   },
   "sessionPolicy": "fresh"
 }

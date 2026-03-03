@@ -157,7 +157,7 @@ The brain checks autonomy mode before executing actions. Enforcement happens at 
 
 ### 3. Task System (Folder-Based)
 
-> **Note:** The task system execution model is being redesigned. The [Two-Agent Architecture](ideas/two-agent-architecture.md) introduces Conversation Nina (reactive, in-channel) + Working Agents (proactive, task-bound), an orchestrator for scheduling/spawning, task templates as framework code, and folder-based source of truth. The types and folder concept below remain valid; the execution mechanism changes. See [transition plan](ideas/two-agent-transition-plan.md).
+> **Note:** The task system execution model is being redesigned. The [Two-Agent Architecture](ideas/two-agent-architecture.md) introduces Conversation Nina (reactive, in-channel) + Working Agents (proactive, task-bound), a single orchestrator replacing CalendarScheduler + EventHandler + TaskScheduler, task templates as framework code (`task_templates/`), autonomy mandated in `task.json` only (no cascading defaults), and folder-based source of truth with new folder names (`ad_hoc/`, `projects/`, `ongoing_responsibilities/`, `custom_tools/`). The four task types below remain valid; the execution mechanism and folder structure change. See [transition plan](ideas/two-agent-transition-plan.md).
 
 Every task gets a folder. Four types:
 

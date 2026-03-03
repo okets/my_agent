@@ -4,10 +4,11 @@
 > **Created:** 2026-03-02 | **Updated:** 2026-03-03
 > **Author:** Coverage Agent (team synthesis)
 > **Source documents:**
+>
 > - `docs/ideas/two-agent-architecture.md` — the original idea
 > - `docs/ideas/two-agent-codebase-audit.md` — codebase expert's audit
 > - `docs/ideas/two-agent-roadmap-impact.md` — roadmap expert's analysis
-> **CTO discussion:** 14 required discussion points (a–n) + 4 CTO-level concerns (o–r)
+>   **CTO discussion:** 14 required discussion points (a–n) + 4 CTO-level concerns (o–r)
 
 ---
 
@@ -158,6 +159,7 @@ All three documents address the "why." The roadmap audit has a dedicated section
 This concern is the most significant unresolved issue in the current audits. The idea doc acknowledges it as an open question. The codebase audit states "working agents are fresh spawns" as a principle but then notes in section 6 migration: "working agents: no session resumption needed — folder is the state." The roadmap audit doesn't address the tension at all.
 
 **What's missing:** A decision on whether session resumption is available as an opt-in for long-lived tasks. Specific scenarios where session context exceeds what can be written to files need to be identified. A concrete policy is needed:
+
 - Option A: All working agents are always fresh spawns. Period. Hooks must capture sufficient state.
 - Option B: Ongoing tasks can opt into session resumption via `task.json.sessionPolicy: "resume"`.
 - Option C: Hybrid — first spawn is fresh, subsequent spawns resume if session is recent (e.g., < 1 hour old), otherwise fresh.
@@ -173,6 +175,7 @@ This decision directly affects the architecture. If Option B or C is chosen, the
 The roadmap audit acknowledges the cost ("5 sprints of CalDAV work... produced infrastructure that is now being replaced") but concludes elimination is correct without fully arguing the case. The audit notes "the FullCalendar UI is preserved" and "RRULE concepts" survive.
 
 **What's missing:** A clear cost-benefit analysis comparing:
+
 - **Keep Radicale as derived projection:** Task folder creation triggers a CalDAV write. Orchestrator reads from CalDAV (preserved). Frontend unchanged. Cost: bidirectional sync complexity, continued Radicale dependency.
 - **Eliminate Radicale:** Implement new `/api/calendar/events` endpoint, rewrite `CalendarScheduler`. Cost: ~1 sprint. Benefit: no external dependency, no sync complexity, folder is the single source of truth.
 
@@ -187,6 +190,7 @@ The case for elimination is sound (no external dependency, no sync bugs, folders
 The roadmap audit proposes a 5-sprint M6.7 with a logical sequence. The codebase audit identifies migration notes per system. But neither audit explicitly frames the migration strategy in terms of the three options the CTO raised.
 
 **What's missing:** An explicit decision between:
+
 - **Big-bang:** Cut over all task execution to the new model in one sprint. High risk, fast.
 - **Task-type-by-task-type:** First migrate `ongoing_responsibilities/` tasks, then `ad_hoc/`, then `projects/`. Calendar stays on Radicale until the last task type is migrated. Gradual.
 - **Adapter layer:** Keep existing `TaskExecutor` running. New `WorkingAgentSession` added alongside. New tasks use folders. Old tasks use DB. Maintained in parallel until old tasks expire.
@@ -202,6 +206,7 @@ The M6.7 sprint plan in the roadmap audit is closest to task-type-by-task-type b
 This concern is not addressed in either audit. The idea doc mentions "a fleet of working agents" and "not one background worker — many" but does not analyze cost implications.
 
 **What's missing:** An analysis of:
+
 1. How many ongoing tasks are expected in practice (the 20-task scenario is a real question)
 2. Whether batching is architecturally feasible (can one agent handle multiple task folders per invocation?)
 3. Whether lean system prompts mitigate the cost (each working agent has a lean prompt — less context = lower cost than Conversation Nina)
@@ -213,26 +218,26 @@ This needs a position. The plan below recommends a staggered-first approach with
 
 ### Gap Summary
 
-| Point | Status | Action Required |
-|-------|--------|-----------------|
-| a. Two agent types | Covered | None |
-| b. Folder as source of truth | Covered | None |
-| c. DB as disposable index | Covered | Define re-indexing trigger in M6.7-S1 |
-| d. CalDAV/Radicale elimination | Covered | Specify drag-and-drop API contract change |
-| e. Recurrence handling | Covered | Define `recurrence` field schema in M6.7-S1 |
-| f. Fresh spawns + hooks | **Partial** | Spec the "hooks force document update" mechanism |
-| g. Long-lived task wakeup | **Partial** | Define trigger for working agent re-spawn on subtask add |
-| h. Conversation Nina as task manager | Covered | Resolve "subagent vs. separate session" contradiction |
-| i. Default channel setting | Covered | None |
-| j. Task classification unchanged | Covered | None |
-| k. Working agent tools | Covered | Spec Escalate routing flow in detail |
-| l. M6.6 integration | Covered | Address heartbeat-reads-other-folders consistency |
-| m. Output routing solved | Covered | None |
-| n. The "why" | Covered | None |
-| o. Fresh spawn vs. resumption | **Gap** | Decision needed — see three options |
-| p. Radicale rebuild cost | Partial | State the case explicitly in plan |
-| q. Migration gradualness | Partial | Commit to a strategy |
-| r. Fleet cost model | **Gap** | Analysis needed, position needed |
+| Point                                | Status      | Action Required                                                                                                    |
+| ------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------ |
+| a. Two agent types                   | Covered     | None                                                                                                               |
+| b. Folder as source of truth         | Covered     | None                                                                                                               |
+| c. DB as disposable index            | Covered     | Define re-indexing trigger in M6.7-S1                                                                              |
+| d. CalDAV/Radicale elimination       | Covered     | Specify drag-and-drop API contract change                                                                          |
+| e. Recurrence handling               | Covered     | Define `recurrence` field schema in M6.7-S1                                                                        |
+| f. Fresh spawns + hooks              | **Partial** | Spec the "hooks force document update" mechanism                                                                   |
+| g. Long-lived task wakeup            | **Partial** | Define trigger for working agent re-spawn on subtask add                                                           |
+| h. Conversation Nina as task manager | Covered     | ~~Resolve "subagent vs. separate session" contradiction~~ → Resolved: separate sessions, not subagents (S2 item 7) |
+| i. Default channel setting           | Covered     | None                                                                                                               |
+| j. Task classification unchanged     | Covered     | None                                                                                                               |
+| k. Working agent tools               | Covered     | Spec Escalate routing flow in detail                                                                               |
+| l. M6.6 integration                  | Covered     | Address heartbeat-reads-other-folders consistency                                                                  |
+| m. Output routing solved             | Covered     | None                                                                                                               |
+| n. The "why"                         | Covered     | None                                                                                                               |
+| o. Fresh spawn vs. resumption        | **Gap**     | Decision needed — see three options                                                                                |
+| p. Radicale rebuild cost             | Partial     | State the case explicitly in plan                                                                                  |
+| q. Migration gradualness             | Partial     | Commit to a strategy                                                                                               |
+| r. Fleet cost model                  | **Gap**     | Analysis needed, position needed                                                                                   |
 
 ---
 
@@ -253,23 +258,28 @@ This needs a position. The plan below recommends a staggered-first approach with
 Before detailing the phases, three explicit decisions are needed:
 
 **On (o) Fresh spawn vs. session resumption:**
+
 > **Decision: Fresh spawns for all task types, with exception for ongoing tasks via opt-in.**
 > Default: all working agents are stateless, reading folder for context. Ongoing tasks may specify `sessionPolicy: "resume"` in `task.json` to enable SDK session resumption. If chosen, the DB index stores the session ID for that task only. This keeps the "DB as disposable" principle mostly intact while allowing the restaurant-booking and daily-news-summarizer patterns to accumulate richer context over time. This is revisited in M6.7-S5 after observing real working agent behavior.
 
 **On (p) Radicale rebuild cost:**
+
 > **Decision: Eliminate Radicale. The cost is one sprint, the benefit is permanent.**
 > Radicale as a derived projection requires bidirectional sync: every folder change must write to CalDAV, every CalDAV query must stay consistent with folders. This sync complexity negates the "folder as source of truth" principle and reintroduces the exact class of routing bugs we're fixing. One sprint to replace the backend is worth avoiding this indefinitely. FullCalendar's API contract is preserved — only the backend changes.
 
 **On (q) Migration gradualness:**
+
 > **Decision: Adapter layer approach — old and new run in parallel, new tasks use folders, old tasks stay in DB until they expire.**
+>
 > - Phase 0: Fix the delivery bug in the current architecture (hours, not days).
 > - Phase 1 (M6.7-S1–S2): Build folder infrastructure + working agent spawn. New tasks from this point use folders. Old DB tasks continue executing via the old TaskExecutor until they complete.
 > - Phase 2 (M6.7-S3): Build orchestrator to handle both DB tasks (legacy) and folder tasks (new).
 > - Phase 3 (M6.7-S4): Calendar replacement. Radicale decommissioned.
 > - Phase 4 (M6.7-S5): Old DB task infrastructure removed. Full cutover.
-> No big-bang. Old task executor stays alive through Phase 3.
+>   No big-bang. Old task executor stays alive through Phase 3.
 
 **On (r) Fleet cost model:**
+
 > **Decision: Stagger by design, batch deferred.**
 > Working agents have lean system prompts (task context only, no full personality). Each invocation is shorter and cheaper than a Conversation Nina session. For ongoing tasks, natural schedule staggering (morning-prep at 6am, heartbeat every 2h, daily-summary at 11pm) means they don't run simultaneously. Explicit batching (one agent, multiple task folders) is architecturally complex and deferred until observed cost data justifies it. Revisit after 30 days of production data.
 
@@ -284,6 +294,7 @@ Before detailing the phases, three explicit decisions are needed:
 **Change:** `packages/dashboard/src/scheduler/event-handler.ts` — in `spawnEventQuery()`, replace `executor.run()` with `TaskProcessor.executeAndDeliver()`. This routes the CalDAV-fired task result through the same delivery path as conversation-spawned tasks (DeliveryExecutor → WhatsApp).
 
 **Files changed:**
+
 - `packages/dashboard/src/scheduler/event-handler.ts` (line ~193)
 
 **Risk:** Low. This is a targeted fix using existing, tested code paths. DeliveryExecutor and TaskProcessor are already production-tested. No schema changes, no new infrastructure.
@@ -315,7 +326,17 @@ Before detailing the phases, three explicit decisions are needed:
    - Triggers `spawnWorkingAgent()` from Layer 1
    - Validates: file watcher reliability (WSL2 inotify), scheduling logic, spawn lifecycle
 
-**Success criteria:** All three layers work together — user tells Nina to schedule a task, folder is created, orchestrator detects it at the right time, working agent executes and delivers to WhatsApp. If any layer fails, the M6.7 plan is adjusted before committing full sprint effort.
+**Success Criteria (Measurable):**
+
+| Metric                                         | Target                                               | Failure Action                                       |
+| ---------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------- |
+| File watcher detection latency                 | <1 second                                            | Investigate WSL2 inotify; add polling fallback       |
+| Working agent spawn time                       | <5 seconds                                           | Profile prompt assembly; reduce context size         |
+| End-to-end delivery (folder create → WhatsApp) | <15 seconds                                          | Identify bottleneck; optimize critical path          |
+| Restart recovery                               | Orchestrator resumes all pending tasks after restart | Fix state persistence; ensure folder scan on startup |
+| Concurrent spawn (2 tasks due simultaneously)  | Both execute without conflict                        | Add spawn queue or mutex                             |
+
+**Pass/Fail Gate:** All five metrics must pass. If any fails, diagnose root cause and adjust M6.7 plan before proceeding. Spike code becomes M6.7 foundation — not throwaway.
 
 ---
 
@@ -334,14 +355,33 @@ Before detailing the phases, three explicit decisions are needed:
 **Deliverables:**
 
 1. **`task.json` schema finalized** (docs/design/task-schema.md)
-   - Fields: `id`, `title`, `type` (trivial/ad-hoc/project/ongoing/custom_tool), `status`, `createdAt`, `createdBy`, `schedule`, `delivery`, `recurrence`, `sessionPolicy`, `autonomy`
+   - Fields: `id`, `title`, `type` (trivial/ad-hoc/project/ongoing/custom_tool), `status`, `createdAt`, `createdBy`, `schedule`, `delivery`, `recurrence`, `sessionPolicy`, `autonomy`, `schemaVersion`
    - `schedule.type`: `one-shot | recurring | none`
    - `schedule.scheduledFor`: ISO timestamp
    - `delivery.channel`: channel ID or `"default"`
-   - `recurrence`: RRULE string (e.g., `"RRULE:FREQ=DAILY;BYHOUR=7"`) or `null`
    - `sessionPolicy`: `"fresh"` (default) | `"resume"` (ongoing tasks only)
-   - `autonomy`: autonomy level for the working agent (e.g., `"full"`, `"supervised"`, `"ask"`)
+   - `autonomy`: `"autonomous"` | `"smart"` | `"supervised"` (matches existing M5 design)
+   - `schemaVersion`: integer, starts at `1` — enables future migrations
    - **Note:** Autonomy is mandated in `task.json` only — no cascading defaults from `config.yaml`
+
+   **Recurrence Field Schema:**
+
+   ```json
+   {
+     "recurrence": "RRULE:FREQ=DAILY;BYHOUR=7;BYMINUTE=0", // Full RFC 5545 RRULE string
+     "recurrenceEnd": "2026-12-31T23:59:59Z" // Optional: when recurrence stops (null = forever)
+   }
+   ```
+
+   - Uses standard RRULE format for `ical-expander` compatibility
+   - Examples: `RRULE:FREQ=MINUTELY;INTERVAL=5;COUNT=3` (3 times, 5 min apart), `RRULE:FREQ=DAILY;BYHOUR=7` (daily at 7am)
+   - `recurrenceEnd` is optional; omit for indefinite recurrence
+
+   **Schema Versioning Strategy:**
+   - `schemaVersion: 1` in every `task.json` from day one
+   - Folder scanner checks version; if < current, runs migration function
+   - Migration functions in `packages/core/src/tasks/migrations/v{N}.ts`
+   - Migrations are idempotent and logged to `notes.md`
 
 2. **Folder conventions** (`.my_agent/tasks/ad_hoc/`, `projects/`, `ongoing_responsibilities/`, `custom_tools/`)
    - Enforced by folder creation API, not by working agents
@@ -361,32 +401,40 @@ Before detailing the phases, three explicit decisions are needed:
 5. **Folder scanner** (`packages/core/src/tasks/folder-scanner.ts`)
    - Reads all `task.json` files from all task subdirectories
    - Builds/rebuilds the SQLite task index table
-   - Triggered by: file system watcher (using existing `SyncService` pattern), explicit API call, and on startup
    - DB index schema: `id`, `title`, `type`, `status`, `scheduledFor`, `folderPath`, `updatedAt`
 
-6. **Task folder RAG indexing** (extends existing memory system)
-   - Task folder living documents (`plan.md`, `notes.md`, `deliverables/*.md`) are indexed into the existing memory search system (`memory.db`)
-   - Uses the same `SyncService` file watcher pattern — watches `.my_agent/tasks/` alongside `notebook/`
-   - Same hybrid search (FTS5 + vector embeddings) already built in M6
-   - Enables: `recall("restaurant booking status")` returns relevant content from task folders, not just notebook
-   - Working agents can search across all task history via existing `recall()` tool
-   - Conversation Nina can answer "what did we decide about X?" by finding relevant task deliverables
-   - Chunking follows existing `chunker.ts` pattern (~400-token chunks per document)
+   **DB Re-indexing Trigger Mechanism:**
 
-7. **task-server.ts MCP implementation** (partial — folder tools for Conversation Nina)
+   | Trigger                    | When                         | Action                                                         |
+   | -------------------------- | ---------------------------- | -------------------------------------------------------------- |
+   | **File watcher** (primary) | `task.json` created/modified | Re-index single task                                           |
+   | **Startup scan**           | Server starts                | Full scan, rebuild entire index                                |
+   | **Periodic fallback**      | Every 5 minutes              | Full scan (handles missed watcher events, WSL2 inotify limits) |
+   | **Explicit API call**      | `POST /api/tasks/reindex`    | Full scan (admin/debug use)                                    |
+   - File watcher uses existing `SyncService` pattern (chokidar)
+   - Watcher path: `.my_agent/tasks/**/*.json` (only task.json files)
+   - Single-task re-index is debounced (100ms) to handle rapid writes
+
+6. **task-server.ts MCP implementation** (partial — folder tools for Conversation Nina)
    - `create_task_folder(title, type, plan, schedule?, delivery?)` — creates folder + returns ID
    - `read_task_folder(taskId)` — reads `task.json` + `plan.md` + `notes.md`
    - `update_task_plan(taskId, planContent)` — writes `plan.md`
    - `add_task_note(taskId, note)` — appends to `notes.md`
 
-8. **Conversation Nina wiring update** (replaces `TaskExtractor` Haiku call)
+7. **Conversation Nina wiring update** (replaces `TaskExtractor` Haiku call)
    - Remove post-turn Haiku extraction call from `chat-handler.ts` (~L1255–1330)
    - Conversation Nina uses `create_task_folder()` MCP tool directly when she decides a task is needed
    - `task_conversations` junction table dropped; `task.json.createdBy.conversationId` is the link
 
 **Adapter layer:** Old `TaskManager` + `TaskExecutor` still active for existing DB tasks. New tasks go to folders. Both coexist.
 
-**Blockers resolved for S2:** Folder structure exists. Folder creation API works. DB index is populated. Task folder documents indexed in RAG (searchable via `recall()`). Conversation Nina can create task folders.
+**Test expectations:**
+
+- Unit: `task.json` schema validation, folder scanner parses all task types, RRULE string validation
+- Integration: `POST /api/tasks` creates folder + DB index entry, file watcher triggers re-index within 1s
+- Manual: Create task via Conversation Nina MCP tool, verify folder structure, verify appears in dashboard
+
+**Blockers resolved for S2:** Folder structure exists. Folder creation API works. DB index is populated. Conversation Nina can create task folders.
 
 ---
 
@@ -417,27 +465,58 @@ Before detailing the phases, three explicit decisions are needed:
    - `notify(taskId, message, channel?)` — sends status update to channel (or default)
    - `deliver(taskId, content, channel?)` — the primary delivery tool. Reads `task.json.delivery.channel`, resolves "default" from `config.yaml:defaultDeliveryChannel`, calls `ChannelManager.send()`
 
-4. **Working agent spawn function** (`packages/dashboard/src/agent/spawn-working-agent.ts`)
+   **Escalate/Notify Routing Spec:**
+
+   | Tool              | Writes to             | Sends to                     | Pauses Agent? | Sets Status                         |
+   | ----------------- | --------------------- | ---------------------------- | ------------- | ----------------------------------- |
+   | `escalate()`      | `notes.md` (reason)   | delivery channel             | Yes           | `blocked`                           |
+   | `request_input()` | `notes.md` (question) | delivery channel             | Yes           | `blocked`                           |
+   | `notify()`        | `notes.md` (update)   | specified or default channel | No            | unchanged                           |
+   | `deliver()`       | `deliverables/`       | delivery channel             | No            | unchanged (caller sets `completed`) |
+
+   **Pause behavior:** When paused, the working agent session ends gracefully. Conversation Nina (or orchestrator on user reply) must call `spawn_working_agent(taskId)` to resume. The agent reads `notes.md` for the question/escalation context.
+
+4. **Autonomy enforcement** (`packages/core/src/tasks/autonomy-check.ts`)
+   - Working agent system prompt includes autonomy level from `task.json.autonomy`
+   - Enforcement logic in MCP tool handlers:
+
+   | Autonomy     | External Actions     | Destructive Actions  | Scope Changes        |
+   | ------------ | -------------------- | -------------------- | -------------------- |
+   | `autonomous` | Allow                | Allow                | Allow                |
+   | `smart`      | Allow                | Ask via `escalate()` | Ask via `escalate()` |
+   | `supervised` | Ask via `escalate()` | Ask via `escalate()` | Ask via `escalate()` |
+   - External actions: sending messages, making API calls, writing outside task folder
+   - Destructive actions: deleting files, modifying production data
+   - Scope changes: expanding task scope beyond original `plan.md`
+   - Enforcement via MCP tool wrappers that check `task.json.autonomy` before proceeding
+
+5. **Working agent spawn function** (`packages/dashboard/src/agent/spawn-working-agent.ts`)
    - `spawnWorkingAgent(taskId)` → reads folder → builds session → runs query → folder is already current on completion
    - **Tool-based enforcement (primary):** Every MCP tool (`write_deliverable()`, `update_task_plan()`, `deliver()`, `update_task_status()`) writes to the task folder as a side effect. The folder reflects all work up to the last successful tool call. No end-of-session dump needed.
    - **`Stop` hook (safety net):** Agent SDK `Stop` hook fires on session end (including crashes, token limits). Reads last session state → writes `task.json.status = "interrupted"` if not already completed → appends brief summary to `notes.md`. This handles the edge case where the agent did reasoning but hadn't called a tool yet.
    - On normal exit: spawner function sets `task.json.status = "completed"` (or `"failed"` on error)
 
-5. **Immediate working agent spawn** (for ad-hoc tasks with `schedule.type: "none"`)
+6. **Immediate working agent spawn** (for ad-hoc tasks with `schedule.type: "none"`)
    - `TaskProcessor.onTaskCreated()` detects folder-based tasks and calls `spawnWorkingAgent(taskId)` instead of old `TaskExecutor.run()`
    - Adapter: old DB-based tasks still use old path
 
-6. **Long-lived task wakeup** (for the restaurant booking pattern)
+7. **Long-lived task wakeup** (for the restaurant booking pattern)
    - Conversation Nina can call `spawn_working_agent(taskId)` MCP tool to explicitly re-spawn
    - Working agent reads `plan.md` + `notes.md` for accumulated context
    - Future: file system watcher on `plan.md` changes can auto-trigger spawn (deferred to M6.7-S4)
 
-7. **Contradiction resolved: Conversation Nina + working agents are separate sessions, not subagents**
+8. **Contradiction resolved: Conversation Nina + working agents are separate sessions, not subagents**
    - Working agents are NOT Agent SDK subagents of Conversation Nina. They are independent sessions spawned by the orchestrator (via `spawnWorkingAgent()`).
    - Conversation Nina creates task folders via `create_task_folder()` MCP tool. The orchestrator detects the new folder and spawns the working agent — the actual Agent SDK session is created by the orchestrator, not within Nina's session context.
    - This is cleaner: working agents can outlive Conversation Nina's session, run on a schedule, and are fully independent.
 
-**Blockers resolved for S3:** Working agents can be spawned. They can deliver to channels. The immediate-task path is upgraded.
+**Test expectations:**
+
+- Unit: `assembleWorkingAgentPrompt()` produces valid prompt, autonomy check logic, escalate routing
+- Integration: `spawnWorkingAgent()` reads folder and delivers to WhatsApp, `Stop` hook writes interrupted status
+- Manual: Working agent escalation appears in WhatsApp, task status updates in dashboard
+
+**Blockers resolved for S3:** Working agents can be spawned. They can deliver to channels. Autonomy enforcement works. The immediate-task path is upgraded.
 
 ---
 
@@ -462,11 +541,17 @@ Before detailing the phases, three explicit decisions are needed:
    - Used by orchestrator for ongoing tasks
 
 3. **`/api/calendar/events` endpoint rewrite** (`packages/dashboard/src/routes/calendar.ts`)
-   - `GET /api/calendar/events?from=&to=` — queries DB index for tasks with `scheduledFor` in range, maps to FullCalendar event format
-   - `POST /api/calendar/events` — deprecated route redirected to `POST /api/tasks`
-   - `PATCH /api/calendar/events/:id` — updates `task.json.schedule.scheduledFor` (drag-and-drop rescheduling), triggers folder watcher to re-index
-   - `DELETE /api/calendar/events/:id` — updates `task.json.status = "cancelled"`
+
+   **Calendar API Mapping (Old → New):**
+
+   | Endpoint                             | Old (CalDAV)               | New (Folder-backed)                                               | Frontend Change                     |
+   | ------------------------------------ | -------------------------- | ----------------------------------------------------------------- | ----------------------------------- |
+   | `GET /api/calendar/events?from=&to=` | CalDAVClient.getEvents()   | DB index query → FullCalendar format                              | None                                |
+   | `POST /api/calendar/events`          | CalDAVClient.createEvent() | Redirect to `POST /api/tasks` → folder creation                   | None (redirect handled server-side) |
+   | `PATCH /api/calendar/events/:id`     | CalDAVClient.updateEvent() | Read folder → update `task.json.schedule.scheduledFor` → re-index | None                                |
+   | `DELETE /api/calendar/events/:id`    | CalDAVClient.deleteEvent() | Update `task.json.status = "cancelled"`                           | None                                |
    - FullCalendar frontend code unchanged — same API contract, different backend
+   - Drag-and-drop rescheduling: `eventDrop` callback calls `PATCH`, which now updates `task.json` instead of CalDAV
 
 4. **`CalendarContext` update** (`packages/core/src/calendar/context.ts`)
    - Change data source from CalDAV to DB index query
@@ -484,6 +569,12 @@ Before detailing the phases, three explicit decisions are needed:
 6. **`fired-events.json` elimination**
    - Scheduler tracks execution via `task.json.status` (no separate tracking file)
    - Remove `runtime/fired-events.json` and its management code
+
+**Test expectations:**
+
+- Unit: RRULE expansion returns correct next occurrence, orchestrator spawn logic, calendar API format mapping
+- Integration: Scheduled task fires at correct time, drag-and-drop updates `task.json`, Radicale removal doesn't break UI
+- Manual: Create task via dashboard calendar, verify it appears in FullCalendar, drag to reschedule, verify execution at new time
 
 **Blockers resolved for S4:** All task scheduling flows through the folder-based path. Calendar API is live and tested. Radicale is gone.
 
@@ -531,7 +622,21 @@ Before detailing the phases, three explicit decisions are needed:
    - Working agent session emits intermediate `state:tasks` update with `status: "running"`
    - No full streaming (deferred to M7 for coding projects)
 
-**Blockers resolved for S5:** Dashboard fully reads from folder model. Old DB-task infrastructure removed. System is clean.
+8. **Task folder RAG indexing** (extends existing memory system)
+   - Task folder living documents (`plan.md`, `notes.md`, `deliverables/*.md`) indexed into memory search (`memory.db`)
+   - Uses existing `SyncService` file watcher pattern — watches `.my_agent/tasks/` alongside `notebook/`
+   - Same hybrid search (FTS5 + vector embeddings) already built in M6
+   - Enables: `recall("restaurant booking status")` returns content from task folders
+   - Chunking follows existing `chunker.ts` pattern (~400-token chunks per document)
+   - **Rationale for S4 placement:** RAG indexing depends on stable folder structure and is non-blocking for core functionality
+
+**Test expectations:**
+
+- Unit: DB index schema migration test, folder watcher trigger test
+- Integration: Task browser API returns folder contents, StatePublisher broadcasts on folder change
+- Manual: Dashboard task detail view renders `plan.md` correctly
+
+**Blockers resolved for S5:** Dashboard fully reads from folder model. Old DB-task infrastructure removed. Task folders searchable via `recall()`. System is clean.
 
 ---
 
@@ -560,10 +665,11 @@ Before detailing the phases, three explicit decisions are needed:
    - Verify second spawn resumes that session
    - Verify fallback to fresh spawn if session is stale
 
-4. **Fleet cost observation** (not optimization — just measurement)
+4. **Fleet cost observation + alerting**
    - Log: working agent spawn time, token counts, per-task cost estimates
    - Enable informed decision on batching (deferred until data exists)
    - If 3+ ongoing tasks run simultaneously, measure actual API call overlap
+   - **Alerting threshold:** Daily API call count logged to `runtime/fleet-metrics.json`. If >100 calls/day for 3 consecutive days, log warning and create `WISHLIST.md` entry for batching design review.
 
 5. **Human-in-the-loop validation**
    - User tests all scenarios from the test plan
@@ -575,15 +681,15 @@ Before detailing the phases, three explicit decisions are needed:
 
 With M6.7 complete, M6.6 no longer needs to build scheduling infrastructure. Its scope is refocused:
 
-| M6.6 Feature | Status | Notes |
-|-------------|--------|-------|
-| `current-state.md` mechanism | Keep — unchanged | Conversation Nina reads this on every new session |
-| Context refresher on resume | Keep — unchanged | Conversation Nina context refresh after notebook changes |
-| Fact extraction pipeline | Keep — unchanged | Triggered by conversation idle, not scheduled. Unchanged. |
-| `work-patterns.md` + hatching step | Keep — unchanged | Both agents read this |
-| WorkLoopScheduler | **Eliminated** | Absorbed by M6.7's orchestrator |
-| Heartbeat-as-code | **Eliminated** | Heartbeat is now `ongoing_responsibilities/heartbeat/` task folder |
-| Background query utility | **Eliminated** | Working agents handle this natively |
+| M6.6 Feature                       | Status           | Notes                                                              |
+| ---------------------------------- | ---------------- | ------------------------------------------------------------------ |
+| `current-state.md` mechanism       | Keep — unchanged | Conversation Nina reads this on every new session                  |
+| Context refresher on resume        | Keep — unchanged | Conversation Nina context refresh after notebook changes           |
+| Fact extraction pipeline           | Keep — unchanged | Triggered by conversation idle, not scheduled. Unchanged.          |
+| `work-patterns.md` + hatching step | Keep — unchanged | Both agents read this                                              |
+| WorkLoopScheduler                  | **Eliminated**   | Absorbed by M6.7's orchestrator                                    |
+| Heartbeat-as-code                  | **Eliminated**   | Heartbeat is now `ongoing_responsibilities/heartbeat/` task folder |
+| Background query utility           | **Eliminated**   | Working agents handle this natively                                |
 
 M6.6 becomes a focused sprint on the Nina self-awareness layer: temporal context, context refresher, fact extraction, work patterns.
 
@@ -593,16 +699,16 @@ M6.6 becomes a focused sprint on the Nina self-awareness layer: temporal context
 
 With working agents as the execution mechanism, M7's scope is significantly reduced:
 
-| M7 Feature | Status | Notes |
-|-----------|--------|-------|
-| Task folder templates | **Absorbed by M6.7** | Standard structure established |
-| Working agent executor | **Absorbed by M6.7** | That IS M6.7 |
-| Process supervision (PID, watchdog) | **Eliminated** | Working agents run in-process via Agent SDK |
-| `stream-json` subprocess streaming | **Eliminated** | SDK streaming is the pattern (already implemented) |
-| DECISIONS.md pattern | Keep — in task folder | Convention, not new code |
-| **User code project relay** | Keep — unique M7 value | User's external repo → working agent relays to user |
-| **Dashboard streaming visibility** | Keep — M7 value | Full working agent session streaming to dashboard |
-| M7 prototype checklist | **Eliminated** | Claude Code subprocess not used |
+| M7 Feature                          | Status                 | Notes                                               |
+| ----------------------------------- | ---------------------- | --------------------------------------------------- |
+| Task folder templates               | **Absorbed by M6.7**   | Standard structure established                      |
+| Working agent executor              | **Absorbed by M6.7**   | That IS M6.7                                        |
+| Process supervision (PID, watchdog) | **Eliminated**         | Working agents run in-process via Agent SDK         |
+| `stream-json` subprocess streaming  | **Eliminated**         | SDK streaming is the pattern (already implemented)  |
+| DECISIONS.md pattern                | Keep — in task folder  | Convention, not new code                            |
+| **User code project relay**         | Keep — unique M7 value | User's external repo → working agent relays to user |
+| **Dashboard streaming visibility**  | Keep — M7 value        | Full working agent session streaming to dashboard   |
+| M7 prototype checklist              | **Eliminated**         | Claude Code subprocess not used                     |
 
 M7 becomes: (1) user code relay, (2) full streaming visibility for active working agents in dashboard.
 
@@ -642,18 +748,37 @@ M10: External Communications
 
 ### Risk Register
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-| Agent crashes before writing state | Low | Medium | Tool-based enforcement makes this unlikely — folder is always current up to last tool call. `Stop` hook writes `status: "interrupted"` + brief note as safety net. |
-| File system watcher misses changes (WSL2 inotify limits) | Medium | Medium | Periodic fallback scan every 5 minutes as backup to watcher |
-| Radicale data loss for existing events | Low | Low | Archive CalDAV data before decommission. Existing tasks are test data — no production data at risk yet. |
-| Session resumption complexity introduces bugs | Medium | Medium | Default to `fresh` for all tasks. Opt-in `resume` policy tested in M6.7-S5 before any production ongoing tasks use it. |
-| Fleet cost exceeds expectations at scale | Low | Medium | Measure in M6.7-S5. Lean prompts reduce cost vs Conversation Nina. Stagger scheduling. Batching available as fallback. |
-| `task.json` schema churn requiring migration | Medium | Medium | Finalize schema in M6.7-S1 with a design review before writing any code. Schema versioning field (`"schemaVersion": 1`) in `task.json` from day one. |
-| Long-lived task context exceeds file capacity | Low | Low | `notes.md` + `deliverables/` + `plan.md` is sufficient for most tasks. Full context sessions available via `sessionPolicy: "resume"`. |
+| Risk                                                     | Likelihood | Impact | Mitigation                                                                                                                                                         |
+| -------------------------------------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Agent crashes before writing state                       | Low        | Medium | Tool-based enforcement makes this unlikely — folder is always current up to last tool call. `Stop` hook writes `status: "interrupted"` + brief note as safety net. |
+| File system watcher misses changes (WSL2 inotify limits) | Medium     | Medium | Periodic fallback scan every 5 minutes as backup to watcher                                                                                                        |
+| Radicale data loss for existing events                   | Low        | Low    | Archive CalDAV data before decommission. Existing tasks are test data — no production data at risk yet.                                                            |
+| Session resumption complexity introduces bugs            | Medium     | Medium | Default to `fresh` for all tasks. Opt-in `resume` policy tested in M6.7-S5 before any production ongoing tasks use it.                                             |
+| Fleet cost exceeds expectations at scale                 | Low        | Medium | Measure in M6.7-S5. Lean prompts reduce cost vs Conversation Nina. Stagger scheduling. Batching available as fallback.                                             |
+| `task.json` schema churn requiring migration             | Medium     | Medium | Finalize schema in M6.7-S1 with a design review before writing any code. Schema versioning field (`"schemaVersion": 1`) in `task.json` from day one.               |
+| Long-lived task context exceeds file capacity            | Low        | Low    | `notes.md` + `deliverables/` + `plan.md` is sufficient for most tasks. Full context sessions available via `sessionPolicy: "resume"`.                              |
 
 ---
 
-*Created: 2026-03-02 | Updated: 2026-03-03*
-*Author: Coverage Agent (team synthesis)*
-*Based on: two-agent-architecture.md, two-agent-codebase-audit.md, two-agent-roadmap-impact.md*
+### Rollback Plan
+
+If a sprint reveals fundamental issues that cannot be resolved, here is the rollback path:
+
+| Sprint          | Rollback Action                                                                                       | Data at Risk                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| **Spike fails** | Adjust M6.7 plan based on learnings. No code to revert.                                               | None — spike code is exploratory              |
+| **S1 issues**   | Disable folder creation API. Old `TaskManager` still works.                                           | New folder-based tasks created during testing |
+| **S2 issues**   | Disable `spawnWorkingAgent()`. Tasks fall back to old `TaskExecutor`.                                 | None — adapter layer keeps old path working   |
+| **S3 issues**   | **Critical — Radicale decommissioned.** Re-enable Radicale from archive. Restore `CalendarScheduler`. | Calendar events created after decommission    |
+| **S4 issues**   | Revert dashboard to read from old DB tables. Keep folder system for backend.                          | None — data is in folders                     |
+| **S5 issues**   | Ongoing task folders are test data. Delete and recreate.                                              | Test data only                                |
+
+**S3 is the point of no return for calendar.** Before S3, test calendar API replacement thoroughly in staging. Have Radicale backup ready. Only proceed when confident.
+
+**General rollback principle:** The adapter layer means old paths work throughout S1-S2. S3 is the commitment point for calendar. S4-S5 are dashboard changes that don't affect core functionality.
+
+---
+
+_Created: 2026-03-02 | Updated: 2026-03-03_
+_Author: Coverage Agent (team synthesis)_
+_Based on: two-agent-architecture.md, two-agent-codebase-audit.md, two-agent-roadmap-impact.md_
