@@ -1,9 +1,17 @@
 # Task System — Design Specification
 
-> **Status:** Design In Progress
-> **Date:** 2026-02-14
+> **Status:** M5 Implementation Complete — Being Superseded
+> **Date:** 2026-02-14 (updated 2026-03-03)
 > **Scope:** Folder-based tasks, Claude Code spawning, scheduled tasks
-> **Milestone:** M4a
+> **Milestone:** M4a (implemented through M5)
+>
+> **Note:** This document reflects the M5 implementation. The [Two-Agent Architecture](../ideas/two-agent-architecture.md) supersedes the execution model described here. Key changes:
+> - Task folders become autonomous domains managed by working agents (not Claude Code subprocesses)
+> - Orchestrator replaces TaskScheduler + CalendarScheduler + EventHandler
+> - Autonomy mandated in `task.json` only (no cascading config defaults)
+> - Folder names: `ad_hoc/`, `projects/`, `ongoing_responsibilities/`, `custom_tools/`
+> - Templates as framework code in `task_templates/` at repo root
+> - See [transition plan](../ideas/two-agent-transition-plan.md) for migration details
 
 ---
 

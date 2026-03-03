@@ -1,7 +1,7 @@
 # Two-Agent Architecture: Codebase Audit
 
 > **Status:** Analysis — supporting detailed planning for the two-agent transition
-> **Created:** 2026-03-02
+> **Created:** 2026-03-02 | **Updated:** 2026-03-03
 > **Based on:** `docs/ideas/two-agent-architecture.md`
 > **Method:** Actual source file inspection — not guesses from names
 
@@ -62,7 +62,7 @@ Six files form the task pipeline:
 | `log-storage.ts` | **Evolve.** The JSONL log pattern (`deliverables/`, `notes.md`) maps to the folder structure. Rename and move. |
 | `TaskExecutor` | **Replace.** Working agent reads `task.json` + `plan.md` from folder, not DB fields. Spawn pattern changes from `createBrainQuery` to a full subagent with folder context. |
 | `TaskProcessor` | **Partially keep.** Delivery routing logic (DeliveryExecutor, channel sending) is reusable. The "deliver back to source conversation" logic needs updating to use folder's `task.json.delivery.channel`. |
-| `TaskScheduler` | **Keep shape, change source.** Still polls, but queries folder index (DB) rather than primary DB. |
+| `TaskScheduler` | **Replace.** Replaced by Orchestrator — single stateless background worker handling scheduling, spawning, health monitoring. |
 | `TaskExtractor` | **Redesign.** Current design runs a separate Haiku call after each brain turn. Under new architecture, Conversation Nina creates task folders directly (via MCP tool or file write). The extractor may become a lighter "should I create a folder?" classifier, or the brain writes `task.json` directly. |
 | `DeliveryExecutor` | **Keep.** Channel delivery logic is independent of task storage model. |
 
@@ -71,7 +71,7 @@ Six files form the task pipeline:
 1. All existing task rows in SQLite need folder creation (or can be abandoned — tasks are ephemeral).
 2. The `task_conversations` junction table → replaced by `task.json`'s `createdBy.conversationId` field.
 3. SDK session IDs in `tasks.sdk_session_id` → no longer needed (working agents are fresh spawns, not resumed sessions).
-4. The `sessionId` field concept (shared across recurrence occurrences) maps to the shared folder — all occurrences write to the same `ongoing/` folder.
+4. The `sessionId` field concept (shared across recurrence occurrences) maps to the shared folder — all occurrences write to the same `ongoing_responsibilities/` folder.
 
 ---
 
@@ -110,8 +110,8 @@ Three layers:
 | Component | Disposition |
 |-----------|-------------|
 | `CalDAVClient` | **Eliminate.** No more external CalDAV server dependency. |
-| `CalendarScheduler` | **Refactor.** Instead of polling Radicale, polls the SQLite index built from task folders. Triggered by `task.json.schedule.scheduledFor`. Recurrence handled by our own RRULE expander. |
-| `EventHandler` | **Eliminate.** Its job (fire event → create task → execute) becomes: scheduler fires → working agent spawned directly from folder. |
+| `CalendarScheduler` | **Replace.** CalendarScheduler and EventHandler are unified into a single **Orchestrator** — a stateless background worker that watches task folders, handles scheduling, spawns working agents, and monitors health. Instead of polling Radicale, it polls the SQLite index built from task folders. Triggered by `task.json.schedule.scheduledFor`. Recurrence handled by our own RRULE expander. |
+| `EventHandler` | **Eliminate.** Unified into the Orchestrator (see above). Its job (fire event → create task → execute) becomes: Orchestrator fires → working agent spawned directly from folder. |
 | `calendar.ts` routes | **Rewrite.** `GET /api/calendar/events` reads from SQLite task index. `POST /api/calendar/events` creates task folders. `PATCH` updates `task.json`. |
 | `CalendarContext` | **Keep shape.** Format changes (reads from SQLite instead of CalDAV), but the concept of injecting upcoming context into brain prompt is preserved. |
 | `fired-events.json` | **Eliminate.** Scheduler tracks execution in `task.json.status` instead. |
@@ -327,10 +327,11 @@ All services are attached to the Fastify server instance as properties (e.g., `s
 
 | Change | Impact |
 |--------|--------|
-| CalendarScheduler removes Radicale dependency | Initialization step 6 changes from "connect to Radicale" to "start folder-watching scheduler" |
+| CalendarScheduler + EventHandler → Orchestrator | Initialization step 6 changes from "connect to Radicale" to "start Orchestrator (folder-watching scheduler + agent spawner + health monitor)" |
 | TaskManager becomes folder-based | Step 5 changes — no more `new TaskManager(db, agentDir)` requiring a DB |
 | New: WorkingAgentSession builder | New initialization: load the working agent prompt template, create MCP server with task folder tools |
-| Task folder watcher | New component: watches `.my_agent/tasks/` for new/changed folders, updates SQLite index |
+| New: Orchestrator | New initialization: start the Orchestrator that watches task folders, handles scheduling, spawns working agents, and monitors health. Replaces CalendarScheduler + EventHandler. |
+| Task folder watcher | New component: watches `.my_agent/{ad_hoc,ongoing_responsibilities,projects,custom_tools}/` for new/changed folders, updates SQLite index |
 
 ---
 
@@ -416,7 +417,7 @@ User message → Brain responds → chat-handler calls extractTaskFromMessage()
 **New:**
 ```
 User message → Conversation Nina responds → Nina calls create_task_folder() MCP tool
-  → Folder created in .my_agent/tasks/{type}/{date}-{slug}/
+  → Folder created in .my_agent/{ad_hoc,ongoing_responsibilities,projects,custom_tools}/{date}-{slug}/
   → task.json written → DB index updated → Working agent spawned (or scheduled)
 ```
 
@@ -442,11 +443,10 @@ The working agent system prompt should include a brief instruction to recall rel
 | TaskExecutor | Brain query spawner | → Working agent spawner | High |
 | TaskProcessor | Delivery orchestrator | Partial keep (delivery logic) | Medium |
 | TaskExtractor (Haiku) | Post-turn extraction | → Eliminate, Nina creates directly | Medium |
-| TaskScheduler | SQL poller | → Folder index poller | Low |
+| TaskScheduler | SQL poller | → Replaced by Orchestrator | Medium |
 | DeliveryExecutor | Channel sender | Keep | Low |
 | CalDAVClient | Radicale client | Eliminate | Medium |
-| CalendarScheduler | CalDAV poller | Refactor to folder index | Medium |
-| EventHandler | CalDAV → Task bridge | Eliminate | Low |
+| CalendarScheduler + EventHandler | CalDAV poller + event bridge | → Unified into Orchestrator (folder watcher + scheduler + agent spawner + health monitor) | Medium |
 | Calendar routes | CalDAV-backed REST | Rewrite (folder-backed) | Medium |
 | ConversationManager | Full conversation system | Keep | None |
 | SessionManager (Nina) | Conversation brain | Keep | None |
@@ -476,7 +476,7 @@ From the design doc's open questions list:
 → This document.
 
 **Q5: M6.6 Agentic Lifecycle as ongoing task folders?**
-→ Yes. Morning prep, heartbeat, daily summary become `ongoing/` folders with recurrence rules in `task.json`. The CalendarScheduler equivalent watches for due recurring tasks and spawns working agents.
+→ Yes. Morning prep, heartbeat, daily summary become `ongoing_responsibilities/` folders with recurrence rules in `task.json`. The Orchestrator watches for due recurring tasks and spawns working agents.
 
 **Q6: M7 Coding Projects subsumed?**
 → Largely yes. Working agents run in folders with full file system access (tools: Read, Write, Edit, Bash, etc.). The `executor` `AgentDefinition` already defines this kind of agent. The main addition needed for coding projects is: streaming progress to dashboard, multi-phase support (plan → execute → review).
@@ -489,5 +489,5 @@ From the design doc's open questions list:
 
 ---
 
-*Created: 2026-03-02*
+*Created: 2026-03-02 | Updated: 2026-03-03*
 *Author: Codebase Expert agent (claude-sonnet-4-6)*

@@ -1,7 +1,7 @@
 # my_agent — Design Document
 
-> **Status:** M1-M6 Complete — M6.5 In Progress
-> **Date:** 2026-02-12 (updated 2026-02-27)
+> **Status:** M1-M6.5 Complete — Two-Agent Architecture approved
+> **Date:** 2026-02-12 (updated 2026-03-03)
 > **Decision:** Replace OpenClaw with Claude Agent SDK-based architecture
 > **Project name:** `my_agent`
 > **Platform:** WSL (Linux)
@@ -157,7 +157,9 @@ The brain checks autonomy mode before executing actions. Enforcement happens at 
 
 ### 3. Task System (Folder-Based)
 
-Every task gets a folder. Three types:
+> **Note:** The task system execution model is being redesigned. The [Two-Agent Architecture](ideas/two-agent-architecture.md) introduces Conversation Nina (reactive, in-channel) + Working Agents (proactive, task-bound), an orchestrator for scheduling/spawning, task templates as framework code, and folder-based source of truth. The types and folder concept below remain valid; the execution mechanism changes. See [transition plan](ideas/two-agent-transition-plan.md).
+
+Every task gets a folder. Four types:
 
 **Ad-hoc (inbox/)**
 

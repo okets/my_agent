@@ -1,7 +1,7 @@
 # Two-Agent Architecture: Roadmap Impact Analysis
 
 > **Status:** Analysis — Informing transition planning
-> **Created:** 2026-03-02
+> **Created:** 2026-03-02 | **Updated:** 2026-03-03
 > **Author:** Roadmap Expert (team analysis)
 > **Companion docs:**
 > - [Two-Agent Architecture](two-agent-architecture.md) — the idea
@@ -26,7 +26,7 @@ The 2026-02-12 design document was explicit about folder-based sessions:
 > *"The key insight: folders as sessions. Every task gets a project folder. Claude Code sessions run in those folders. Files, git history, CLAUDE.md, and session transcripts persist. Anyone (the agent or user) can open the folder later and continue interactively."*
 
 The original design showed:
-- `inbox/`, `projects/`, `ongoing/` as task folder directories
+- `ad_hoc/`, `projects/`, `ongoing_responsibilities/` as task folder directories
 - Each folder containing `CLAUDE.md + task.md + files`
 - Claude Code sessions running IN those folders
 - Folder = resumable session state
@@ -155,7 +155,7 @@ The new architecture differs from the original in one key way: **working agents 
 - Radicale (CalDAV server) — no longer needed
 - tsdav client — no longer needed
 - CalendarRepository interface (CalDAV-specific) — replaced with task folder scanning
-- CalendarScheduler (polling CalDAV) — replaced with TaskScheduler scanning task folders
+- CalendarScheduler (polling CalDAV) — replaced with orchestrator scanning task folders
 - `X-MYAGENT-*` custom properties on iCal events — schedule metadata moves to `task.json`
 
 **What needs building (part of M6.7):**
@@ -181,7 +181,7 @@ The new architecture differs from the original in one key way: **working agents 
 |-----------|-----------------|
 | Tasks are rows in `agent.db` | Tasks are folders with `task.json` |
 | TaskExecutor runs brain query inline | Working agent spawned per task |
-| TaskScheduler polls DB | TaskScheduler scans task folders |
+| TaskScheduler polls DB | Orchestrator scans task folders |
 | Output → Scheduled Events conversation | Output → channel delivery |
 | DeliveryExecutor routes output | Working agent handles delivery directly |
 
@@ -194,7 +194,7 @@ The new architecture differs from the original in one key way: **working agents 
 
 **What gets replaced:**
 - TaskExecutor — replaced by working agent spawn mechanism
-- TaskScheduler — rewritten to scan task folders instead of DB
+- Orchestrator — replaces TaskScheduler, scans task folders instead of DB
 - `agent.db` tasks table — becomes a derived index rebuilt from folders
 - Session continuity via `sdk_session_id` for tasks — working agents are stateless (folder is state)
 
@@ -258,15 +258,15 @@ The new architecture differs from the original in one key way: **working agents 
 |-------------|----------------------------------|
 | `current-state.md` + temporal context | Unchanged — still needed, still valuable. Conversation Nina loads it on every new session. |
 | Context refresher on resume | Unchanged — still needed for resumed conversations when notebook changed. |
-| WorkLoopScheduler | Replaced by TaskScheduler scanning `ongoing/` task folders. Morning-prep, daily-summary, heartbeat become ongoing task folders. |
-| Morning-prep job | Becomes an ongoing task folder: `ongoing/morning-prep/`. Working agent runs it. |
-| Daily-summary job | Becomes an ongoing task folder: `ongoing/daily-summary/`. Working agent runs it. |
-| Heartbeat (responsibility scanning) | Becomes an ongoing task folder: `ongoing/heartbeat/`. Working agent scans ongoing folders for due responsibilities. |
+| WorkLoopScheduler | Replaced by orchestrator scanning `ongoing_responsibilities/` task folders. Morning-prep, daily-summary, heartbeat become ongoing task folders. |
+| Morning-prep job | Becomes an ongoing task folder: `ongoing_responsibilities/morning-prep/`. Working agent runs it. |
+| Daily-summary job | Becomes an ongoing task folder: `ongoing_responsibilities/daily-summary/`. Working agent runs it. |
+| Heartbeat (responsibility scanning) | Becomes an ongoing task folder: `ongoing_responsibilities/heartbeat/`. Working agent scans ongoing folders for due responsibilities. |
 | Fact extraction (post-conversation) | Stays in AbbreviationQueue — this is triggered by conversation idle, not a scheduled task. Unchanged. |
 | `work-patterns.md` + responsibilities | Unchanged concept. Working agents read it to understand their scope. |
 | Terms of responsibility | Unchanged. These are ongoing task folders with recurrence rules. |
 
-**What M6.6 becomes:** Significantly simpler. The WorkLoopScheduler is no longer a new scheduler class — it's just the existing TaskScheduler recognizing ongoing task folders. Morning-prep, daily-summary, and heartbeat are themselves working agents with ongoing task folders.
+**What M6.6 becomes:** Significantly simpler. The WorkLoopScheduler is no longer a new scheduler class — it's just the orchestrator recognizing `ongoing_responsibilities/` task folders. Morning-prep, daily-summary, and heartbeat are themselves working agents with ongoing task folders.
 
 **What still needs building (from M6.6 that survives):**
 - `current-state.md` mechanism (S1) — still needed, unchanged
@@ -275,7 +275,7 @@ The new architecture differs from the original in one key way: **working agents 
 - `work-patterns.md` schema + hatching step (S3) — still needed, unchanged
 - E2E validation (S4) — still needed
 
-**What collapses:** WorkLoopScheduler as a new class (becomes TaskScheduler's handling of ongoing folders). Heartbeat as a code concept (becomes a working agent). Background query utility (working agents handle this natively).
+**What collapses:** WorkLoopScheduler as a new class (becomes the orchestrator's handling of ongoing folders). Heartbeat as a code concept (becomes a working agent). Background query utility (working agents handle this natively).
 
 **Recommendation:** M6.6 scope should be updated to remove the WorkLoopScheduler and heartbeat-as-code. Instead, M6.6 delivers: (a) current-state.md + temporal context, (b) context refresher, (c) fact extraction pipeline, (d) work-patterns.md + hatching step. The scheduling of background work flows from M6.7 (task folder infrastructure).
 
@@ -332,12 +332,12 @@ These are the same pattern. The distinction M7 made between "Nina supervises Cla
 
 **Current status:** Planned, design complete
 
-**What was planned:** Task browser (inbox/projects/ongoing), project detail view, memory viewer, work loop status panel, responsibility manager, settings.
+**What was planned:** Task browser (ad_hoc/projects/ongoing_responsibilities), project detail view, memory viewer, work loop status panel, responsibility manager, settings.
 
 **Impact: PARTIALLY SIMPLIFIED.** The folder-based task model makes the dashboard simpler in some ways and same in others.
 
 **What changes:**
-- Task browser reads from folder scan + DB index instead of `agent.db` directly. Same UI, different backend.
+- Task browser reads from folder scan + DB index instead of `agent.db` directly. Tree view concept: folder hierarchy displayed as expandable tree (ad_hoc/, projects/, ongoing_responsibilities/), reflecting actual filesystem structure.
 - "Work loop status panel" showing `current-state.md` contents and active responsibilities — still needed, same design.
 - "Open in VS Code" deep links — these become more powerful and important now that tasks are real folders.
 - Project detail view — now shows `plan.md`, `deliverables/`, and `notes.md` from the task folder.
@@ -345,7 +345,7 @@ These are the same pattern. The distinction M7 made between "Nina supervises Cla
 **What stays the same:**
 - Memory viewer (notebook browser, search) — unchanged
 - Settings — unchanged
-- The overall information architecture (inbox/projects/ongoing/archive) — unchanged
+- The overall information architecture (ad_hoc/projects/ongoing_responsibilities/archive) — unchanged
 
 **What gets easier:**
 - Task detail view can literally serve the raw markdown files from the task folder. No need to reconstruct state from DB events. `plan.md` IS the plan. `notes.md` IS the notes.
@@ -395,14 +395,14 @@ These are the same pattern. The distinction M7 made between "Nina supervises Cla
 
 ### 1. Does M6.6 (Agentic Lifecycle) get absorbed?
 
-**Partially absorbed.** The scheduling infrastructure (WorkLoopScheduler) is absorbed into the general task folder model — background jobs become ongoing task folders. However, the high-value M6.6 features survive independently:
+**Partially absorbed.** The scheduling infrastructure (WorkLoopScheduler) is absorbed into the general task folder model — background jobs become `ongoing_responsibilities/` task folders. However, the high-value M6.6 features survive independently:
 
 - `current-state.md` — still needed, unchanged
 - Context refresher on resume — still needed, unchanged
 - Fact extraction pipeline — still needed, unchanged
 - `work-patterns.md` — still needed, unchanged
 
-M6.6 should be **refocused** to deliver these features, with the scheduling aspect handled by M6.7's TaskScheduler.
+M6.6 should be **refocused** to deliver these features, with the scheduling aspect handled by M6.7's orchestrator.
 
 ### 2. Does M7 (Coding Projects) get simplified?
 
@@ -426,7 +426,7 @@ The Claude Code subprocess supervision, stream-json parsing, and process-level w
 
 ### 4. How does M8 (Operations Dashboard) change if tasks are folder-based?
 
-**Simplification in detail views, same in overview.** Task browser still shows inbox/projects/ongoing lists. Detail views become richer because they can show actual folder contents (plan.md, deliverables, notes) instead of reconstructed DB state. "Open in VS Code" links become deeply useful.
+**Simplification in detail views, same in overview.** Task browser still shows ad_hoc/projects/ongoing_responsibilities lists as a tree view (folder hierarchy visible, expandable). Detail views become richer because they can show actual folder contents (plan.md, deliverables, notes) instead of reconstructed DB state. "Open in VS Code" links become deeply useful.
 
 ### 5. What is the new milestone ordering? What's the new critical path?
 
@@ -439,7 +439,7 @@ M1–M6.5 (complete) → M6.7: Two-Agent Refactor → M6.6: Agentic Lifecycle (r
 **M6.7 is the new critical path gating.** Everything else depends on:
 - Task folder structure (task.json schema, directory conventions)
 - Working agent spawn mechanism
-- TaskScheduler folder-based polling
+- Orchestrator folder-based polling
 - Calendar API replacement
 - DB index (rebuilt from folders)
 
@@ -447,9 +447,9 @@ M1–M6.5 (complete) → M6.7: Two-Agent Refactor → M6.6: Agentic Lifecycle (r
 
 **Yes, strongly recommended.** This should be `M6.7: Two-Agent Refactor`. It delivers:
 
-1. **Task folder infrastructure** — `task.json` schema, directory conventions (inbox/, projects/, ongoing/), folder creation API
+1. **Task folder infrastructure** — `task.json` schema, directory conventions (ad_hoc/, projects/, ongoing_responsibilities/), folder creation API
 2. **Working agent spawn** — mechanism to start a working agent from a task folder
-3. **TaskScheduler rewrite** — scan task folders instead of DB, detect due tasks
+3. **Orchestrator** — scan task folders instead of DB, detect due tasks
 4. **Calendar API replacement** — `/api/calendar/events` backed by task folders, Radicale decommissioned
 5. **DB index layer** — lightweight SQLite index rebuilt from folder scans (fast queries for UI)
 6. **Channel delivery for working agents** — working agents can send to channels without being in a conversation
@@ -476,8 +476,8 @@ M1–M6.5 (complete) → M6.7: Two-Agent Refactor → M6.6: Agentic Lifecycle (r
 | System | What to Reuse | What to Adapt |
 |--------|--------------|--------------|
 | M4.5 Calendar | FullCalendar UI, RRULE concepts, multi-calendar model | Replace Radicale backend with folder-based API |
-| M5 Task System | NotificationService, task UI components, live dashboard, work+deliverable concept | Rewrite TaskExecutor/TaskScheduler, move source of truth to folders |
-| M6.6 Agentic Lifecycle (planned) | current-state.md, context refresher, fact extraction, work-patterns.md | Remove WorkLoopScheduler as new class (it's now TaskScheduler) |
+| M5 Task System | NotificationService, task UI components, live dashboard, work+deliverable concept | Rewrite TaskExecutor, replace TaskScheduler with orchestrator, move source of truth to folders |
+| M6.6 Agentic Lifecycle (planned) | current-state.md, context refresher, fact extraction, work-patterns.md | Remove WorkLoopScheduler as new class (it's now the orchestrator) |
 | M7 Coding Projects (planned) | Folder templates, DECISIONS.md pattern, user code relay concept | Remove Claude Code subprocess supervision; working agent is the executor |
 | M8 Operations Dashboard (planned) | Information architecture, memory viewer | Task browser reads from folders/index; detail views show folder contents |
 
@@ -487,7 +487,7 @@ M1–M6.5 (complete) → M6.7: Two-Agent Refactor → M6.6: Agentic Lifecycle (r
 |--------|-------------|-------------|
 | Task execution | TaskExecutor (inline brain query) | Working agent (separate SDK session) |
 | Task storage | `agent.db` tasks table (source of truth) | Task folders (source of truth) |
-| Task scheduling | CalDAV events → CalendarScheduler | task.json recurrence → TaskScheduler |
+| Task scheduling | CalDAV events → CalendarScheduler | task.json recurrence → orchestrator |
 | Calendar backend | Radicale + tsdav | Folder scan + DB index + REST API |
 | Output routing | "Scheduled Events" conversation | Working agent delivers to target channel |
 
@@ -496,7 +496,7 @@ M1–M6.5 (complete) → M6.7: Two-Agent Refactor → M6.6: Agentic Lifecycle (r
 ## New Dependencies Created by Architecture Change
 
 1. **Working agent mechanism** gates everything in M6.7+. Must be built first.
-2. **Folder scan → DB index** is the new foundation for task UI and TaskScheduler. Must be reliable.
+2. **Folder scan → DB index** is the new foundation for task UI and the orchestrator. Must be reliable.
 3. **Channel delivery for working agents** (send outside of conversation context) is needed before any scheduled task can deliver results.
 4. **task.json schema** must be finalized before folder creation, task browser, calendar API, or scheduler can be built.
 5. **Calendar API replacement** must land before M4.5 infrastructure is decommissioned. FullCalendar must continue working throughout the transition.
@@ -529,8 +529,13 @@ M1–M6.5 (complete) → M6.7: Two-Agent Refactor → M6.6: Agentic Lifecycle (r
 
 ### S1: Task Folder Infrastructure
 - Define `task.json` schema (id, title, type, status, schedule, delivery, recurrence)
-- Directory conventions (`.my_agent/tasks/inbox/`, `projects/`, `ongoing/`)
-- Folder creation API (`POST /api/tasks` → creates folder)
+- Directory conventions (`.my_agent/tasks/ad_hoc/`, `projects/`, `ongoing_responsibilities/`)
+- `task_templates/` directory with template files:
+  - `ad_hoc.md` — one-off task template
+  - `project.md` — multi-phase project template
+  - `ongoing_responsibility.md` — recurring responsibility template
+  - `custom_tool.md` — user-defined tool/capability template
+- Folder creation API (`POST /api/tasks` → creates folder from template)
 - Folder scanner (reads all task folders, builds in-memory index)
 
 ### S2: Working Agent Spawn
@@ -539,8 +544,8 @@ M1–M6.5 (complete) → M6.7: Two-Agent Refactor → M6.6: Agentic Lifecycle (r
 - Escalate / Notify / Request-Input MCP tools for working agents
 - Working agent delivery to channel (outside conversation context)
 
-### S3: TaskScheduler + Calendar Replacement
-- TaskScheduler rewrite (scans task folders, detects due tasks, spawns working agents)
+### S3: Orchestrator + Calendar Replacement
+- Orchestrator: single background worker that replaces CalendarScheduler + EventHandler + TaskScheduler (unified scheduling loop)
 - RRULE expansion from task.json recurrence field
 - `/api/calendar/events` endpoint backed by task folder scan
 - FullCalendar frontend points to new endpoint (calendar UI unchanged)
@@ -561,5 +566,5 @@ M1–M6.5 (complete) → M6.7: Two-Agent Refactor → M6.6: Agentic Lifecycle (r
 
 ---
 
-*Created: 2026-03-02*
+*Created: 2026-03-02 | Updated: 2026-03-03*
 *Analysis by: Roadmap Expert (team analysis)*
