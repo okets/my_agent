@@ -98,7 +98,7 @@ In Sprint S2 (Session Rewrite), evaluate whether to:
 
 ---
 
-## Summary
+## Summary (M6.5-S1 — February 2026)
 
 | Question | Answer |
 |----------|--------|
@@ -106,3 +106,72 @@ In Sprint S2 (Session Rewrite), evaluate whether to:
 | What should prompt.ts keep? | Everything — memory, calendar, skills, identity |
 | What could settingSources add? | CLAUDE.md auto-loading (minor benefit, conflict risk) |
 | When to revisit? | S2 Session Rewrite |
+
+---
+
+## Revision: M6.8 Skills Architecture (March 2026)
+
+> **Date:** 2026-03-04
+> **Context:** Skills architecture design session. Adopting Agent Skills Standard (SKILL.md with YAML frontmatter) and SDK native skill discovery. Re-evaluating `settingSources` specifically for skill loading.
+
+### What Changed
+
+The Agent SDK now has native skill support:
+- `settingSources: ['project']` auto-discovers skills from `{cwd}/.claude/skills/`
+- The built-in `Skill` tool enables progressive disclosure (metadata at startup, full content on demand)
+- The Agent Skills Standard (YAML frontmatter) is an industry standard adopted by OpenAI, Google, Microsoft, GitHub, Cursor
+
+We need `settingSources` for skill discovery. The original concerns about CLAUDE.md double-loading still apply, but the skill-specific value proposition now outweighs the risks.
+
+### Resolution: Enable `settingSources: ['project']` for Skills Only
+
+**Configuration:**
+```typescript
+{
+  systemPrompt: assembledPrompt,        // prompt.ts owns identity, memory, calendar
+  settingSources: ['project'],          // SDK discovers skills from cwd
+  allowedTools: [..., 'Skill'],         // Enable native Skill tool
+  cwd: agentDir                         // .my_agent/ — contains .claude/skills/
+}
+```
+
+**Why this works (no double-loading):**
+1. `cwd` is `.my_agent/`, which has NO `CLAUDE.md` at its root
+2. Brain's CLAUDE.md lives at `.my_agent/brain/CLAUDE.md` — SDK doesn't scan subdirectories
+3. The project root CLAUDE.md is at `/home/nina/my_agent/CLAUDE.md` — outside cwd
+4. SDK loads skills from `.my_agent/.claude/skills/` — no conflict with prompt.ts
+
+**Key constraint: `['project']` only, NEVER `['user']`.**
+- `['user']` loads `~/.claude/skills/` — the developer's personal Claude Code skills
+- These contain instructions for human coding sessions (commit formatters, PR reviewers, etc.)
+- Loading them into the brain agent causes invisible behavioral conflicts
+
+### Validation Required
+
+Before implementation, validate:
+1. Does SDK load CLAUDE.md when using a custom string `systemPrompt` (not `claude_code` preset)?
+2. Does SDK walk up parent directories from `cwd` looking for CLAUDE.md?
+3. Are skills in `{cwd}/.claude/skills/` discovered correctly with custom `systemPrompt`?
+
+See task: "Validate settingSources behavior with custom systemPrompt"
+
+### What prompt.ts Keeps
+
+| Content | Owner | Why |
+|---------|-------|-----|
+| Identity, personality, operating rules | prompt.ts (from `brain/CLAUDE.md`) | Custom to this agent, not a "project setting" |
+| Notebook (reference, operations, daily logs) | prompt.ts | Dynamic, token-budget-managed |
+| Calendar context | prompt.ts | Injected per-query |
+| Memory summaries | prompt.ts | Dynamic |
+| Skill content | **SDK** (via `settingSources`) | Progressive disclosure, scales to 100+ skills |
+
+### Previous Decision Status
+
+The M6.5-S1 recommendation ("do not adopt settingSources") remains correct for general settings loading. This revision applies specifically to skill discovery via `settingSources: ['project']`. The two can coexist: SDK handles skill discovery, prompt.ts handles everything else.
+
+### References
+
+- [Skills Architecture Gaps](../ideas/skills-architecture-gaps.md) — 14 gaps, 8 risks identified
+- [BMAD Skills Integration](../ideas/bmad-skills-integration.md) — Community skill compatibility
+- [Skills Roadmap Integration](../ideas/skills-roadmap-integration.md) — M6.8 milestone proposal
+- Agent SDK Skills docs: `platform.claude.com/docs/en/agent-sdk/skills`

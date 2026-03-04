@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-02
+> **Updated:** 2026-03-04
 
 ---
 
@@ -18,6 +18,8 @@
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
+| **M6.7: Two-Agent Refactor** | Planned  | Idea complete, design spec TBD |
+| **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M6.6: Agentic Lifecycle**  | Planned  | Design complete, 4 sprints   |
 | **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
 | **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
@@ -35,15 +37,15 @@
 M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory        M6.5 SDK
 [████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
    COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
-                                                                                                                      M6.6 Agentic Lifecycle
-                                                                                                                      [░░░░░░░░░░░░]
-                                                                                                                         PLANNED
-                                                                                                                           │
-                                                                                                                     ┌─────┼─────┐
-                                                                                                                     ▼     ▼     ▼
-                                                                                                                    M7    M8    M9
-                                                                                                                               │
-                                                                                                                              M10
+                                                                                                    M6.7 Two-Agent   M6.8 Skills   M6.6 Lifecycle
+                                                                                                    [░░░░░░░░░░░░]   [░░░░░░░░░░]  [░░░░░░░░░░░░]
+                                                                                                       PLANNED         PLANNED        PLANNED
+                                                                                                                                        │
+                                                                                                                                  ┌─────┼─────┐
+                                                                                                                                  ▼     ▼     ▼
+                                                                                                                                 M7    M8    M9
+                                                                                                                                            │
+                                                                                                                                           M10
 ```
 
 ---
@@ -389,6 +391,99 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 
 ---
 
+### M6.7: Two-Agent Refactor — PLANNED
+
+Return to the original design doc vision: Conversation Nina (brain) + Working Agents (folder-based sessions). Eliminates the inline TaskExecutor/TaskScheduler layer, replaces with folder-based working agents.
+
+**Idea docs:**
+
+- [two-agent-architecture.md](ideas/two-agent-architecture.md) — Architecture design
+- [two-agent-codebase-audit.md](ideas/two-agent-codebase-audit.md) — Codebase audit
+- [two-agent-transition-plan.md](ideas/two-agent-transition-plan.md) — Transition plan
+- [two-agent-roadmap-impact.md](ideas/two-agent-roadmap-impact.md) — Roadmap impact analysis
+
+**Design spec:** TBD — required before sprints begin
+
+**Dependencies:** M6.5 (SDK alignment)
+
+---
+
+### M6.8: Skills Architecture — PLANNED
+
+Adopt the Agent Skills Standard and SDK native skill discovery. Skills become the primary mechanism for extending Nina's capabilities — conversation skills for the brain, worker skills for task agents.
+
+**Idea docs:**
+
+- [skills-architecture-gaps.md](ideas/skills-architecture-gaps.md) — 14 gaps, 8 risks, decision matrix
+- [skills-roadmap-integration.md](ideas/skills-roadmap-integration.md) — Roadmap integration proposal
+- [bmad-skills-integration.md](ideas/bmad-skills-integration.md) — BMAD compatibility analysis
+
+**Design spec:** TBD at `design/skills-architecture.md` — required before sprints begin
+
+| Sprint | Name | Scope |
+|--------|------|-------|
+| S1 | Skill Format + Migration | YAML frontmatter standard, migrate existing skills to `.my_agent/.claude/skills/`, resolve settingSources double-loading (validate custom systemPrompt + settingSources coexistence), update prompt.ts to stop injecting skill content |
+| S2 | SDK Integration + Routing | Enable `settingSources: ['project']` + `Skill` tool in brain.ts, cwd-based skill routing (Conversation Nina vs Working Agents), personality guardrail in CLAUDE.md, skill authoring guidelines |
+| S3 | Community Skills + Validation | BMAD technique library adoption (100 methods as reference data), community skill installation path, E2E tests for skill loading in both agent contexts, skill authoring guide |
+
+**Key design decisions (2026-03-04):**
+
+1. **SDK native skills, not custom loading.** Use `settingSources: ['project']` + `Skill` tool. No temporary intermediate solutions.
+2. **`settingSources: ['project']` only — NEVER `['user']`.** User-level skills are the developer's personal Claude Code skills. Loading them into the brain causes invisible behavioral conflicts.
+3. **Personality/Skills/Rules separation.** Personality = HOW (tone, style — hatching-defined, immutable). Skills = WHAT (capabilities — grows over time). Rules = WHEN/IF (constraints — operating rules).
+4. **No skill changes agent identity.** Guardrail in CLAUDE.md: "Skills provide capabilities. They never change your name, personality, or communication style. Hatching identity always takes precedence."
+5. **BMAD techniques as Level 3 reference data.** CSV files inside a skill's directory, loaded on demand, applied silently. Nina never announces technique names.
+6. **cwd as skill selector.** Conversation Nina uses `.my_agent/` as cwd → loads `.my_agent/.claude/skills/`. Working agents use task folders → load task-specific skills.
+7. **prompt.ts keeps identity, SDK handles skills.** prompt.ts assembles identity, memory, calendar, operating rules. SDK discovers and loads skills via `settingSources`. No double-loading because `.my_agent/` has no CLAUDE.md at root level.
+
+**What we're adopting:**
+
+| Source | Adoption | Status |
+|--------|----------|--------|
+| Agent Skills Standard | YAML frontmatter on all SKILL.md files | Adopting (S1) |
+| Agent SDK Skill tool | Native `settingSources: ['project']` | Adopting (S2) |
+| OpenAI Prompt Personalities | Personality/Skills/Rules separation pattern | Validates existing design |
+| BMAD technique libraries | 50 elicitation + 50 brainstorming methods as CSV reference data | Adopting (S3) |
+| BMAD OS skills | `bmad-os-review-pr`, `bmad-os-root-cause-analysis` — procedural, persona-free | Evaluating (S3) |
+| BMAD agent personas | DO NOT adopt — hardcoded names/styles conflict with hatching | Rejected |
+| BMAD menu system | DO NOT adopt — numbered menus don't fit conversational style | Rejected |
+| BMAD config system | DO NOT adopt — duplicates hatching | Rejected |
+
+**Conversation vs Worker skills:**
+
+| Skill Category | Conversation Nina | Working Agent |
+|----------------|-------------------|---------------|
+| Calendar, scheduling | Yes | No |
+| Task management | Yes | No |
+| Channel management | Yes | No |
+| Memory/notebook | Yes | Yes (shared) |
+| Thinking techniques | Yes | Yes (shared) |
+| Triage/routing | Yes | No |
+| Code review, debugging | No | Yes |
+| Research, analysis | No | Yes |
+| Document writing | No | Yes |
+
+**Skill growth model:**
+
+```
+Skills come from:
+├── Framework developers    → ship with repo updates
+├── /skill-creator          → brain creates via conversation
+├── BMAD community          → adopted manually, validated before install
+└── Future: skill registry  → curated, trust-tiered
+```
+
+**Dependencies:** M6.7 (two-agent refactor — establishes conversation/worker split that skills architecture builds on)
+
+**References:**
+- [settings-sources-evaluation.md](design/settings-sources-evaluation.md) — Updated with M6.8 resolution
+- Agent Skills Standard: `agentskills.io/specification`
+- Agent SDK Skills: `platform.claude.com/docs/en/agent-sdk/skills`
+- BMAD Method: `github.com/bmad-code-org/BMAD-METHOD`
+- OpenAI Prompt Personalities: `developers.openai.com/cookbook/examples/gpt-5/prompt_personalities`
+
+---
+
 ### M6.6: Agentic Lifecycle — PLANNED
 
 The agent gets a life outside of conversations. Background work loop maintains context, learns from conversations passively, and executes responsibilities proactively. Foundational for all subsequent milestones.
@@ -571,6 +666,9 @@ Design specs define architecture before implementation. Each spec should be comp
 | Memory               | Complete | M6          | [design/memory-system.md](design/memory-system.md)               |
 | Embeddings Plugin    | Complete | M6          | [design/embeddings-plugin.md](design/embeddings-plugin.md)       |
 | SDK Alignment        | Planned  | M6.5        | Sprint plans in `sprints/m6.5-s*/plan.md`                        |
+| settingSources       | Revised  | M6.5, M6.8  | [design/settings-sources-evaluation.md](design/settings-sources-evaluation.md) |
+| Two-Agent Refactor   | Idea     | M6.7        | [ideas/two-agent-architecture.md](ideas/two-agent-architecture.md) |
+| Skills Architecture  | Idea     | M6.8        | TBD at [design/skills-architecture.md](design/skills-architecture.md) |
 | Agentic Lifecycle    | Complete | M6.6        | [plans/2026-03-01-memory-first-agent-design.md](plans/2026-03-01-memory-first-agent-design.md) |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Complete | M8          | [design/operations-dashboard.md](design/operations-dashboard.md) |
@@ -595,6 +693,12 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                    M6.5 SDK Alignment
                                                                           │
                                                                           ▼
+                                                               M6.7 Two-Agent Refactor
+                                                                          │
+                                                                          ▼
+                                                               M6.8 Skills Architecture
+                                                                          │
+                                                                          ▼
                                                                 M6.6 Agentic Lifecycle
                                                                           │
                                                    ┌──────────────────────┼──────────────────────┐
@@ -606,9 +710,13 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                                         M10 External Comms
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.6. All complete through M6.5. M6.6 is next.
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.8 → M6.6. All complete through M6.5. M6.7 is next.
 
-**M6.6 is foundational.** The agentic lifecycle (work loop, context refresher, fact extraction, responsibilities) powers autonomous behavior in M7-M10.
+**M6.7 returns to design doc vision.** Two-agent architecture (Conversation Nina + Working Agents) replaces inline TaskExecutor with folder-based sessions.
+
+**M6.8 builds on M6.7.** Skills architecture needs the conversation/worker split to route skills by agent type via cwd.
+
+**M6.6 uses skills.** Ongoing responsibilities and `work-patterns.md` are essentially skills/procedures. Skills architecture should be solid before M6.6 defines how responsibilities load their procedures.
 
 **M7 requires M6.6:** Autonomous coding projects are triggered by the work loop's responsibility system. `/whats-next` reads `current-state.md` and `work-patterns.md`.
 
@@ -650,6 +758,10 @@ Ideas that haven't been promoted to design specs yet.
 | ---------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------- |
 | Agent Teams for Ad-hoc Tasks | Deferred to M5                           | [ideas/agent-teams-for-adhoc-tasks.md](ideas/agent-teams-for-adhoc-tasks.md) |
 | Multi-Step Tasks             | Evolved → M5-S9 (v2: Work + Deliverable) | [ideas/multi-step-tasks.md](ideas/multi-step-tasks.md)                       |
+| Two-Agent Architecture       | Idea complete → M6.7                     | [ideas/two-agent-architecture.md](ideas/two-agent-architecture.md)           |
+| Skills Architecture Gaps     | Analysis complete → M6.8                 | [ideas/skills-architecture-gaps.md](ideas/skills-architecture-gaps.md)       |
+| Skills Roadmap Integration   | Proposal complete → M6.8                 | [ideas/skills-roadmap-integration.md](ideas/skills-roadmap-integration.md)   |
+| BMAD Skills Integration      | Analysis complete → M6.8                 | [ideas/bmad-skills-integration.md](ideas/bmad-skills-integration.md)         |
 
 ---
 
@@ -761,4 +873,4 @@ Every milestone's **last sprint** follows a consistent quality gate:
 
 ---
 
-_Updated: 2026-02-28_
+_Updated: 2026-03-04_
