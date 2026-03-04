@@ -46,6 +46,7 @@ export interface ConversationMeta {
    *  Only pinned channel conversations are read-only in dashboard.
    *  Unpinned channel conversations can be continued via dashboard. */
   isPinned?: boolean;
+  status: "current" | "inactive";
 }
 
 // Attachment metadata for display (stored in transcript)

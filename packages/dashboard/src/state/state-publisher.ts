@@ -234,6 +234,7 @@ export class StatePublisher {
             model: conv.model,
             externalParty: conv.externalParty,
             isPinned: conv.isPinned,
+            status: conv.status,
           })),
           timestamp,
         });
@@ -312,6 +313,7 @@ export class StatePublisher {
           model: conv.model,
           externalParty: conv.externalParty,
           isPinned: conv.isPinned,
+          status: conv.status,
         }));
       this.registry.broadcastToAll({
         type: "state:conversations",

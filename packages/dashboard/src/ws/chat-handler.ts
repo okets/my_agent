@@ -480,8 +480,8 @@ export async function registerChatWebSocket(
           return;
         }
       } else {
-        // Load most recent web conversation
-        conversation = await conversationManager.getMostRecent("web");
+        // Load the current conversation
+        conversation = await conversationManager.getCurrent();
       }
 
       if (conversation) {
@@ -611,6 +611,9 @@ export async function registerChatWebSocket(
         });
         return;
       }
+
+      // Make this the current conversation
+      await conversationManager.makeCurrent(conversationId);
 
       // Load turns
       const turns = await conversationManager.getTurns(conversation.id, {
@@ -1377,6 +1380,7 @@ function toConversationMeta(conv: Conversation): ConversationMeta {
     model: conv.model,
     externalParty: conv.externalParty,
     isPinned: conv.isPinned,
+    status: conv.status,
   };
 }
 

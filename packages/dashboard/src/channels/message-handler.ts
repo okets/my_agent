@@ -16,6 +16,7 @@ import type {
 } from "@my-agent/core";
 import { saveChannelToConfig } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
+import type { ConversationRouter } from "../agent/conversation-router.js";
 import { SessionRegistry } from "../agent/session-registry.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import type { TranscriptTurn } from "../conversations/types.js";
@@ -49,6 +50,7 @@ interface MessageHandlerDeps {
     update: Partial<ChannelInstanceConfig>,
   ) => void;
   agentDir: string;
+  conversationRouter?: ConversationRouter;
 }
 
 /**
@@ -238,6 +240,25 @@ export class ChannelMessageHandler {
         externalParty,
       );
 
+    // Check for channel-switch new conversation trigger
+    let forceNewConversation = false;
+    if (this.deps.conversationRouter) {
+      const routeResult = this.deps.conversationRouter.route({
+        channel: channelId,
+        sender: first.from,
+      });
+
+      if (routeResult.newConversation && existingConversation) {
+        // Channel switch detected (e.g., web → whatsapp) — force new conversation
+        await this.deps.conversationManager.unpin(existingConversation.id);
+        this.deps.connectionRegistry.broadcastToAll({
+          type: "conversation_unpinned",
+          conversationId: existingConversation.id,
+        });
+        forceNewConversation = true;
+      }
+    }
+
     // ── Slash command: /new ───────────────────────────────────────────
     if (commandText === "/new") {
       const currentModel = existingConversation?.model ?? null;
@@ -283,6 +304,7 @@ export class ChannelMessageHandler {
           model: newConversation.model,
           externalParty: newConversation.externalParty,
           isPinned: newConversation.isPinned,
+          status: newConversation.status,
         },
       });
 
@@ -357,7 +379,7 @@ export class ChannelMessageHandler {
     }
 
     // ── Normal message processing ─────────────────────────────────────
-    let conversation = existingConversation;
+    let conversation = forceNewConversation ? null : existingConversation;
 
     if (!conversation) {
       // Create new conversation for this channel + party
@@ -381,6 +403,7 @@ export class ChannelMessageHandler {
           model: conversation.model,
           externalParty: conversation.externalParty,
           isPinned: conversation.isPinned,
+          status: conversation.status,
         },
       });
     }
