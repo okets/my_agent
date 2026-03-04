@@ -34,6 +34,32 @@ Make the S2 backend status model visible in the UI: current/inactive conversatio
 | tsc --noEmit (dashboard) | Clean |
 | prettier --check src/ public/ | Clean |
 
+## Browser Verification
+
+Verified in Playwright on localhost:4321 (server restarted with latest code).
+
+### Desktop (1280x720)
+
+| Check | Result |
+|-------|--------|
+| Green dot on current conversation in dropdown | PASS — green dot visible on "Hanan" (current) |
+| Blue highlight on selected conversation | PASS — preserved alongside green dot |
+| Inactive conversations have no dot, muted text | PASS |
+| Channel badge on WhatsApp user messages | PASS — WhatsApp icon + "ninas_watsapp" next to timestamp |
+| No badge on web/assistant messages | PASS — only timestamp shown |
+
+### Mobile (390x844)
+
+| Check | Result |
+|-------|--------|
+| Green dot in conversation switcher | PASS — green dot on current conversation |
+| Blue highlight on selected conversation | PASS |
+| Inactive conversations muted | PASS |
+
+### Note
+
+Initial verification showed no green dots because the server was running stale code (pre-S2 migration). After restarting the server, the `status: "current"` field was correctly propagated from DB → state publisher → WebSocket → Alpine.js data → UI rendering. Always restart the server before testing (`pkill -f tsx && npx tsx src/index.ts`).
+
 ## Files Changed
 
 | File | Change |
