@@ -18,7 +18,7 @@
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
-| **M6.7: Two-Agent Refactor** | Planned  | Design approved, plan complete, 4 sprints |
+| **M6.7: Two-Agent Refactor** | In Progress | S1 complete, S2 complete, S3-S4 pending |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M6.6: Agentic Lifecycle**  | Planned  | Design complete, 4 sprints   |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
@@ -391,7 +391,7 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 
 ---
 
-### M6.7: Two-Agent Refactor — PLANNED
+### M6.7: Two-Agent Refactor — IN PROGRESS
 
 Conversation Nina becomes a resumable long-lived session with a system prompt rebuilt on every query. This eliminates context staleness, removes cold-start injection, and enables seamless channel switching. Working Agents retain the folder-as-context model.
 
@@ -410,8 +410,8 @@ Conversation Nina becomes a resumable long-lived session with a system prompt re
 
 | Sprint | Name | Scope |
 |--------|------|-------|
-| S1 | Core Architecture | SystemPromptBuilder (6-layer prompt with caching), unified `buildQuery()` (always resume+systemPrompt), conversation status model (current/inactive), ConversationRouter (channel-aware routing, Web→WhatsApp switch detection) |
-| S2 | Channel & Lifecycle | Idle timeout, `/new` command, channel badge metadata on messages, escalation queue for Working Agent → Nina, update docs (conversation-system.md, channels.md) |
+| S1 | Core Architecture | **Complete.** SystemPromptBuilder (6-layer prompt with caching), unified `buildQuery()` (always resume+systemPrompt), context-builder.ts removed. Review: [review.md](sprints/m6.7-s1-core-architecture/review.md) |
+| S2 | Conversation Lifecycle | **Complete.** Conversation status model (current/inactive with atomic swap), ConversationRouter (owner/external routing, Web→WhatsApp switch detection), wired into chat-handler + message-handler. Review: [review.md](sprints/m6.7-s2-conversation-lifecycle/review.md) |
 | S3 | Web UI | Homepage with inactive conversations, tab support (read/reference/resume), channel badges in transcript, conversation search/browse |
 | S4 | MCP Tools & E2E Validation | `conversation_search` + `conversation_read` MCP tools, UI-assisted referencing, E2E test suite covering all S1-S3 scenarios (session resume, prompt rebuild, channel switching, idle timeout, /new, conversation tabs, status model) |
 
