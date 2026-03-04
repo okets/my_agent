@@ -412,8 +412,9 @@ Conversation Nina becomes a resumable long-lived session with a system prompt re
 |--------|------|-------|
 | S1 | Core Architecture | **Complete.** SystemPromptBuilder (6-layer prompt with caching), unified `buildQuery()` (always resume+systemPrompt), context-builder.ts removed. Review: [review.md](sprints/m6.7-s1-core-architecture/review.md) |
 | S2 | Conversation Lifecycle | **Complete.** Conversation status model (current/inactive with atomic swap), ConversationRouter (owner/external routing, Web→WhatsApp switch detection), wired into chat-handler + message-handler. Review: [review.md](sprints/m6.7-s2-conversation-lifecycle/review.md) |
-| S3 | Web UI | Homepage with inactive conversations, tab support (read/reference/resume), channel badges in transcript, conversation search/browse |
-| S4 | MCP Tools & E2E Validation | `conversation_search` + `conversation_read` MCP tools, UI-assisted referencing, E2E test suite covering all S1-S3 scenarios (session resume, prompt rebuild, channel switching, idle timeout, /new, conversation tabs, status model) |
+| S3 | Conversation Lifecycle UI | **Complete.** Current/inactive indicators in conversation sidebar (green dot + bold/muted styling, desktop + mobile), channel badges on transcript messages (icon + name for non-web channels). Review: [review.md](sprints/m6.7-s3-conversation-lifecycle-ui/review.md) |
+| S4 | Tabs & Search | Tab support (open multiple conversations, read/reference/resume), conversation search/browse, keyboard shortcuts |
+| S5 | E2E Validation | E2E test suite covering all S1-S4 scenarios (session resume, prompt rebuild, channel switching, status model, sidebar indicators, channel badges, conversation tabs) |
 
 **What this delivers:**
 
