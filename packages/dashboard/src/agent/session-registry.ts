@@ -6,10 +6,6 @@
  */
 
 import { SessionManager } from "./session-manager.js";
-import { buildContextInjection } from "./context-builder.js";
-import type { ConversationManager } from "../conversations/index.js";
-
-const RECENT_TURNS_LIMIT = 10;
 
 /**
  * Registry for managing SessionManager instances per conversation
@@ -28,13 +24,13 @@ export class SessionRegistry {
    * Get or create a session for a conversation
    *
    * @param conversationId - The conversation ID
-   * @param manager - ConversationManager for loading history
+   * @param channel - The channel this conversation belongs to (e.g. "web")
    * @param sdkSessionId - Optional SDK session ID for resumption (from DB)
    * @returns SessionManager (warm if cached, cold if new)
    */
   async getOrCreate(
     conversationId: string,
-    manager: ConversationManager,
+    channel: string,
     sdkSessionId?: string | null,
   ): Promise<SessionManager> {
     // Check if session exists (warm)
@@ -44,35 +40,8 @@ export class SessionRegistry {
       return this.sessions.get(conversationId)!;
     }
 
-    // Cold start - need to create new session with context injection
-    const conversation = await manager.get(conversationId);
-
-    if (!conversation) {
-      throw new Error(`Conversation ${conversationId} not found`);
-    }
-
-    // Load recent turns and abbreviation for context
-    const recentTurns = await manager.getRecentTurns(
-      conversationId,
-      RECENT_TURNS_LIMIT,
-    );
-
-    let contextInjection: string | null = null;
-
-    if (recentTurns.length > 0 || conversation.abbreviation) {
-      contextInjection = buildContextInjection(
-        recentTurns,
-        conversation.abbreviation,
-        conversation.updated,
-      );
-    }
-
-    // Create new session with optional SDK session ID for resumption
-    const session = new SessionManager(
-      conversationId,
-      contextInjection,
-      sdkSessionId,
-    );
+    // Cold start — create new session
+    const session = new SessionManager(conversationId, channel, sdkSessionId);
 
     // Evict LRU if at capacity
     if (this.sessions.size >= this.maxSessions) {

@@ -366,7 +366,22 @@ External communications are displayed in a dedicated UI area (not the conversati
 
 ## Conversation Continuity
 
-How conversations are scoped per channel type.
+### Owner Conversations (Conversation Nina)
+
+The owner has **one current conversation** at any time, regardless of channel. All owner messages route to Conversation Nina.
+
+**Asymmetric channel switching:**
+
+| Switch | Behavior | Reason |
+| ------ | -------- | ------ |
+| Web → WhatsApp | New conversation starts | WhatsApp is a limited medium; fresh context is cleaner |
+| WhatsApp → Web | Same conversation continues | Web shows full transcript; user has full context |
+
+Other new conversation triggers: `/new` command, idle timeout (configurable, default 8h).
+
+### External Contact Conversations (Working Agents)
+
+External contacts are scoped **per-contact per-channel** and routed to Working Agents (not Conversation Nina).
 
 | Channel Type     | Conversation =                 | Participants                 |
 | ---------------- | ------------------------------ | ---------------------------- |
@@ -375,21 +390,27 @@ How conversations are scoped per channel type.
 | Email            | Per thread (References header) | Dynamic (recipients change)  |
 | Telegram (1:1)   | Per user ID                    | Fixed                        |
 | Telegram (group) | Per chat ID                    | Dynamic                      |
-| Web              | Per explicit session           | Single user                  |
 
-### Email Threading
+**Note:** Per-contact scoping applies to Working Agents only. Conversation Nina has single-owner routing — no per-contact threads.
+
+### Email Routing
+
+Email is a **task submission mechanism**, not a conversation channel for the owner.
+
+| Email type | Routing |
+|-----------|---------|
+| Inbound from external contacts | → Task creation → Working Agent |
+| Personal role (user's inbox) | → On-demand, monitored per M6.6 responsibilities |
 
 Email threads can have changing participants:
 
-1. Sarah emails the user
-2. User replies
+1. Sarah emails the agent
+2. Working Agent handles the reply
 3. Sarah adds Bob to the thread
-4. Bob replies
-
-This is **one conversation** (same thread ID). The `participants` field updates as people join:
+4. Bob replies — same Working Agent continues
 
 ```jsonl
-{"type":"meta","id":"conv-...","channel":"microsoft365_user_work","participants":["sarah@co.com"]}
+{"type":"meta","id":"conv-...","channel":"microsoft365_agent_info","participants":["sarah@co.com"]}
 // ... turns ...
 {"type":"event","event":"participant_added","participant":"bob@co.com","timestamp":"..."}
 // ... more turns with bob ...
@@ -760,7 +781,7 @@ For personal channels with `on_demand` processing, connection happens when user 
 
 2. **Group ownership** — For WhatsApp groups on dedicated channels, the agent owns the conversation if it responds as itself. The ownership follows who is actively communicating.
 
-3. **Cross-channel conversations** — No. A conversation is bound to a single channel. Conversations do not span channels (e.g., cannot start on email and continue on WhatsApp). This is already defined in `docs/design/conversation-system.md`.
+3. **Cross-channel conversations** — Asymmetric for owner. Web→WhatsApp = new conversation. WhatsApp→Web = same conversation continues. External contacts are always per-contact per-channel via Working Agents. See `docs/design/conversation-system.md`.
 
 ---
 

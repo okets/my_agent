@@ -1,11 +1,6 @@
 import {
   createBrainQuery,
   loadConfig,
-  assembleSystemPrompt,
-  assembleCalendarContext,
-  createCalDAVClient,
-  loadCalendarConfig,
-  loadCalendarCredentials,
   createHooks,
   createMemoryServer,
 } from "@my-agent/core";
@@ -13,12 +8,15 @@ import type {
   Query,
   ContentBlock,
   BrainConfig,
+  BrainSessionOptions,
   HookEvent,
   HookCallbackMatcher,
   SearchService,
 } from "@my-agent/core";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { processStream, type StreamEvent } from "./stream-processor.js";
+import { SystemPromptBuilder } from "./system-prompt-builder.js";
+import type { BuildContext } from "./system-prompt-builder.js";
 
 /** Cached MCP servers — initialized once via initMcpServers() */
 let sharedMcpServers: Options["mcpServers"] | null = null;
@@ -46,23 +44,24 @@ interface StreamOptions {
 }
 
 export class SessionManager {
-  private conversationId: string | null;
-  private contextInjection: string | null;
+  private conversationId: string;
+  private channel: string;
   private sdkSessionId: string | null;
   private config: BrainConfig | null = null;
-  private baseSystemPrompt: string | null = null;
   private hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> | null =
     null;
   private initPromise: Promise<void> | null = null;
   private activeQuery: Query | null = null;
+  private messageIndex = 0;
+  private promptBuilder: SystemPromptBuilder | null = null;
 
   constructor(
-    conversationId?: string | null,
-    contextInjection?: string | null,
+    conversationId: string,
+    channel: string,
     sdkSessionId?: string | null,
   ) {
-    this.conversationId = conversationId ?? null;
-    this.contextInjection = contextInjection ?? null;
+    this.conversationId = conversationId;
+    this.channel = channel;
     this.sdkSessionId = sdkSessionId ?? null;
   }
 
@@ -83,49 +82,18 @@ export class SessionManager {
   private async doInitialize(): Promise<void> {
     this.config = loadConfig();
 
-    // Try to assemble calendar context (graceful degradation if offline)
-    let calendarContext: string | undefined;
-    try {
-      const agentDir = this.config.brainDir.replace(/\/brain$/, "");
-      console.log(
-        `[SessionManager] Loading calendar from agentDir: ${agentDir}`,
-      );
-      const calendarConfig = loadCalendarConfig(agentDir);
-      const credentials = loadCalendarCredentials(agentDir);
+    const agentDir = this.config.brainDir.replace(/\/brain$/, "");
 
-      console.log(
-        `[SessionManager] Calendar config loaded: ${!!calendarConfig}, credentials: ${!!credentials}`,
-      );
-
-      if (calendarConfig && credentials) {
-        const calendarRepo = await createCalDAVClient(
-          calendarConfig,
-          credentials,
-        );
-        calendarContext = await assembleCalendarContext(calendarRepo);
-        console.log(
-          `[SessionManager] Calendar context assembled (${calendarContext?.length ?? 0} chars)`,
-        );
-      }
-    } catch (err) {
-      console.warn(
-        `[SessionManager] Calendar context unavailable: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    this.baseSystemPrompt = await assembleSystemPrompt(this.config.brainDir, {
-      calendarContext,
+    // Create SystemPromptBuilder (handles calendar, identity, skills)
+    this.promptBuilder = new SystemPromptBuilder({
+      brainDir: this.config.brainDir,
+      agentDir,
     });
 
     // Wire hooks for audit logging and safety
-    const agentDir = this.config.brainDir.replace(/\/brain$/, "");
     this.hooks = createHooks("brain", { agentDir });
     console.log(
-      `[SessionManager] Hooks wired (trust: brain, dir: ${agentDir})`,
-    );
-
-    console.log(
-      `[SessionManager] System prompt assembled (${this.baseSystemPrompt?.length ?? 0} chars), has calendar: ${!!calendarContext}`,
+      `[SessionManager] Initialized (trust: brain, dir: ${agentDir})`,
     );
   }
 
@@ -147,7 +115,10 @@ export class SessionManager {
     const isHaiku = model.includes("haiku");
     const reasoning = options?.reasoning && !isHaiku;
 
-    const q = this.buildQuery(content, model, reasoning);
+    // Increment once per user message — not per buildQuery call (avoids double-increment on fallback)
+    this.messageIndex++;
+
+    const q = await this.buildQuery(content, model, reasoning);
 
     this.activeQuery = q;
     let assistantContent = "";
@@ -175,12 +146,12 @@ export class SessionManager {
           `[SessionManager] SDK session resume failed (${this.sdkSessionId}), falling back to fresh session: ${resumeError instanceof Error ? resumeError.message : String(resumeError)}`,
         );
 
-        // Clear stale session ID so caller persists null
+        // Clear stale session ID so buildQuery omits resume on retry
         this.sdkSessionId = null;
         assistantContent = "";
 
-        // Build fresh query and retry
-        const freshQ = this.buildQuery(content, model, reasoning);
+        // Build fresh query with same messageIndex (no re-increment)
+        const freshQ = await this.buildQuery(content, model, reasoning);
         this.activeQuery = freshQ;
 
         for await (const event of processStream(freshQ)) {
@@ -203,53 +174,43 @@ export class SessionManager {
   }
 
   /**
-   * Build the appropriate brain query — resume if we have a session ID, fresh otherwise.
+   * Build the brain query — always passes systemPrompt (via SystemPromptBuilder)
+   * and resume (when a session ID is available). Single code path.
    */
-  private buildQuery(
+  private async buildQuery(
     content: string | ContentBlock[],
     model: string,
     reasoning: boolean | undefined,
-  ): Query {
-    if (this.sdkSessionId) {
-      // Resume existing session — SDK has full context (system prompt, history)
-      console.log(
-        `[SessionManager] Resuming SDK session: ${this.sdkSessionId}`,
-      );
-      return createBrainQuery(content, {
-        model,
-        resume: this.sdkSessionId,
-        includePartialMessages: true,
-        reasoning,
-        hooks: this.hooks ?? undefined,
-        mcpServers: sharedMcpServers ?? undefined,
-      });
-    }
+  ): Promise<Query> {
+    const buildContext: BuildContext = {
+      channel: this.channel,
+      conversationId: this.conversationId,
+      messageIndex: this.messageIndex,
+    };
 
-    // First message — build system prompt with context injection
-    let systemPrompt = this.baseSystemPrompt!;
+    const systemPrompt = await this.promptBuilder!.build(buildContext);
 
-    // Inject conversation ID for task-conversation linking
-    if (this.conversationId) {
-      systemPrompt += `\n\n[Session Context]\nCurrent conversation ID: ${this.conversationId}\n[End Session Context]`;
-    }
-
-    // Add cold-start context injection (abbreviation + older turns from transcript)
-    if (this.contextInjection) {
-      systemPrompt += `\n\n${this.contextInjection}`;
-    }
-
-    console.log(
-      `[SessionManager] Starting new SDK session (systemPrompt: ${systemPrompt.length} chars)`,
-    );
-    return createBrainQuery(content, {
+    const opts: BrainSessionOptions = {
       model,
       systemPrompt,
-      continue: false,
       includePartialMessages: true,
       reasoning,
       hooks: this.hooks ?? undefined,
       mcpServers: sharedMcpServers ?? undefined,
-    });
+    };
+
+    if (this.sdkSessionId) {
+      opts.resume = this.sdkSessionId;
+      console.log(
+        `[SessionManager] Resuming SDK session: ${this.sdkSessionId} (message ${this.messageIndex})`,
+      );
+    } else {
+      console.log(
+        `[SessionManager] Starting new SDK session (message ${this.messageIndex})`,
+      );
+    }
+
+    return createBrainQuery(content, opts);
   }
 
   async abort(): Promise<void> {

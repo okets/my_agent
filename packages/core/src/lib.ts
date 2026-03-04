@@ -8,6 +8,7 @@ export type { HealthSnapshot, HealthChangedEvent, HealthMonitorOptions } from '.
 export { createBrainQuery, streamResponse } from './brain.js'
 export type {
   BrainSessionOptions,
+  SystemPromptBlock,
   ContentBlock,
   TextBlock,
   ImageBlock,

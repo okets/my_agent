@@ -478,7 +478,7 @@ export class ChannelMessageHandler {
     // Get or create session for this conversation
     const sessionManager = await this.deps.sessionRegistry.getOrCreate(
       conversation.id,
-      this.deps.conversationManager,
+      channelId,
     );
 
     // Stream brain response

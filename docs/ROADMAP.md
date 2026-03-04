@@ -413,7 +413,7 @@ Conversation Nina becomes a resumable long-lived session with a system prompt re
 | S1 | Core Architecture | SystemPromptBuilder (6-layer prompt with caching), unified `buildQuery()` (always resume+systemPrompt), conversation status model (current/inactive), ConversationRouter (channel-aware routing, Web→WhatsApp switch detection) |
 | S2 | Channel & Lifecycle | Idle timeout, `/new` command, channel badge metadata on messages, escalation queue for Working Agent → Nina, update docs (conversation-system.md, channels.md) |
 | S3 | Web UI | Homepage with inactive conversations, tab support (read/reference/resume), channel badges in transcript, conversation search/browse |
-| S4 | MCP Tools & Validation | `conversation_search` + `conversation_read` MCP tools, UI-assisted referencing, E2E validation of full lifecycle (new → chat → switch channel → idle → resume) |
+| S4 | MCP Tools & E2E Validation | `conversation_search` + `conversation_read` MCP tools, UI-assisted referencing, E2E test suite covering all S1-S3 scenarios (session resume, prompt rebuild, channel switching, idle timeout, /new, conversation tabs, status model) |
 
 **What this delivers:**
 
@@ -656,7 +656,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Spec                 | Status   | Milestones  | Path                                                             |
 | -------------------- | -------- | ----------- | ---------------------------------------------------------------- |
 | Channels             | Complete | M3, M9, M10 | [design/channels.md](design/channels.md)                         |
-| Conversations        | Revised  | M2, M6.7    | [design/conversation-system.md](design/conversation-system.md) — needs rewrite per [conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
+| Conversations        | Revised  | M2, M6.7    | [design/conversation-system.md](design/conversation-system.md) + [conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Notebook             | Complete | M4, M5, M10 | [design/notebook.md](design/notebook.md)                         |
 | Calendar System      | Complete | M4.5        | [design/calendar-system.md](design/calendar-system.md)           |
 | Task System          | Complete | M5          | [design/task-system.md](design/task-system.md)                   |

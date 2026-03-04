@@ -8,9 +8,23 @@ import {
   type AgentDefinition,
 } from '@anthropic-ai/claude-agent-sdk'
 
+/**
+ * A system prompt content block (for multi-block prompts with cache hints).
+ *
+ * Note: cache_control is stored for future SDK support. Currently, the SDK
+ * only accepts string systemPrompts, so blocks are serialized to a joined
+ * string and cache_control annotations are not passed through. The underlying
+ * claude-code subprocess handles its own prompt caching independently.
+ */
+export type SystemPromptBlock = {
+  type: 'text'
+  text: string
+  cache_control?: { type: 'ephemeral' }
+}
+
 export interface BrainSessionOptions {
   model: string
-  systemPrompt?: string
+  systemPrompt?: string | SystemPromptBlock[]
   continue?: boolean
   includePartialMessages?: boolean
   /** Enable extended thinking (adaptive mode with high effort) */
@@ -54,9 +68,18 @@ export function createBrainQuery(prompt: PromptContent, options: BrainSessionOpt
     allowedTools.push('Task')
   }
 
+  // Serialize systemPrompt: SDK only accepts string, so join content blocks.
+  // Note: cache_control annotations on blocks are not passed through — see SystemPromptBlock docs.
+  let resolvedSystemPrompt: string | undefined
+  if (Array.isArray(options.systemPrompt)) {
+    resolvedSystemPrompt = options.systemPrompt.map((b) => b.text).join('\n\n')
+  } else {
+    resolvedSystemPrompt = options.systemPrompt
+  }
+
   const queryOptions: Options = {
     model: options.model,
-    systemPrompt: options.systemPrompt,
+    systemPrompt: resolvedSystemPrompt,
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
     allowedTools,

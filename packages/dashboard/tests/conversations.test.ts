@@ -22,7 +22,6 @@ import {
 } from "../src/conversations/index.js";
 import type { TranscriptTurn } from "../src/conversations/types.js";
 import { SessionRegistry } from "../src/agent/session-registry.js";
-import { buildContextInjection } from "../src/agent/context-builder.js";
 import { IdleTimerManager } from "../src/conversations/idle-timer.js";
 import { ConnectionRegistry } from "../src/ws/connection-registry.js";
 import { AbbreviationQueue } from "../src/conversations/abbreviation.js";
@@ -411,7 +410,7 @@ describe("SessionRegistry", () => {
 
     try {
       const conv = await manager.create("web");
-      await registry.getOrCreate(conv.id, manager);
+      await registry.getOrCreate(conv.id, "web");
       expect(registry.isWarm(conv.id)).toBe(true);
     } finally {
       manager.close();
@@ -434,15 +433,15 @@ describe("SessionRegistry", () => {
       const conv2 = await manager.create("web");
       const conv3 = await manager.create("web");
 
-      await registry.getOrCreate(conv1.id, manager);
-      await registry.getOrCreate(conv2.id, manager);
+      await registry.getOrCreate(conv1.id, "web");
+      await registry.getOrCreate(conv2.id, "web");
 
       expect(registry.size()).toBe(2);
       expect(registry.isWarm(conv1.id)).toBe(true);
       expect(registry.isWarm(conv2.id)).toBe(true);
 
       // Adding conv3 should evict conv1 (LRU)
-      await registry.getOrCreate(conv3.id, manager);
+      await registry.getOrCreate(conv3.id, "web");
 
       expect(registry.size()).toBe(2);
       expect(registry.isWarm(conv1.id)).toBe(false);
@@ -464,14 +463,14 @@ describe("SessionRegistry", () => {
       const conv2 = await manager.create("web");
       const conv3 = await manager.create("web");
 
-      await registry.getOrCreate(conv1.id, manager);
-      await registry.getOrCreate(conv2.id, manager);
+      await registry.getOrCreate(conv1.id, "web");
+      await registry.getOrCreate(conv2.id, "web");
 
       // Touch conv1 (makes it most recently used)
-      await registry.getOrCreate(conv1.id, manager);
+      await registry.getOrCreate(conv1.id, "web");
 
       // Adding conv3 should evict conv2 (now LRU)
-      await registry.getOrCreate(conv3.id, manager);
+      await registry.getOrCreate(conv3.id, "web");
 
       expect(registry.isWarm(conv1.id)).toBe(true);
       expect(registry.isWarm(conv2.id)).toBe(false);
@@ -489,7 +488,7 @@ describe("SessionRegistry", () => {
 
     try {
       const conv = await manager.create("web");
-      await registry.getOrCreate(conv.id, manager);
+      await registry.getOrCreate(conv.id, "web");
       expect(registry.isWarm(conv.id)).toBe(true);
 
       registry.remove(conv.id);
@@ -509,7 +508,7 @@ describe("SessionRegistry", () => {
     try {
       for (let i = 0; i < 3; i++) {
         const conv = await manager.create("web");
-        await registry.getOrCreate(conv.id, manager);
+        await registry.getOrCreate(conv.id, "web");
       }
       expect(registry.size()).toBe(3);
 
@@ -523,88 +522,7 @@ describe("SessionRegistry", () => {
 });
 
 // -------------------------------------------------------------------
-// 5. Context Builder
-// -------------------------------------------------------------------
-
-describe("buildContextInjection", () => {
-  it("formats context with abbreviation and turns", () => {
-    const turns: TranscriptTurn[] = [
-      makeTurn("user", "Hello", 1),
-      makeTurn("assistant", "Hi there!", 1),
-    ];
-
-    const result = buildContextInjection(
-      turns,
-      "User greeted the agent.",
-      new Date(Date.now() - 3600000), // 1 hour ago
-    );
-
-    expect(result).toContain("[Prior conversation - 1 hour ago]");
-    expect(result).toContain("Summary: User greeted the agent.");
-    expect(result).toContain("User: Hello");
-    expect(result).toContain("Assistant: Hi there!");
-    expect(result).toContain("[End prior conversation]");
-  });
-
-  it("formats without abbreviation", () => {
-    const turns: TranscriptTurn[] = [makeTurn("user", "Test", 1)];
-
-    const result = buildContextInjection(
-      turns,
-      null,
-      new Date(Date.now() - 60000), // 1 minute ago
-    );
-
-    expect(result).toContain("[Prior conversation - 1 minute ago]");
-    expect(result).not.toContain("Summary:");
-    expect(result).toContain("User: Test");
-  });
-
-  it("truncates very long messages at 500 chars", () => {
-    const longContent = "A".repeat(600);
-    const turns: TranscriptTurn[] = [makeTurn("user", longContent, 1)];
-
-    const result = buildContextInjection(turns, null, new Date());
-
-    expect(result).toContain("A".repeat(500) + "...");
-    expect(result).not.toContain("A".repeat(501));
-  });
-
-  it("formats time gaps correctly", () => {
-    const turns: TranscriptTurn[] = [makeTurn("user", "x", 1)];
-
-    // Days
-    let result = buildContextInjection(
-      turns,
-      null,
-      new Date(Date.now() - 2 * 86400000),
-    );
-    expect(result).toContain("2 days ago");
-
-    // Hours
-    result = buildContextInjection(
-      turns,
-      null,
-      new Date(Date.now() - 5 * 3600000),
-    );
-    expect(result).toContain("5 hours ago");
-
-    // Minutes
-    result = buildContextInjection(
-      turns,
-      null,
-      new Date(Date.now() - 15 * 60000),
-    );
-    expect(result).toContain("15 minutes ago");
-
-    // Seconds
-    result = buildContextInjection(turns, null, new Date(Date.now() - 5000));
-    expect(result).toContain("a few seconds ago");
-  });
-});
-
-// -------------------------------------------------------------------
-// 6. ConnectionRegistry
+// 5. ConnectionRegistry (renumbered from 6)
 // -------------------------------------------------------------------
 
 describe("ConnectionRegistry", () => {

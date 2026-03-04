@@ -499,7 +499,7 @@ export async function registerChatWebSocket(
           .getSdkSessionId(conversation.id);
         sessionManager = await sessionRegistry.getOrCreate(
           conversation.id,
-          conversationManager,
+          "web",
           storedSessionId,
         );
 
@@ -568,7 +568,7 @@ export async function registerChatWebSocket(
       // Create session for new conversation (will be cold/empty)
       sessionManager = await sessionRegistry.getOrCreate(
         conversation.id,
-        conversationManager,
+        "web",
       );
 
       // Update registry
@@ -626,7 +626,7 @@ export async function registerChatWebSocket(
         .getSdkSessionId(conversationId);
       sessionManager = await sessionRegistry.getOrCreate(
         conversationId,
-        conversationManager,
+        "web",
         storedSessionId,
       );
 
@@ -807,7 +807,7 @@ export async function registerChatWebSocket(
         // Create session for new conversation
         sessionManager = await sessionRegistry.getOrCreate(
           conversation.id,
-          conversationManager,
+          "web",
         );
 
         // Update registry
@@ -980,7 +980,7 @@ export async function registerChatWebSocket(
           .getSdkSessionId(currentConversationId);
         sessionManager = await sessionRegistry.getOrCreate(
           currentConversationId,
-          conversationManager,
+          "web",
           storedSid,
         );
         const isWarm = sessionRegistry.isWarm(currentConversationId);
