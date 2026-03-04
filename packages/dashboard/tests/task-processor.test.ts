@@ -152,7 +152,8 @@ describe("TaskProcessor StepExecutor Integration", () => {
     expect(hasDeliveryStep).toBe(true);
 
     // Verify step is not yet completed
-    const uncompletedWhatsApp = mockTask.steps?.includes("- [ ]") &&
+    const uncompletedWhatsApp =
+      mockTask.steps?.includes("- [ ]") &&
       mockTask.steps?.toLowerCase().includes("whatsapp");
     expect(uncompletedWhatsApp).toBe(true);
   });

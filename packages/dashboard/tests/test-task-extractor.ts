@@ -135,16 +135,16 @@ async function runTest(
         (t) => t.type === "scheduled" && !t.scheduledFor,
       );
       if (noTime.length > 0) {
-        failures.push(`${noTime.length} scheduled task(s) missing scheduledFor`);
+        failures.push(
+          `${noTime.length} scheduled task(s) missing scheduledFor`,
+        );
       }
     }
 
     // Check all tasks have instructions
     const noInstructions = tasks.filter((t) => !t.instructions);
     if (noInstructions.length > 0) {
-      failures.push(
-        `${noInstructions.length} task(s) with empty instructions`,
-      );
+      failures.push(`${noInstructions.length} task(s) with empty instructions`);
     }
   }
 
@@ -165,7 +165,9 @@ async function main() {
   const results: TestResult[] = [];
 
   console.log(`\n${"═".repeat(70)}`);
-  console.log(`  TaskExtractor Reliability Test — ${RUNS_PER_TEST} runs per case`);
+  console.log(
+    `  TaskExtractor Reliability Test — ${RUNS_PER_TEST} runs per case`,
+  );
   console.log(`${"═".repeat(70)}\n`);
 
   for (const tc of TEST_CASES) {
@@ -180,7 +182,7 @@ async function main() {
         const icon = result.pass ? "✓" : "✗";
         const tasks =
           result.taskCount > 0
-            ? result.rawResult.tasks ?? [result.rawResult.task]
+            ? (result.rawResult.tasks ?? [result.rawResult.task])
             : [];
         const taskSummary = tasks
           .map(
@@ -224,8 +226,7 @@ async function main() {
     }
   }
 
-  const consistency =
-    total > 0 ? ((passed / total) * 100).toFixed(0) : "N/A";
+  const consistency = total > 0 ? ((passed / total) * 100).toFixed(0) : "N/A";
   console.log(`\n  Consistency: ${consistency}%`);
   console.log(`${"═".repeat(70)}\n`);
 

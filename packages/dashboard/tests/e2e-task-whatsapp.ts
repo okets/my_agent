@@ -57,7 +57,9 @@ async function fetchJSON(path: string, options?: RequestInit): Promise<any> {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`HTTP ${response.status} ${options?.method ?? "GET"} ${path}: ${text}`);
+    throw new Error(
+      `HTTP ${response.status} ${options?.method ?? "GET"} ${path}: ${text}`,
+    );
   }
 
   return response.json();
@@ -359,7 +361,11 @@ export async function testImmediateTask(): Promise<TestResult> {
           }
           return null;
         },
-        { interval: 2000, timeout: 15_000, description: "Notification creation" },
+        {
+          interval: 2000,
+          timeout: 15_000,
+          description: "Notification creation",
+        },
       );
       assertions.push({
         name: "Notification created",
@@ -386,7 +392,11 @@ export async function testImmediateTask(): Promise<TestResult> {
           if (t.steps?.match(/- \[x\].*whatsapp/i)) return true;
           return null;
         },
-        { interval: 2000, timeout: 30_000, description: "WhatsApp step completion" },
+        {
+          interval: 2000,
+          timeout: 30_000,
+          description: "WhatsApp step completion",
+        },
       );
       whatsAppDelivered = true;
     } catch {
@@ -515,7 +525,11 @@ export async function testScheduledTask(): Promise<TestResult> {
           if (t.steps?.match(/- \[x\].*whatsapp/i)) return true;
           return null;
         },
-        { interval: 2000, timeout: 30_000, description: "WhatsApp step completion" },
+        {
+          interval: 2000,
+          timeout: 30_000,
+          description: "WhatsApp step completion",
+        },
       );
       whatsAppDelivered = true;
     } catch {
@@ -576,7 +590,11 @@ export async function testScheduledTask(): Promise<TestResult> {
           }
           return null;
         },
-        { interval: 2000, timeout: 15_000, description: "Notification creation" },
+        {
+          interval: 2000,
+          timeout: 15_000,
+          description: "Notification creation",
+        },
       );
       assertions.push({
         name: "Notification created",

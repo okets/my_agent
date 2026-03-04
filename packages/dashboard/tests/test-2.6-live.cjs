@@ -13,7 +13,10 @@ const WebSocket = require("ws");
 const Database = require("better-sqlite3");
 
 const CONV_ID = "conv-01KJHHKBC21W590SE5RCGHM7VN";
-const DB_PATH = path.resolve(__dirname, "../../.my_agent/conversations/agent.db");
+const DB_PATH = path.resolve(
+  __dirname,
+  "../../.my_agent/conversations/agent.db",
+);
 const WS_URL = "ws://localhost:4321/api/chat/ws?qa=true";
 
 // Check DB before test

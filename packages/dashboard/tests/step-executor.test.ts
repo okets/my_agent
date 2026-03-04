@@ -232,7 +232,9 @@ describe("StepExecutor", () => {
       expect(result.allSucceeded).toBe(false);
       expect(result.results.length).toBe(1);
       expect(result.results[0].success).toBe(false);
-      expect(result.results[0].error).toContain("Channel manager not available");
+      expect(result.results[0].error).toContain(
+        "Channel manager not available",
+      );
     });
 
     it("returns error when no WhatsApp channel configured", async () => {
@@ -250,7 +252,9 @@ describe("StepExecutor", () => {
       const result = await executor.executeDeliverySteps(task, "Content");
 
       expect(result.allSucceeded).toBe(false);
-      expect(result.results[0].error).toContain("No WhatsApp channel configured");
+      expect(result.results[0].error).toContain(
+        "No WhatsApp channel configured",
+      );
     });
 
     it("returns error when no owner configured", async () => {
@@ -370,7 +374,9 @@ describe("StepExecutor", () => {
       const result = await executor.executeDeliverySteps(task, "Content");
 
       expect(result.allSucceeded).toBe(false);
-      expect(result.results[0].error).toContain("Email delivery not yet implemented");
+      expect(result.results[0].error).toContain(
+        "Email delivery not yet implemented",
+      );
     });
   });
 });

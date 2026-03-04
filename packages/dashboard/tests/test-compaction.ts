@@ -156,7 +156,9 @@ async function main() {
   let totalCost = 0;
 
   for (let i = 0; i < TARGET_MESSAGES; i++) {
-    const prompt = LONG_PROMPTS[i] || `Message ${i + 1}: Tell me more about topic ${i % 5 + 1} from earlier. Expand with new information I haven't heard yet. Be detailed.`;
+    const prompt =
+      LONG_PROMPTS[i] ||
+      `Message ${i + 1}: Tell me more about topic ${(i % 5) + 1} from earlier. Expand with new information I haven't heard yet. Be detailed.`;
 
     console.log(
       `[${i + 1}/${TARGET_MESSAGES}] Sending (${prompt.length} chars)...`,
@@ -178,9 +180,7 @@ async function main() {
     console.log(
       `  Done in ${elapsed}s | input=${input} output=${output} | cost=$${cost.toFixed(4)}`,
     );
-    console.log(
-      `  Response: ${responsePreview}...`,
-    );
+    console.log(`  Response: ${responsePreview}...`);
     console.log(
       `  Cumulative: input=${totalInputTokens} output=${totalOutputTokens} cost=$${totalCost.toFixed(4)}`,
     );

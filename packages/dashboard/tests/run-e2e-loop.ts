@@ -31,9 +31,7 @@ async function main() {
       " ".repeat(24) +
       "\u2551",
   );
-  console.log(
-    `\u2551  Max runs: ${MAX_RUNS}` + " ".repeat(31) + "\u2551",
-  );
+  console.log(`\u2551  Max runs: ${MAX_RUNS}` + " ".repeat(31) + "\u2551");
   console.log("\u255a" + "\u2550".repeat(48) + "\u255d\n");
 
   // Pre-flight check
@@ -90,19 +88,14 @@ async function main() {
     // Update consecutive counter
     if (runPassed) {
       consecutivePasses++;
-      console.log(
-        `\n  \u2713 PASS ${consecutivePasses}/${TARGET_CONSECUTIVE}`,
-      );
+      console.log(`\n  \u2713 PASS ${consecutivePasses}/${TARGET_CONSECUTIVE}`);
     } else {
       consecutivePasses = 0;
       console.log(`\n  \u2717 FAIL \u2014 counter reset to 0`);
     }
 
     // Cooldown between runs (unless we're done)
-    if (
-      consecutivePasses < TARGET_CONSECUTIVE &&
-      runNumber < MAX_RUNS
-    ) {
+    if (consecutivePasses < TARGET_CONSECUTIVE && runNumber < MAX_RUNS) {
       console.log(`  Cooling down ${COOLDOWN_MS / 1000}s...`);
       await new Promise((r) => setTimeout(r, COOLDOWN_MS));
     }
@@ -111,12 +104,8 @@ async function main() {
   const totalTimeMin = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
 
   if (consecutivePasses >= TARGET_CONSECUTIVE) {
-    console.log(
-      "\n\u2554" + "\u2550".repeat(48) + "\u2557",
-    );
-    console.log(
-      "\u2551      EXIT CONDITION MET" + " ".repeat(24) + "\u2551",
-    );
+    console.log("\n\u2554" + "\u2550".repeat(48) + "\u2557");
+    console.log("\u2551      EXIT CONDITION MET" + " ".repeat(24) + "\u2551");
     console.log(
       `\u2551  ${TARGET_CONSECUTIVE} consecutive passes achieved` +
         " ".repeat(19) +
@@ -124,12 +113,12 @@ async function main() {
     );
     console.log(
       `\u2551  Total runs: ${runNumber}, Time: ${totalTimeMin}min` +
-        " ".repeat(Math.max(0, 23 - totalTimeMin.length - String(runNumber).length)) +
+        " ".repeat(
+          Math.max(0, 23 - totalTimeMin.length - String(runNumber).length),
+        ) +
         "\u2551",
     );
-    console.log(
-      "\u255a" + "\u2550".repeat(48) + "\u255d",
-    );
+    console.log("\u255a" + "\u2550".repeat(48) + "\u255d");
   } else {
     console.error(
       `\n\u2717 Max runs (${MAX_RUNS}) reached without ${TARGET_CONSECUTIVE} consecutive passes.`,
@@ -168,7 +157,9 @@ function printCompact(result: TestResult): void {
 function collectWishlist(result: TestResult, wishlist: string[]): void {
   const failed = result.assertions.filter((a) => !a.pass);
   for (const f of failed) {
-    wishlist.push(`${result.name}: ${f.name} \u2014 ${f.detail || "needs investigation"}`);
+    wishlist.push(
+      `${result.name}: ${f.name} \u2014 ${f.detail || "needs investigation"}`,
+    );
   }
   if (result.error) {
     wishlist.push(`${result.name}: ${result.error}`);
