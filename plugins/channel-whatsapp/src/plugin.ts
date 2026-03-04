@@ -1,5 +1,6 @@
 import makeWASocket, {
   useMultiFileAuthState,
+  makeCacheableSignalKeyStore,
   DisconnectReason,
   downloadMediaMessage,
   Browsers,
@@ -174,16 +175,34 @@ export class BaileysPlugin implements ChannelPlugin {
     // CRITICAL: Always create a FRESH socket on each connect() call.
     // The old socket is dead after disconnect and must not be reused.
     const sock = makeWASocket({
-      auth: state,
+      auth: {
+        creds: state.creds,
+        // Cache signal keys in memory to avoid filesystem race conditions
+        // during encryption/decryption — prevents protocol violations that
+        // cause WhatsApp to terminate the session.
+        keys: makeCacheableSignalKeyStore(state.keys, logger),
+      },
       logger,
       printQRInTerminal: false,
       // Explicit browser config for Linux/WSL2 compatibility
       browser: Browsers.ubuntu("Chrome"),
       // Explicit version to avoid dynamic fetch failures
       version,
+      // Don't mark as "online" — avoids conflicts with phone app presence
+      markOnlineOnConnect: false,
+      // Don't sync full history on reconnect — heavy and can timeout
+      syncFullHistory: false,
     });
 
     this.sock = sock;
+
+    // Catch raw WebSocket errors to prevent unhandled exceptions
+    // from crashing the process or leaving the socket in a broken state
+    if (sock.ws && typeof (sock.ws as any).on === "function") {
+      (sock.ws as any).on("error", (err: Error) => {
+        console.error("[channel-whatsapp] WebSocket error:", err.message);
+      });
+    }
 
     // ── Event: connection state changes ─────────────────────────
     sock.ev.on(
@@ -263,11 +282,15 @@ export class BaileysPlugin implements ChannelPlugin {
             // Reconnect scenarios:
             // 1. restartRequired (515) = normal after QR pairing, MUST reconnect
             // 2. Previously connected = transient disconnect, should reconnect
-            // 3. Never connected + not restartRequired = pairing failure, don't reconnect
+            // 3. Transient error (408 timeout, 503 unavailable) = should retry even if never connected
+            // 4. Never connected + non-transient = pairing failure, don't reconnect
             const isRestartRequired =
               statusCode === DisconnectReason.restartRequired;
             const hadPriorConnection = this._status.lastConnectedAt !== null;
-            const shouldReconnect = isRestartRequired || hadPriorConnection;
+            const isTransientError =
+              statusCode === 408 || statusCode === 503 || statusCode === 500;
+            const shouldReconnect =
+              isRestartRequired || hadPriorConnection || isTransientError;
 
             this._status = {
               ...this._status,
