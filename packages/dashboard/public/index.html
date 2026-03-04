@@ -982,8 +982,12 @@
                             ></span>
                           </span>
                           <div>
-                            <span class="text-sm text-tokyo-text">Agent-owned</span>
-                            <p class="text-[10px] text-tokyo-muted">Nina owns this account</p>
+                            <span class="text-sm text-tokyo-text"
+                              >Agent-owned</span
+                            >
+                            <p class="text-[10px] text-tokyo-muted">
+                              Nina owns this account
+                            </p>
                           </div>
                         </label>
                         <label
@@ -1010,8 +1014,12 @@
                             ></span>
                           </span>
                           <div>
-                            <span class="text-sm text-tokyo-text">Your account</span>
-                            <p class="text-[10px] text-tokyo-muted">Nina watches your account</p>
+                            <span class="text-sm text-tokyo-text"
+                              >Your account</span
+                            >
+                            <p class="text-[10px] text-tokyo-muted">
+                              Nina watches your account
+                            </p>
                           </div>
                         </label>
                       </div>
@@ -1024,7 +1032,9 @@
                         style="background: #e07a5f; color: white"
                         :style="(!newChannel.id || addingChannel) ? {} : { boxShadow: '0 0 12px rgba(224,122,95,0.3)' }"
                       >
-                        <span x-show="!addingChannel">Create &amp; Connect</span>
+                        <span x-show="!addingChannel"
+                          >Create &amp; Connect</span
+                        >
                         <span x-show="addingChannel">Creating...</span>
                       </button>
                       <button
@@ -1224,8 +1234,7 @@
                               @click="pairChannel(ch.id)"
                               class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
                               x-text="channelActionLabel(ch.status)"
-                            >
-                            </button>
+                            ></button>
                           </template>
 
                           <!-- Authorize Owner button (when no owner) -->
@@ -1297,10 +1306,17 @@
                           <div class="flex items-center justify-between mb-3">
                             <p class="text-xs text-tokyo-muted">
                               <template x-if="ch.role === 'dedicated'">
-                                <span>Scan with the phone <span x-text="agentNickname"></span> will use to send/receive messages:</span>
+                                <span
+                                  >Scan with the phone
+                                  <span x-text="agentNickname"></span> will use
+                                  to send/receive messages:</span
+                                >
                               </template>
                               <template x-if="ch.role !== 'dedicated'">
-                                <span>Scan with your phone to link this account:</span>
+                                <span
+                                  >Scan with your phone to link this
+                                  account:</span
+                                >
                               </template>
                             </p>
                             <template x-if="qrCountdowns[ch.id] > 0">
@@ -3476,21 +3492,27 @@
                       :class="
                         currentConversationId === conv.id
                           ? 'bg-tokyo-blue/15 text-tokyo-blue'
-                          : 'text-tokyo-text hover:bg-tokyo-card/50'
+                          : conv.status === 'current'
+                            ? 'text-tokyo-text hover:bg-tokyo-card/50'
+                            : 'text-tokyo-muted hover:bg-tokyo-card/50 hover:text-tokyo-text'
                       "
                     >
-                      <!-- Channel icon (for unpinned channel conversations) or spacer -->
+                      <!-- Channel icon (for non-web conversations) -->
                       <template x-if="conv.channel && conv.channel !== 'web'">
                         <span
                           class="channel-icon w-3.5 h-3.5 shrink-0 text-tokyo-muted"
                           x-html="getConversationChannel(conv)?.icon || ''"
                         ></span>
                       </template>
-                      <template x-if="!conv.channel || conv.channel === 'web'">
-                        <span class="w-3.5 h-3.5 shrink-0"></span>
-                      </template>
+                      <!-- Status dot: green for current, transparent for inactive -->
+                      <span
+                        class="w-1.5 h-1.5 rounded-full shrink-0"
+                        :class="conv.status === 'current' ? 'bg-green-400' : 'bg-transparent'"
+                      ></span>
+                      <!-- Title: bold for current, muted for inactive (overridden by blue when selected) -->
                       <span
                         class="truncate flex-1"
+                        :class="conv.status === 'current' && currentConversationId !== conv.id ? 'font-medium' : ''"
                         x-text="conv.title || 'New conversation'"
                       ></span>
                       <span
@@ -5184,7 +5206,9 @@
                       <template x-if="channel.status === 'connected'">
                         <div class="px-3 pb-3 flex gap-2">
                           <!-- Authorize Owner (when no owner) -->
-                          <template x-if="!authTokens[channel.id] && !channel.hasOwner">
+                          <template
+                            x-if="!authTokens[channel.id] && !channel.hasOwner"
+                          >
                             <button
                               @click="requestAuthToken(channel.id)"
                               class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
@@ -5193,10 +5217,16 @@
                             </button>
                           </template>
                           <!-- Owner info (when has owner) -->
-                          <template x-if="!authTokens[channel.id] && channel.hasOwner">
+                          <template
+                            x-if="!authTokens[channel.id] && channel.hasOwner"
+                          >
                             <div class="flex items-center gap-2">
                               <span class="text-xs text-tokyo-muted">
-                                Owner: <span class="text-tokyo-text" x-text="channel.ownerNumber || 'Authorized'"></span>
+                                Owner:
+                                <span
+                                  class="text-tokyo-text"
+                                  x-text="channel.ownerNumber || 'Authorized'"
+                                ></span>
                               </span>
                               <button
                                 @click="requestAuthToken(channel.id)"
@@ -6337,17 +6367,25 @@
                     role="option"
                     :aria-selected="currentConversationId === conv.id"
                   >
+                    <!-- Channel icon (for non-web conversations) -->
                     <template x-if="conv.channel && conv.channel !== 'web'">
                       <span
                         class="channel-icon w-4 h-4 shrink-0 text-tokyo-muted"
                         x-html="getConversationChannel(conv)?.icon || ''"
                       ></span>
                     </template>
-                    <template x-if="!conv.channel || conv.channel === 'web'">
-                      <span class="w-4 h-4 shrink-0"></span>
-                    </template>
+                    <!-- Status dot -->
+                    <span
+                      class="w-1.5 h-1.5 rounded-full shrink-0"
+                      :class="conv.status === 'current' ? 'bg-green-400' : 'bg-transparent'"
+                    ></span>
+                    <!-- Title with status-aware styling -->
                     <span
                       class="truncate flex-1"
+                      :class="{
+                        'font-medium': conv.status === 'current' && currentConversationId !== conv.id,
+                        'text-tokyo-muted': conv.status !== 'current' && currentConversationId !== conv.id
+                      }"
                       x-text="conv.title || 'New conversation'"
                     ></span>
                     <span
