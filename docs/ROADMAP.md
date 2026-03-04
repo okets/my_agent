@@ -18,13 +18,13 @@
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
-| **M6.7: Two-Agent Refactor** | Planned  | Idea complete, design spec TBD |
+| **M6.7: Two-Agent Refactor** | Planned  | Design approved, plan complete, 4 sprints |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M6.6: Agentic Lifecycle**  | Planned  | Design complete, 4 sprints   |
-| **M7: Coding Projects**      | Planned  | Design complete, sprints TBD |
-| **M8: Operations Dashboard** | Planned  | Design complete, sprints TBD |
-| **M9: Email Channel**        | Planned  | Design complete, sprints TBD |
-| **M10: External Comms**      | Planned  | Deferred from M3/M4          |
+| **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
+| ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
+| **M9: Email Integration**    | Redesign | Redesign post-M6.7 (Working Agent routing) |
+| **M10: External Comms**      | Redesign | Redesign post-M6.7 (Working Agent for external contacts) |
 
 ---
 
@@ -41,11 +41,11 @@ M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5
                                                                                                     [░░░░░░░░░░░░]   [░░░░░░░░░░]  [░░░░░░░░░░░░]
                                                                                                        PLANNED         PLANNED        PLANNED
                                                                                                                                         │
-                                                                                                                                  ┌─────┼─────┐
-                                                                                                                                  ▼     ▼     ▼
-                                                                                                                                 M7    M8    M9
-                                                                                                                                            │
-                                                                                                                                           M10
+                                                                                                                                  ┌─────┴─────┐
+                                                                                                                                  ▼           ▼
+                                                                                                                            M7 (redesign)  M9 (redesign)
+                                                                                                                                              │
+                                                                                                                                           M10 (redesign)
 ```
 
 ---
@@ -393,7 +393,13 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 
 ### M6.7: Two-Agent Refactor — PLANNED
 
-Return to the original design doc vision: Conversation Nina (brain) + Working Agents (folder-based sessions). Eliminates the inline TaskExecutor/TaskScheduler layer, replaces with folder-based working agents.
+Conversation Nina becomes a resumable long-lived session with a system prompt rebuilt on every query. This eliminates context staleness, removes cold-start injection, and enables seamless channel switching. Working Agents retain the folder-as-context model.
+
+**Key technical change:** Agent SDK accepts `resume` + `systemPrompt` together — a resumed session applies the new system prompt while preserving full history. Validated via CLI test.
+
+**Design spec:** [conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) — Approved
+
+**Implementation plan:** [conversation-nina-plan.md](plans/2026-03-04-conversation-nina-plan.md) — 10 tasks across 4 sprints
 
 **Idea docs:**
 
@@ -402,7 +408,28 @@ Return to the original design doc vision: Conversation Nina (brain) + Working Ag
 - [two-agent-transition-plan.md](ideas/two-agent-transition-plan.md) — Transition plan
 - [two-agent-roadmap-impact.md](ideas/two-agent-roadmap-impact.md) — Roadmap impact analysis
 
-**Design spec:** TBD — required before sprints begin
+| Sprint | Name | Scope |
+|--------|------|-------|
+| S1 | Core Architecture | SystemPromptBuilder (6-layer prompt with caching), unified `buildQuery()` (always resume+systemPrompt), conversation status model (current/inactive), ConversationRouter (channel-aware routing, Web→WhatsApp switch detection) |
+| S2 | Channel & Lifecycle | Idle timeout, `/new` command, channel badge metadata on messages, escalation queue for Working Agent → Nina, update docs (conversation-system.md, channels.md) |
+| S3 | Web UI | Homepage with inactive conversations, tab support (read/reference/resume), channel badges in transcript, conversation search/browse |
+| S4 | MCP Tools & Validation | `conversation_search` + `conversation_read` MCP tools, UI-assisted referencing, E2E validation of full lifecycle (new → chat → switch channel → idle → resume) |
+
+**What this delivers:**
+
+- Single `buildQuery()` path — always `resume` + `systemPrompt` (removes two-branch bug)
+- 6-layer system prompt rebuilt every query (identity, skills, state, memory, metadata, session)
+- Prompt caching on layers 1-2 (~90% cost reduction after first message)
+- One current conversation per owner, all others inactive but resumable
+- Asymmetric channel switching: Web→WhatsApp = new conversation; WhatsApp→Web = continues
+- External contacts → Working Agents (never reach Conversation Nina)
+- `context-builder.ts` removed (cold-start injection no longer needed)
+
+**What this does NOT change:**
+
+- Working Agents keep folder-as-context model
+- Task system, memory system, calendar — unchanged
+- Skills loading — unchanged (deferred to M6.8)
 
 **Dependencies:** M6.5 (SDK alignment)
 
@@ -480,6 +507,10 @@ Skills come from:
 
 **Dependencies:** M6.7 (two-agent refactor — establishes conversation/worker split that skills architecture builds on)
 
+**⚠️ Pre-sprint validation (before S1):**
+- Validate that `settingSources: ['project']` works alongside a custom `systemPrompt` string in the Agent SDK. M6.7's SystemPromptBuilder assembles layer 2 (Skills) — if `settingSources` injects skills separately, they may conflict or double-load.
+- S1 scope must be trimmed: M6.7's SystemPromptBuilder already handles prompt assembly. S1 should focus on skill file structure, cwd-based routing, and SDK integration — NOT on "update prompt.ts to stop injecting skill content" (M6.7 removes prompt.ts).
+
 **References:**
 - [settings-sources-evaluation.md](design/settings-sources-evaluation.md) — Updated with M6.8 resolution
 - Agent Skills Standard: `agentskills.io/specification`
@@ -497,15 +528,14 @@ The agent gets a life outside of conversations. Background work loop maintains c
 
 | Sprint | Name | Scope |
 |--------|------|-------|
-| S1 | Context Foundation | `current-state.md` (manual), temporal context injection in system prompt, context refresher on resume (scoped mtime check on `operations/` + `reference/`) |
+| S1 | Context Foundation | Define `current-state.md` content/format in `notebook/operations/`, wire into M6.7's SystemPromptBuilder layer 3 (Current State). No separate context refresher needed — M6.7 rebuilds the system prompt every query. |
 | S2 | Work Loop Scheduler | `WorkLoopScheduler` (cron-like, follows `TaskScheduler` pattern), background query utility (Haiku), morning-prep job, daily-summary job, heartbeat with cadence-based responsibility filtering, restart persistence |
 | S3 | Passive Learning + Hatching | Fact extraction in parallel with summarization (on original transcript), `notebook/knowledge/` writes, weekly-review job, `work-patterns.md` hatching step, effort-based prioritization |
 | S4 | E2E Validation + Human Test | Automated E2E tests for all lifecycle phases (context refresher, work loop triggers, fact extraction, heartbeat filtering), plus one comprehensive human-in-the-loop test covering the full daily cycle |
 
 **Key design decisions:**
 
-- **No session invalidation.** Conversations are always resumable. When notebook changes, a context refresher is injected alongside the next message — the model gets both conversation history and fresh state.
-- **Scoped change detection.** Only `operations/` and `reference/` mtime triggers refreshers. Changes to `knowledge/`, `lists/`, `daily/` do not.
+- **No context refresher needed.** M6.7 rebuilds the system prompt every query with fresh `current-state.md` content in layer 3. No separate injection mechanism or mtime tracking required.
 - **Heartbeat as retry.** If a work loop job fails, the heartbeat retries on next cycle. No per-job retry logic.
 - **Haiku for all background work.** Main model reserved for conversations only.
 - **Fact extraction on original transcript.** Not chained after summarization — different goals, run in parallel.
@@ -514,7 +544,7 @@ The agent gets a life outside of conversations. Background work loop maintains c
 
 **Deliverables:**
 
-- _(S1)_ `current-state.md` in `notebook/operations/`, temporal context in system prompt, context refresher mechanism on conversation resume
+- _(S1)_ `current-state.md` in `notebook/operations/`, wired into SystemPromptBuilder layer 3 (no separate refresher — M6.7 handles natively)
 - _(S2)_ `WorkLoopScheduler` with morning-prep and daily-summary jobs, heartbeat with cadence-filtered responsibility scanning, background Haiku query utility, `lastRun` persistence across restarts
 - _(S3)_ Parallel fact extraction pipeline in `AbbreviationQueue`, `notebook/knowledge/` fact storage, weekly review job for fact promotion/archival, `work-patterns.md` schema + hatching step
 - _(S4)_ E2E test suite, human test walkthrough (user stories), sprint review
@@ -528,7 +558,7 @@ HATCHING (once)
 
 DAILY CYCLE (repeats)
 ├── Morning Prep (scheduled, Haiku) → writes current-state.md
-├── Conversations (reactive) → new: fresh session / resumed: SDK session + refresher
+├── Conversations (reactive) → system prompt rebuilt every query (M6.7), always fresh context
 ├── Post-Conversation (idle trigger) → fact extraction + medium-effort responsibilities
 ├── Heartbeat (every N min, Haiku) → scan responsibilities by cadence, triage by effort
 └── Daily Summary (scheduled, Haiku) → consolidate, spot patterns, seed next morning
@@ -538,118 +568,84 @@ EVOLUTION (continuous)
 └─ Weekly review promotes facts, archives stale, prunes responsibilities
 ```
 
-**Dependencies:** M6.5 (SDK alignment — MCP tools, session management, hooks)
+**Dependencies:** M6.7 (two-agent refactor — SystemPromptBuilder layer 3 for current state, conversation lifecycle), M6.8 (skills architecture — responsibilities load as skills/procedures via `settingSources`)
+
+**Note:** M8 (Operations Dashboard) has been absorbed into M6.6. UI work for work loop status, responsibility management, and `current-state.md` visibility will be included in M6.6 sprints.
 
 **Risk mitigations:**
 
-- Context refresher preserves conversation continuity (no session invalidation)
-- Scoped mtime prevents unnecessary refresher injection
 - Token budget for `current-state.md` capped at 500-1000 chars
 - Heartbeat retries failed jobs automatically
 - `expiresAfter` field prevents stale responsibilities from accumulating
 
 ---
 
-### M7: Coding Projects — PLANNED
+### M7: Coding Projects — NEEDS REDESIGN
 
-Autonomous coding: internal self-development projects + user code session relay. Work loop powers autonomous project spawning via responsibilities.
+Autonomous coding projects. Original design predates M6.7's two-agent architecture.
 
-**Design spec:** [coding-projects.md](design/coding-projects.md)
+**Design spec:** [coding-projects.md](design/coding-projects.md) — needs update
 
-**Deliverables:**
-
-- Internal Projects: folder templates, efficiency principles, autonomous Claude Code sessions
-- User's Code Projects: dashboard spawns session on user's repo, streams to tab, summarize + "what next?"
-- Active session streaming (stream-json via WebSocket, 100-event rolling buffer)
-- Process supervision (non-LLM): alive/dead/blocked checks, crash recovery
-- systemd watchdog with exponential backoff for internet/API recovery
-- `/whats-next` reads `current-state.md` and `work-patterns.md` to determine next work
-- NotificationService integration for escalation routing
-- **Final sprint: E2E tests + human-in-the-loop validation**
+**Redesign notes:**
+- "User's Code Projects" should be reframed as a Working Agent with the user's repo as cwd, not a separate concept
+- Process supervision may be overscoped — evaluate after M6.6 work loop is running
+- Internal self-development projects are Working Agents spawned by the work loop
+- Session streaming and `/whats-next` deliverables are still valid
 
 **Dependencies:** M6.6 (agentic lifecycle — work loop powers autonomous project spawning)
 
-**Note:** Sprint 1 must validate prototype checklist (folder-scoped --continue, stream-json format, concurrent sessions, SIGINT behavior, NotificationService). Results shape the architecture.
+---
+
+### ~~M8: Operations Dashboard~~ — ABSORBED → M6.6
+
+Most operations UI already exists from M5-S10 (live dashboard) and M6 (memory). Remaining deliverables (work loop status, responsibility management) are folded into M6.6 sprints.
+
+**Original design spec:** [operations-dashboard.md](design/operations-dashboard.md)
+
+**What moved where:**
+- Work loop status panel → M6.6 (part of lifecycle UI)
+- Responsibility manager → M6.6 (part of lifecycle UI)
+- Task browser, memory viewer, settings → Already implemented (M5, M6)
 
 ---
 
-### M8: Operations Dashboard — PLANNED
+### M9: Email Integration — NEEDS REDESIGN
 
-Expand web UI with task management, memory viewer, and agentic lifecycle visibility.
+Email as a task submission mechanism routed to Working Agents. Original deliverables are directionally correct but need redesign to align with M6.7's external contact routing and Working Agent model.
 
-**Design spec:** [operations-dashboard.md](design/operations-dashboard.md)
+**Design reference:** [channels.md](design/channels.md), [conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) §2 External Contact Routing
 
-**Deliverables:**
+**Redesign notes:**
+- Core flow (inbound email → Working Agent) aligns with M6.7, but implementation details need rethinking
+- "Personal role" (monitoring user's email) depends on M6.6's responsibility system — could be a separate sprint gate
+- "Dedicated role" (agent's email) only needs M6.7's Working Agent routing
+- Escalation flow is defined in M6.7 design — M9 implements the email-specific parts
+- May overlap with M10 (external contacts) — consider merging
 
-- Task browser: inbox/projects/ongoing
-- Project detail view with approve/reject
-- Memory viewer (notebook lists, entries, search)
-- Work loop status panel: `current-state.md` contents, active responsibilities, last morning prep time, next scheduled job
-- Responsibility manager: view/edit `work-patterns.md` entries
-- Settings: auth, models, channels
-- "Open in VS Code" deep links
-- **Final sprint: E2E tests + human-in-the-loop validation**
-
-**Dependencies:** M6.6 (agentic lifecycle — work loop status, responsibilities UI)
+**Dependencies:** M6.7 (external contact routing, escalation queue), M6.6 (email monitoring as responsibility)
 
 ---
 
-### M9: Email Channel — PLANNED
+### M10: External Communications — NEEDS REDESIGN
 
-Email plugin with both dedicated and personal roles. Email monitoring in "personal role" maps to a responsibility in `work-patterns.md`.
-
-**Design reference:** [channels.md](design/channels.md) (complete design)
-
-**Deliverables:**
-
-- Microsoft Graph MCP plugin
-- Dedicated role: agent's email (info@company.com)
-- Personal role: user's email (on-demand only, heartbeat-triggered via responsibility)
-- OAuth 2.0 auth flow
-- Thread management
-- **Final sprint: E2E tests + human-in-the-loop validation**
-
-**Includes:**
-
-- Channel-specific conversation naming (subject line + thread context). See `docs/design/conversation-system.md` §Conversation Naming.
-
-**Dependencies:** M6.6 (agentic lifecycle — email monitoring as responsibility), M3 (channel pattern)
-
----
-
-### M10: External Communications — PLANNED
-
-Cross-channel external communications: personal channel role, ruleset model, approval flows.
+Cross-channel external communications via Working Agents. Original design predates M6.7 — assumed Nina handled external contacts directly. Post-M6.7, external contacts go to Working Agents.
 
 **Design references:**
 
-- [channels.md](design/channels.md) — identity-based routing, ruleset model, personal channel role
-- [conversation-system.md](design/conversation-system.md) — external communications concept
+- [channels.md](design/channels.md) — identity-based routing, ruleset model
+- [conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) §2 External Contact Routing
 
-**Deliverables:**
+**Redesign notes:**
+- "Personal channel role" partially overlaps with M9 (email personal role) — resolve overlap
+- Ruleset model is now a Working Agent capability (rules define how a Working Agent handles contacts)
+- Approval flow for sensitive external communications is still needed
+- What remains: WhatsApp external contacts → Working Agent, multi-channel ruleset layer, approval UI
+- Consider merging with M9 into a unified "Working Agent for External Contacts" milestone
 
-- Personal channel role (agent monitors user's accounts, on-demand only)
-- Ruleset model with rule evolution via conversation
-- External communications UI with approval flow for drafts
-
-**Dependencies:** M5 (task system, notebook_edit tool)
-
-**Final sprint: E2E tests + human-in-the-loop validation**
-
-**Note:** This milestone consolidates deferred work from M3-S4 and M4-S3/S4. Requires solid agentic flow from M5 before implementation.
+**Dependencies:** M6.7 (external contact routing, Working Agent model), M6.6 (responsibility system), M9 (email is the first external channel)
 
 **⚠️ Stashed Code:**
-M3-S4 external communications implementation is stashed. To recover when ready:
-
-```bash
-git stash list   # Find stash@{0} and stash@{1}
-# stash@{0}: M3-S4 untracked files (monitoring-config.ts, rules-loader.ts, external.ts)
-# stash@{1}: M3-S4 external communications implementation (all package/ modifications)
-
-# Pop in reverse order:
-git stash pop stash@{1}  # Modified files first
-git stash pop stash@{0}  # Then untracked files
-```
+M3-S4 stashed code is almost certainly incompatible with M6.7 architecture (assumed per-contact conversations on Nina). Evaluate before attempting recovery — likely discard.
 
 ---
 
@@ -660,7 +656,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Spec                 | Status   | Milestones  | Path                                                             |
 | -------------------- | -------- | ----------- | ---------------------------------------------------------------- |
 | Channels             | Complete | M3, M9, M10 | [design/channels.md](design/channels.md)                         |
-| Conversations        | Complete | M2          | [design/conversation-system.md](design/conversation-system.md)   |
+| Conversations        | Revised  | M2, M6.7    | [design/conversation-system.md](design/conversation-system.md) — needs rewrite per [conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Notebook             | Complete | M4, M5, M10 | [design/notebook.md](design/notebook.md)                         |
 | Calendar System      | Complete | M4.5        | [design/calendar-system.md](design/calendar-system.md)           |
 | Task System          | Complete | M5          | [design/task-system.md](design/task-system.md)                   |
@@ -672,13 +668,13 @@ Design specs define architecture before implementation. Each spec should be comp
 | Embeddings Plugin    | Complete | M6          | [design/embeddings-plugin.md](design/embeddings-plugin.md)       |
 | SDK Alignment        | Planned  | M6.5        | Sprint plans in `sprints/m6.5-s*/plan.md`                        |
 | settingSources       | Revised  | M6.5, M6.8  | [design/settings-sources-evaluation.md](design/settings-sources-evaluation.md) |
-| Two-Agent Refactor   | Idea     | M6.7        | [ideas/two-agent-architecture.md](ideas/two-agent-architecture.md) |
+| Two-Agent Refactor   | Approved | M6.7        | [plans/2026-03-04-conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Skills Architecture  | Idea     | M6.8        | TBD at [design/skills-architecture.md](design/skills-architecture.md) |
 | Agentic Lifecycle    | Complete | M6.6        | [plans/2026-03-01-memory-first-agent-design.md](plans/2026-03-01-memory-first-agent-design.md) |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
-| Operations Dashboard | Complete | M8          | [design/operations-dashboard.md](design/operations-dashboard.md) |
+| Operations Dashboard | Absorbed | ~~M8~~ → M6.6 | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
-**Note:** M3 (WhatsApp), M9 (Email), and M10 (External Comms) are covered by `channels.md`. No separate specs needed.
+**Note:** M3 (WhatsApp), M9 (Email), and M10 (External Comms) are covered by `channels.md`. M6.7's conversation lifecycle and channel routing are covered by `conversation-nina-design.md`. `conversation-system.md` and `channels.md` need updates to align with M6.7 design (scheduled as M6.7-S2 deliverable).
 
 ---
 
@@ -699,35 +695,39 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                           │
                                                                           ▼
                                                                M6.7 Two-Agent Refactor
-                                                                          │
-                                                                          ▼
-                                                               M6.8 Skills Architecture
-                                                                          │
-                                                                          ▼
-                                                                M6.6 Agentic Lifecycle
-                                                                          │
-                                                   ┌──────────────────────┼──────────────────────┐
-                                                   │                      │                      │
-                                                   ▼                      ▼                      ▼
-                                            M7 Coding Projects      M8 Ops Dashboard        M9 Email
-                                                                                                 │
-                                                                                                 ▼
-                                                                                        M10 External Comms
+                                                                      │       │
+                                                                      │       └─────────────────────────┐
+                                                                      ▼                                 │
+                                                               M6.8 Skills Architecture                 │
+                                                                      │                                 │
+                                                                      ▼                                 │
+                                                          M6.6 Agentic Lifecycle (+ M8 absorbed)        │
+                                                                      │                                 │
+                                                               ┌──────┴──────┐                          │
+                                                               ▼             ▼                          │
+                                                     M7 Coding Projects   M9 Email ◄───────────────────┘
+                                                       (needs redesign)     (needs redesign)
+                                                                              │
+                                                                              ▼
+                                                                      M10 External Comms
+                                                                        (needs redesign)
 ```
 
 **Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.8 → M6.6. All complete through M6.5. M6.7 is next.
 
-**M6.7 returns to design doc vision.** Two-agent architecture (Conversation Nina + Working Agents) replaces inline TaskExecutor with folder-based sessions.
+**M6.7 delivers conversation architecture.** Unified resume+systemPrompt path, 6-layer system prompt with caching, conversation lifecycle (current/inactive), channel routing (owner → Nina, external → Working Agents), asymmetric channel switching. Removes context-builder.ts and the two-branch buildQuery bug. This is the foundation for all subsequent milestones.
 
-**M6.8 builds on M6.7.** Skills architecture needs the conversation/worker split to route skills by agent type via cwd.
+**M6.8 builds on M6.7.** Skills architecture needs the conversation/worker split to route skills by agent type via cwd. M6.7's SystemPromptBuilder layer 2 (Skills) provides the injection point.
 
-**M6.6 uses skills.** Ongoing responsibilities and `work-patterns.md` are essentially skills/procedures. Skills architecture should be solid before M6.6 defines how responsibilities load their procedures.
+**M6.6 builds on both M6.7 and M6.8.** M6.7's SystemPromptBuilder layer 3 (Current State) replaces M6.6's "context refresher on resume" — the system prompt is rebuilt every query, so `current-state.md` is injected automatically. M6.6's ongoing responsibilities and `work-patterns.md` load as skills/procedures via M6.8.
 
-**M7 requires M6.6:** Autonomous coding projects are triggered by the work loop's responsibility system. `/whats-next` reads `current-state.md` and `work-patterns.md`.
+**M9 builds on M6.7.** Email integration uses M6.7's external contact routing (inbound email → Working Agent) and escalation queue (Working Agent → Nina's system prompt → owner).
 
-**M8 requires M6.6:** Ops Dashboard surfaces work loop status, responsibilities, and `current-state.md`.
+**M7 requires M6.6:** Autonomous coding projects are triggered by the work loop's responsibility system. Needs redesign to reframe as Working Agent pattern.
 
-**M10 requires M5:** External communications needs solid agentic flow (NotificationService) before implementation.
+**M8 absorbed into M6.6:** Operations Dashboard UI is folded into M6.6 lifecycle sprints. Most dashboard already exists from M5-S10 and M6.
+
+**M9 and M10 need redesign:** Both were designed pre-M6.7. External contacts now route to Working Agents, not to Conversation Nina. May merge into a single "Working Agent for External Contacts" milestone.
 
 **Sprint quality gate:** Every future milestone's final sprint includes E2E automated tests + one comprehensive human-in-the-loop test walkthrough.
 
