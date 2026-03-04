@@ -1397,5 +1397,6 @@ function toTurn(turn: TranscriptTurn): Turn {
     usage: turn.usage,
     cost: turn.cost,
     attachments: turn.attachments,
+    channel: turn.channel,
   };
 }

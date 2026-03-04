@@ -3865,11 +3865,24 @@
                       </div>
                     </template>
 
-                    <div
-                      class="text-tokyo-muted mt-1 text-right"
-                      style="font-size: 11px"
-                      x-text="msg.timestamp"
-                    ></div>
+                    <div class="flex items-center justify-end gap-1.5 mt-1">
+                      <template x-if="msg.channelIcon">
+                        <span
+                          class="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-tokyo-muted"
+                        >
+                          <span
+                            class="w-2.5 h-2.5"
+                            x-html="msg.channelIcon"
+                          ></span>
+                          <span x-text="msg.channelName"></span>
+                        </span>
+                      </template>
+                      <span
+                        class="text-tokyo-muted"
+                        style="font-size: 11px"
+                        x-text="msg.timestamp"
+                      ></span>
+                    </div>
                   </div>
                 </div>
               </template>
@@ -3928,11 +3941,24 @@
                       class="chat-md text-sm leading-relaxed"
                       x-html="msg.renderedContent"
                     ></div>
-                    <div
-                      class="text-tokyo-muted mt-1 text-right"
-                      style="font-size: 11px"
-                      x-text="msg.timestamp"
-                    ></div>
+                    <div class="flex items-center justify-end gap-1.5 mt-1">
+                      <template x-if="msg.channelIcon">
+                        <span
+                          class="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-tokyo-muted"
+                        >
+                          <span
+                            class="w-2.5 h-2.5"
+                            x-html="msg.channelIcon"
+                          ></span>
+                          <span x-text="msg.channelName"></span>
+                        </span>
+                      </template>
+                      <span
+                        class="text-tokyo-muted"
+                        style="font-size: 11px"
+                        x-text="msg.timestamp"
+                      ></span>
+                    </div>
                   </div>
                 </div>
               </template>

@@ -68,6 +68,8 @@ export interface Turn {
   usage?: { input: number; output: number };
   cost?: number;
   attachments?: AttachmentMeta[];
+  /** Channel the message came from (undefined = web) */
+  channel?: string;
 }
 
 // Context from dashboard (what user is currently viewing)

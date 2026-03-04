@@ -893,6 +893,9 @@ function chat() {
               attachmentPreviews: this.buildAttachmentPreviews(
                 turn.attachments,
               ),
+              channel: turn.channel || null,
+              channelIcon: this.getChannelBadgeIcon(turn.channel),
+              channelName: this.getChannelBadgeName(turn.channel),
             }));
           }
 
@@ -1018,6 +1021,9 @@ function chat() {
               attachmentPreviews: this.buildAttachmentPreviews(
                 data.turn.attachments,
               ),
+              channel: data.turn.channel || null,
+              channelIcon: this.getChannelBadgeIcon(data.turn.channel),
+              channelName: this.getChannelBadgeName(data.turn.channel),
             };
             this.messages.push(msg);
             this.$nextTick(() => {
@@ -1043,6 +1049,9 @@ function chat() {
               attachmentPreviews: this.buildAttachmentPreviews(
                 turn.attachments,
               ),
+              channel: turn.channel || null,
+              channelIcon: this.getChannelBadgeIcon(turn.channel),
+              channelName: this.getChannelBadgeName(turn.channel),
             }));
             this.messages.unshift(...olderMessages);
           }
@@ -2296,6 +2305,19 @@ function chat() {
     getConversationChannel(conv) {
       if (!conv.channel || conv.channel === "web") return null;
       return this.channels.find((ch) => ch.id === conv.channel) || null;
+    },
+
+    /** Get channel badge icon for a transcript message */
+    getChannelBadgeIcon(channel) {
+      if (!channel || channel === "web") return null;
+      const ch = this.channels.find((c) => c.id === channel);
+      return ch?.icon || null;
+    },
+
+    /** Get channel badge name for a transcript message */
+    getChannelBadgeName(channel) {
+      if (!channel || channel === "web") return null;
+      return channel;
     },
 
     /** Check if a conversation is read-only (pinned channel conversations only) */
