@@ -420,6 +420,11 @@ Adopt the Agent Skills Standard and SDK native skill discovery. Skills become th
 
 **Design spec:** TBD at `design/skills-architecture.md` — required before sprints begin
 
+**Pre-sprint validation tasks:**
+
+- [ ] Validate `settingSources: ['project']` behavior with custom `systemPrompt` string — does SDK load CLAUDE.md? Does it walk up parent directories? Are skills discovered correctly?
+- [ ] Verify hatching process creates proper personality files aligned with OpenAI's approach — personality defines HOW (tone, style), not WHAT (capabilities). Ensure guardrail against skill identity override is present.
+
 | Sprint | Name | Scope |
 |--------|------|-------|
 | S1 | Skill Format + Migration | YAML frontmatter standard, migrate existing skills to `.my_agent/.claude/skills/`, resolve settingSources double-loading (validate custom systemPrompt + settingSources coexistence), update prompt.ts to stop injecting skill content |
