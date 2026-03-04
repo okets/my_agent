@@ -54,7 +54,14 @@ export class ConversationManager {
       model: options?.model ?? null,
       externalParty: options?.externalParty ?? null,
       isPinned: true,
+      status: "current",
     };
+
+    // Demote current conversation before creating new one
+    const currentConv = this.db.getCurrent();
+    if (currentConv) {
+      this.db.updateConversation(currentConv.id, { status: "inactive" });
+    }
 
     // Create transcript file with metadata header
     const meta: TranscriptMeta = {
@@ -102,6 +109,20 @@ export class ConversationManager {
     externalParty: string,
   ): Promise<Conversation | null> {
     return this.db.getByExternalParty(channel, externalParty);
+  }
+
+  /**
+   * Make a conversation the current one (demotes any existing current)
+   */
+  async makeCurrent(conversationId: string): Promise<void> {
+    this.db.makeCurrent(conversationId);
+  }
+
+  /**
+   * Get the current conversation, if any
+   */
+  async getCurrent(): Promise<Conversation | null> {
+    return this.db.getCurrent();
   }
 
   /**

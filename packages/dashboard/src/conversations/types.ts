@@ -55,6 +55,9 @@ export interface Conversation {
    *  Channel messages always route to the pinned conversation.
    *  Unpinned conversations can still be viewed/continued via web. */
   isPinned: boolean;
+
+  /** Conversation lifecycle status: one current, rest inactive */
+  status: "current" | "inactive";
 }
 
 /**

@@ -119,6 +119,18 @@ export class ConversationDatabase {
       );
     }
 
+    // Migration: add status column for conversation lifecycle (M6.7-S2)
+    if (!columns.some((c) => c.name === "status")) {
+      this.db.exec(
+        "ALTER TABLE conversations ADD COLUMN status TEXT NOT NULL DEFAULT 'inactive'",
+      );
+      // Mark the most recently updated conversation as current
+      this.db.exec(`
+        UPDATE conversations SET status = 'current'
+        WHERE id = (SELECT id FROM conversations ORDER BY updated DESC LIMIT 1)
+      `);
+    }
+
     // Create FTS5 virtual table for full-text search
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS turns_fts USING fts5(
@@ -255,8 +267,8 @@ export class ConversationDatabase {
       INSERT INTO conversations (
         id, channel, title, topics, created, updated,
         turn_count, participants, abbreviation, needs_abbreviation, manually_named,
-        last_renamed_at_turn, model, external_party, is_pinned
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        last_renamed_at_turn, model, external_party, is_pinned, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -275,6 +287,7 @@ export class ConversationDatabase {
       conversation.model,
       conversation.externalParty,
       conversation.isPinned !== false ? 1 : 0,
+      conversation.status ?? "inactive",
     );
   }
 
@@ -418,6 +431,11 @@ export class ConversationDatabase {
       values.push(updates.isPinned ? 1 : 0);
     }
 
+    if (updates.status !== undefined) {
+      fields.push("status = ?");
+      values.push(updates.status);
+    }
+
     if (fields.length === 0) {
       return;
     }
@@ -526,7 +544,37 @@ export class ConversationDatabase {
       model: row.model ?? null,
       externalParty: row.external_party ?? null,
       isPinned: row.is_pinned !== 0,
+      status: (row.status as "current" | "inactive") ?? "inactive",
     };
+  }
+
+  /**
+   * Make a conversation current, demoting any existing current conversation.
+   * Runs in a transaction for atomicity.
+   */
+  makeCurrent(conversationId: string): void {
+    const transaction = this.db.transaction(() => {
+      this.db
+        .prepare(
+          "UPDATE conversations SET status = 'inactive' WHERE status = 'current'",
+        )
+        .run();
+      this.db
+        .prepare("UPDATE conversations SET status = 'current' WHERE id = ?")
+        .run(conversationId);
+    });
+    transaction();
+  }
+
+  /**
+   * Get the current conversation (status = 'current'), if any.
+   */
+  getCurrent(): Conversation | null {
+    const stmt = this.db.prepare(
+      "SELECT * FROM conversations WHERE status = 'current' LIMIT 1",
+    );
+    const row = stmt.get() as any;
+    return row ? this.rowToConversation(row) : null;
   }
 
   /**
