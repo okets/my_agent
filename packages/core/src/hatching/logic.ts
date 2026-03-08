@@ -194,6 +194,9 @@ export function checkEnvAuth(): { type: 'api_key' | 'oauth'; preview: string } |
 export { validateSetupToken }
 
 // ── Operating Rules ──
+// NOTE: Operating rules are OPERATIONAL instructions, not identity.
+// They live in notebook/reference/standing-orders.md, NOT in brain/CLAUDE.md.
+// brain/CLAUDE.md is for identity only: who you are, your voice, your philosophy.
 
 export interface OperatingRulesData {
   autonomy: string
@@ -201,14 +204,21 @@ export interface OperatingRulesData {
   style: string
 }
 
-function buildRulesSection(autonomy: string, escalations: string, style: string): string {
-  return `
+function buildStandingOrders(autonomy: string, escalations: string, style: string): string {
+  return `# Standing Orders
 
-## Operating Rules
+## Autonomy
 
-- **Autonomy:** ${autonomy}
-- **Always escalate:** ${escalations}
-- **Communication style:** ${style}
+${autonomy}
+
+## Escalation Rules
+
+**Always escalate:**
+${escalations || 'Nothing specified — use best judgment'}
+
+## Communication Style
+
+${style}
 `
 }
 
@@ -216,22 +226,16 @@ export async function writeOperatingRules(
   agentDir: string,
   data: OperatingRulesData,
 ): Promise<void> {
-  const brainDir = path.join(agentDir, 'brain')
-  await mkdir(brainDir, { recursive: true })
-  const claudeMdPath = path.join(brainDir, 'CLAUDE.md')
+  // Write to notebook/reference/standing-orders.md (operational, not identity)
+  const notebookDir = path.join(agentDir, 'notebook', 'reference')
+  await mkdir(notebookDir, { recursive: true })
+  const standingOrdersPath = path.join(notebookDir, 'standing-orders.md')
 
-  let existing = ''
-  try {
-    existing = await readFile(claudeMdPath, 'utf-8')
-  } catch {
-    // File may not exist yet
-  }
-
-  const rulesSection = buildRulesSection(
+  const content = buildStandingOrders(
     data.autonomy,
     data.escalations || 'Nothing specified — use best judgment',
     data.style,
   )
 
-  await writeFile(claudeMdPath, existing + rulesSection, 'utf-8')
+  await writeFile(standingOrdersPath, content, 'utf-8')
 }

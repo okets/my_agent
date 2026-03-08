@@ -1,6 +1,6 @@
 import * as readline from 'node:readline/promises'
 import * as path from 'node:path'
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { writeFile, mkdir } from 'node:fs/promises'
 import type { HatchingStep } from '../index.js'
 
 const AUTONOMY_OPTIONS: Record<string, string> = {
@@ -67,16 +67,10 @@ export const operatingRulesStep: HatchingStep = {
       console.log('Invalid choice, please try again.')
     }
 
-    const brainDir = path.join(agentDir, 'brain')
-    await mkdir(brainDir, { recursive: true })
-    const claudeMdPath = path.join(brainDir, 'CLAUDE.md')
-
-    let existing = ''
-    try {
-      existing = await readFile(claudeMdPath, 'utf-8')
-    } catch {
-      // File may not exist yet
-    }
+    // Operating rules are OPERATIONAL, not identity — write to standing-orders, not CLAUDE.md
+    const notebookDir = path.join(agentDir, 'notebook', 'reference')
+    await mkdir(notebookDir, { recursive: true })
+    const standingOrdersPath = path.join(notebookDir, 'standing-orders.md')
 
     const rulesSection = buildRulesSection(
       autonomy,
@@ -84,7 +78,7 @@ export const operatingRulesStep: HatchingStep = {
       style,
     )
 
-    await writeFile(claudeMdPath, existing + rulesSection, 'utf-8')
-    console.log('\nOperating rules saved.')
+    await writeFile(standingOrdersPath, `# Standing Orders\n${rulesSection}`, 'utf-8')
+    console.log('\nOperating rules saved to standing-orders.md.')
   },
 }
