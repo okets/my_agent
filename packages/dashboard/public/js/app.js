@@ -18,6 +18,7 @@ function chat() {
     agentName: "Agent", // Full name, loaded from server in init()
     agentNickname: "Agent", // Short name for casual use (e.g., buttons)
     isHatching: false, // True during hatching flow
+    needsAuth: false, // True when auth gate is active
     pendingControlMsgId: null, // Message ID that has active controls
 
     // Compose bar dynamic state
@@ -783,6 +784,27 @@ function chat() {
               this.$refs.chatInput?.focus();
             }
           });
+          break;
+
+        case "auth_required":
+          this.needsAuth = true;
+          this.isHatching = true;
+          break;
+
+        case "auth_ok":
+          this.needsAuth = false;
+          // Re-check hatching status — if already hatched, load agent name
+          fetch("/api/hatching/status")
+            .then((r) => r.json())
+            .then((statusData) => {
+              if (statusData.hatched && statusData.agentName) {
+                this.agentName = statusData.agentName;
+                this.agentNickname =
+                  statusData.agentNickname || statusData.agentName;
+                this.isHatching = false;
+              }
+            })
+            .catch(() => {});
           break;
 
         case "hatching_complete":

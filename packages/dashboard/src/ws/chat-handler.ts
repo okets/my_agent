@@ -5,7 +5,7 @@ import { SessionRegistry } from "../agent/session-registry.js";
 import type { SessionManager } from "../agent/session-manager.js";
 import { ScriptedHatchingEngine } from "../hatching/scripted-engine.js";
 import { createHatchingSession } from "../hatching/hatching-tools.js";
-import { resolveAuth } from "@my-agent/core";
+import { resolveAuth, isAuthenticated } from "@my-agent/core";
 import { IdleTimerManager, NamingService } from "../conversations/index.js";
 import type { ConversationManager } from "../conversations/index.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
@@ -144,87 +144,105 @@ export async function registerChatWebSocket(
     // Register connection
     connectionRegistry.add(socket, null);
 
-    // Start hatching if not hatched
-    if (!fastify.isHatched) {
+    // Helper: start Phase 2 hatching (LLM personality setup)
+    function startHatchingPhase2(): void {
+      // Resolve auth so the SDK can find the API key
+      try {
+        resolveAuth(fastify.agentDir);
+      } catch {
+        // Auth might not be ready yet if using env auth
+      }
+
+      hatchingSession = createHatchingSession(fastify.agentDir, {
+        send,
+        onComplete: (agentName) => {
+          // Hatching complete
+          hatchingSession = null;
+          fastify.isHatched = true;
+          send({ type: "hatching_complete", agentName });
+        },
+      });
+
+      // Verify auth is ready before starting
+      const authKey = process.env.ANTHROPIC_API_KEY;
+      const authOAuth = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      fastify.log.info(
+        `Phase 2 starting — API key set: ${!!authKey}, OAuth set: ${!!authOAuth}`,
+      );
+
+      // Start the LLM hatching session
+      (async () => {
+        try {
+          for await (const event of hatchingSession!.start()) {
+            // Events are already forwarded by the session's callbacks
+            // We just need to consume the generator
+          }
+        } catch (err) {
+          // Log full error details to server console
+          fastify.log.error(err, "Phase 2 hatching error");
+          if (err instanceof Error) {
+            fastify.log.error(
+              `Error details — name: ${err.name}, message: ${err.message}`,
+            );
+            if ("stderr" in err)
+              fastify.log.error(`stderr: ${(err as any).stderr}`);
+            if ("stdout" in err)
+              fastify.log.error(`stdout: ${(err as any).stdout}`);
+            if (err.cause)
+              fastify.log.error(`cause: ${JSON.stringify(err.cause)}`);
+          }
+          send({
+            type: "error",
+            message: err instanceof Error ? err.message : "Hatching error",
+          });
+        }
+      })();
+    }
+
+    // Helper: proceed after auth is confirmed
+    function proceedAfterAuth(): void {
+      send({ type: "auth_ok" });
+
+      if (!fastify.isHatched) {
+        // Need hatching Phase 2 (personality setup)
+        startHatchingPhase2();
+      } else {
+        // Already hatched, send conversation state on connect
+        (async () => {
+          try {
+            await handleConnect(null);
+            // Push full entity snapshots to the newly connected client
+            if (fastify.statePublisher) {
+              await fastify.statePublisher.publishAllTo(socket);
+            }
+          } catch (err) {
+            fastify.log.error(err, "Error loading conversation on connect");
+            send({
+              type: "error",
+              message: "Failed to load conversation history",
+            });
+          }
+        })();
+      }
+    }
+
+    // Auth gate: check authentication before anything else
+    if (!isAuthenticated()) {
+      send({ type: "auth_required" });
+
       const envPath = path.join(process.cwd(), ".env");
       scriptedEngine = new ScriptedHatchingEngine(fastify.agentDir, envPath, {
         send,
         onComplete: () => {
-          // Phase 1 (scripted) complete, start Phase 2 (LLM)
+          // Auth phase complete
           scriptedEngine = null;
-
-          // Resolve auth so the SDK can find the API key
-          try {
-            resolveAuth(fastify.agentDir);
-          } catch {
-            // Auth might not be ready yet if using env auth
-          }
-
-          hatchingSession = createHatchingSession(fastify.agentDir, {
-            send,
-            onComplete: (agentName) => {
-              // Hatching complete
-              hatchingSession = null;
-              fastify.isHatched = true;
-              send({ type: "hatching_complete", agentName });
-            },
-          });
-
-          // Verify auth is ready before starting
-          const authKey = process.env.ANTHROPIC_API_KEY;
-          const authOAuth = process.env.CLAUDE_CODE_OAUTH_TOKEN;
-          fastify.log.info(
-            `Phase 2 starting — API key set: ${!!authKey}, OAuth set: ${!!authOAuth}`,
-          );
-
-          // Start the LLM hatching session
-          (async () => {
-            try {
-              for await (const event of hatchingSession!.start()) {
-                // Events are already forwarded by the session's callbacks
-                // We just need to consume the generator
-              }
-            } catch (err) {
-              // Log full error details to server console
-              fastify.log.error(err, "Phase 2 hatching error");
-              if (err instanceof Error) {
-                fastify.log.error(
-                  `Error details — name: ${err.name}, message: ${err.message}`,
-                );
-                if ("stderr" in err)
-                  fastify.log.error(`stderr: ${(err as any).stderr}`);
-                if ("stdout" in err)
-                  fastify.log.error(`stdout: ${(err as any).stdout}`);
-                if (err.cause)
-                  fastify.log.error(`cause: ${JSON.stringify(err.cause)}`);
-              }
-              send({
-                type: "error",
-                message: err instanceof Error ? err.message : "Hatching error",
-              });
-            }
-          })();
+          proceedAfterAuth();
         },
       });
 
       scriptedEngine.start();
     } else {
-      // If already hatched, send conversation state on connect
-      (async () => {
-        try {
-          await handleConnect(null);
-          // Push full entity snapshots to the newly connected client
-          if (fastify.statePublisher) {
-            await fastify.statePublisher.publishAllTo(socket);
-          }
-        } catch (err) {
-          fastify.log.error(err, "Error loading conversation on connect");
-          send({
-            type: "error",
-            message: "Failed to load conversation history",
-          });
-        }
-      })();
+      proceedAfterAuth();
     }
 
     socket.on("message", async (raw: Buffer) => {

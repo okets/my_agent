@@ -125,6 +125,8 @@ export type ServerMessage =
       password?: boolean;
       controlId: string;
     }
+  | { type: "auth_required" }
+  | { type: "auth_ok" }
   | { type: "hatching_complete"; agentName: string }
   | {
       type: "conversation_loaded";
