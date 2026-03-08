@@ -6487,7 +6487,7 @@
             </div>
 
             <!-- Messages area -->
-            <div class="chat-messages-area flex-1 p-4 space-y-4">
+            <div x-ref="mobileMessagesContainer" class="chat-messages-area flex-1 p-4 space-y-4">
               <template x-for="msg in messages" :key="msg.id">
                 <div
                   class="msg-enter"

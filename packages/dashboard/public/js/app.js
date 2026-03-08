@@ -1397,12 +1397,14 @@ function chat() {
 
     scrollToBottom() {
       requestAnimationFrame(() => {
-        const container = this.$refs.messagesContainer;
-        if (container) {
-          container.scrollTo({
-            top: container.scrollHeight,
-            behavior: "smooth",
-          });
+        for (const ref of ["messagesContainer", "mobileMessagesContainer"]) {
+          const container = this.$refs[ref];
+          if (container) {
+            container.scrollTo({
+              top: container.scrollHeight,
+              behavior: "smooth",
+            });
+          }
         }
       });
     },
