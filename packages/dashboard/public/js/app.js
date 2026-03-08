@@ -1785,7 +1785,13 @@ function chat() {
     async logout() {
       if (!confirm("Log out? You'll need to re-enter credentials.")) return;
       await fetch("/api/admin/auth/logout", { method: "POST" });
-      // auth_required will arrive via WebSocket
+      // Force reconnect so the server creates a fresh connection with auth gate
+      this.messages = [];
+      if (this.ws) {
+        this.ws.close();
+        this.ws = null;
+      }
+      window.location.reload();
     },
 
     applyTheme() {
