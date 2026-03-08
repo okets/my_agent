@@ -203,7 +203,7 @@ Clear hatching state — return to pre-hatched state.
 
 **Response:**
 ```json
-{ "ok": true, "removed": [".hatched", "brain/CLAUDE.md", "auth.json"] }
+{ "ok": true, "removed": [".hatched", "brain/CLAUDE.md"] }
 ```
 
 ⚠️ **Destructive** — Requires confirmation header: `X-Confirm-Destructive: true`

@@ -398,11 +398,12 @@ Fastify API (additional routes):
 
 Supports both Claude subscriptions (Pro/Max) and API keys. Inspired by OpenClaw's auth UX.
 
+**Source of truth:** `packages/dashboard/.env` (loaded by `node --env-file` at startup).
+
 **Auth sources (resolution order):**
 
-1. **Environment variables** — `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` (always wins)
-2. **Central auth file** — `.my_agent/auth.json` (persistent, managed via hatching/dashboard)
-3. **Error with guidance** — if neither found, guides user through setup
+1. **`process.env`** — `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` (populated from `.env` at startup)
+2. **Error with guidance** — if neither found, guides user through setup
 
 **Supported methods:**
 
@@ -411,50 +412,28 @@ Supports both Claude subscriptions (Pro/Max) and API keys. Inspired by OpenClaw'
 | API Key     | `sk-ant-...`       | [Anthropic Console](https://console.anthropic.com/) | Pay-per-use                  |
 | Setup-Token | `sk-ant-oat01-...` | `claude setup-token` CLI command                    | Subscription quota (Pro/Max) |
 
-**Central auth file** (`.my_agent/auth.json`):
-
-```json
-{
-  "version": 1,
-  "activeProfile": "default",
-  "profiles": {
-    "default": {
-      "provider": "anthropic",
-      "method": "setup_token",
-      "token": "sk-ant-oat01-..."
-    }
-  }
-}
-```
-
-This file lives in `.my_agent/` (gitignored from framework repo, committed to private brain repo). Multiple profiles support future multi-provider or failover scenarios.
-
 **Hatching flow (auth step):**
 
 1. Check for existing env vars → if found, confirm and skip
 2. Ask: "API key (pay-per-use) or Claude subscription (Pro/Max)?"
 3. **Subscription path:** Guide user to run `claude setup-token`, validate prefix (`sk-ant-oat01-`) and length (80+ chars)
 4. **API key path:** Prompt for key, detect env var if present
-5. Store in `.my_agent/auth.json`, set as active profile
+5. Store in `.env`, set `process.env` for immediate use
 6. Verify auth works (test API call)
 
 **Runtime resolution** (`resolveAuth()`):
 
 ```typescript
-// 1. Env var override
+// 1. Check process.env (populated from .env at startup)
 if (process.env.ANTHROPIC_API_KEY) return { type: "api_key", source: "env" };
 if (process.env.CLAUDE_CODE_OAUTH_TOKEN)
   return { type: "setup_token", source: "env" };
 
-// 2. Auth file
-const auth = readAuthFile(agentDir);
-if (auth?.activeProfile) return auth.profiles[auth.activeProfile];
-
-// 3. Guide user
-throw new AuthNotConfiguredError("Run /my-agent:auth to set up authentication");
+// 2. Guide user
+throw new Error("No Anthropic authentication configured.");
 ```
 
-**Dashboard integration (future):** Settings page for managing auth profiles — add/remove keys, switch active profile, test connection, view usage.
+**Dashboard integration:** Settings page for managing auth — add/remove keys, test connection, logout (clears `.env` + `process.env`).
 
 ### 10. First-Run Setup (Hatching)
 
@@ -538,8 +517,8 @@ Both based on existing OpenClaw implementations. Same libraries, same auth, diff
 ```yaml
 # config.yaml
 auth:
-  file: ./auth.json # Central auth file (managed by hatching/dashboard)
-  # Env vars ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN override auth.json
+  # Credentials stored in .env, loaded via node --env-file at startup
+  # Keys: ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN
 
 brain:
   model: claude-sonnet-4-5
@@ -697,15 +676,12 @@ systemctl --user enable nina-dashboard # Dashboard
 
 ### Secrets Management
 
-**Two locations for secrets:**
+**Single location for all secrets:** `packages/dashboard/.env`
 
 ```
-.my_agent/auth.json              # Anthropic auth (API key or subscription token)
-                                 # Managed via hatching, /my-agent:auth, or dashboard
-
-.my_agent/.env (or systemd EnvironmentFile)
-├── ANTHROPIC_API_KEY            # Override: takes precedence over auth.json
-├── CLAUDE_CODE_OAUTH_TOKEN      # Override: subscription token from env
+packages/dashboard/.env          # All secrets, loaded via node --env-file
+├── ANTHROPIC_API_KEY            # Anthropic API key (pay-per-use)
+├── CLAUDE_CODE_OAUTH_TOKEN      # Anthropic subscription token (Pro/Max)
 ├── MS365_CLIENT_ID              # Channel plugin secrets
 ├── MS365_CLIENT_SECRET
 ├── MS365_REFRESH_TOKEN
@@ -713,11 +689,7 @@ systemctl --user enable nina-dashboard # Dashboard
 └── (other service keys)
 ```
 
-**Separation of concerns:**
-
-- **Anthropic auth** → `auth.json` (managed by framework, editable via dashboard)
-- **Service secrets** → `.env` file (channel plugins, external APIs)
-- **Env vars** → always override file-based config (for CI, containers, systemd)
+**Resolution:** `process.env` — populated from `.env` at startup by `node --env-file`
 
 ---
 
@@ -794,7 +766,6 @@ Public framework repo + `.my_agent/` private personality (gitignored, committed 
     │   │   ├── core/                   # identity.md, contacts.md, procedures.md
     │   │   └── daily/                  # End-of-day summaries
     │   └── skills/                     # Agent-specific skills
-    ├── auth.json                       # Anthropic auth (API key or subscription token)
     ├── inbox/                          # Ad-hoc tasks
     ├── projects/                       # Multi-phase project work
     ├── ongoing/                        # Recurring routines
@@ -832,7 +803,7 @@ Public framework repo + `.my_agent/` private personality (gitignored, committed 
 Personality + memory running in `.my_agent/`. Speak via CLI REPL.
 
 - First-run hatching: identity, personality, auth, operating rules (modular `HatchingStep` system)
-- Auth: supports both API keys and Claude subscriptions via `auth.json` + env var override
+- Auth: supports both API keys and Claude subscriptions via `.env` (loaded at startup)
 - Agent SDK brain running in `.my_agent/` with personality from `brain/CLAUDE.md`
 - System prompt assembled from brain files + skills (auto-discovered)
 - `/my-agent:*` commands for re-configuring any hatching step anytime
