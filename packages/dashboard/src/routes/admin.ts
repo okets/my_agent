@@ -8,9 +8,14 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { writeFile, rm, unlink } from "node:fs/promises";
-import { invalidateCalendarContextCache } from "@my-agent/core";
+import {
+  invalidateCalendarContextCache,
+  clearAuth,
+  removeEnvValue,
+} from "@my-agent/core";
+import { connectionRegistry } from "../ws/chat-handler.js";
 
 /**
  * Localhost-only middleware
@@ -39,6 +44,27 @@ export async function registerAdminRoutes(
 ): Promise<void> {
   // Apply localhost-only middleware to all admin routes
   fastify.addHook("onRequest", localhostOnly);
+
+  /**
+   * POST /auth/logout
+   *
+   * Clear credentials from process.env and .env file,
+   * then broadcast auth_required to all connected WebSocket clients.
+   */
+  fastify.post("/auth/logout", async (_request, reply) => {
+    clearAuth();
+    const envPath = resolve(import.meta.dirname, "../../.env");
+    removeEnvValue(envPath, "ANTHROPIC_API_KEY");
+    removeEnvValue(envPath, "CLAUDE_CODE_OAUTH_TOKEN");
+
+    // Broadcast auth_required to all connected clients
+    connectionRegistry.broadcastToAll({ type: "auth_required" });
+
+    fastify.log.info(
+      "[Admin] Logged out — credentials cleared, auth_required broadcast",
+    );
+    return reply.send({ ok: true });
+  });
 
   /**
    * POST /caches/:name/invalidate

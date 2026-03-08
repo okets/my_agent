@@ -1783,6 +1783,12 @@ function chat() {
       this.applyTheme();
     },
 
+    async logout() {
+      if (!confirm("Log out? You'll need to re-enter credentials.")) return;
+      await fetch("/api/admin/auth/logout", { method: "POST" });
+      // auth_required will arrive via WebSocket
+    },
+
     applyTheme() {
       const root = document.documentElement;
       if (this.theme === "light") {
