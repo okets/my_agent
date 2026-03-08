@@ -60,9 +60,8 @@ export async function registerAdminRoutes(
     // Broadcast auth_required to all connected clients
     connectionRegistry.broadcastToAll({ type: "auth_required" });
 
-    fastify.log.info(
-      "[Admin] Logged out — credentials cleared, auth_required broadcast",
-    );
+    fastify.log.info("[Admin] Logged out — credentials cleared");
+
     return reply.send({ ok: true });
   });
 
