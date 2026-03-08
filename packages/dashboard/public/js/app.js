@@ -794,23 +794,40 @@ function chat() {
           break;
 
         case "auth_ok":
-          this.needsAuth = false;
-          // On mobile, collapse chat back to peek (return to dashboard view)
-          if (Alpine.store("mobile").isMobile) {
-            Alpine.store("mobile").collapseChat();
-          }
-          // Re-check hatching status — if already hatched, load agent name
-          fetch("/api/hatching/status")
-            .then((r) => r.json())
-            .then((statusData) => {
-              if (statusData.hatched && statusData.agentName) {
-                this.agentName = statusData.agentName;
-                this.agentNickname =
-                  statusData.agentNickname || statusData.agentName;
-                this.isHatching = false;
+          // Show green success message, then transition after 1.5s
+          {
+            const successMsg = {
+              id: ++this.messageIdCounter,
+              role: "assistant",
+              content: "Connected successfully!",
+              renderedContent: this.renderMarkdown(
+                '<span style="color: #a6e3a1">&#10003; Connected successfully!</span>',
+              ),
+              timestamp: this.formatTime(new Date()),
+            };
+            this.messages.push(successMsg);
+            this.$nextTick(() => this.scrollToBottom());
+
+            setTimeout(() => {
+              this.needsAuth = false;
+              // On mobile, collapse chat back to peek (return to dashboard view)
+              if (Alpine.store("mobile").isMobile) {
+                Alpine.store("mobile").collapseChat();
               }
-            })
-            .catch(() => {});
+              // Re-check hatching status — if already hatched, load agent name
+              fetch("/api/hatching/status")
+                .then((r) => r.json())
+                .then((statusData) => {
+                  if (statusData.hatched && statusData.agentName) {
+                    this.agentName = statusData.agentName;
+                    this.agentNickname =
+                      statusData.agentNickname || statusData.agentName;
+                    this.isHatching = false;
+                  }
+                })
+                .catch(() => {});
+            }, 1500);
+          }
           break;
 
         case "hatching_complete":
