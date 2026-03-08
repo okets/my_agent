@@ -1,9 +1,7 @@
 import {
   checkEnvAuth,
-  createDirectoryStructure,
-  writeMinimalConfig,
-  saveAuth,
   validateSetupToken,
+  setEnvValue,
 } from "@my-agent/core";
 import type { ServerMessage } from "../ws/protocol.js";
 
@@ -25,6 +23,7 @@ export class ScriptedHatchingEngine {
 
   constructor(
     private agentDir: string,
+    private envPath: string,
     private callbacks: ScriptedEngineCallbacks,
   ) {}
 
@@ -216,17 +215,14 @@ export class ScriptedHatchingEngine {
 
   private async finalize(): Promise<void> {
     try {
-      // Create directory structure
-      await createDirectoryStructure(this.agentDir);
-
-      // Write minimal config (without agent name - Phase 2 will set it)
-      await writeMinimalConfig(this.agentDir);
-
-      // Save auth if not using env
+      // Save auth to .env if not using existing env auth
       if (!this.useEnvAuth && this.authToken && this.authMethod) {
-        const method =
-          this.authMethod === "api_key" ? "api_key" : "setup_token";
-        saveAuth(this.agentDir, method, this.authToken);
+        const key =
+          this.authMethod === "api_key"
+            ? "ANTHROPIC_API_KEY"
+            : "CLAUDE_CODE_OAUTH_TOKEN";
+        setEnvValue(this.envPath, key, this.authToken);
+        process.env[key] = this.authToken;
       }
 
       // Bridge message before Phase 2

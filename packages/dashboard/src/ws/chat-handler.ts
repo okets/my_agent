@@ -146,7 +146,8 @@ export async function registerChatWebSocket(
 
     // Start hatching if not hatched
     if (!fastify.isHatched) {
-      scriptedEngine = new ScriptedHatchingEngine(fastify.agentDir, {
+      const envPath = path.join(process.cwd(), ".env");
+      scriptedEngine = new ScriptedHatchingEngine(fastify.agentDir, envPath, {
         send,
         onComplete: () => {
           // Phase 1 (scripted) complete, start Phase 2 (LLM)

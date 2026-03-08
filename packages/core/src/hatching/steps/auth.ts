@@ -1,5 +1,7 @@
 import * as readline from 'node:readline/promises'
-import { validateSetupToken, writeAuthFile, type AuthProfile } from '../../auth.js'
+import * as path from 'node:path'
+import { validateSetupToken } from '../../auth.js'
+import { setEnvValue } from '../../env.js'
 import type { HatchingStep } from '../index.js'
 
 const AUTH_METHODS: Record<string, string> = {
@@ -53,7 +55,8 @@ export const authStep: HatchingStep = {
       console.log('Invalid choice, please try again.')
     }
 
-    let profile: AuthProfile
+    // Derive .env path (sibling of agentDir's parent — packages/dashboard/.env)
+    const envPath = path.join(agentDir, '..', '.env')
 
     if (method === '1') {
       // API key path
@@ -73,11 +76,8 @@ export const authStep: HatchingStep = {
         break
       }
 
-      profile = {
-        provider: 'anthropic',
-        method: 'api_key',
-        token: apiKey,
-      }
+      setEnvValue(envPath, 'ANTHROPIC_API_KEY', apiKey)
+      process.env.ANTHROPIC_API_KEY = apiKey
     } else {
       // Subscription path
       console.log('\nTo generate a setup token:')
@@ -103,20 +103,8 @@ export const authStep: HatchingStep = {
         break
       }
 
-      profile = {
-        provider: 'anthropic',
-        method: 'setup_token',
-        token: setupToken,
-      }
-    }
-
-    writeAuthFile(agentDir, profile)
-
-    // Set env var for immediate use
-    if (profile.method === 'api_key') {
-      process.env.ANTHROPIC_API_KEY = profile.token
-    } else {
-      process.env.CLAUDE_CODE_OAUTH_TOKEN = profile.token
+      setEnvValue(envPath, 'CLAUDE_CODE_OAUTH_TOKEN', setupToken)
+      process.env.CLAUDE_CODE_OAUTH_TOKEN = setupToken
     }
 
     console.log('\nAuthentication saved.')

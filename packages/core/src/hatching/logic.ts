@@ -1,7 +1,7 @@
 import * as path from 'node:path'
 import { mkdir, writeFile, readdir, readFile, copyFile } from 'node:fs/promises'
 import { stringify } from 'yaml'
-import { writeAuthFile, validateSetupToken, type AuthProfile } from '../auth.js'
+import { validateSetupToken } from '../auth.js'
 
 // ── Directory structure ──
 
@@ -189,23 +189,6 @@ export function checkEnvAuth(): { type: 'api_key' | 'oauth'; preview: string } |
   }
 
   return null
-}
-
-export function saveAuth(agentDir: string, method: 'api_key' | 'setup_token', token: string): void {
-  const profile: AuthProfile = {
-    provider: 'anthropic',
-    method,
-    token,
-  }
-
-  writeAuthFile(agentDir, profile)
-
-  // Set env var for immediate use
-  if (method === 'api_key') {
-    process.env.ANTHROPIC_API_KEY = token
-  } else {
-    process.env.CLAUDE_CODE_OAUTH_TOKEN = token
-  }
 }
 
 export { validateSetupToken }

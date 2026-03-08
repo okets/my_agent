@@ -130,14 +130,6 @@ export async function registerAdminRoutes(
       // Doesn't exist
     }
 
-    // Remove auth.json
-    try {
-      await unlink(join(agentDir, "auth.json"));
-      removed.push("auth.json");
-    } catch {
-      // Doesn't exist
-    }
-
     // Remove brain/CLAUDE.md
     try {
       await unlink(join(agentDir, "brain/CLAUDE.md"));
