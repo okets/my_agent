@@ -795,6 +795,10 @@ function chat() {
 
         case "auth_ok":
           this.needsAuth = false;
+          // On mobile, collapse chat back to peek (return to dashboard view)
+          if (Alpine.store("mobile").isMobile) {
+            Alpine.store("mobile").collapseChat();
+          }
           // Re-check hatching status — if already hatched, load agent name
           fetch("/api/hatching/status")
             .then((r) => r.json())
