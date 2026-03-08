@@ -440,6 +440,7 @@ function chat() {
           this.currentAssistantMessage = null;
           this.currentThinkingText = "";
           this.isThinking = false;
+          this.needsAuth = false;
 
           // Send connect message to get conversation list
           this.ws.send({ type: "connect" });
@@ -789,6 +790,10 @@ function chat() {
         case "auth_required":
           this.needsAuth = true;
           this.isHatching = true;
+          // On mobile, expand chat to full screen for auth flow
+          if (Alpine.store("mobile").isMobile) {
+            Alpine.store("mobile").chatState = "full";
+          }
           break;
 
         case "auth_ok":

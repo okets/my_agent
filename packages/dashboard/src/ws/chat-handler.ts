@@ -140,6 +140,7 @@ export async function registerChatWebSocket(
     // Hatching state
     let scriptedEngine: ScriptedHatchingEngine | null = null;
     let hatchingSession: ReturnType<typeof createHatchingSession> | null = null;
+    let isAuthCompleted = false;
 
     // Register connection
     connectionRegistry.add(socket, null);
@@ -201,6 +202,7 @@ export async function registerChatWebSocket(
 
     // Helper: proceed after auth is confirmed
     function proceedAfterAuth(): void {
+      isAuthCompleted = true;
       send({ type: "auth_ok" });
 
       if (!fastify.isHatched) {
@@ -230,7 +232,7 @@ export async function registerChatWebSocket(
     if (!isAuthenticated()) {
       send({ type: "auth_required" });
 
-      const envPath = path.join(process.cwd(), ".env");
+      const envPath = path.resolve(import.meta.dirname, "../../.env");
       scriptedEngine = new ScriptedHatchingEngine(fastify.agentDir, envPath, {
         send,
         onComplete: () => {
@@ -274,6 +276,12 @@ export async function registerChatWebSocket(
           } else if (hatchingSession) {
             hatchingSession.handleControlResponse(msg.controlId, msg.value);
           }
+          return;
+        }
+
+        // Block all non-auth messages until authentication is complete
+        if (!isAuthCompleted) {
+          send({ type: "error", message: "Authentication required" });
           return;
         }
 

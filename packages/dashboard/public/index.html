@@ -132,6 +132,17 @@
       :class="{ 'mobile-app-container': $store.mobile.isMobile }"
     >
       <!-- ============================================================== -->
+      <!-- Auth Gate — blocks sidebar/workspace when not authenticated    -->
+      <!-- Auth flow renders in the chat panel via WebSocket messages     -->
+      <!-- ============================================================== -->
+      <div
+        x-show="needsAuth"
+        x-cloak
+        class="fixed inset-0 z-[9999] bg-[#1a1b26]/95"
+        @click.stop
+      ></div>
+
+      <!-- ============================================================== -->
       <!-- Mobile Header (< 768px only)                                   -->
       <!-- ============================================================== -->
       <div x-show="$store.mobile.isMobile" class="mobile-header" x-cloak>
@@ -3311,6 +3322,7 @@
       <!-- ============================================================== -->
       <div
         class="chat-panel flex flex-col shrink-0 border-l border-white/5 hidden md:flex"
+        :class="{ 'relative z-[10000]': needsAuth }"
         :style="{ width: chatWidth + 'px' }"
         style="min-width: 300px; max-width: 85vw"
       >
@@ -6170,7 +6182,7 @@
         x-init="$nextTick(() => { if (typeof initChatSheetGesture === 'function') initChatSheetGesture($el) })"
         x-effect="if ($store.mobile.isMobile && $store.mobile.chatState !== 'peek') { if (typeof announceMobile === 'function') announceMobile('Chat ' + ($store.mobile.chatState === 'full' ? 'fully expanded' : 'expanded')) } else if ($store.mobile.isMobile) { if (typeof announceMobile === 'function') announceMobile('Chat collapsed') }"
         class="mobile-chat-panel md:hidden"
-        :class="{ 'dragging': false }"
+        :class="{ 'dragging': false, 'relative z-[10000]': needsAuth }"
         role="region"
         aria-label="Chat"
       >
