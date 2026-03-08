@@ -1821,7 +1821,7 @@ function chat() {
     },
 
     async logout() {
-      if (!confirm("Log out? You'll need to re-enter credentials.")) return;
+      if (!confirm("Disconnect AI? You'll need to re-enter credentials to reconnect.")) return;
       const res = await fetch("/api/auth/logout", { method: "POST" });
       if (!res.ok) {
         console.error("[App] Logout failed:", res.status);
