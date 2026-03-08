@@ -3,7 +3,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyCors from "@fastify/cors";
 import fastifyWebSocket from "@fastify/websocket";
 import fastifyMultipart from "@fastify/multipart";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { registerChatWebSocket } from "./ws/chat-handler.js";
@@ -176,6 +176,19 @@ export async function createServer(
     },
     { prefix: "/api/debug" },
   );
+
+  // Register auth routes (accessible from any client)
+  fastify.post("/api/auth/logout", async (_request, reply) => {
+    const { clearAuth, removeEnvValue } = await import("@my-agent/core");
+    const { connectionRegistry } = await import("./ws/chat-handler.js");
+    clearAuth();
+    const envPath = resolve(import.meta.dirname, "../.env");
+    removeEnvValue(envPath, "ANTHROPIC_API_KEY");
+    removeEnvValue(envPath, "CLAUDE_CODE_OAUTH_TOKEN");
+    connectionRegistry.broadcastToAll({ type: "auth_required" });
+    fastify.log.info("[Auth] Logged out — credentials cleared");
+    return reply.send({ ok: true });
+  });
 
   // Register admin API routes (localhost-only)
   await fastify.register(

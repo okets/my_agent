@@ -1784,7 +1784,11 @@ function chat() {
 
     async logout() {
       if (!confirm("Log out? You'll need to re-enter credentials.")) return;
-      await fetch("/api/admin/auth/logout", { method: "POST" });
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      if (!res.ok) {
+        console.error("[App] Logout failed:", res.status);
+        return;
+      }
       // Force reconnect so the server creates a fresh connection with auth gate
       this.messages = [];
       if (this.ws) {
