@@ -19,6 +19,8 @@ function chat() {
     agentNickname: "Agent", // Short name for casual use (e.g., buttons)
     isHatching: false, // True during hatching flow
     needsAuth: false, // True when auth gate is active
+    _authTransitioning: false, // True during auth success display (buffers messages)
+    _authMessageQueue: [], // Buffered messages during auth transition
     pendingControlMsgId: null, // Message ID that has active controls
 
     // Compose bar dynamic state
@@ -684,6 +686,12 @@ function chat() {
     handleWsMessage(data) {
       console.log("[App] Received WS message:", data);
 
+      // Buffer messages during auth success transition (except auth_ok itself)
+      if (this._authTransitioning && data.type !== "auth_ok") {
+        this._authMessageQueue.push(data);
+        return;
+      }
+
       switch (data.type) {
         case "start":
           // Response is starting — show typing dots, defer bubble creation
@@ -794,15 +802,17 @@ function chat() {
           break;
 
         case "auth_ok":
-          // Show green success message, then transition after 1.5s
+          // Show green success, buffer incoming messages, then transition
           {
+            this._authTransitioning = true;
+            this._authMessageQueue = [];
+
             const successMsg = {
               id: ++this.messageIdCounter,
               role: "assistant",
               content: "Connected successfully!",
-              renderedContent: this.renderMarkdown(
-                '<span style="color: #a6e3a1">&#10003; Connected successfully!</span>',
-              ),
+              renderedContent:
+                '<p><span style="color: #a6e3a1; font-weight: 600;">&#10003; Connected successfully!</span></p>',
               timestamp: this.formatTime(new Date()),
             };
             this.messages.push(successMsg);
@@ -810,9 +820,16 @@ function chat() {
 
             setTimeout(() => {
               this.needsAuth = false;
+              this._authTransitioning = false;
               // On mobile, collapse chat back to peek (return to dashboard view)
               if (Alpine.store("mobile").isMobile) {
                 Alpine.store("mobile").collapseChat();
+              }
+              // Flush buffered messages (conversation_loaded, state syncs, etc.)
+              const queued = this._authMessageQueue;
+              this._authMessageQueue = [];
+              for (const msg of queued) {
+                this.handleWsMessage(msg);
               }
               // Re-check hatching status — if already hatched, load agent name
               fetch("/api/hatching/status")
