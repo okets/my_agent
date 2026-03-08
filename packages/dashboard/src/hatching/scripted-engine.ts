@@ -225,15 +225,19 @@ export class ScriptedHatchingEngine {
         process.env[key] = this.authToken;
       }
 
-      // Bridge message before Phase 2
+      // Success message
       this.callbacks.send({ type: "start" });
       this.callbacks.send({
         type: "text_delta",
-        content: "Got it -- credentials saved. Now let me get to know you...",
+        content: "Credentials saved. Connecting...",
       });
       this.callbacks.send({ type: "done" });
 
       this.state = "DONE";
+
+      // Brief pause so the user sees the success message before UI transitions
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
       this.callbacks.onComplete();
     } catch (err) {
       this.callbacks.send({
