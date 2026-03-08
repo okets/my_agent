@@ -441,9 +441,6 @@ function chat() {
           this.currentThinkingText = "";
           this.isThinking = false;
           this.needsAuth = false;
-
-          // Send connect message to get conversation list
-          this.ws.send({ type: "connect" });
         },
         onClose: () => {
           console.log("[App] WebSocket disconnected");
@@ -792,7 +789,7 @@ function chat() {
           this.isHatching = true;
           // On mobile, expand chat to full screen for auth flow
           if (Alpine.store("mobile").isMobile) {
-            Alpine.store("mobile").chatState = "full";
+            Alpine.store("mobile").expandChat("full");
           }
           break;
 

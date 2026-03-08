@@ -6499,8 +6499,12 @@
                   >
                     <div
                       class="chat-md"
-                      x-html="renderMarkdown(msg.text || '')"
+                      x-html="msg.renderedContent || renderMarkdown(msg.text || '')"
                     ></div>
+                    <!-- Controls (buttons, cards) -->
+                    <template x-if="msg.controlsHtml">
+                      <div x-html="msg.controlsHtml" class="mt-2"></div>
+                    </template>
                   </div>
                 </div>
               </template>
