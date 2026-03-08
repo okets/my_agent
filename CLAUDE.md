@@ -125,8 +125,9 @@ This is kept private since it contains paths specific to the development machine
 - **Memory (later):** Mem0 or Graphiti + Memgraph
 - **WhatsApp:** Baileys
 - **Email:** Microsoft Graph API
-- **Platform:** WSL (Linux on Windows)
+- **Platform:** Linux (Ubuntu 25.10 on OVH VPS)
 - **Services:** systemd user services
+- **Embeddings:** Ollama (nomic-embed-text)
 
 ## Agent SDK Development Rule
 
@@ -168,9 +169,9 @@ The roadmap contains:
 - Dependency graph
 - Work breakdown
 
-**Current:** M2 Web UI (S1 complete, S2-S5 pending)
+**Current:** M6.7 Two-Agent Refactor (S1-S3 complete, S4-S5 pending)
 
 ---
 
 *Created: 2026-02-12*
-*Updated: 2026-02-18 — Added self-evolving infrastructure philosophy*
+*Updated: 2026-03-08 — Platform migration to OVH VPS (Ubuntu 25.10)*

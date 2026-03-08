@@ -4,7 +4,7 @@
 > **Date:** 2026-02-12 (updated 2026-03-03)
 > **Decision:** Replace OpenClaw with Claude Agent SDK-based architecture
 > **Project name:** `my_agent`
-> **Platform:** WSL (Linux)
+> **Platform:** Linux (native Ubuntu)
 > **Structure:** Public framework repo + `.my_agent/` private personality (gitignored, separate repo)
 
 ---
@@ -670,15 +670,16 @@ dashboard:
 
 ## Deployment
 
-### Platform: WSL (Recommended)
+### Platform: Linux (Native)
 
-**Why WSL over Windows:**
+**Why Linux:**
 
 - Claude Code and Agent SDK are designed for Unix environments
-- Bash tool works natively (no PowerShell translation)
+- Bash tool works natively
 - Systemd for service management
 - File watchers work reliably
 - Git and Node.js tooling is native
+- VPS deployment enables always-on operation
 
 **Process management:**
 
