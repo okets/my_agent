@@ -250,6 +250,7 @@ export interface MemoryStats {
     id: string;
     name: string;
     model: string;
+    dimensions: number | null;
   } | null;
   degraded: {
     pluginId: string;
