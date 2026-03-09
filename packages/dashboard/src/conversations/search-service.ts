@@ -210,6 +210,14 @@ export class ConversationSearchService {
   }
 
   /**
+   * Remove all vector data for a conversation.
+   * FTS cleanup is handled by ConversationDatabase.deleteConversation().
+   */
+  removeConversation(conversationId: string): void {
+    this.searchDb.removeTurns(conversationId);
+  }
+
+  /**
    * Check if semantic search is available.
    */
   async isSemanticAvailable(): Promise<boolean> {

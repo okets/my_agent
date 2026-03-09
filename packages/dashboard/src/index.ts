@@ -30,6 +30,8 @@ import { createServer } from "./server.js";
 import {
   ConversationManager,
   AbbreviationQueue,
+  ConversationSearchDB,
+  ConversationSearchService,
 } from "./conversations/index.js";
 import {
   ChannelManager,
@@ -523,10 +525,51 @@ async function main() {
   server.searchService = searchService;
   server.pluginRegistry = pluginRegistry;
 
+  // ── Conversation Search Infrastructure (M6.7-S4) ──
+  let conversationSearchService: ConversationSearchService | null = null;
+  let conversationSearchDb: ConversationSearchDB | null = null;
+
+  if (conversationManager) {
+    try {
+      const rawDb = conversationManager.getDb();
+      conversationSearchDb = new ConversationSearchDB(rawDb);
+
+      // Initialize vector table if embeddings plugin is active
+      const activePlugin = pluginRegistry?.getActive() ?? null;
+      if (activePlugin) {
+        const dims = activePlugin.getDimensions();
+        if (dims) {
+          conversationSearchDb.initVectorTable(dims);
+          console.log(
+            `[ConversationSearch] Vector table initialized (${dims} dims)`,
+          );
+        }
+      }
+
+      conversationSearchService = new ConversationSearchService({
+        searchDb: conversationSearchDb,
+        getPlugin: () => pluginRegistry?.getActive() ?? null,
+      });
+
+      server.conversationSearchService = conversationSearchService;
+      console.log("[ConversationSearch] Service initialized");
+    } catch (err) {
+      console.warn(
+        "[ConversationSearch] Failed to initialize:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   // Wire MCP memory tools into brain sessions
   if (searchService) {
     const notebookDir = join(agentDir, "notebook");
-    initMcpServers(searchService, notebookDir);
+    initMcpServers(
+      searchService,
+      notebookDir,
+      conversationSearchService ?? undefined,
+      conversationManager ?? undefined,
+    );
   }
 
   // Connect memory services to state publisher for live updates
@@ -576,6 +619,9 @@ async function main() {
                   const dims = plugin.getDimensions();
                   if (dims && memoryDb) {
                     memoryDb.initVectorTable(dims);
+                  }
+                  if (dims && conversationSearchDb) {
+                    conversationSearchDb.initVectorTable(dims);
                   }
                   console.log(
                     `[HealthMonitor] Embeddings recovered: ${intendedId} (${plugin.modelName})`,
