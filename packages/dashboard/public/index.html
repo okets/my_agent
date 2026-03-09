@@ -5308,32 +5308,63 @@
                         </div>
                       </template>
 
-                      <!-- Actions for disconnected/logged_out states -->
-                      <template
-                        x-if="channel.status !== 'error' && channel.status !== 'connected' && channel.status !== 'connecting'"
-                      >
+                      <!-- Pair options (mobile — phone number is default) -->
+                      <template x-if="channel.status !== 'error' && channel.status !== 'connected' && channel.status !== 'connecting' && !pairingCodes[channel.id]">
                         <div class="px-3 pb-3">
-                          <button
-                            @click="pairChannel(channel.id)"
-                            class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
-                          >
-                            Pair
-                          </button>
+                          <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-2">
+                              <input
+                                type="tel"
+                                x-model="pairingPhoneNumber[channel.id]"
+                                @keydown.enter="pairByPhone(channel.id)"
+                                placeholder="Phone with country code"
+                                class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text placeholder-tokyo-muted focus:border-[#e07a5f]/50 focus:outline-none"
+                              />
+                              <button
+                                @click="pairByPhone(channel.id)"
+                                :disabled="!pairingPhoneNumber[channel.id] || pairingPhoneNumber[channel.id].length < 7"
+                                class="px-4 py-2 rounded-lg text-sm font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)] disabled:opacity-40"
+                              >
+                                Pair
+                              </button>
+                            </div>
+                            <button
+                              @click="pairChannel(channel.id)"
+                              class="text-xs text-tokyo-muted active:text-tokyo-text text-left"
+                            >
+                              Or scan QR code instead
+                            </button>
+                          </div>
                         </div>
                       </template>
 
-                      <!-- Actions for connected channels -->
+                      <!-- Pairing code display (mobile — arrives via WebSocket) -->
+                      <template x-if="pairingCodes[channel.id]">
+                        <div class="p-3 border-t border-white/5">
+                          <p class="text-xs text-tokyo-muted mb-2">
+                            WhatsApp &rarr; Linked Devices &rarr; Link a Device &rarr; enter code:
+                          </p>
+                          <div class="px-4 py-3 rounded-lg bg-white/5 border border-white/10 font-mono text-2xl tracking-[0.3em] text-tokyo-text text-center select-all">
+                            <span x-text="pairingCodes[channel.id]"></span>
+                          </div>
+                          <p class="text-[10px] text-tokyo-muted mt-1.5 text-center">
+                            Waiting for confirmation...
+                          </p>
+                        </div>
+                      </template>
+
+                      <!-- Actions for connected channels (mobile) -->
                       <template x-if="channel.status === 'connected'">
-                        <div class="px-3 pb-3 flex gap-2">
-                          <!-- Authorize Owner (when no owner) -->
+                        <div class="px-3 pb-3 flex flex-wrap gap-2">
+                          <!-- Verify Owner (dedicated, no owner) -->
                           <template
-                            x-if="!authTokens[channel.id] && !channel.hasOwner"
+                            x-if="!authTokens[channel.id] && !channel.hasOwner && channel.role === 'dedicated'"
                           >
                             <button
                               @click="requestAuthToken(channel.id)"
                               class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
                             >
-                              Authorize Owner
+                              Verify Owner
                             </button>
                           </template>
                           <!-- Owner info (when has owner) -->
@@ -5345,14 +5376,14 @@
                                 Owner:
                                 <span
                                   class="text-tokyo-text"
-                                  x-text="channel.ownerNumber || 'Authorized'"
+                                  x-text="channel.ownerNumber || 'Verified'"
                                 ></span>
                               </span>
                               <button
-                                @click="requestAuthToken(channel.id)"
+                                @click="removeOwner(channel.id)"
                                 class="text-xs px-2 py-1 rounded font-medium text-tokyo-muted active:text-tokyo-text active:bg-white/5"
                               >
-                                Change
+                                Remove
                               </button>
                             </div>
                           </template>
@@ -5362,6 +5393,30 @@
                           >
                             Disconnect
                           </button>
+                        </div>
+                      </template>
+
+                      <!-- Authorization token (mobile) -->
+                      <template
+                        x-if="authTokens[channel.id] && channel.status === 'connected'"
+                      >
+                        <div class="p-3 border-t border-white/5 flex flex-col items-center gap-2">
+                          <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                            <p class="text-xs text-amber-400 font-medium">
+                              Owner Verification
+                            </p>
+                          </div>
+                          <p class="text-xs text-tokyo-muted text-center">
+                            Send this code to the agent's WhatsApp:
+                          </p>
+                          <div
+                            class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 font-mono text-xl tracking-[0.3em] text-tokyo-text text-center select-all"
+                            x-text="authTokens[channel.id]"
+                          ></div>
+                          <p class="text-[10px] text-tokyo-muted">
+                            Expires in 10 minutes
+                          </p>
                         </div>
                       </template>
 
