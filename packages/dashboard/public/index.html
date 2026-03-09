@@ -1234,12 +1234,12 @@
 
                       <!-- Channel actions (for non-error states) -->
                       <template x-if="ch.status !== 'error'">
-                        <div class="flex items-center gap-2 px-4 pb-4 pt-0">
+                        <div class="flex flex-wrap items-center gap-2 px-4 pb-4 pt-0">
                           <!-- Connect/Pair options (for disconnected/logged_out channels) -->
                           <template
                             x-if="ch.status !== 'connected' && ch.status !== 'connecting' && !pairingCodes[ch.id]"
                           >
-                            <div class="flex items-center gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
                               <button
                                 @click="pairChannel(ch.id)"
                                 class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
@@ -1320,25 +1320,25 @@
                       <!-- Phone number input (desktop) -->
                       <template x-if="pairingByPhone[ch.id] && !pairingCodes[ch.id] && ch.status !== 'connected'">
                         <div class="p-4 border-t border-white/5">
-                          <div class="flex items-center gap-2">
+                          <div class="flex flex-wrap items-center gap-2">
                             <input
                               type="tel"
                               x-model="pairingPhoneNumber[ch.id]"
                               @keydown.enter="pairByPhone(ch.id)"
                               :x-ref="'phoneInput_' + ch.id"
                               placeholder="Enter number with country code"
-                              class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text placeholder-tokyo-muted focus:border-[#e07a5f]/50 focus:outline-none"
+                              class="flex-1 min-w-[180px] px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text placeholder-tokyo-muted focus:border-[#e07a5f]/50 focus:outline-none"
                             />
                             <button
                               @click="pairByPhone(ch.id)"
                               :disabled="!pairingPhoneNumber[ch.id] || pairingPhoneNumber[ch.id].length < 7"
-                              class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)] disabled:opacity-40 disabled:cursor-not-allowed"
+                              class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)] disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                             >
                               Pair
                             </button>
                             <button
                               @click="delete pairingByPhone[ch.id]; delete pairingPhoneNumber[ch.id]"
-                              class="text-xs text-tokyo-muted hover:text-tokyo-text"
+                              class="text-xs text-tokyo-muted hover:text-tokyo-text shrink-0"
                             >
                               Cancel
                             </button>
@@ -1358,10 +1358,10 @@
                           <div class="px-6 py-4 rounded-lg bg-white/5 border border-white/10 font-mono text-3xl tracking-[0.4em] text-tokyo-text text-center select-all">
                             <span x-text="pairingCodes[ch.id]"></span>
                           </div>
-                          <div class="flex items-center justify-center gap-3 mt-3">
-                            <p class="text-[10px] text-tokyo-muted">
-                              Waiting for confirmation...
-                            </p>
+                          <p class="text-[10px] text-tokyo-muted mt-2 text-center">
+                            Waiting for confirmation...
+                          </p>
+                          <div class="mt-3 text-center">
                             <button
                               @click="removeChannel(ch.id)"
                               class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] hover:bg-[rgba(247,118,142,0.25)] transition-colors"
