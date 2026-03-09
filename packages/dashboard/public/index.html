@@ -5183,11 +5183,69 @@
                 id="mobile-settings-channels"
                 class="glass-strong rounded-xl p-4"
               >
-                <h3 class="text-sm font-semibold text-tokyo-text mb-3">
-                  Channels
-                </h3>
-                <template x-if="channels.length === 0">
-                  <p class="text-sm text-tokyo-muted">No channels configured</p>
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-sm font-semibold text-tokyo-text">
+                    Channels
+                  </h3>
+                  <button
+                    x-show="!showAddChannel"
+                    @click="showAddChannel = true"
+                    class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
+                  >
+                    + Add
+                  </button>
+                </div>
+
+                <!-- Add Channel form (mobile) -->
+                <div
+                  x-show="showAddChannel"
+                  x-transition
+                  class="mb-4 p-3 rounded-lg bg-white/5 border border-white/10"
+                >
+                  <div class="space-y-3">
+                    <div>
+                      <label class="block text-xs text-tokyo-muted mb-1">Channel ID</label>
+                      <input
+                        type="text"
+                        x-model="newChannel.id"
+                        placeholder="e.g., whatsapp-main"
+                        class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text placeholder-tokyo-muted focus:border-[#e07a5f]/50 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-xs text-tokyo-muted mb-1">Role</label>
+                      <select
+                        x-model="newChannel.role"
+                        class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text focus:border-[#e07a5f]/50 focus:outline-none"
+                      >
+                        <option value="dedicated">Dedicated (agent's own number)</option>
+                        <option value="personal">Personal (your number)</option>
+                      </select>
+                    </div>
+                    <template x-if="addChannelError">
+                      <p class="text-xs text-red-400" x-text="addChannelError"></p>
+                    </template>
+                    <div class="flex gap-2">
+                      <button
+                        @click="addChannel()"
+                        :disabled="addingChannel || !newChannel.id"
+                        class="flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)] disabled:opacity-40"
+                      >
+                        <span x-show="!addingChannel">Create Channel</span>
+                        <span x-show="addingChannel">Creating...</span>
+                      </button>
+                      <button
+                        @click="showAddChannel = false; addChannelError = null"
+                        class="px-3 py-2 rounded-lg text-sm text-tokyo-muted active:bg-white/5"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <template x-if="channels.length === 0 && !showAddChannel">
+                  <p class="text-sm text-tokyo-muted">No channels configured. Tap "+ Add" to get started.</p>
                 </template>
                 <div class="space-y-3">
                   <template x-for="channel in channels" :key="channel.id">
