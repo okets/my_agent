@@ -386,7 +386,6 @@ export class StatePublisher {
             id: active.id,
             name: active.name,
             model: active.modelName,
-            dimensions: active.getDimensions(),
           }
         : null,
       degraded: degradedHealth

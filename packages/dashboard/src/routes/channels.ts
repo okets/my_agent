@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { saveChannelToConfig, removeChannelFromConfig } from "@my-agent/core";
 import type { ChannelInstanceConfig } from "@my-agent/core";
+import { connectionRegistry } from "../ws/chat-handler.js";
 
 export async function registerChannelRoutes(
   fastify: FastifyInstance,
@@ -231,12 +232,10 @@ export async function registerChannelRoutes(
       }
 
       // Broadcast to all connected clients
-      if (fastify.connectionRegistry) {
-        fastify.connectionRegistry.broadcastToAll({
-          type: "channel_owner_removed",
-          channelId: request.params.id,
-        });
-      }
+      connectionRegistry.broadcastToAll({
+        type: "channel_owner_removed",
+        channelId: request.params.id,
+      });
 
       return reply.send({ ok: true });
     },
