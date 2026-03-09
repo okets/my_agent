@@ -58,6 +58,9 @@ type QrCodeHandler = (channelId: string, qrDataUrl: string) => void;
 /** Pairing success handler signature */
 type PairedHandler = (channelId: string) => void;
 
+/** Pairing code handler signature (phone number pairing) */
+type PairingCodeHandler = (channelId: string, pairingCode: string) => void;
+
 export class ChannelManager {
   private channels = new Map<string, ChannelEntry>();
   private pluginFactories = new Map<string, PluginFactory>();
@@ -66,6 +69,7 @@ export class ChannelManager {
   private statusChangeHandlers: StatusChangeHandler[] = [];
   private qrCodeHandler: QrCodeHandler | null = null;
   private pairingHandler: PairedHandler | null = null;
+  private pairingCodeHandler: PairingCodeHandler | null = null;
 
   /**
    * Register a plugin factory by name.
@@ -100,6 +104,13 @@ export class ChannelManager {
    */
   onPaired(handler: PairedHandler): void {
     this.pairingHandler = handler;
+  }
+
+  /**
+   * Register a pairing code handler (called when phone number pairing returns a code).
+   */
+  onPairingCode(handler: PairingCodeHandler): void {
+    this.pairingCodeHandler = handler;
   }
 
   /**
@@ -386,6 +397,37 @@ export class ChannelManager {
     entry.status.lastError = null;
 
     await entry.plugin.connect();
+  }
+
+  /**
+   * Request a phone number pairing code for a channel.
+   * Connects the socket, waits for readiness, requests the code,
+   * and emits it via the pairing code handler.
+   *
+   * This is async fire-and-forget from the caller's perspective —
+   * the pairing code is delivered via the pairingCodeHandler (WebSocket broadcast).
+   */
+  async requestPairingCode(channelId: string, phoneNumber: string): Promise<void> {
+    const entry = this.channels.get(channelId);
+    if (!entry) throw new Error(`Channel not found: ${channelId}`);
+
+    if (!("requestPairingCode" in entry.plugin)) {
+      throw new Error(`Channel plugin does not support phone number pairing`);
+    }
+
+    try {
+      const code = await (entry.plugin as any).requestPairingCode(phoneNumber);
+      if (this.pairingCodeHandler) {
+        this.pairingCodeHandler(channelId, code);
+      }
+    } catch (err) {
+      console.error(`[ChannelManager] requestPairingCode failed for ${channelId}:`, err);
+      // Emit status change with error so frontend can show it
+      entry.status.lastError = err instanceof Error ? err.message : String(err);
+      for (const handler of this.statusChangeHandlers) {
+        handler(channelId, entry.status);
+      }
+    }
   }
 
   /**
