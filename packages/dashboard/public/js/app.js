@@ -2597,8 +2597,11 @@ function chat() {
         } else {
           this.clearQrCountdown(channelId);
           // QR expired - check if channel is still connecting and request new QR
+          // BUT don't auto-refresh if phone number pairing is active
           const ch = this.channels.find((c) => c.id === channelId);
-          if (ch && ch.status === "connecting") {
+          const isPhonePairing =
+            this.pairingByPhone[channelId] || this.pairingCodes[channelId];
+          if (ch && ch.status === "connecting" && !isPhonePairing) {
             console.log(`[App] QR expired for ${channelId}, requesting new QR`);
             this.pairChannel(channelId);
           }
