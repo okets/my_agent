@@ -1355,8 +1355,29 @@
                           <p class="text-xs text-tokyo-muted mb-3">
                             Open WhatsApp on the phone &rarr; Settings &rarr; Linked Devices &rarr; Link a Device &rarr; enter this code:
                           </p>
-                          <div class="px-6 py-4 rounded-lg bg-white/5 border border-white/10 font-mono text-3xl tracking-[0.4em] text-tokyo-text text-center select-all">
-                            <span x-text="pairingCodes[ch.id]"></span>
+                          <div
+                            @click="copyPairingCode(ch.id)"
+                            class="relative px-6 py-4 rounded-lg bg-white/5 border border-white/10 font-mono text-3xl tracking-[0.2em] text-tokyo-text text-center cursor-pointer hover:bg-white/10 transition-colors"
+                          >
+                            <template x-if="!codeCopied[ch.id]">
+                              <span x-text="formatPairingCode(pairingCodes[ch.id])"></span>
+                            </template>
+                            <template x-if="codeCopied[ch.id]">
+                              <span class="text-green-400 text-xl">Copied!</span>
+                            </template>
+                            <svg
+                              class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tokyo-muted"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                              />
+                            </svg>
                           </div>
                           <p class="text-[10px] text-tokyo-muted mt-2 text-center">
                             Waiting for confirmation...
@@ -5471,8 +5492,29 @@
                           <p class="text-xs text-tokyo-muted mb-2">
                             WhatsApp &rarr; Linked Devices &rarr; Link a Device &rarr; enter code:
                           </p>
-                          <div class="px-4 py-3 rounded-lg bg-white/5 border border-white/10 font-mono text-2xl tracking-[0.3em] text-tokyo-text text-center select-all">
-                            <span x-text="pairingCodes[channel.id]"></span>
+                          <div
+                            @click="copyPairingCode(channel.id)"
+                            class="relative px-4 py-3 rounded-lg bg-white/5 border border-white/10 font-mono text-2xl tracking-[0.15em] text-tokyo-text text-center cursor-pointer active:bg-white/10 transition-colors"
+                          >
+                            <template x-if="!codeCopied[channel.id]">
+                              <span x-text="formatPairingCode(pairingCodes[channel.id])"></span>
+                            </template>
+                            <template x-if="codeCopied[channel.id]">
+                              <span class="text-green-400 text-lg">Copied!</span>
+                            </template>
+                            <svg
+                              class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-tokyo-muted"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                              />
+                            </svg>
                           </div>
                           <p class="text-[10px] text-tokyo-muted mt-1.5 text-center">
                             Waiting for confirmation...

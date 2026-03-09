@@ -2580,6 +2580,43 @@ function chat() {
       delete this.pairingPhoneNumber[channelId];
       delete this.pairingCodes[channelId];
       delete this.pairingByPhone[channelId];
+      delete this.codeCopied[channelId];
+    },
+
+    // Track which channels are showing "Copied" animation
+    codeCopied: {},
+
+    /**
+     * Format pairing code as 4+4 (e.g., "QZFV 132L")
+     */
+    formatPairingCode(code) {
+      if (!code || code.length !== 8) return code || "";
+      return code.slice(0, 4) + " " + code.slice(4);
+    },
+
+    /**
+     * Copy pairing code to clipboard with animation and haptic feedback
+     */
+    async copyPairingCode(channelId) {
+      const code = this.pairingCodes[channelId];
+      if (!code) return;
+
+      try {
+        await navigator.clipboard.writeText(code);
+
+        // Trigger haptic feedback on mobile
+        if (navigator.vibrate) {
+          navigator.vibrate(50);
+        }
+
+        // Show "Copied" animation
+        this.codeCopied[channelId] = true;
+        setTimeout(() => {
+          delete this.codeCopied[channelId];
+        }, 1000);
+      } catch (err) {
+        console.error("[App] Failed to copy pairing code:", err);
+      }
     },
 
     /**
