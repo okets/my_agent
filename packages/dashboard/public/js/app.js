@@ -91,6 +91,8 @@ function chat() {
     pairingPhoneNumber: {}, // { channelId: "entered number" }
     pairingCodes: {}, // { channelId: "ABCD-1234" }
     pairingByPhone: {}, // { channelId: true } — tracks which method is active
+    pairingTab: {}, // { channelId: 'phone' | 'qr' } — selected pairing method tab
+    pairingStarted: {}, // { channelId: true } — whether pairing process has been explicitly started
 
     // Image lightbox
     lightboxImage: null,
@@ -1219,14 +1221,12 @@ function chat() {
         }
 
         case "channel_paired": {
-          // Channel successfully paired — clear QR and pairing code
+          // Channel successfully paired — clear all pairing state
           if (data.channelId === this.pairingChannelId) {
             this.pairingChannelId = null;
             this.qrCodeDataUrl = null;
           }
-          delete this.pairingCodes[data.channelId];
-          delete this.pairingByPhone[data.channelId];
-          delete this.pairingPhoneNumber[data.channelId];
+          this.resetPairingState(data.channelId);
           this.clearQrCountdown(data.channelId);
           // Refresh channel list to get updated status
           this.fetchChannels();
@@ -2475,13 +2475,9 @@ function chat() {
         // Add to local channels list
         this.channels.push(data);
 
-        // Reset form and trigger pairing
-        const channelId = data.id;
+        // Reset form — don't auto-trigger pairing, let user choose method
         this.showAddChannel = false;
         this.newChannel = { id: "", role: "dedicated" };
-
-        // Auto-trigger QR pairing
-        await this.pairChannel(channelId);
       } catch (err) {
         console.error("[App] Add channel failed:", err);
         this.addChannelError = "Network error. Is the server running?";
@@ -2527,6 +2523,63 @@ function chat() {
       }
       this.pairingByPhone[channelId] = true;
       await this.pairChannel(channelId, number.trim());
+    },
+
+    /**
+     * Check if we're on a mobile device (viewport-based)
+     */
+    isMobile() {
+      return window.innerWidth < 768;
+    },
+
+    /**
+     * Get the default pairing tab based on device type
+     */
+    getDefaultPairingTab() {
+      return this.isMobile() ? "phone" : "qr";
+    },
+
+    /**
+     * Get the current pairing tab for a channel (or default)
+     */
+    getPairingTab(channelId) {
+      return this.pairingTab[channelId] || this.getDefaultPairingTab();
+    },
+
+    /**
+     * Set the pairing tab for a channel
+     */
+    setPairingTab(channelId, tab) {
+      this.pairingTab[channelId] = tab;
+      // Clear the started state when switching tabs
+      delete this.pairingStarted[channelId];
+    },
+
+    /**
+     * Start the pairing process for the current tab method
+     */
+    async startPairingProcess(channelId) {
+      const tab = this.getPairingTab(channelId);
+      this.pairingStarted[channelId] = true;
+
+      if (tab === "phone") {
+        // For phone tab, just show the input - don't start pairing yet
+        // The actual pairing happens when they enter number and click Pair
+      } else {
+        // For QR tab, generate QR code
+        await this.pairChannel(channelId);
+      }
+    },
+
+    /**
+     * Reset pairing state for a channel
+     */
+    resetPairingState(channelId) {
+      delete this.pairingTab[channelId];
+      delete this.pairingStarted[channelId];
+      delete this.pairingPhoneNumber[channelId];
+      delete this.pairingCodes[channelId];
+      delete this.pairingByPhone[channelId];
     },
 
     /**
