@@ -1493,7 +1493,7 @@
                           Local Embeddings
                         </div>
                         <div class="text-[10px] text-tokyo-muted">
-                          all-MiniLM-L6 (~90MB)
+                          embeddinggemma-300M (~328MB)
                         </div>
                       </button>
                       <button
@@ -1612,10 +1612,11 @@
                         class="w-full text-left p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors disabled:opacity-50"
                       >
                         <div class="text-sm text-tokyo-text">
-                          Local Embeddings
+                          <span x-show="!embeddingsActivating">Local Embeddings</span>
+                          <span x-show="embeddingsActivating" class="text-tokyo-blue animate-pulse">Downloading model...</span>
                         </div>
-                        <div class="text-[10px] text-tokyo-muted">
-                          all-MiniLM-L6 (~90MB download)
+                        <div x-show="!embeddingsActivating" class="text-[10px] text-tokyo-muted">
+                          embeddinggemma-300M (~328MB download)
                         </div>
                       </button>
                       <button
@@ -5499,7 +5500,8 @@
                         :disabled="embeddingsActivating"
                         class="w-full text-left p-2 rounded bg-white/5 text-xs text-tokyo-text"
                       >
-                        Local Embeddings
+                        <span x-show="!embeddingsActivating">Local Embeddings</span>
+                        <span x-show="embeddingsActivating" class="text-tokyo-blue animate-pulse">Downloading model...</span>
                       </button>
                       <button
                         @click="showOllamaSetup = true"

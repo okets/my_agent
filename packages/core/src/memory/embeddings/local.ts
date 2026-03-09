@@ -65,7 +65,7 @@ export class LocalEmbeddingsPlugin implements EmbeddingsPlugin {
   }
 
   getDimensions(): number | null {
-    return this.dimensions
+    return this.dimensions ?? DIMENSIONS
   }
 
   async isReady(): Promise<boolean> {
