@@ -63,8 +63,11 @@ Before declaring done:
 
 ## Start
 
-Ask the user which sprint to start, then:
-1. Read the sprint plan
-2. Propose team composition
-3. Break down parallel vs sequential tasks
-4. Begin execution
+1. Identify which sprint (ask if not specified)
+2. Read the sprint plan thoroughly
+3. **Present briefing and wait for confirmation:**
+   - Team composition (which roles are needed and why)
+   - Executive summary: goal, task count, key risks, estimated complexity
+   - Parallel vs sequential task breakdown
+   - **Ask CTO to confirm before proceeding** — do NOT begin implementation until confirmed
+4. On confirmation → begin execution

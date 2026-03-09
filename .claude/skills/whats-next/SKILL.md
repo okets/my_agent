@@ -82,6 +82,26 @@ For each criterion:
 
 ### Next Action
 [Single clear next step]
+
+### Recommended Sprint Mode
+[Normal | Overnight | Either] — [reason]
+```
+
+### 7. Sprint Mode Recommendation
+
+```
+Assess the next action for overnight suitability:
+  Suitable for overnight if ALL:
+    └─ Sprint plan exists and is complete
+    └─ Scope is unambiguous (no open design questions)
+    └─ No UI-heavy work requiring visual review cycles
+    └─ No dependencies on external services being configured
+  NOT suitable for overnight if ANY:
+    └─ Plan has open questions or ambiguous requirements
+    └─ Heavy UI/UX work needing CTO visual feedback
+    └─ Requires access or credentials not yet set up
+    └─ First sprint in a new milestone (architectural decisions likely)
+  Report: "Overnight" | "Normal" | "Either" with brief reason
 ```
 
 ## When to Run

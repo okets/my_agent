@@ -99,13 +99,17 @@ If sprint cannot complete:
 
 1. Confirm which sprint (ask if not specified)
 2. Read the sprint plan thoroughly
-3. Create the branch
-4. Copy artifact templates
-5. Break down tasks for parallel execution
-6. Begin implementation
-7. Log decisions as they happen
-8. Reviewer operates independently
-9. QA tests at end
-10. Commit final state to branch
-
-**Go.**
+3. **Present briefing and wait for confirmation:**
+   - Team composition (which roles are needed for this sprint's tasks)
+   - Executive summary: goal, task count, key risks/pitfalls, scope boundaries
+   - Parallel vs sequential task breakdown
+   - Any pre-flight concerns or ambiguities that should be resolved now
+   - **Ask CTO to confirm before proceeding** — do NOT create branch or begin work until confirmed
+4. On confirmation → create the branch
+5. Copy artifact templates
+6. Break down tasks for parallel execution
+7. Begin implementation
+8. Log decisions as they happen
+9. Reviewer operates independently
+10. QA tests at end
+11. Commit final state to branch
