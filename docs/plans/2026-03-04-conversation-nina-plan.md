@@ -709,6 +709,8 @@ non-web messages (WhatsApp, future channels)."
 
 ## Task 8: Rearrange UI — homepage inactive list + tabs
 
+> **SUPERSEDED:** The tab bar approach described below was built in S4 but rejected during review. The correct design is a Conversations widget on the Home tab (not a tab bar above chat). See [recovery/m6.7-conversations/analysis.md](../recovery/m6.7-conversations/analysis.md) for the corrected requirements and [recovery/m6.7-conversations/s6-sprint-plan.md](../recovery/m6.7-conversations/s6-sprint-plan.md) for the replacement sprint plan.
+
 Restructure the Web UI to show inactive conversations on the homepage and support tabs.
 
 **Files:**
