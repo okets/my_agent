@@ -1209,6 +1209,11 @@ function chat() {
 
         case "channel_qr_code": {
           // QR code received from server during pairing
+          // Ignore QR codes if we're in phone pairing mode
+          if (this.pairingByPhone[data.channelId] || this.pairingCodes[data.channelId]) {
+            console.log(`[App] Ignoring QR code for ${data.channelId} - phone pairing active`);
+            break;
+          }
           // Store per-channel for auto-display when connecting
           this.channelQrCodes[data.channelId] = data.qrDataUrl;
           // Start/reset countdown timer (QR codes expire in ~20 seconds)
@@ -2580,7 +2585,7 @@ function chat() {
       delete this.pairingPhoneNumber[channelId];
       delete this.pairingCodes[channelId];
       delete this.pairingByPhone[channelId];
-      delete this.codeCopied[channelId];
+      this.codeCopied = { ...this.codeCopied, [channelId]: false };
     },
 
     // Track which channels are showing "Copied" animation
@@ -2601,21 +2606,42 @@ function chat() {
       const code = this.pairingCodes[channelId];
       if (!code) return;
 
+      // Show "Copied" animation immediately
+      this.codeCopied = { ...this.codeCopied, [channelId]: true };
+      setTimeout(() => {
+        this.codeCopied = { ...this.codeCopied, [channelId]: false };
+      }, 1000);
+
+      // Trigger haptic feedback on mobile
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+
+      // Copy to clipboard - try modern API first, fallback to execCommand
       try {
-        await navigator.clipboard.writeText(code);
-
-        // Trigger haptic feedback on mobile
-        if (navigator.vibrate) {
-          navigator.vibrate(50);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+        } else {
+          // Fallback for HTTP or older browsers
+          const textarea = document.createElement("textarea");
+          textarea.value = code;
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textarea);
         }
-
-        // Show "Copied" animation
-        this.codeCopied[channelId] = true;
-        setTimeout(() => {
-          delete this.codeCopied[channelId];
-        }, 1000);
       } catch (err) {
-        console.error("[App] Failed to copy pairing code:", err);
+        // Last resort fallback
+        const textarea = document.createElement("textarea");
+        textarea.value = code;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
       }
     },
 
