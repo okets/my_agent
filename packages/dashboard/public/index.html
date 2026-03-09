@@ -1237,30 +1237,40 @@
                       <!-- Channel actions (for non-error states) -->
                       <template x-if="ch.status !== 'error'">
                         <div class="flex items-center gap-2 px-4 pb-4 pt-0">
-                          <!-- Connect button (for disconnected/logged_out channels) -->
+                          <!-- Connect/Pair options (for disconnected/logged_out channels) -->
                           <template
-                            x-if="ch.status !== 'connected' && ch.status !== 'connecting'"
+                            x-if="ch.status !== 'connected' && ch.status !== 'connecting' && !pairingCodes[ch.id]"
                           >
-                            <button
-                              @click="pairChannel(ch.id)"
-                              class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
-                              x-text="channelActionLabel(ch.status)"
-                            ></button>
+                            <div class="flex items-center gap-2">
+                              <button
+                                @click="pairChannel(ch.id)"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
+                              >
+                                Generate QR Code
+                              </button>
+                              <span class="text-xs text-tokyo-muted">or</span>
+                              <button
+                                @click="pairingByPhone[ch.id] = true; $nextTick(() => $refs['phoneInput_' + ch.id]?.focus())"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors text-tokyo-muted hover:text-tokyo-text hover:bg-white/5"
+                              >
+                                Pair by Phone Number
+                              </button>
+                            </div>
                           </template>
 
-                          <!-- Authorize Owner button (when no owner) -->
+                          <!-- Verify Owner button (dedicated channels, no owner, no pending token) -->
                           <template
-                            x-if="ch.status === 'connected' && !authTokens[ch.id] && !ch.hasOwner"
+                            x-if="ch.status === 'connected' && !authTokens[ch.id] && !ch.hasOwner && ch.role === 'dedicated'"
                           >
                             <button
                               @click="requestAuthToken(ch.id)"
                               class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
                             >
-                              Authorize Owner
+                              Verify Owner
                             </button>
                           </template>
 
-                          <!-- Owner info + Change button (when has owner) -->
+                          <!-- Owner info + Remove button (when has owner) -->
                           <template
                             x-if="ch.status === 'connected' && !authTokens[ch.id] && ch.hasOwner"
                           >
@@ -1269,14 +1279,14 @@
                                 Owner:
                                 <span
                                   class="text-tokyo-text"
-                                  x-text="ch.ownerNumber || 'Authorized'"
+                                  x-text="ch.ownerNumber || 'Verified'"
                                 ></span>
                               </span>
                               <button
-                                @click="requestAuthToken(ch.id)"
+                                @click="removeOwner(ch.id)"
                                 class="text-xs px-2 py-1 rounded font-medium text-tokyo-muted hover:text-tokyo-text hover:bg-white/5 transition-colors"
                               >
-                                Change
+                                Remove
                               </button>
                             </div>
                           </template>
@@ -1306,6 +1316,53 @@
                               <span x-text="ch.reconnectAttempts"></span>
                             </span>
                           </template>
+                        </div>
+                      </template>
+
+                      <!-- Phone number input (desktop) -->
+                      <template x-if="pairingByPhone[ch.id] && !pairingCodes[ch.id] && ch.status !== 'connected'">
+                        <div class="p-4 border-t border-white/5">
+                          <div class="flex items-center gap-2">
+                            <input
+                              type="tel"
+                              x-model="pairingPhoneNumber[ch.id]"
+                              @keydown.enter="pairByPhone(ch.id)"
+                              :x-ref="'phoneInput_' + ch.id"
+                              placeholder="Enter number with country code"
+                              class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text placeholder-tokyo-muted focus:border-[#e07a5f]/50 focus:outline-none"
+                            />
+                            <button
+                              @click="pairByPhone(ch.id)"
+                              :disabled="!pairingPhoneNumber[ch.id] || pairingPhoneNumber[ch.id].length < 7"
+                              class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)] disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              Pair
+                            </button>
+                            <button
+                              @click="delete pairingByPhone[ch.id]; delete pairingPhoneNumber[ch.id]"
+                              class="text-xs text-tokyo-muted hover:text-tokyo-text"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          <p class="text-[10px] text-tokyo-muted mt-1.5">
+                            Any format works: +1-555-123-4567, 15551234567, etc.
+                          </p>
+                        </div>
+                      </template>
+
+                      <!-- Pairing code display (shown after phone number pairing — arrives via WebSocket) -->
+                      <template x-if="pairingCodes[ch.id]">
+                        <div class="p-4 border-t border-white/5">
+                          <p class="text-xs text-tokyo-muted mb-3">
+                            Open WhatsApp on the phone &rarr; Settings &rarr; Linked Devices &rarr; Link a Device &rarr; enter this code:
+                          </p>
+                          <div class="px-6 py-4 rounded-lg bg-white/5 border border-white/10 font-mono text-3xl tracking-[0.4em] text-tokyo-text text-center select-all">
+                            <span x-text="pairingCodes[ch.id]"></span>
+                          </div>
+                          <p class="text-[10px] text-tokyo-muted mt-2 text-center">
+                            Waiting for confirmation...
+                          </p>
                         </div>
                       </template>
 
