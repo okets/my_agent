@@ -4,22 +4,73 @@
 
 **Goal:** Add phone number pairing as an alternative to QR code for WhatsApp channels, with improved owner verification UX.
 
-**Architecture:** Baileys `sock.requestPairingCode(number)` returns an 8-char code the user enters in WhatsApp app. The existing QR flow stays intact. Both flows feed into the same post-pairing owner verification for dedicated channels. Desktop defaults to QR, mobile defaults to phone number input.
+**Architecture:** Baileys `sock.requestPairingCode(number)` returns an 8-char code the user enters in WhatsApp app. The existing QR flow stays intact. Both flows feed into the same post-pairing owner verification for dedicated channels. Desktop defaults to QR, mobile defaults to phone number input. **All state transitions are pushed via WebSocket** — the pairing code, like the QR code, is delivered as a broadcast event so all connected dashboard clients stay in sync.
 
 **Tech Stack:** Baileys (WhatsApp), Fastify (API), Alpine.js (UI)
 
+**Key design decision — WebSocket-first state:**
+- `POST /api/channels/:id/pair` with `phoneNumber` kicks off the process asynchronously and returns `{ ok: true }` immediately
+- The server connects the socket, waits for readiness, calls `requestPairingCode`, then broadcasts `channel_pairing_code` via WebSocket
+- This mirrors the QR flow: `POST /pair` → returns ok → QR/code arrives via WS → `channel_paired` on success
+- Owner removal broadcasts `channel_owner_removed` so all clients update
+
 ---
 
-### Task 1: Add `requestPairingCode()` to BaileysPlugin
+### Task 1: Add `requestPairingCode()` + socket readiness to BaileysPlugin
 
-Add a method to the WhatsApp plugin that requests a pairing code for a given phone number. This is the core Baileys integration.
+Add a method to the WhatsApp plugin that requests a pairing code for a given phone number. Includes socket readiness wait (Baileys needs the WebSocket handshake to complete before `requestPairingCode` can be called).
 
 **Files:**
 - Modify: `plugins/channel-whatsapp/src/plugin.ts`
 
-**Step 1: Add the `requestPairingCode` method**
+**Step 1: Add socket readiness field**
 
-Add this method to the `BaileysPlugin` class, after the `clearAuth()` method (after line 496):
+Add to the class fields (after line 119, near `private messageCache`):
+
+```typescript
+// Promise that resolves when the socket is ready for pairing code request
+private socketReady: { resolve: () => void; promise: Promise<void> } | null = null;
+```
+
+**Step 2: Create readiness signal in `connect()`**
+
+In the `connect()` method, right after `this.sock = sock;` (line 197), add:
+
+```typescript
+// Create a readiness signal for phone number pairing
+this.socketReady = (() => {
+  let resolve: () => void;
+  const promise = new Promise<void>((r) => { resolve = r; });
+  return { resolve: resolve!, promise };
+})();
+```
+
+**Step 3: Resolve readiness when QR fires**
+
+In the `connection.update` handler, inside the `if (qr)` block (around line 214), add before the `qrToDataUrl` call:
+
+```typescript
+// Socket is ready for pairing code request (handshake complete)
+if (this.socketReady) {
+  this.socketReady.resolve();
+}
+```
+
+**Step 4: Clean up socketReady in disconnect and reconnect**
+
+In `disconnect()` (around line 467), add:
+```typescript
+this.socketReady = null;
+```
+
+In `connect()`, in the cleanup block where existing socket is cleaned up (around line 147-164), add:
+```typescript
+this.socketReady = null;
+```
+
+**Step 5: Add the `requestPairingCode` method**
+
+Add after the `clearAuth()` method (after line 496):
 
 ```typescript
 /**
@@ -27,16 +78,25 @@ Add this method to the `BaileysPlugin` class, after the `clearAuth()` method (af
  * Alternative to QR scanning — user enters the returned code
  * in WhatsApp app (Settings > Linked Devices > Link a Device).
  *
- * Must be called AFTER connect() creates the socket but BEFORE
- * credentials are registered (i.e., first-time pairing only).
+ * Must be called AFTER connect() creates the socket. Waits for
+ * socket readiness (QR event = handshake complete) before requesting.
  *
- * @param phoneNumber — digits only with country code (e.g., "15551234567")
+ * @param phoneNumber — any format, normalized to digits only
  * @returns 8-character pairing code (e.g., "ABCD-1234")
  */
 async requestPairingCode(phoneNumber: string): Promise<string> {
   if (!this.sock) {
     throw new Error("[channel-whatsapp] requestPairingCode() called while disconnected");
   }
+
+  // Wait for socket to be ready (QR event = socket handshake complete)
+  if (this.socketReady) {
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Timed out waiting for socket readiness")), 15000)
+    );
+    await Promise.race([this.socketReady.promise, timeout]);
+  }
+
   if (this.sock.authState.creds.registered) {
     throw new Error("[channel-whatsapp] Already registered — disconnect and clear auth first");
   }
@@ -44,7 +104,7 @@ async requestPairingCode(phoneNumber: string): Promise<string> {
   // Normalize: strip everything except digits
   const normalized = phoneNumber.replace(/[^\d]/g, "");
   if (normalized.length < 7) {
-    throw new Error("Phone number too short — include country code (e.g., 15551234567)");
+    throw new Error("Phone number too short — include country code");
   }
 
   console.log(`[channel-whatsapp] Requesting pairing code for ${normalized.slice(0, 4)}****`);
@@ -54,31 +114,139 @@ async requestPairingCode(phoneNumber: string): Promise<string> {
 }
 ```
 
-**Step 2: Verify TypeScript compiles**
+**Step 6: Verify TypeScript compiles**
 
 Run: `cd plugins/channel-whatsapp && npx tsc --noEmit`
-Expected: No errors (Baileys exports `requestPairingCode` on the socket)
+Expected: No errors
 
-**Step 3: Commit**
+**Step 7: Commit**
 
 ```bash
 git add plugins/channel-whatsapp/src/plugin.ts
-git commit -m "feat(whatsapp): add requestPairingCode method for phone number pairing"
+git commit -m "feat(whatsapp): add requestPairingCode with socket readiness wait"
 ```
 
 ---
 
-### Task 2: Add `remove-owner` API endpoint + modify `pair` endpoint
+### Task 2: Add WebSocket protocol types for pairing code + owner removal
 
-The pair endpoint needs to accept an optional phone number. A new endpoint lets users remove the owner to re-verify.
+Add new server→client message types so all dashboard clients receive pairing codes and owner changes live.
+
+**Files:**
+- Modify: `packages/dashboard/src/ws/protocol.ts`
+
+**Step 1: Add `channel_pairing_code` and `channel_owner_removed` to ServerMessage**
+
+In the `ServerMessage` type union (around line 153-154, near the other channel events), add:
+
+```typescript
+| { type: "channel_pairing_code"; channelId: string; pairingCode: string }
+| { type: "channel_owner_removed"; channelId: string }
+```
+
+**Step 2: Commit**
+
+```bash
+git add packages/dashboard/src/ws/protocol.ts
+git commit -m "feat(protocol): add channel_pairing_code and channel_owner_removed WS events"
+```
+
+---
+
+### Task 3: Add ChannelManager `requestPairingCode` + pairing code event handler
+
+Wire up the channel manager to request pairing codes and emit them as events (parallel to QR code events).
+
+**Files:**
+- Modify: `packages/dashboard/src/channels/manager.ts`
+
+**Step 1: Add pairing code handler type and registration**
+
+Add a new handler type after `PairedHandler` (around line 59):
+
+```typescript
+/** Pairing code handler signature (phone number pairing) */
+type PairingCodeHandler = (channelId: string, pairingCode: string) => void;
+```
+
+Add a field to the class (around line 68):
+
+```typescript
+private pairingCodeHandler: PairingCodeHandler | null = null;
+```
+
+Add registration method after `onPaired` (around line 103):
+
+```typescript
+/**
+ * Register a pairing code handler (called when phone number pairing returns a code).
+ */
+onPairingCode(handler: PairingCodeHandler): void {
+  this.pairingCodeHandler = handler;
+}
+```
+
+**Step 2: Add `requestPairingCode` method**
+
+Add after `connectChannel` (after line 389):
+
+```typescript
+/**
+ * Request a phone number pairing code for a channel.
+ * Connects the socket, waits for readiness, requests the code,
+ * and emits it via the pairing code handler.
+ *
+ * This is async fire-and-forget from the caller's perspective —
+ * the pairing code is delivered via the pairingCodeHandler (WebSocket broadcast).
+ */
+async requestPairingCode(channelId: string, phoneNumber: string): Promise<void> {
+  const entry = this.channels.get(channelId);
+  if (!entry) throw new Error(`Channel not found: ${channelId}`);
+
+  if (!("requestPairingCode" in entry.plugin)) {
+    throw new Error(`Channel plugin does not support phone number pairing`);
+  }
+
+  try {
+    const code = await (entry.plugin as any).requestPairingCode(phoneNumber);
+    if (this.pairingCodeHandler) {
+      this.pairingCodeHandler(channelId, code);
+    }
+  } catch (err) {
+    console.error(`[ChannelManager] requestPairingCode failed for ${channelId}:`, err);
+    // Emit status change with error so frontend can show it
+    entry.status.lastError = err instanceof Error ? err.message : String(err);
+    for (const handler of this.statusChangeHandlers) {
+      handler(channelId, entry.status);
+    }
+  }
+}
+```
+
+**Step 3: Verify TypeScript compiles**
+
+Run: `cd packages/dashboard && npx tsc --noEmit`
+
+**Step 4: Commit**
+
+```bash
+git add packages/dashboard/src/channels/manager.ts
+git commit -m "feat(channels): add requestPairingCode with WS event emission"
+```
+
+---
+
+### Task 4: Modify pair API endpoint + add remove-owner + wire WS broadcasts
+
+The pair endpoint kicks off phone pairing asynchronously. A new endpoint removes owners. Both broadcast state via WebSocket.
 
 **Files:**
 - Modify: `packages/dashboard/src/routes/channels.ts`
-- Modify: `packages/core/src/channels/types.ts` (add `removeOwner` to ChannelInfo if needed — actually not needed, `hasOwner` already exists)
+- Modify: `packages/dashboard/src/index.ts` (wire the new `onPairingCode` handler)
 
 **Step 1: Modify `POST /api/channels/:id/pair` to accept `phoneNumber`**
 
-In `packages/dashboard/src/routes/channels.ts`, change the pair route (lines 149-173):
+In `packages/dashboard/src/routes/channels.ts`, replace the pair route (lines 147-174):
 
 ```typescript
 // POST /api/channels/:id/pair — trigger QR or phone number pairing
@@ -103,17 +271,15 @@ fastify.post<{ Params: { id: string }; Body: { phoneNumber?: string } }>(
         info.status === "error" || info.status === "logged_out";
       await channelManager.connectChannel(request.params.id, needsFreshAuth);
 
-      // If phone number provided, request pairing code instead of QR
+      // If phone number provided, fire-and-forget pairing code request.
+      // The code will arrive via WebSocket `channel_pairing_code` event.
       const phoneNumber = request.body?.phoneNumber;
       if (phoneNumber) {
-        const code = await channelManager.requestPairingCode(
-          request.params.id,
-          phoneNumber,
-        );
-        return reply.send({ ok: true, pairingCode: code });
+        // Don't await — let it run async, code delivered via WS
+        channelManager.requestPairingCode(request.params.id, phoneNumber);
       }
+      // Without phone number, QR code arrives via WebSocket `channel_qr_code`
 
-      // No phone number — QR code will arrive via WebSocket
       return reply.send({ ok: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -158,72 +324,50 @@ fastify.post<{ Params: { id: string } }>(
       console.error("[channels] Failed to persist owner removal:", err);
     }
 
+    // Broadcast to all connected clients
+    if (fastify.connectionRegistry) {
+      fastify.connectionRegistry.broadcastToAll({
+        type: "channel_owner_removed",
+        channelId: request.params.id,
+      });
+    }
+
     return reply.send({ ok: true });
   },
 );
 ```
 
-**Step 3: Add `requestPairingCode` method to ChannelManager**
+**Step 3: Wire `onPairingCode` in index.ts**
 
-In `packages/dashboard/src/channels/manager.ts`, add after the `connectChannel` method (after line 389):
+In `packages/dashboard/src/index.ts`, find where `channelManager.onQrCode` is wired (around line 174-179). Add right after it:
 
 ```typescript
-/**
- * Request a phone number pairing code for a channel.
- * The channel must have an active socket (call connectChannel first).
- *
- * Requires a short delay after connectChannel to let the socket initialize.
- */
-async requestPairingCode(channelId: string, phoneNumber: string): Promise<string> {
-  const entry = this.channels.get(channelId);
-  if (!entry) throw new Error(`Channel not found: ${channelId}`);
-
-  // The plugin must support requestPairingCode
-  if (!("requestPairingCode" in entry.plugin)) {
-    throw new Error(`Channel plugin does not support phone number pairing`);
-  }
-
-  // Small delay to let socket initialize after connectChannel
-  await new Promise((resolve) => setTimeout(resolve, 1500));
-
-  const code = await (entry.plugin as any).requestPairingCode(phoneNumber);
-  return code;
-}
+// Phone number pairing code → broadcast to all WS clients
+channelManager.onPairingCode((channelId, pairingCode) => {
+  connectionRegistry.broadcastToAll({
+    type: "channel_pairing_code",
+    channelId,
+    pairingCode,
+  });
+});
 ```
 
 **Step 4: Verify TypeScript compiles**
 
 Run: `cd packages/dashboard && npx tsc --noEmit`
-Expected: No errors
 
 **Step 5: Commit**
 
 ```bash
-git add packages/dashboard/src/routes/channels.ts packages/dashboard/src/channels/manager.ts
-git commit -m "feat(dashboard): add phone number pairing API + remove-owner endpoint"
+git add packages/dashboard/src/routes/channels.ts packages/dashboard/src/index.ts
+git commit -m "feat(dashboard): async phone pairing via WS + remove-owner endpoint"
 ```
 
 ---
 
-### Task 3: Update WebSocket protocol for pairing code
+### Task 5: Update dashboard frontend — app.js
 
-The frontend needs to know about pairing codes. We don't actually need a new WS message type since the pairing code is returned synchronously from the POST request. But we should make sure the `channel_paired` event triggers the right UI flow.
-
-**Files:**
-- No changes needed to `packages/dashboard/src/ws/protocol.ts` — the pairing code comes back in the HTTP response, not via WebSocket
-- The existing `channel_paired` WebSocket event already handles the success case
-
-**This task is a no-op** — the existing protocol handles everything:
-- Phone pairing: HTTP POST returns `{ pairingCode }`, user enters code, Baileys connects, `channel_paired` fires
-- QR pairing: HTTP POST returns `{ ok }`, QR arrives via `channel_qr_code` WS event, user scans, `channel_paired` fires
-
-**Commit:** Skip (no changes)
-
----
-
-### Task 4: Update dashboard frontend — app.js
-
-Add phone number pairing state, modify `pairChannel()`, add `removeOwner()`, and handle the new flow.
+Add phone number pairing state, handle new WS events, add `removeOwner()`.
 
 **Files:**
 - Modify: `packages/dashboard/public/js/app.js`
@@ -239,7 +383,52 @@ pairingCodes: {},          // { channelId: "ABCD-1234" }
 pairingByPhone: {},        // { channelId: true } — tracks which method is active
 ```
 
-**Step 2: Modify `pairChannel()` to support phone number**
+**Step 2: Add `channel_pairing_code` and `channel_owner_removed` WS handlers**
+
+In the WebSocket message handler switch statement, add after the `channel_paired` case (around line 1227):
+
+```javascript
+case "channel_pairing_code": {
+  // Phone number pairing code received via WebSocket
+  this.pairingCodes[data.channelId] = data.pairingCode;
+  this.pairingByPhone[data.channelId] = true;
+  break;
+}
+
+case "channel_owner_removed": {
+  // Owner was removed — refresh channels
+  this.fetchChannels();
+  break;
+}
+```
+
+**Step 3: Update `channel_paired` handler to auto-trigger auth token for dedicated channels**
+
+Modify the `channel_paired` case (lines 1217-1227):
+
+```javascript
+case "channel_paired": {
+  // Channel successfully paired — clear QR and pairing code
+  if (data.channelId === this.pairingChannelId) {
+    this.pairingChannelId = null;
+    this.qrCodeDataUrl = null;
+  }
+  delete this.pairingCodes[data.channelId];
+  delete this.pairingByPhone[data.channelId];
+  delete this.pairingPhoneNumber[data.channelId];
+  this.clearQrCountdown(data.channelId);
+  // Refresh channel list to get updated status
+  this.fetchChannels();
+  // Auto-trigger auth token for dedicated channels
+  const pairedCh = this.channels.find((c) => c.id === data.channelId);
+  if (pairedCh && pairedCh.role === "dedicated") {
+    setTimeout(() => this.requestAuthToken(data.channelId), 500);
+  }
+  break;
+}
+```
+
+**Step 4: Modify `pairChannel()` to support phone number**
 
 Replace the existing `pairChannel` method (lines 2468-2484):
 
@@ -263,18 +452,10 @@ async pairChannel(channelId, phoneNumber) {
       const data = await res.json().catch(() => ({}));
       console.error("[App] Pair failed:", data.error || res.statusText);
       this.pairingChannelId = null;
-      // Show error to user
       alert(data.error || "Pairing failed. Try again.");
       return;
     }
-
-    const data = await res.json();
-    if (data.pairingCode) {
-      // Phone number pairing — show the code
-      this.pairingCodes[channelId] = data.pairingCode;
-      this.pairingByPhone[channelId] = true;
-    }
-    // If no pairingCode, QR code will arrive via WebSocket
+    // Pairing code (or QR code) will arrive via WebSocket
   } catch (err) {
     console.error("[App] Pair request failed:", err);
     this.pairingChannelId = null;
@@ -282,7 +463,7 @@ async pairChannel(channelId, phoneNumber) {
 },
 ```
 
-**Step 3: Add `pairByPhone()` helper method**
+**Step 5: Add `pairByPhone()` helper method**
 
 Add after `pairChannel`:
 
@@ -293,11 +474,12 @@ async pairByPhone(channelId) {
     alert("Enter a valid phone number with country code");
     return;
   }
+  this.pairingByPhone[channelId] = true;
   await this.pairChannel(channelId, number.trim());
 },
 ```
 
-**Step 4: Add `removeOwner()` method**
+**Step 6: Add `removeOwner()` method**
 
 Add after `requestAuthToken` (after line 2564):
 
@@ -307,58 +489,28 @@ async removeOwner(channelId) {
     const res = await fetch(`/api/channels/${channelId}/remove-owner`, {
       method: "POST",
     });
-    if (res.ok) {
-      // Refresh channel list to reflect removed owner
-      this.fetchChannels();
+    if (!res.ok) {
+      console.error("[App] Remove owner failed");
     }
+    // Owner removal broadcast will arrive via WebSocket
   } catch (err) {
     console.error("[App] Remove owner failed:", err);
   }
 },
 ```
 
-**Step 5: Update `channel_paired` handler to auto-trigger auth token for dedicated channels**
-
-Modify the `channel_paired` case in the WebSocket handler (lines 1217-1227):
-
-```javascript
-case "channel_paired": {
-  // Channel successfully paired — clear QR and pairing code
-  if (data.channelId === this.pairingChannelId) {
-    this.pairingChannelId = null;
-    this.qrCodeDataUrl = null;
-  }
-  delete this.pairingCodes[data.channelId];
-  delete this.pairingByPhone[data.channelId];
-  delete this.pairingPhoneNumber[data.channelId];
-  // Refresh channel list to get updated status
-  this.fetchChannels();
-  // Auto-trigger auth token for dedicated channels
-  const ch = this.channels.find((c) => c.id === data.channelId);
-  if (ch && ch.role === "dedicated") {
-    // Small delay to let the channel status update
-    setTimeout(() => this.requestAuthToken(data.channelId), 500);
-  }
-  break;
-}
-```
-
-**Step 6: Verify no syntax errors**
-
-Open the dashboard in browser, check console for errors.
-
 **Step 7: Commit**
 
 ```bash
 git add packages/dashboard/public/js/app.js
-git commit -m "feat(dashboard): add phone number pairing + remove owner in app.js"
+git commit -m "feat(dashboard): WS-driven phone pairing + remove owner in app.js"
 ```
 
 ---
 
-### Task 5: Update dashboard HTML — desktop channel cards
+### Task 6: Update dashboard HTML — desktop channel cards
 
-Modify the desktop settings channel UI to show both pairing options and the improved owner verification.
+Modify the desktop settings channel UI to show both pairing options and improved owner verification.
 
 **Files:**
 - Modify: `packages/dashboard/public/index.html` (desktop channel section, around lines 1240-1378)
@@ -401,7 +553,6 @@ Add right after the connect button template (before the QR code display):
     <div class="flex items-center gap-2">
       <input
         type="tel"
-        :x-ref="'phoneInput_' + ch.id"
         x-model="pairingPhoneNumber[ch.id]"
         @keydown.enter="pairByPhone(ch.id)"
         placeholder="Enter number with country code"
@@ -427,7 +578,7 @@ Add right after the connect button template (before the QR code display):
   </div>
 </template>
 
-<!-- Pairing code display (shown after phone number pairing request) -->
+<!-- Pairing code display (shown after phone number pairing — arrives via WebSocket) -->
 <template x-if="pairingCodes[ch.id]">
   <div class="p-4 border-t border-white/5">
     <p class="text-xs text-tokyo-muted mb-3">
@@ -445,10 +596,10 @@ Add right after the connect button template (before the QR code display):
 
 **Step 3: Replace the Authorize Owner / owner info section (lines 1251-1282)**
 
-Replace with improved UX — "Remove owner" instead of "Change":
+Replace with improved UX — owner verify only for dedicated, "Remove" instead of "Change":
 
 ```html
-<!-- Authorize Owner button (dedicated channels, no owner, no pending token) -->
+<!-- Verify Owner button (dedicated channels, no owner, no pending token) -->
 <template
   x-if="ch.status === 'connected' && !authTokens[ch.id] && !ch.hasOwner && ch.role === 'dedicated'"
 >
@@ -500,14 +651,14 @@ git commit -m "feat(dashboard): desktop UI for phone number pairing + owner mana
 
 ---
 
-### Task 6: Update dashboard HTML — mobile channel cards
+### Task 7: Update dashboard HTML — mobile channel cards
 
 Mirror the desktop changes for mobile, but with phone number as the default pairing method.
 
 **Files:**
 - Modify: `packages/dashboard/public/index.html` (mobile channel section, around lines 5250-5340)
 
-**Step 1: Replace the mobile pair button (around lines 5254-5265)**
+**Step 1: Replace the mobile pair button area (around lines 5250-5265)**
 
 Replace with phone-first layout:
 
@@ -515,33 +666,30 @@ Replace with phone-first layout:
 <!-- Pair options (mobile — phone number is default) -->
 <template x-if="channel.status !== 'connected' && channel.status !== 'connecting' && !pairingCodes[channel.id]">
   <div class="px-3 pb-3">
-    <!-- Phone input (default on mobile) -->
-    <template x-if="!pairingByPhone[channel.id] || pairingByPhone[channel.id]">
-      <div class="flex flex-col gap-2">
-        <div class="flex items-center gap-2">
-          <input
-            type="tel"
-            x-model="pairingPhoneNumber[channel.id]"
-            @keydown.enter="pairByPhone(channel.id)"
-            placeholder="Phone with country code"
-            class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text placeholder-tokyo-muted focus:border-[#e07a5f]/50 focus:outline-none"
-          />
-          <button
-            @click="pairByPhone(channel.id)"
-            :disabled="!pairingPhoneNumber[channel.id] || pairingPhoneNumber[channel.id].length < 7"
-            class="px-4 py-2 rounded-lg text-sm font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)] disabled:opacity-40"
-          >
-            Pair
-          </button>
-        </div>
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center gap-2">
+        <input
+          type="tel"
+          x-model="pairingPhoneNumber[channel.id]"
+          @keydown.enter="pairByPhone(channel.id)"
+          placeholder="Phone with country code"
+          class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text placeholder-tokyo-muted focus:border-[#e07a5f]/50 focus:outline-none"
+        />
         <button
-          @click="pairChannel(channel.id)"
-          class="text-xs text-tokyo-muted active:text-tokyo-text text-left"
+          @click="pairByPhone(channel.id)"
+          :disabled="!pairingPhoneNumber[channel.id] || pairingPhoneNumber[channel.id].length < 7"
+          class="px-4 py-2 rounded-lg text-sm font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)] disabled:opacity-40"
         >
-          Or scan QR code instead
+          Pair
         </button>
       </div>
-    </template>
+      <button
+        @click="pairChannel(channel.id)"
+        class="text-xs text-tokyo-muted active:text-tokyo-text text-left"
+      >
+        Or scan QR code instead
+      </button>
+    </div>
   </div>
 </template>
 ```
@@ -551,7 +699,7 @@ Replace with phone-first layout:
 Add before the existing QR code display template:
 
 ```html
-<!-- Pairing code display (mobile) -->
+<!-- Pairing code display (mobile — arrives via WebSocket) -->
 <template x-if="pairingCodes[channel.id]">
   <div class="p-3 border-t border-white/5">
     <p class="text-xs text-tokyo-muted mb-2">
@@ -618,7 +766,7 @@ Replace the owner section:
 
 **Step 4: Add mobile auth token display**
 
-If not already present for mobile, add after the QR display section:
+Add after the QR display section (if not already present for mobile):
 
 ```html
 <!-- Authorization token (mobile) -->
@@ -650,135 +798,16 @@ If not already present for mobile, add after the QR display section:
 
 Restart dashboard: `systemctl --user restart nina-dashboard.service`
 Open dashboard with mobile viewport. Check:
-- Phone number input is the default
-- "Or scan QR code instead" link works
-- Pairing code displays correctly
-- Owner verification auto-shows for dedicated channels
+- Phone number input is the default (no QR as primary)
+- "Or scan QR code instead" link triggers QR flow
+- Pairing code displays after entering number (arrives via WS)
+- Owner verification auto-shows for dedicated channels after pairing
 
 **Step 6: Commit**
 
 ```bash
 git add packages/dashboard/public/index.html
 git commit -m "feat(dashboard): mobile UI for phone number pairing + owner management"
-```
-
----
-
-### Task 7: Handle timing — socket readiness before `requestPairingCode`
-
-The tricky part: `requestPairingCode` must be called after the socket is created and connected to WhatsApp's servers, but before `creds.registered` is set. Baileys needs the WebSocket handshake to complete first.
-
-**Files:**
-- Modify: `plugins/channel-whatsapp/src/plugin.ts`
-- Modify: `packages/dashboard/src/channels/manager.ts`
-
-**Step 1: Add a `waitForSocket` helper to BaileysPlugin**
-
-Add a promise that resolves when the socket is ready for pairing (connection.update fires with `qr` or the socket is in a state to receive commands):
-
-In `plugin.ts`, add a class field:
-
-```typescript
-// Promise that resolves when the socket is ready for pairing code request
-private socketReady: { resolve: () => void; promise: Promise<void> } | null = null;
-```
-
-In the `connect()` method, before wiring events (before line 208), create the promise:
-
-```typescript
-// Create a readiness signal for phone number pairing
-this.socketReady = (() => {
-  let resolve: () => void;
-  const promise = new Promise<void>((r) => { resolve = r; });
-  return { resolve: resolve!, promise };
-})();
-```
-
-In the `connection.update` handler, resolve when QR is received (inside the `if (qr)` block, around line 214):
-
-```typescript
-// Socket is ready for pairing code request
-if (this.socketReady) {
-  this.socketReady.resolve();
-}
-```
-
-Update `requestPairingCode` to wait:
-
-```typescript
-async requestPairingCode(phoneNumber: string): Promise<string> {
-  if (!this.sock) {
-    throw new Error("[channel-whatsapp] requestPairingCode() called while disconnected");
-  }
-
-  // Wait for socket to be ready (QR event = socket handshake complete)
-  if (this.socketReady) {
-    // Add a timeout to avoid hanging forever
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Timed out waiting for socket readiness")), 15000)
-    );
-    await Promise.race([this.socketReady.promise, timeout]);
-  }
-
-  if (this.sock.authState.creds.registered) {
-    throw new Error("[channel-whatsapp] Already registered — disconnect and clear auth first");
-  }
-
-  // Normalize: strip everything except digits
-  const normalized = phoneNumber.replace(/[^\d]/g, "");
-  if (normalized.length < 7) {
-    throw new Error("Phone number too short — include country code (e.g., 15551234567)");
-  }
-
-  console.log(`[channel-whatsapp] Requesting pairing code for ${normalized.slice(0, 4)}****`);
-  const code = await this.sock.requestPairingCode(normalized);
-  console.log(`[channel-whatsapp] Pairing code received`);
-  return code;
-}
-```
-
-**Step 2: Remove the fixed delay from ChannelManager**
-
-In `packages/dashboard/src/channels/manager.ts`, update `requestPairingCode` to remove the 1500ms delay (the plugin now handles readiness):
-
-```typescript
-async requestPairingCode(channelId: string, phoneNumber: string): Promise<string> {
-  const entry = this.channels.get(channelId);
-  if (!entry) throw new Error(`Channel not found: ${channelId}`);
-
-  if (!("requestPairingCode" in entry.plugin)) {
-    throw new Error(`Channel plugin does not support phone number pairing`);
-  }
-
-  const code = await (entry.plugin as any).requestPairingCode(phoneNumber);
-  return code;
-}
-```
-
-**Step 3: Clean up socketReady in disconnect**
-
-In `plugin.ts`, `disconnect()` method, add:
-
-```typescript
-this.socketReady = null;
-```
-
-And in the `connect()` cleanup block (where existing socket is cleaned up, around line 147-164), also add:
-
-```typescript
-this.socketReady = null;
-```
-
-**Step 4: Verify TypeScript compiles**
-
-Run: `cd plugins/channel-whatsapp && npx tsc --noEmit`
-Run: `cd packages/dashboard && npx tsc --noEmit`
-
-**Step 5: Commit**
-
-```bash
-git add plugins/channel-whatsapp/src/plugin.ts packages/dashboard/src/channels/manager.ts
-git commit -m "feat(whatsapp): add socket readiness wait for pairing code timing"
 ```
 
 ---
@@ -801,38 +830,45 @@ systemctl --user restart nina-dashboard.service
 2. Go to Settings > Channels
 3. If a channel exists and is disconnected, click "Generate QR Code"
 4. Verify QR code appears with countdown
-5. Verify no auto-start of QR countdown
+5. Verify no auto-start of QR countdown (user must click button)
 
 **Step 3: Test desktop phone number flow**
 
 1. Click "Pair by Phone Number"
 2. Verify input appears with hint text
-3. Enter a phone number in any format
+3. Enter a phone number in any format (parentheses, dashes, spaces — all OK)
 4. Click "Pair"
-5. Verify 8-char pairing code appears
-6. Enter code in WhatsApp app
+5. Verify "Waiting..." appears briefly, then pairing code arrives via WebSocket
+6. Enter code in WhatsApp app (Settings > Linked Devices > Link a Device)
 7. Verify channel connects and auth token auto-appears (for dedicated channels)
 
 **Step 4: Test mobile phone number flow**
 
 1. Open dashboard on mobile viewport
-2. Verify phone number input is the default
-3. Test "Or scan QR code instead" link
+2. Verify phone number input is the default (not QR)
+3. Test "Or scan QR code instead" link — should trigger QR flow
 4. Test phone number pairing flow
 
 **Step 5: Test owner management**
 
 1. Verify "Remove" button appears next to owner info
-2. Click "Remove" — verify owner is cleared
-3. Verify "Verify Owner" button appears
+2. Click "Remove" — verify owner is cleared (via WebSocket broadcast)
+3. Verify "Verify Owner" button appears for dedicated channels
 4. Request new token, send via WhatsApp
 5. Verify ownership is re-established
 
-**Step 6: Test edge cases**
+**Step 6: Test multi-client sync**
+
+1. Open dashboard in two browser tabs
+2. In tab A, pair a channel by phone number
+3. Verify tab B also shows the pairing code (received via WebSocket)
+4. Verify both tabs update when channel connects
+
+**Step 7: Test edge cases**
 
 - Short phone number (< 7 digits) — should show validation error
 - Already connected channel — should show "already connected" error
-- Network error during pairing — should show error message
+- Socket timeout (> 15s) — should show error via status change
 
 ---
 
@@ -841,7 +877,28 @@ systemctl --user restart nina-dashboard.service
 | File | Change |
 |------|--------|
 | `plugins/channel-whatsapp/src/plugin.ts` | Add `requestPairingCode()` + socket readiness wait |
-| `packages/dashboard/src/channels/manager.ts` | Add `requestPairingCode()` passthrough |
-| `packages/dashboard/src/routes/channels.ts` | Modify pair endpoint + add remove-owner endpoint |
-| `packages/dashboard/public/js/app.js` | Add pairing state, `pairByPhone()`, `removeOwner()`, auto-auth-token |
+| `packages/dashboard/src/ws/protocol.ts` | Add `channel_pairing_code` + `channel_owner_removed` events |
+| `packages/dashboard/src/channels/manager.ts` | Add `requestPairingCode()` + `onPairingCode` handler |
+| `packages/dashboard/src/routes/channels.ts` | Async phone pairing in pair endpoint + remove-owner endpoint |
+| `packages/dashboard/src/index.ts` | Wire `onPairingCode` → WS broadcast |
+| `packages/dashboard/public/js/app.js` | WS handlers, `pairByPhone()`, `removeOwner()`, auto-auth-token |
 | `packages/dashboard/public/index.html` | Desktop + mobile UI for both pairing methods + owner management |
+
+**WebSocket event flow:**
+
+```
+Phone pairing:  POST /pair {phoneNumber} → 200 ok → [server: connect, wait, requestPairingCode]
+                → WS channel_pairing_code {channelId, pairingCode}
+                → [user enters code in WhatsApp]
+                → WS channel_paired {channelId}
+                → [dedicated: auto requestAuthToken]
+                → WS channel_authorized {channelId, ownerJid}
+
+QR pairing:     POST /pair → 200 ok → [server: connect]
+                → WS channel_qr_code {channelId, qrDataUrl}
+                → [user scans QR]
+                → WS channel_paired {channelId}
+
+Remove owner:   POST /remove-owner → 200 ok
+                → WS channel_owner_removed {channelId}
+```
