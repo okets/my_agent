@@ -16,6 +16,7 @@ import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerTaskRoutes } from "./routes/tasks.js";
 import { registerNotebookRoutes } from "./routes/notebook.js";
 import { registerMemoryRoutes } from "./routes/memory.js";
+import { registerConversationSearchRoutes } from "./routes/conversation-search.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
@@ -35,6 +36,7 @@ import type {
   PluginRegistry,
 } from "@my-agent/core";
 import type { StatePublisher } from "./state/state-publisher.js";
+import type { ConversationSearchService } from "./conversations/search-service.js";
 
 export interface ServerOptions {
   agentDir: string;
@@ -61,6 +63,7 @@ declare module "fastify" {
     syncService: SyncService | null;
     searchService: SearchService | null;
     pluginRegistry: PluginRegistry | null;
+    conversationSearchService: ConversationSearchService | null;
   }
 }
 
@@ -150,6 +153,7 @@ export async function createServer(
   fastify.decorate("syncService", null);
   fastify.decorate("searchService", null);
   fastify.decorate("pluginRegistry", null);
+  fastify.decorate("conversationSearchService", null);
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);
@@ -212,6 +216,14 @@ export async function createServer(
       await registerMemoryRoutes(instance);
     },
     { prefix: "/api/memory" },
+  );
+
+  // Register conversation search routes (M6.7-S4)
+  await fastify.register(
+    async (instance) => {
+      await registerConversationSearchRoutes(instance);
+    },
+    { prefix: "/api/conversations" },
   );
 
   // Legacy notebook API - read runtime files (backward compatibility)
