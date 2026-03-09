@@ -179,6 +179,15 @@ async function main() {
       });
     });
 
+    // Phone number pairing code → broadcast to all WS clients
+    channelManager.onPairingCode((channelId, pairingCode) => {
+      connectionRegistry.broadcastToAll({
+        type: "channel_pairing_code",
+        channelId,
+        pairingCode,
+      });
+    });
+
     // Wire pairing success → WS broadcast
     channelManager.onPaired((channelId) => {
       connectionRegistry.broadcastToAll({

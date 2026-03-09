@@ -58,6 +58,9 @@ type QrCodeHandler = (channelId: string, qrDataUrl: string) => void;
 /** Pairing success handler signature */
 type PairedHandler = (channelId: string) => void;
 
+/** Pairing code handler signature (phone number pairing) */
+type PairingCodeHandler = (channelId: string, pairingCode: string) => void;
+
 export class ChannelManager {
   private channels = new Map<string, ChannelEntry>();
   private pluginFactories = new Map<string, PluginFactory>();
@@ -66,6 +69,8 @@ export class ChannelManager {
   private statusChangeHandlers: StatusChangeHandler[] = [];
   private qrCodeHandler: QrCodeHandler | null = null;
   private pairingHandler: PairedHandler | null = null;
+  private pairingCodeHandler: PairingCodeHandler | null = null;
+  private phonePairingChannels = new Set<string>();
 
   /**
    * Register a plugin factory by name.
@@ -103,16 +108,33 @@ export class ChannelManager {
   }
 
   /**
+   * Register a pairing code handler (called when phone number pairing returns a code).
+   */
+  onPairingCode(handler: PairingCodeHandler): void {
+    this.pairingCodeHandler = handler;
+  }
+
+  /**
+   * Suppress QR code emissions for a channel (used during phone number pairing).
+   */
+  suppressQrForChannel(channelId: string): void {
+    this.phonePairingChannels.add(channelId);
+  }
+
+  /**
    * Add and initialize a single channel at runtime.
    * Returns the ChannelInfo for the newly created channel.
    */
-  async addChannel(config: ChannelInstanceConfig): Promise<ChannelInfo> {
+  async addChannel(
+    config: ChannelInstanceConfig,
+    options?: { skipConnect?: boolean },
+  ): Promise<ChannelInfo> {
     const id = config.id;
     if (this.channels.has(id)) {
       throw new Error(`Channel already exists: ${id}`);
     }
 
-    await this.initChannel(id, config);
+    await this.initChannel(id, config, options?.skipConnect);
 
     const info = this.getChannelInfo(id);
     if (!info) throw new Error(`Failed to get info for channel: ${id}`);
@@ -137,10 +159,12 @@ export class ChannelManager {
 
   /**
    * Initialize a single channel: create plugin, wire events, connect if immediate.
+   * @param skipConnect - If true, skip auto-connect (for newly created channels that need explicit pairing)
    */
   private async initChannel(
     id: string,
     config: ChannelInstanceConfig,
+    skipConnect?: boolean,
   ): Promise<void> {
     const factory = this.pluginFactories.get(config.plugin);
     if (!factory) {
@@ -169,6 +193,11 @@ export class ChannelManager {
     plugin.on("qr", (qrDataUrl: string) => {
       // Set pairing flag to suppress reconnects while waiting for QR scan
       entry.pairing = true;
+      // Suppress QR codes during phone number pairing
+      if (this.phonePairingChannels.has(id)) {
+        console.log(`[ChannelManager] QR suppressed for ${id} — phone pairing active`);
+        return;
+      }
       console.log(
         `[ChannelManager] QR received for ${id}, entering pairing mode`,
       );
@@ -189,7 +218,8 @@ export class ChannelManager {
     }
 
     // Auto-connect on startup if credentials exist (will show QR if not)
-    if (config.processing === "immediate") {
+    // Skip auto-connect for newly created channels that need explicit pairing
+    if (config.processing === "immediate" && !skipConnect) {
       // Enter pairing mode before connect to suppress reconnect loops during QR display.
       // If the channel has valid credentials, it will connect successfully and clear this flag.
       // If it needs QR pairing, this prevents rapid reconnect loops.
@@ -386,6 +416,46 @@ export class ChannelManager {
     entry.status.lastError = null;
 
     await entry.plugin.connect();
+  }
+
+  /**
+   * Request a phone number pairing code for a channel.
+   * Connects the socket, waits for readiness, requests the code,
+   * and emits it via the pairing code handler.
+   *
+   * This is async fire-and-forget from the caller's perspective —
+   * the pairing code is delivered via the pairingCodeHandler (WebSocket broadcast).
+   */
+  async requestPairingCode(
+    channelId: string,
+    phoneNumber: string,
+  ): Promise<void> {
+    const entry = this.channels.get(channelId);
+    if (!entry) throw new Error(`Channel not found: ${channelId}`);
+
+    if (!("requestPairingCode" in entry.plugin)) {
+      throw new Error(`Channel plugin does not support phone number pairing`);
+    }
+
+    try {
+      const code = await (entry.plugin as any).requestPairingCode(phoneNumber);
+      if (this.pairingCodeHandler) {
+        this.pairingCodeHandler(channelId, code);
+      }
+    } catch (err) {
+      console.error(
+        `[ChannelManager] requestPairingCode failed for ${channelId}:`,
+        err,
+      );
+      // Emit status change with error so frontend can show it
+      entry.status.lastError = err instanceof Error ? err.message : String(err);
+      for (const handler of this.statusChangeHandlers) {
+        handler(channelId, entry.status);
+      }
+    } finally {
+      // Keep suppression until pairing completes or channel connects
+      // (cleared on successful connect via status change)
+    }
   }
 
   /**
@@ -646,6 +716,7 @@ export class ChannelManager {
       }
       entry.status.reconnectAttempts = 0;
       entry.pairing = false;
+      this.phonePairingChannels.delete(channelId);
       console.log(
         `[ChannelManager] Channel ${channelId} connected successfully`,
       );

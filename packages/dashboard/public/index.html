@@ -930,14 +930,13 @@
                 <div class="flex justify-end mb-3" x-show="!showAddChannel">
                   <button
                     @click="showAddChannel = true"
-                    class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
-                    style="background: rgba(224, 122, 95, 0.15); color: #e07a5f"
-                    onmouseover="
-                      this.style.background = 'rgba(224,122,95,0.25)'
-                    "
-                    onmouseout="this.style.background = 'rgba(224,122,95,0.15)'"
+                    class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5"
+                    style="background: rgba(37, 211, 102, 0.15); color: #25d366"
+                    onmouseover="this.style.background = 'rgba(37,211,102,0.25)'"
+                    onmouseout="this.style.background = 'rgba(37,211,102,0.15)'"
                   >
-                    + Add Channel
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+                    Add WhatsApp
                   </button>
                 </div>
 
@@ -1043,9 +1042,7 @@
                         style="background: #e07a5f; color: white"
                         :style="(!newChannel.id || addingChannel) ? {} : { boxShadow: '0 0 12px rgba(224,122,95,0.3)' }"
                       >
-                        <span x-show="!addingChannel"
-                          >Create &amp; Connect</span
-                        >
+                        <span x-show="!addingChannel">Create Channel</span>
                         <span x-show="addingChannel">Creating...</span>
                       </button>
                       <button
@@ -1066,8 +1063,7 @@
                 <!-- No channels state -->
                 <template x-if="channels.length === 0 && !showAddChannel">
                   <p class="text-sm text-tokyo-muted">
-                    No channels configured yet. Click "Add Channel" above to get
-                    started.
+                    No channels configured yet.
                   </p>
                 </template>
 
@@ -1236,31 +1232,41 @@
 
                       <!-- Channel actions (for non-error states) -->
                       <template x-if="ch.status !== 'error'">
-                        <div class="flex items-center gap-2 px-4 pb-4 pt-0">
-                          <!-- Connect button (for disconnected/logged_out channels) -->
+                        <div class="flex flex-wrap items-center gap-2 px-4 pb-4 pt-0">
+                          <!-- Connect/Pair options (for disconnected/logged_out channels) -->
                           <template
-                            x-if="ch.status !== 'connected' && ch.status !== 'connecting'"
+                            x-if="ch.status !== 'connected' && ch.status !== 'connecting' && !pairingCodes[ch.id]"
                           >
-                            <button
-                              @click="pairChannel(ch.id)"
-                              class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
-                              x-text="channelActionLabel(ch.status)"
-                            ></button>
+                            <div class="flex flex-wrap items-center gap-2">
+                              <button
+                                @click="pairChannel(ch.id)"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
+                              >
+                                Generate QR Code
+                              </button>
+                              <span class="text-xs text-tokyo-muted">or</span>
+                              <button
+                                @click="pairingByPhone[ch.id] = true; $nextTick(() => $refs['phoneInput_' + ch.id]?.focus())"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors text-tokyo-muted hover:text-tokyo-text hover:bg-white/5"
+                              >
+                                Pair by Phone Number
+                              </button>
+                            </div>
                           </template>
 
-                          <!-- Authorize Owner button (when no owner) -->
+                          <!-- Verify Owner button (dedicated channels, no owner, no pending token) -->
                           <template
-                            x-if="ch.status === 'connected' && !authTokens[ch.id] && !ch.hasOwner"
+                            x-if="ch.status === 'connected' && !authTokens[ch.id] && !ch.hasOwner && ch.role === 'dedicated'"
                           >
                             <button
                               @click="requestAuthToken(ch.id)"
                               class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
                             >
-                              Authorize Owner
+                              Verify Owner
                             </button>
                           </template>
 
-                          <!-- Owner info + Change button (when has owner) -->
+                          <!-- Owner info + Remove button (when has owner) -->
                           <template
                             x-if="ch.status === 'connected' && !authTokens[ch.id] && ch.hasOwner"
                           >
@@ -1269,14 +1275,14 @@
                                 Owner:
                                 <span
                                   class="text-tokyo-text"
-                                  x-text="ch.ownerNumber || 'Authorized'"
+                                  x-text="ch.ownerNumber || 'Verified'"
                                 ></span>
                               </span>
                               <button
-                                @click="requestAuthToken(ch.id)"
+                                @click="removeOwner(ch.id)"
                                 class="text-xs px-2 py-1 rounded font-medium text-tokyo-muted hover:text-tokyo-text hover:bg-white/5 transition-colors"
                               >
-                                Change
+                                Remove
                               </button>
                             </div>
                           </template>
@@ -1309,9 +1315,81 @@
                         </div>
                       </template>
 
-                      <!-- QR Code display (shown when pairing is active or channel is connecting with QR available) -->
+                      <!-- Phone number input (desktop) -->
+                      <template x-if="pairingByPhone[ch.id] && !pairingCodes[ch.id] && ch.status !== 'connected'">
+                        <div class="p-4 border-t border-white/5">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <input
+                              type="tel"
+                              x-model="pairingPhoneNumber[ch.id]"
+                              @keydown.enter="pairByPhone(ch.id)"
+                              :x-ref="'phoneInput_' + ch.id"
+                              placeholder="Enter number with country code"
+                              class="flex-1 min-w-[180px] px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text placeholder-tokyo-muted focus:border-[#e07a5f]/50 focus:outline-none"
+                            />
+                            <button
+                              @click="pairByPhone(ch.id)"
+                              :disabled="!pairingPhoneNumber[ch.id] || pairingPhoneNumber[ch.id].length < 7"
+                              class="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)] disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                            >
+                              Pair
+                            </button>
+                            <button
+                              @click="delete pairingByPhone[ch.id]; delete pairingPhoneNumber[ch.id]"
+                              class="text-xs text-tokyo-muted hover:text-tokyo-text shrink-0"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          <p class="text-[10px] text-tokyo-muted mt-1.5">
+                            Any format works: +1-555-123-4567, 15551234567, etc.
+                          </p>
+                        </div>
+                      </template>
+
+                      <!-- Pairing code display (shown after phone number pairing — arrives via WebSocket) -->
+                      <template x-if="pairingCodes[ch.id]">
+                        <div class="p-4 border-t border-white/5">
+                          <p class="text-xs text-tokyo-muted mb-3">
+                            Open WhatsApp on the phone &rarr; Settings &rarr; Linked Devices &rarr; Link a Device &rarr; enter this code:
+                          </p>
+                          <div
+                            @click="copyPairingCode(ch.id)"
+                            class="relative px-6 py-4 rounded-lg bg-white/5 border border-white/10 font-mono text-3xl tracking-[0.2em] text-tokyo-text text-center cursor-pointer hover:bg-white/10 transition-colors"
+                          >
+                            <span x-show="!codeCopied[ch.id]" x-text="formatPairingCode(pairingCodes[ch.id])"></span>
+                            <span x-show="codeCopied[ch.id]" class="text-green-400 text-xl">Copied!</span>
+                            <svg
+                              class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tokyo-muted"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                              />
+                            </svg>
+                          </div>
+                          <p class="text-[10px] text-tokyo-muted mt-2 text-center">
+                            Waiting for confirmation...
+                          </p>
+                          <div class="mt-3 text-center">
+                            <button
+                              @click="removeChannel(ch.id)"
+                              class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] hover:bg-[rgba(247,118,142,0.25)] transition-colors"
+                            >
+                              Cancel &amp; Remove
+                            </button>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- QR Code display (shown when pairing is active or channel is connecting with QR available, but NOT when phone pairing code is active) -->
                       <template
-                        x-if="(pairingChannelId === ch.id && qrCodeDataUrl) || (ch.status === 'connecting' && channelQrCodes[ch.id])"
+                        x-if="!pairingCodes[ch.id] && ((pairingChannelId === ch.id && qrCodeDataUrl) || (ch.status === 'connecting' && channelQrCodes[ch.id]))"
                       >
                         <div class="p-4 border-t border-white/5">
                           <div class="flex items-center justify-between mb-3">
@@ -1338,12 +1416,20 @@
                               ></span>
                             </template>
                           </div>
-                          <div class="bg-white p-3 rounded-lg inline-block">
-                            <img
-                              :src="channelQrCodes[ch.id] || qrCodeDataUrl"
-                              alt="QR Code"
-                              class="w-48 h-48"
-                            />
+                          <div class="flex items-end gap-4">
+                            <div class="bg-white p-3 rounded-lg inline-block">
+                              <img
+                                :src="channelQrCodes[ch.id] || qrCodeDataUrl"
+                                alt="QR Code"
+                                class="w-48 h-48"
+                              />
+                            </div>
+                            <button
+                              @click="removeChannel(ch.id)"
+                              class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] hover:bg-[rgba(247,118,142,0.25)] transition-colors"
+                            >
+                              Cancel &amp; Remove
+                            </button>
                           </div>
                         </div>
                       </template>
@@ -5126,11 +5212,69 @@
                 id="mobile-settings-channels"
                 class="glass-strong rounded-xl p-4"
               >
-                <h3 class="text-sm font-semibold text-tokyo-text mb-3">
-                  Channels
-                </h3>
-                <template x-if="channels.length === 0">
-                  <p class="text-sm text-tokyo-muted">No channels configured</p>
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-sm font-semibold text-tokyo-text">
+                    Channels
+                  </h3>
+                  <button
+                    x-show="!showAddChannel"
+                    @click="showAddChannel = true"
+                    class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
+                  >
+                    + Add
+                  </button>
+                </div>
+
+                <!-- Add Channel form (mobile) -->
+                <div
+                  x-show="showAddChannel"
+                  x-transition
+                  class="mb-4 p-3 rounded-lg bg-white/5 border border-white/10"
+                >
+                  <div class="space-y-3">
+                    <div>
+                      <label class="block text-xs text-tokyo-muted mb-1">Channel ID</label>
+                      <input
+                        type="text"
+                        x-model="newChannel.id"
+                        placeholder="e.g., whatsapp-main"
+                        class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text placeholder-tokyo-muted focus:border-[#e07a5f]/50 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-xs text-tokyo-muted mb-1">Role</label>
+                      <select
+                        x-model="newChannel.role"
+                        class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text focus:border-[#e07a5f]/50 focus:outline-none"
+                      >
+                        <option value="dedicated">Dedicated (agent's own number)</option>
+                        <option value="personal">Personal (your number)</option>
+                      </select>
+                    </div>
+                    <template x-if="addChannelError">
+                      <p class="text-xs text-red-400" x-text="addChannelError"></p>
+                    </template>
+                    <div class="flex gap-2">
+                      <button
+                        @click="addChannel()"
+                        :disabled="addingChannel || !newChannel.id"
+                        class="flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)] disabled:opacity-40"
+                      >
+                        <span x-show="!addingChannel">Create Channel</span>
+                        <span x-show="addingChannel">Creating...</span>
+                      </button>
+                      <button
+                        @click="showAddChannel = false; addChannelError = null"
+                        class="px-3 py-2 rounded-lg text-sm text-tokyo-muted active:bg-white/5"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <template x-if="channels.length === 0 && !showAddChannel">
+                  <p class="text-sm text-tokyo-muted">No channels configured. Tap "+ Add" to get started.</p>
                 </template>
                 <div class="space-y-3">
                   <template x-for="channel in channels" :key="channel.id">
@@ -5246,37 +5390,148 @@
                                   Asked
                                 </span>
                               </button>
+                              <button
+                                @click.stop="removeChannel(channel.id)"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] active:bg-[rgba(247,118,142,0.25)]"
+                              >
+                                Remove
+                              </button>
                             </div>
                           </div>
                         </div>
                       </template>
 
-                      <!-- Actions for disconnected/logged_out states -->
-                      <template
-                        x-if="channel.status !== 'error' && channel.status !== 'connected' && channel.status !== 'connecting'"
-                      >
+                      <!-- Pair options (mobile — two-tab design) -->
+                      <template x-if="channel.status !== 'error' && channel.status !== 'connected' && channel.status !== 'connecting' && !pairingCodes[channel.id] && !(pairingChannelId === channel.id && qrCodeDataUrl)">
                         <div class="px-3 pb-3">
-                          <button
-                            @click="pairChannel(channel.id)"
-                            class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
-                          >
-                            Pair
-                          </button>
+                          <!-- Tab bar -->
+                          <div class="flex rounded-lg bg-white/5 p-1 mb-3">
+                            <button
+                              @click="setPairingTab(channel.id, 'phone')"
+                              class="flex-1 text-xs py-1.5 rounded-md font-medium transition-colors"
+                              :class="getPairingTab(channel.id) === 'phone'
+                                ? 'bg-violet-500/20 text-violet-300'
+                                : 'text-tokyo-muted active:text-tokyo-text'"
+                            >
+                              Phone Number
+                            </button>
+                            <button
+                              @click="setPairingTab(channel.id, 'qr')"
+                              class="flex-1 text-xs py-1.5 rounded-md font-medium transition-colors"
+                              :class="getPairingTab(channel.id) === 'qr'
+                                ? 'bg-violet-500/20 text-violet-300'
+                                : 'text-tokyo-muted active:text-tokyo-text'"
+                            >
+                              QR Code
+                            </button>
+                          </div>
+
+                          <!-- Phone Number tab content -->
+                          <template x-if="getPairingTab(channel.id) === 'phone'">
+                            <div class="flex flex-col gap-2">
+                              <template x-if="!pairingStarted[channel.id]">
+                                <button
+                                  @click="pairingStarted[channel.id] = true"
+                                  class="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
+                                >
+                                  Start Phone Pairing
+                                </button>
+                              </template>
+                              <template x-if="pairingStarted[channel.id]">
+                                <div class="flex flex-col gap-2">
+                                  <div class="flex items-center gap-2">
+                                    <input
+                                      type="tel"
+                                      x-model="pairingPhoneNumber[channel.id]"
+                                      @keydown.enter="pairByPhone(channel.id)"
+                                      placeholder="Phone with country code"
+                                      class="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text placeholder-tokyo-muted focus:border-[#e07a5f]/50 focus:outline-none"
+                                    />
+                                    <button
+                                      @click="pairByPhone(channel.id)"
+                                      :disabled="!pairingPhoneNumber[channel.id] || pairingPhoneNumber[channel.id].length < 7"
+                                      class="px-4 py-2 rounded-lg text-sm font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)] disabled:opacity-40"
+                                    >
+                                      Pair
+                                    </button>
+                                  </div>
+                                  <p class="text-[10px] text-tokyo-muted">
+                                    Any format: +1-555-123-4567, 15551234567, etc.
+                                  </p>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+
+                          <!-- QR Code tab content -->
+                          <template x-if="getPairingTab(channel.id) === 'qr'">
+                            <div class="flex flex-col gap-2">
+                              <button
+                                @click="pairChannel(channel.id)"
+                                class="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
+                              >
+                                Generate QR Code
+                              </button>
+                              <p class="text-[10px] text-tokyo-muted text-center">
+                                Scan with WhatsApp to link this device
+                              </p>
+                            </div>
+                          </template>
                         </div>
                       </template>
 
-                      <!-- Actions for connected channels -->
+                      <!-- Pairing code display (mobile — arrives via WebSocket) -->
+                      <template x-if="pairingCodes[channel.id]">
+                        <div class="p-3 border-t border-white/5">
+                          <p class="text-xs text-tokyo-muted mb-2">
+                            WhatsApp &rarr; Linked Devices &rarr; Link a Device &rarr; enter code:
+                          </p>
+                          <div
+                            @click="copyPairingCode(channel.id)"
+                            class="relative px-4 py-3 rounded-lg bg-white/5 border border-white/10 font-mono text-2xl tracking-[0.15em] text-tokyo-text text-center cursor-pointer active:bg-white/10 transition-colors"
+                          >
+                            <span x-show="!codeCopied[channel.id]" x-text="formatPairingCode(pairingCodes[channel.id])"></span>
+                            <span x-show="codeCopied[channel.id]" class="text-green-400 text-lg">Copied!</span>
+                            <svg
+                              class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-tokyo-muted"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                              />
+                            </svg>
+                          </div>
+                          <p class="text-[10px] text-tokyo-muted mt-1.5 text-center">
+                            Waiting for confirmation...
+                          </p>
+                          <div class="mt-3 text-center">
+                            <button
+                              @click="removeChannel(channel.id)"
+                              class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] active:bg-[rgba(247,118,142,0.25)]"
+                            >
+                              Cancel &amp; Remove
+                            </button>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- Actions for connected channels (mobile) -->
                       <template x-if="channel.status === 'connected'">
-                        <div class="px-3 pb-3 flex gap-2">
-                          <!-- Authorize Owner (when no owner) -->
+                        <div class="px-3 pb-3 flex flex-wrap gap-2">
+                          <!-- Verify Owner (dedicated, no owner) -->
                           <template
-                            x-if="!authTokens[channel.id] && !channel.hasOwner"
+                            x-if="!authTokens[channel.id] && !channel.hasOwner && channel.role === 'dedicated'"
                           >
                             <button
                               @click="requestAuthToken(channel.id)"
                               class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
                             >
-                              Authorize Owner
+                              Verify Owner
                             </button>
                           </template>
                           <!-- Owner info (when has owner) -->
@@ -5288,14 +5543,14 @@
                                 Owner:
                                 <span
                                   class="text-tokyo-text"
-                                  x-text="channel.ownerNumber || 'Authorized'"
+                                  x-text="channel.ownerNumber || 'Verified'"
                                 ></span>
                               </span>
                               <button
-                                @click="requestAuthToken(channel.id)"
+                                @click="removeOwner(channel.id)"
                                 class="text-xs px-2 py-1 rounded font-medium text-tokyo-muted active:text-tokyo-text active:bg-white/5"
                               >
-                                Change
+                                Remove
                               </button>
                             </div>
                           </template>
@@ -5305,12 +5560,54 @@
                           >
                             Disconnect
                           </button>
+                          <button
+                            @click="removeChannel(channel.id)"
+                            class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] active:bg-[rgba(247,118,142,0.25)]"
+                          >
+                            Remove
+                          </button>
                         </div>
                       </template>
 
-                      <!-- QR Code display (mobile) -->
+                      <!-- Remove button for disconnected/logged_out channels (mobile) -->
+                      <template x-if="channel.status === 'disconnected' || channel.status === 'logged_out'">
+                        <div class="px-3 pb-3">
+                          <button
+                            @click="removeChannel(channel.id)"
+                            class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] active:bg-[rgba(247,118,142,0.25)]"
+                          >
+                            Remove Channel
+                          </button>
+                        </div>
+                      </template>
+
+                      <!-- Authorization token (mobile) -->
                       <template
-                        x-if="(pairingChannelId === channel.id && qrCodeDataUrl) || (channel.status === 'connecting' && channelQrCodes[channel.id])"
+                        x-if="authTokens[channel.id] && channel.status === 'connected'"
+                      >
+                        <div class="p-3 border-t border-white/5 flex flex-col items-center gap-2">
+                          <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                            <p class="text-xs text-amber-400 font-medium">
+                              Owner Verification
+                            </p>
+                          </div>
+                          <p class="text-xs text-tokyo-muted text-center">
+                            Send this code to the agent's WhatsApp:
+                          </p>
+                          <div
+                            class="px-4 py-2 rounded-lg bg-white/5 border border-white/10 font-mono text-xl tracking-[0.3em] text-tokyo-text text-center select-all"
+                            x-text="authTokens[channel.id]"
+                          ></div>
+                          <p class="text-[10px] text-tokyo-muted">
+                            Expires in 10 minutes
+                          </p>
+                        </div>
+                      </template>
+
+                      <!-- QR Code display (mobile, but NOT when phone pairing code is active) -->
+                      <template
+                        x-if="!pairingCodes[channel.id] && ((pairingChannelId === channel.id && qrCodeDataUrl) || (channel.status === 'connecting' && channelQrCodes[channel.id]))"
                       >
                         <div class="p-3 border-t border-white/5">
                           <div class="flex items-center justify-between mb-2">
@@ -5331,6 +5628,14 @@
                               alt="QR Code"
                               class="w-40 h-40"
                             />
+                          </div>
+                          <div class="mt-3">
+                            <button
+                              @click="removeChannel(channel.id)"
+                              class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] active:bg-[rgba(247,118,142,0.25)]"
+                            >
+                              Cancel &amp; Remove
+                            </button>
                           </div>
                         </div>
                       </template>

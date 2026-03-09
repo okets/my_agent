@@ -87,6 +87,12 @@ function chat() {
 
     // Authorization tokens: { channelId: "TOKEN" }
     authTokens: {},
+    // Phone number pairing state
+    pairingPhoneNumber: {}, // { channelId: "entered number" }
+    pairingCodes: {}, // { channelId: "ABCD-1234" }
+    pairingByPhone: {}, // { channelId: true } — tracks which method is active
+    pairingTab: {}, // { channelId: 'phone' | 'qr' } — selected pairing method tab
+    pairingStarted: {}, // { channelId: true } — whether pairing process has been explicitly started
 
     // Image lightbox
     lightboxImage: null,
@@ -1203,6 +1209,11 @@ function chat() {
 
         case "channel_qr_code": {
           // QR code received from server during pairing
+          // Ignore QR codes if we're in phone pairing mode
+          if (this.pairingByPhone[data.channelId] || this.pairingCodes[data.channelId]) {
+            console.log(`[App] Ignoring QR code for ${data.channelId} - phone pairing active`);
+            break;
+          }
           // Store per-channel for auto-display when connecting
           this.channelQrCodes[data.channelId] = data.qrDataUrl;
           // Start/reset countdown timer (QR codes expire in ~20 seconds)
@@ -1215,14 +1226,33 @@ function chat() {
         }
 
         case "channel_paired": {
-          // Channel successfully paired — clear QR
+          // Channel successfully paired — clear all pairing state
           if (data.channelId === this.pairingChannelId) {
             this.pairingChannelId = null;
             this.qrCodeDataUrl = null;
           }
+          this.resetPairingState(data.channelId);
+          this.clearQrCountdown(data.channelId);
           // Refresh channel list to get updated status
           this.fetchChannels();
-          // Skip auth token — owner is setting up their own channel
+          // Auto-trigger auth token for dedicated channels
+          const pairedCh = this.channels.find((c) => c.id === data.channelId);
+          if (pairedCh && pairedCh.role === "dedicated") {
+            setTimeout(() => this.requestAuthToken(data.channelId), 500);
+          }
+          break;
+        }
+
+        case "channel_pairing_code": {
+          // Phone number pairing code received via WebSocket
+          this.pairingCodes[data.channelId] = data.pairingCode;
+          this.pairingByPhone[data.channelId] = true;
+          break;
+        }
+
+        case "channel_owner_removed": {
+          // Owner was removed — refresh channels
+          this.fetchChannels();
           break;
         }
 
@@ -2450,13 +2480,9 @@ function chat() {
         // Add to local channels list
         this.channels.push(data);
 
-        // Reset form and trigger pairing
-        const channelId = data.id;
+        // Reset form — don't auto-trigger pairing, let user choose method
         this.showAddChannel = false;
         this.newChannel = { id: "", role: "dedicated" };
-
-        // Auto-trigger QR pairing
-        await this.pairChannel(channelId);
       } catch (err) {
         console.error("[App] Add channel failed:", err);
         this.addChannelError = "Network error. Is the server running?";
@@ -2465,22 +2491,157 @@ function chat() {
       }
     },
 
-    async pairChannel(channelId) {
+    async pairChannel(channelId, phoneNumber) {
       this.pairingChannelId = channelId;
       this.qrCodeDataUrl = null;
+      delete this.pairingCodes[channelId];
+
       try {
+        const body = phoneNumber ? { phoneNumber } : undefined;
         const res = await fetch(`/api/channels/${channelId}/pair`, {
           method: "POST",
+          ...(body && {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }),
         });
+
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           console.error("[App] Pair failed:", data.error || res.statusText);
           this.pairingChannelId = null;
+          alert(data.error || "Pairing failed. Try again.");
+          return;
         }
-        // QR code will arrive via WebSocket channel_qr_code event
+        // Pairing code (or QR code) will arrive via WebSocket
       } catch (err) {
         console.error("[App] Pair request failed:", err);
         this.pairingChannelId = null;
+      }
+    },
+
+    async pairByPhone(channelId) {
+      const number = this.pairingPhoneNumber[channelId];
+      if (!number || number.trim().length < 7) {
+        alert("Enter a valid phone number with country code");
+        return;
+      }
+      this.pairingByPhone[channelId] = true;
+      await this.pairChannel(channelId, number.trim());
+    },
+
+    /**
+     * Check if we're on a mobile device (viewport-based)
+     */
+    isMobile() {
+      return window.innerWidth < 768;
+    },
+
+    /**
+     * Get the default pairing tab based on device type
+     */
+    getDefaultPairingTab() {
+      return this.isMobile() ? "phone" : "qr";
+    },
+
+    /**
+     * Get the current pairing tab for a channel (or default)
+     */
+    getPairingTab(channelId) {
+      return this.pairingTab[channelId] || this.getDefaultPairingTab();
+    },
+
+    /**
+     * Set the pairing tab for a channel
+     */
+    setPairingTab(channelId, tab) {
+      this.pairingTab[channelId] = tab;
+      // Clear the started state when switching tabs
+      delete this.pairingStarted[channelId];
+    },
+
+    /**
+     * Start the pairing process for the current tab method
+     */
+    async startPairingProcess(channelId) {
+      const tab = this.getPairingTab(channelId);
+      this.pairingStarted[channelId] = true;
+
+      if (tab === "phone") {
+        // For phone tab, just show the input - don't start pairing yet
+        // The actual pairing happens when they enter number and click Pair
+      } else {
+        // For QR tab, generate QR code
+        await this.pairChannel(channelId);
+      }
+    },
+
+    /**
+     * Reset pairing state for a channel
+     */
+    resetPairingState(channelId) {
+      delete this.pairingTab[channelId];
+      delete this.pairingStarted[channelId];
+      delete this.pairingPhoneNumber[channelId];
+      delete this.pairingCodes[channelId];
+      delete this.pairingByPhone[channelId];
+      this.codeCopied = { ...this.codeCopied, [channelId]: false };
+    },
+
+    // Track which channels are showing "Copied" animation
+    codeCopied: {},
+
+    /**
+     * Format pairing code as 4+4 (e.g., "QZFV 132L")
+     */
+    formatPairingCode(code) {
+      if (!code || code.length !== 8) return code || "";
+      return code.slice(0, 4) + " " + code.slice(4);
+    },
+
+    /**
+     * Copy pairing code to clipboard with animation and haptic feedback
+     */
+    async copyPairingCode(channelId) {
+      const code = this.pairingCodes[channelId];
+      if (!code) return;
+
+      // Show "Copied" animation immediately
+      this.codeCopied = { ...this.codeCopied, [channelId]: true };
+      setTimeout(() => {
+        this.codeCopied = { ...this.codeCopied, [channelId]: false };
+      }, 1000);
+
+      // Trigger haptic feedback on mobile
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+
+      // Copy to clipboard - try modern API first, fallback to execCommand
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+        } else {
+          // Fallback for HTTP or older browsers
+          const textarea = document.createElement("textarea");
+          textarea.value = code;
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textarea);
+        }
+      } catch (err) {
+        // Last resort fallback
+        const textarea = document.createElement("textarea");
+        textarea.value = code;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
       }
     },
 
@@ -2499,8 +2660,11 @@ function chat() {
         } else {
           this.clearQrCountdown(channelId);
           // QR expired - check if channel is still connecting and request new QR
+          // BUT don't auto-refresh if phone number pairing is active
           const ch = this.channels.find((c) => c.id === channelId);
-          if (ch && ch.status === "connecting") {
+          const isPhonePairing =
+            this.pairingByPhone[channelId] || this.pairingCodes[channelId];
+          if (ch && ch.status === "connecting" && !isPhonePairing) {
             console.log(`[App] QR expired for ${channelId}, requesting new QR`);
             this.pairChannel(channelId);
           }
@@ -2560,6 +2724,20 @@ function chat() {
         }
       } catch (err) {
         console.error("[App] Auth token request failed:", err);
+      }
+    },
+
+    async removeOwner(channelId) {
+      try {
+        const res = await fetch(`/api/channels/${channelId}/remove-owner`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          console.error("[App] Remove owner failed");
+        }
+        // Owner removal broadcast will arrive via WebSocket
+      } catch (err) {
+        console.error("[App] Remove owner failed:", err);
       }
     },
 

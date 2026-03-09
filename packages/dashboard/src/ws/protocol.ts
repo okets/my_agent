@@ -152,6 +152,8 @@ export type ServerMessage =
     }
   | { type: "channel_qr_code"; channelId: string; qrDataUrl: string }
   | { type: "channel_paired"; channelId: string }
+  | { type: "channel_pairing_code"; channelId: string; pairingCode: string }
+  | { type: "channel_owner_removed"; channelId: string }
   | {
       type: "channel_authorized";
       channelId: string;
@@ -248,6 +250,7 @@ export interface MemoryStats {
     id: string;
     name: string;
     model: string;
+    dimensions: number | null;
   } | null;
   degraded: {
     pluginId: string;
