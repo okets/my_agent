@@ -117,6 +117,8 @@ export class BaileysPlugin implements ChannelPlugin {
   private _status: ChannelStatus;
   private saveQueue = new CredentialSaveQueue();
   private messageCache = new Map<string, CachedMessage>();
+  // Promise that resolves when the socket is ready for pairing code request
+  private socketReady: { resolve: () => void; promise: Promise<void> } | null = null;
 
   private handlers: EventHandlers = {
     message: [],
@@ -153,6 +155,7 @@ export class BaileysPlugin implements ChannelPlugin {
       this.sock.ev.removeAllListeners("messages.upsert");
       this.sock.end(undefined); // Close socket without triggering events
       this.sock = null;
+      this.socketReady = null;
 
       // CRITICAL: Wait for any pending credential saves to complete before
       // creating a new socket. Without this, useMultiFileAuthState() may load
@@ -196,6 +199,13 @@ export class BaileysPlugin implements ChannelPlugin {
 
     this.sock = sock;
 
+    // Create a readiness signal for phone number pairing
+    this.socketReady = (() => {
+      let resolve: () => void;
+      const promise = new Promise<void>((r) => { resolve = r; });
+      return { resolve: resolve!, promise };
+    })();
+
     // Catch raw WebSocket errors to prevent unhandled exceptions
     // from crashing the process or leaving the socket in a broken state
     if (sock.ws && typeof (sock.ws as any).on === "function") {
@@ -212,6 +222,11 @@ export class BaileysPlugin implements ChannelPlugin {
 
         // QR code available — convert to data URL and emit
         if (qr) {
+          // Socket is ready for pairing code request (handshake complete)
+          if (this.socketReady) {
+            this.socketReady.resolve();
+          }
+
           // Set running: true to indicate active pairing (waiting for QR scan)
           this._status = {
             ...this._status,
@@ -469,6 +484,7 @@ export class BaileysPlugin implements ChannelPlugin {
       this.sock.end(undefined);
       this.sock = null;
     }
+    this.socketReady = null;
 
     this._status = {
       ...this._status,
@@ -493,6 +509,46 @@ export class BaileysPlugin implements ChannelPlugin {
     } catch (err) {
       console.error(`[channel-whatsapp] Failed to clear auth:`, err);
     }
+  }
+
+  /**
+   * Request a pairing code for phone number authentication.
+   * Alternative to QR scanning — user enters the returned code
+   * in WhatsApp app (Settings > Linked Devices > Link a Device).
+   *
+   * Must be called AFTER connect() creates the socket. Waits for
+   * socket readiness (QR event = handshake complete) before requesting.
+   *
+   * @param phoneNumber — any format, normalized to digits only
+   * @returns 8-character pairing code (e.g., "ABCD-1234")
+   */
+  async requestPairingCode(phoneNumber: string): Promise<string> {
+    if (!this.sock) {
+      throw new Error("[channel-whatsapp] requestPairingCode() called while disconnected");
+    }
+
+    // Wait for socket to be ready (QR event = socket handshake complete)
+    if (this.socketReady) {
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Timed out waiting for socket readiness")), 15000)
+      );
+      await Promise.race([this.socketReady.promise, timeout]);
+    }
+
+    if (this.sock.authState.creds.registered) {
+      throw new Error("[channel-whatsapp] Already registered — disconnect and clear auth first");
+    }
+
+    // Normalize: strip everything except digits
+    const normalized = phoneNumber.replace(/[^\d]/g, "");
+    if (normalized.length < 7) {
+      throw new Error("Phone number too short — include country code");
+    }
+
+    console.log(`[channel-whatsapp] Requesting pairing code for ${normalized.slice(0, 4)}****`);
+    const code = await this.sock.requestPairingCode(normalized);
+    console.log(`[channel-whatsapp] Pairing code received`);
+    return code;
   }
 
   // ── Messaging ──────────────────────────────────────────────────
