@@ -1043,9 +1043,7 @@
                         style="background: #e07a5f; color: white"
                         :style="(!newChannel.id || addingChannel) ? {} : { boxShadow: '0 0 12px rgba(224,122,95,0.3)' }"
                       >
-                        <span x-show="!addingChannel"
-                          >Create &amp; Connect</span
-                        >
+                        <span x-show="!addingChannel">Create Channel</span>
                         <span x-show="addingChannel">Creating...</span>
                       </button>
                       <button

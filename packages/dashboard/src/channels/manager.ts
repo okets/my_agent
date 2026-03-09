@@ -117,13 +117,16 @@ export class ChannelManager {
    * Add and initialize a single channel at runtime.
    * Returns the ChannelInfo for the newly created channel.
    */
-  async addChannel(config: ChannelInstanceConfig): Promise<ChannelInfo> {
+  async addChannel(
+    config: ChannelInstanceConfig,
+    options?: { skipConnect?: boolean },
+  ): Promise<ChannelInfo> {
     const id = config.id;
     if (this.channels.has(id)) {
       throw new Error(`Channel already exists: ${id}`);
     }
 
-    await this.initChannel(id, config);
+    await this.initChannel(id, config, options?.skipConnect);
 
     const info = this.getChannelInfo(id);
     if (!info) throw new Error(`Failed to get info for channel: ${id}`);
@@ -148,10 +151,12 @@ export class ChannelManager {
 
   /**
    * Initialize a single channel: create plugin, wire events, connect if immediate.
+   * @param skipConnect - If true, skip auto-connect (for newly created channels that need explicit pairing)
    */
   private async initChannel(
     id: string,
     config: ChannelInstanceConfig,
+    skipConnect?: boolean,
   ): Promise<void> {
     const factory = this.pluginFactories.get(config.plugin);
     if (!factory) {
@@ -200,7 +205,8 @@ export class ChannelManager {
     }
 
     // Auto-connect on startup if credentials exist (will show QR if not)
-    if (config.processing === "immediate") {
+    // Skip auto-connect for newly created channels that need explicit pairing
+    if (config.processing === "immediate" && !skipConnect) {
       // Enter pairing mode before connect to suppress reconnect loops during QR display.
       // If the channel has valid credentials, it will connect successfully and clear this flag.
       // If it needs QR pairing, this prevents rapid reconnect loops.
@@ -407,7 +413,10 @@ export class ChannelManager {
    * This is async fire-and-forget from the caller's perspective —
    * the pairing code is delivered via the pairingCodeHandler (WebSocket broadcast).
    */
-  async requestPairingCode(channelId: string, phoneNumber: string): Promise<void> {
+  async requestPairingCode(
+    channelId: string,
+    phoneNumber: string,
+  ): Promise<void> {
     const entry = this.channels.get(channelId);
     if (!entry) throw new Error(`Channel not found: ${channelId}`);
 
@@ -421,7 +430,10 @@ export class ChannelManager {
         this.pairingCodeHandler(channelId, code);
       }
     } catch (err) {
-      console.error(`[ChannelManager] requestPairingCode failed for ${channelId}:`, err);
+      console.error(
+        `[ChannelManager] requestPairingCode failed for ${channelId}:`,
+        err,
+      );
       // Emit status change with error so frontend can show it
       entry.status.lastError = err instanceof Error ? err.message : String(err);
       for (const handler of this.statusChangeHandlers) {

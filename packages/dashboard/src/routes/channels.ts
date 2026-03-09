@@ -81,9 +81,10 @@ export async function registerChannelRoutes(
     };
 
     // Register at runtime if channelManager exists
+    // Skip auto-connect — let user choose pairing method (QR or phone number)
     if (channelManager) {
       try {
-        const info = await channelManager.addChannel(config);
+        const info = await channelManager.addChannel(config, { skipConnect: true });
         return reply.send(info);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
