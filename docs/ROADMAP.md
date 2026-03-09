@@ -759,6 +759,7 @@ Requirements that must be complete before public release, regardless of mileston
 | Item                         | Status  | Notes                                                    |
 | ---------------------------- | ------- | -------------------------------------------------------- |
 | **Dashboard authentication** | Pending | Session-based auth for web UI. Currently localhost-only. |
+| **Backup & Restore**        | Pending | Full backup (`.my_agent/` + DBs) or partial (personality, transcripts, tasks). Discovered need during machine migration — no recovery mechanism exists. |
 | **Security audit**           | Pending | Review hooks, guardrails, and trust tier enforcement     |
 | **Documentation**            | Pending | User-facing README, setup guide, examples                |
 
