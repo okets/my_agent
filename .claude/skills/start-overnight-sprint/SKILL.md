@@ -38,6 +38,63 @@ All work happens on this branch. Never touch master.
 | Reviewer | Opus | Independent code review (can fail sprint) |
 | QA | Sonnet | Manual testing, write test report |
 
+Add **custom roles** when the sprint benefits (e.g., Recovery Analyst for reconstruction sprints, API Specialist for integration work). Custom roles can be `Explore` agents (read-only research) or `general-purpose` (full implementation).
+
+## Agent Team Setup
+
+**Use Claude Code's native Teams feature** to run the sprint as a real agent team where agents communicate directly with each other.
+
+### How to set up the team
+
+1. **Create the team** with `TeamCreate`:
+   - `team_name`: `sprint-m{N}-s{N}-{name}`
+   - `description`: Sprint goal from the plan
+
+2. **Create shared tasks** with `TaskCreate` — one per sprint task, with dependencies noted
+
+3. **Spawn teammates** with the `Agent` tool using `team_name` and `name` parameters:
+
+| Sprint Role | Agent `name` | `subagent_type` | `mode` |
+|---|---|---|---|
+| Backend Dev | `backend-dev` | `general-purpose` | `acceptEdits` |
+| Frontend Dev | `frontend-dev` | `general-purpose` | `acceptEdits` |
+| Reviewer | `reviewer` | `general-purpose` | `plan` |
+| QA | `qa` | `general-purpose` | `acceptEdits` |
+| Custom (research) | user-defined | `Explore` | default |
+
+   The Tech Lead (you) is the team creator — no need to spawn yourself.
+
+4. **Agents communicate via `SendMessage`:**
+   - Backend Dev finishes Task 2 → DMs Reviewer: "Task 2 ready for review"
+   - Reviewer finds issue → DMs Backend Dev: "Fix the error handling in search-service.ts"
+   - QA needs clarification → DMs Tech Lead
+   - Use `broadcast` only for critical blockers
+
+5. **Task coordination via shared task list:**
+   - Agents check `TaskList` after completing each task
+   - Claim unassigned tasks with `TaskUpdate` (set `owner`)
+   - Mark tasks `completed` when done
+
+6. **Shutdown when sprint completes:**
+   - Tech Lead sends `shutdown_request` to all teammates
+   - Clean up with `TeamDelete`
+
+### Agent prompt guidelines
+
+When spawning each agent, include in the prompt:
+- Their **role and responsibility** from the team table
+- The **sprint plan** (full task text, not a file path)
+- **Sprint rules** (branch only, log decisions, push after every commit)
+- **Communication expectations** (DM the reviewer when ready, DM tech lead on blockers)
+- For the Reviewer: "You are independent. You can fail the sprint."
+
+### When NOT to use teams
+
+Use single-agent execution (subagent-driven-development) instead when:
+- Sprint has fewer than 3 tasks
+- All tasks are strictly sequential with no parallelism
+- Sprint is pure research/planning (no implementation)
+
 ## Execution Rules (Overnight Mode)
 
 1. **Never block on decisions** — Make the call, log it, continue
@@ -107,9 +164,9 @@ If sprint cannot complete:
    - **Ask CTO to confirm before proceeding** — do NOT create branch or begin work until confirmed
 4. On confirmation → create the branch
 5. Copy artifact templates
-6. Break down tasks for parallel execution
-7. Begin implementation
-8. Log decisions as they happen
-9. Reviewer operates independently
-10. QA tests at end
-11. Commit final state to branch
+6. **Set up agent team** (TeamCreate → TaskCreate for each task → spawn teammates)
+7. Assign initial tasks to teammates
+8. Orchestrate: relay context, unblock agents, log decisions
+9. Reviewer operates independently (DMs findings to implementers)
+10. QA tests at end (spawned after implementation tasks complete)
+11. Shut down teammates, commit final state to branch
