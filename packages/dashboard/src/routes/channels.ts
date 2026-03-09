@@ -166,11 +166,17 @@ export async function registerChannelRoutes(
         // Clear auth for fresh pairing if channel is in error/logged_out state
         const needsFreshAuth =
           info.status === "error" || info.status === "logged_out";
+
+        // If phone number provided, suppress QR codes BEFORE connecting
+        const phoneNumber = request.body?.phoneNumber;
+        if (phoneNumber) {
+          channelManager.suppressQrForChannel(request.params.id);
+        }
+
         await channelManager.connectChannel(request.params.id, needsFreshAuth);
 
         // If phone number provided, fire-and-forget pairing code request.
         // The code will arrive via WebSocket `channel_pairing_code` event.
-        const phoneNumber = request.body?.phoneNumber;
         if (phoneNumber) {
           // Don't await — let it run async, code delivered via WS
           channelManager.requestPairingCode(request.params.id, phoneNumber);

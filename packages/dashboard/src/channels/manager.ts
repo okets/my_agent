@@ -70,6 +70,7 @@ export class ChannelManager {
   private qrCodeHandler: QrCodeHandler | null = null;
   private pairingHandler: PairedHandler | null = null;
   private pairingCodeHandler: PairingCodeHandler | null = null;
+  private phonePairingChannels = new Set<string>();
 
   /**
    * Register a plugin factory by name.
@@ -111,6 +112,13 @@ export class ChannelManager {
    */
   onPairingCode(handler: PairingCodeHandler): void {
     this.pairingCodeHandler = handler;
+  }
+
+  /**
+   * Suppress QR code emissions for a channel (used during phone number pairing).
+   */
+  suppressQrForChannel(channelId: string): void {
+    this.phonePairingChannels.add(channelId);
   }
 
   /**
@@ -185,6 +193,11 @@ export class ChannelManager {
     plugin.on("qr", (qrDataUrl: string) => {
       // Set pairing flag to suppress reconnects while waiting for QR scan
       entry.pairing = true;
+      // Suppress QR codes during phone number pairing
+      if (this.phonePairingChannels.has(id)) {
+        console.log(`[ChannelManager] QR suppressed for ${id} — phone pairing active`);
+        return;
+      }
       console.log(
         `[ChannelManager] QR received for ${id}, entering pairing mode`,
       );
@@ -439,6 +452,9 @@ export class ChannelManager {
       for (const handler of this.statusChangeHandlers) {
         handler(channelId, entry.status);
       }
+    } finally {
+      // Keep suppression until pairing completes or channel connects
+      // (cleared on successful connect via status change)
     }
   }
 
@@ -700,6 +716,7 @@ export class ChannelManager {
       }
       entry.status.reconnectAttempts = 0;
       entry.pairing = false;
+      this.phonePairingChannels.delete(channelId);
       console.log(
         `[ChannelManager] Channel ${channelId} connected successfully`,
       );
