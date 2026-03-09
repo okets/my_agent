@@ -87,6 +87,10 @@ function chat() {
 
     // Authorization tokens: { channelId: "TOKEN" }
     authTokens: {},
+    // Phone number pairing state
+    pairingPhoneNumber: {}, // { channelId: "entered number" }
+    pairingCodes: {}, // { channelId: "ABCD-1234" }
+    pairingByPhone: {}, // { channelId: true } — tracks which method is active
 
     // Image lightbox
     lightboxImage: null,
@@ -1215,14 +1219,35 @@ function chat() {
         }
 
         case "channel_paired": {
-          // Channel successfully paired — clear QR
+          // Channel successfully paired — clear QR and pairing code
           if (data.channelId === this.pairingChannelId) {
             this.pairingChannelId = null;
             this.qrCodeDataUrl = null;
           }
+          delete this.pairingCodes[data.channelId];
+          delete this.pairingByPhone[data.channelId];
+          delete this.pairingPhoneNumber[data.channelId];
+          this.clearQrCountdown(data.channelId);
           // Refresh channel list to get updated status
           this.fetchChannels();
-          // Skip auth token — owner is setting up their own channel
+          // Auto-trigger auth token for dedicated channels
+          const pairedCh = this.channels.find((c) => c.id === data.channelId);
+          if (pairedCh && pairedCh.role === "dedicated") {
+            setTimeout(() => this.requestAuthToken(data.channelId), 500);
+          }
+          break;
+        }
+
+        case "channel_pairing_code": {
+          // Phone number pairing code received via WebSocket
+          this.pairingCodes[data.channelId] = data.pairingCode;
+          this.pairingByPhone[data.channelId] = true;
+          break;
+        }
+
+        case "channel_owner_removed": {
+          // Owner was removed — refresh channels
+          this.fetchChannels();
           break;
         }
 
@@ -2465,23 +2490,43 @@ function chat() {
       }
     },
 
-    async pairChannel(channelId) {
+    async pairChannel(channelId, phoneNumber) {
       this.pairingChannelId = channelId;
       this.qrCodeDataUrl = null;
+      delete this.pairingCodes[channelId];
+
       try {
+        const body = phoneNumber ? { phoneNumber } : undefined;
         const res = await fetch(`/api/channels/${channelId}/pair`, {
           method: "POST",
+          ...(body && {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }),
         });
+
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           console.error("[App] Pair failed:", data.error || res.statusText);
           this.pairingChannelId = null;
+          alert(data.error || "Pairing failed. Try again.");
+          return;
         }
-        // QR code will arrive via WebSocket channel_qr_code event
+        // Pairing code (or QR code) will arrive via WebSocket
       } catch (err) {
         console.error("[App] Pair request failed:", err);
         this.pairingChannelId = null;
       }
+    },
+
+    async pairByPhone(channelId) {
+      const number = this.pairingPhoneNumber[channelId];
+      if (!number || number.trim().length < 7) {
+        alert("Enter a valid phone number with country code");
+        return;
+      }
+      this.pairingByPhone[channelId] = true;
+      await this.pairChannel(channelId, number.trim());
     },
 
     /**
@@ -2560,6 +2605,20 @@ function chat() {
         }
       } catch (err) {
         console.error("[App] Auth token request failed:", err);
+      }
+    },
+
+    async removeOwner(channelId) {
+      try {
+        const res = await fetch(`/api/channels/${channelId}/remove-owner`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          console.error("[App] Remove owner failed");
+        }
+        // Owner removal broadcast will arrive via WebSocket
+      } catch (err) {
+        console.error("[App] Remove owner failed:", err);
       }
     },
 
