@@ -1372,9 +1372,9 @@
                         </div>
                       </template>
 
-                      <!-- QR Code display (shown when pairing is active or channel is connecting with QR available) -->
+                      <!-- QR Code display (shown when pairing is active or channel is connecting with QR available, but NOT when phone pairing code is active) -->
                       <template
-                        x-if="(pairingChannelId === ch.id && qrCodeDataUrl) || (ch.status === 'connecting' && channelQrCodes[ch.id])"
+                        x-if="!pairingCodes[ch.id] && ((pairingChannelId === ch.id && qrCodeDataUrl) || (ch.status === 'connecting' && channelQrCodes[ch.id]))"
                       >
                         <div class="p-4 border-t border-white/5">
                           <div class="flex items-center justify-between mb-3">
@@ -5573,9 +5573,9 @@
                         </div>
                       </template>
 
-                      <!-- QR Code display (mobile) -->
+                      <!-- QR Code display (mobile, but NOT when phone pairing code is active) -->
                       <template
-                        x-if="(pairingChannelId === channel.id && qrCodeDataUrl) || (channel.status === 'connecting' && channelQrCodes[channel.id])"
+                        x-if="!pairingCodes[channel.id] && ((pairingChannelId === channel.id && qrCodeDataUrl) || (channel.status === 'connecting' && channelQrCodes[channel.id]))"
                       >
                         <div class="p-3 border-t border-white/5">
                           <div class="flex items-center justify-between mb-2">
