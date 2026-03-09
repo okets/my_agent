@@ -13,10 +13,7 @@ export { NamingService } from "./naming.js";
 export { ConversationSearchDB } from "./search-db.js";
 export { ConversationSearchService } from "./search-service.js";
 
-export type {
-  SearchResult,
-  VectorResult,
-} from "./search-db.js";
+export type { SearchResult, VectorResult } from "./search-db.js";
 export type {
   ConversationSearchResult,
   ConversationSearchServiceOptions,

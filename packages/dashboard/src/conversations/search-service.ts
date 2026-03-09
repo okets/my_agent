@@ -45,14 +45,17 @@ export class ConversationSearchService {
    * Hybrid search: FTS5 keyword + vector semantic with RRF merge.
    * Falls back to FTS5-only if embeddings are unavailable.
    */
-  async search(
-    query: string,
-    limit = 10,
-  ): Promise<ConversationSearchResult[]> {
+  async search(query: string, limit = 10): Promise<ConversationSearchResult[]> {
     const scores = new Map<string, number>();
     const resultData = new Map<
       string,
-      { conversationId: string; turnNumber: number; content: string; timestamp: string; role: string }
+      {
+        conversationId: string;
+        turnNumber: number;
+        content: string;
+        timestamp: string;
+        role: string;
+      }
     >();
 
     // FTS5 BM25 search
