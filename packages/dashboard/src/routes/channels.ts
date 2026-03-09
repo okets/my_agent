@@ -144,9 +144,9 @@ export async function registerChannelRoutes(
     },
   );
 
-  // POST /api/channels/:id/pair — trigger QR pairing
-  // If channel is in error/logged_out state, clears auth to force fresh QR
-  fastify.post<{ Params: { id: string } }>(
+  // POST /api/channels/:id/pair — trigger QR or phone number pairing
+  // If channel is in error/logged_out state, clears auth to force fresh pairing
+  fastify.post<{ Params: { id: string }; Body: { phoneNumber?: string } }>(
     "/api/channels/:id/pair",
     async (request, reply) => {
       const channelManager = fastify.channelManager;
@@ -161,10 +161,20 @@ export async function registerChannelRoutes(
         return reply.code(409).send({ error: "Channel already connected" });
       }
       try {
-        // Clear auth for fresh QR if channel is in error/logged_out state
+        // Clear auth for fresh pairing if channel is in error/logged_out state
         const needsFreshAuth =
           info.status === "error" || info.status === "logged_out";
         await channelManager.connectChannel(request.params.id, needsFreshAuth);
+
+        // If phone number provided, fire-and-forget pairing code request.
+        // The code will arrive via WebSocket `channel_pairing_code` event.
+        const phoneNumber = request.body?.phoneNumber;
+        if (phoneNumber) {
+          // Don't await — let it run async, code delivered via WS
+          channelManager.requestPairingCode(request.params.id, phoneNumber);
+        }
+        // Without phone number, QR code arrives via WebSocket `channel_qr_code`
+
         return reply.send({ ok: true });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -187,6 +197,48 @@ export async function registerChannelRoutes(
       }
       const token = handler.generateToken(request.params.id);
       return reply.send({ token });
+    },
+  );
+
+  // POST /api/channels/:id/remove-owner — clear owner identity
+  fastify.post<{ Params: { id: string } }>(
+    "/api/channels/:id/remove-owner",
+    async (request, reply) => {
+      const channelManager = fastify.channelManager;
+      if (!channelManager) {
+        return reply.code(404).send({ error: "No channels configured" });
+      }
+      const info = channelManager.getChannelInfo(request.params.id);
+      if (!info) {
+        return reply.code(404).send({ error: "Channel not found" });
+      }
+
+      // Clear owner from runtime config
+      channelManager.updateChannelConfig(request.params.id, {
+        ownerIdentities: undefined,
+        ownerJid: undefined,
+      });
+
+      // Persist to config.yaml
+      try {
+        saveChannelToConfig(
+          request.params.id,
+          { owner_identities: null, owner_jid: null },
+          fastify.agentDir,
+        );
+      } catch (err) {
+        console.error("[channels] Failed to persist owner removal:", err);
+      }
+
+      // Broadcast to all connected clients
+      if (fastify.connectionRegistry) {
+        fastify.connectionRegistry.broadcastToAll({
+          type: "channel_owner_removed",
+          channelId: request.params.id,
+        });
+      }
+
+      return reply.send({ ok: true });
     },
   );
 
