@@ -1807,13 +1807,16 @@ function chat() {
         const res = await fetch(`/api/conversations/${tab.data.conversationId}`);
         const data = await res.json();
         const turns = data.turns || data.messages || [];
-        // Reassign as new object to trigger Alpine reactivity on nested data
-        tab.data = { ...tab.data, turns, loading: false };
-        // Trigger array reactivity for desktop tab
+        // Mutate properties IN PLACE on the existing tab.data proxy so Alpine
+        // reactive bindings (x-show="tab.data?.loading") pick up the change.
+        // Replacing tab.data with a new object breaks the proxy chain.
+        tab.data.turns = turns;
+        tab.data.loading = false;
+        // Also trigger openTabs array reactivity to force x-for re-render
         this.openTabs = [...this.openTabs];
       } catch (err) {
         console.error("[App] Failed to load conversation:", err);
-        tab.data = { ...tab.data, loading: false };
+        tab.data.loading = false;
         this.openTabs = [...this.openTabs];
       }
     },
