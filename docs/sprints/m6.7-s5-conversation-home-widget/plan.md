@@ -28,9 +28,12 @@ These were discovered during the original sprint and MUST be followed:
 
 1. **`currentTitle` is a getter** — cannot be assigned directly. It derives from `currentConversationId` + `conversations` array.
 2. **Alpine store sync** — `ws-client.js` updates `Alpine.store("conversations").items`, and `Alpine.effect` at ~line 382 syncs it to the component's `conversations` property. The widget works reactively through this chain.
-3. **Mobile popover reactivity** — When updating popover data, reassign the entire `$store.mobile.popover` object. Mutating nested properties won't trigger Alpine re-render.
-4. **Tab restore from localStorage** — Conversation preview tabs restored on page load need to re-fetch transcript data. Add `_fetchConversationTabData()` for restored tabs.
-5. **Push after every commit.** `git push origin <branch>` immediately. The last sprint's work was lost because branches weren't pushed.
+3. **Mobile popover reactivity** — Set `mobile.popover.data = newData` on the Alpine proxy directly. Do NOT replace the entire popover store object. Use `x-show` (not `x-if`) in the popover template and reference `$store.mobile.popover.data` directly (no getter `x-data`). **Proven fix from recovered transcript:** `docs/recovery/whatsapp-stability/dashboard-reactivity-fixes.md`
+4. **Desktop tab reactivity** — `_fetchConversationTabData()` must reassign `tab.data` as a new object (`tab.data = { ...tab.data, turns, loading: false }`) AND trigger array reactivity with `this.openTabs = [...this.openTabs]`. Deep property mutation (`tab.data.turns = x`) is invisible to Alpine because tab is nested inside the openTabs array.
+5. **Tab restore from localStorage** — Conversation preview tabs restored on page load need to re-fetch transcript data via `_fetchConversationTabData()` (using the same reactivity-safe pattern from pitfall #4).
+6. **Scroll to visible container** — `scrollToBottom()` must check `offsetHeight > 0` to pick the visible container (desktop vs mobile — only one is rendered at a time). Mobile needs a 350ms delayed scroll after `conversation_loaded` to wait for the chat sheet CSS transition.
+7. **`x-show` over `x-if` for async data** — `x-if` destroys/recreates DOM. If data arrives after creation, the template may not re-evaluate. Use `x-show` for sections that toggle based on loading/loaded state.
+8. **Push after every commit.** `git push origin <branch>` immediately. The last sprint's work was lost because branches weren't pushed.
 
 ## ⚠️ Opus Review Corrections (post-plan)
 
@@ -603,3 +606,4 @@ git push origin <branch>
 - Analysis: `docs/recovery/m6.7-conversations/analysis.md` (Sections 1, 4, 5)
 - Before state: `docs/recovery/m6.7-conversations/file-reads-before-state.md` (full pre-S6 file state)
 - UX decisions: Analysis Section 4 (View vs Resume labels, two-line rows, etc.)
+- **Alpine reactivity fixes (proven):** `docs/recovery/whatsapp-stability/dashboard-reactivity-fixes.md` — desktop tab, mobile popover, and scroll fixes with exact code patterns
