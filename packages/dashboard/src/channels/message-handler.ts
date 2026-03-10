@@ -157,7 +157,14 @@ export class ChannelMessageHandler {
       );
     }
 
-    if (isOwnerMessage(channelConfig, first.from)) {
+    const senderNormalized = normalizeIdentity(first.from);
+    const isOwner = isOwnerMessage(channelConfig, first.from);
+    console.log(
+      `[ChannelMessageHandler] Message from "${first.from}" (normalized: "${senderNormalized}"), ` +
+      `ownerIdentities: ${JSON.stringify(channelConfig?.ownerIdentities)}, isOwner: ${isOwner}`
+    );
+
+    if (isOwner) {
       // Owner message → conversation flow
       await this.handleOwnerMessage(channelId, messages);
     } else {
