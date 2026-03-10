@@ -58,6 +58,12 @@ function chat() {
     ],
     activeTab: "home",
 
+    // Conversations widget state
+    convWidgetSearchOpen: false,
+    convSearchQuery: "",
+    convSearchResults: [],
+    convSearchLoading: false,
+
     // Chat context (pinned tab context, sent to Nina with messages)
     chatContext: null, // { type, title, icon, file?, conversationId? }
 
@@ -551,6 +557,34 @@ function chat() {
       window.haptic?.medium();
 
       this.ws.send({ type: "switch_conversation", conversationId });
+    },
+
+    async searchConversations() {
+      const q = this.convSearchQuery.trim();
+      if (!q) {
+        this.convSearchResults = [];
+        return;
+      }
+      this.convSearchLoading = true;
+      try {
+        const res = await fetch(
+          `/api/conversations/search?q=${encodeURIComponent(q)}&limit=20`,
+        );
+        const data = await res.json();
+        this.convSearchResults = (data.results || data || [])
+          .map((r) => ({
+            id: r.conversationId || r.id,
+            title: r.conversationTitle || r.title || "Conversation",
+            preview: r.snippet || r.preview || "",
+            timestamp: r.timestamp,
+          }))
+          .filter((r) => r.id !== this.currentConversationId);
+      } catch (err) {
+        console.error("[App] Conversation search failed:", err);
+        this.convSearchResults = [];
+      } finally {
+        this.convSearchLoading = false;
+      }
     },
 
     formatRelativeTime(isoString) {
@@ -1212,8 +1246,13 @@ function chat() {
         case "channel_qr_code": {
           // QR code received from server during pairing
           // Ignore QR codes if we're in phone pairing mode
-          if (this.pairingByPhone[data.channelId] || this.pairingCodes[data.channelId]) {
-            console.log(`[App] Ignoring QR code for ${data.channelId} - phone pairing active`);
+          if (
+            this.pairingByPhone[data.channelId] ||
+            this.pairingCodes[data.channelId]
+          ) {
+            console.log(
+              `[App] Ignoring QR code for ${data.channelId} - phone pairing active`,
+            );
             break;
           }
           // Store per-channel for auto-display when connecting
@@ -1737,6 +1776,81 @@ function chat() {
       });
     },
 
+    openConversationPreview(conv) {
+      if (this.$store.mobile.isMobile) {
+        // Mobile: open popover with loading state
+        const popoverData = {
+          conversationId: conv.id,
+          title: conv.title || "Conversation",
+          turns: [],
+          loading: true,
+        };
+        this.$store.mobile.openPopoverWithFocus(
+          "conversation",
+          popoverData,
+          null,
+        );
+        // Fetch and update with full object reassignment for Alpine reactivity
+        this._fetchConversationTabData({ data: popoverData }).then(() => {
+          this.$store.mobile.popover = {
+            type: "conversation",
+            data: { ...popoverData },
+          };
+        });
+      } else {
+        // Desktop: open left-panel tab
+        const tabId = `conv-${conv.id}`;
+        const tab = {
+          id: tabId,
+          type: "conversation",
+          title: conv.title || "Conversation",
+          icon: "💬",
+          closeable: true,
+          data: {
+            conversationId: conv.id,
+            title: conv.title || "Conversation",
+            turns: [],
+            loading: true,
+          },
+        };
+        this.openTab(tab);
+        // Fetch the proxied tab from openTabs so Alpine reactivity works
+        this.$nextTick(() => {
+          const proxyTab = this.openTabs.find((t) => t.id === tabId);
+          if (proxyTab) this._fetchConversationTabData(proxyTab);
+        });
+      }
+    },
+
+    async _fetchConversationTabData(tab) {
+      try {
+        const res = await fetch(
+          `/api/conversations/${tab.data.conversationId}`,
+        );
+        const data = await res.json();
+        const turns = data.turns || data.messages || [];
+        // Mutate properties IN PLACE on the existing tab.data proxy so Alpine
+        // reactive bindings (x-show="tab.data?.loading") pick up the change.
+        // Replacing tab.data with a new object breaks the proxy chain.
+        tab.data.turns = turns;
+        tab.data.loading = false;
+        // Also trigger openTabs array reactivity to force x-for re-render
+        this.openTabs = [...this.openTabs];
+      } catch (err) {
+        console.error("[App] Failed to load conversation:", err);
+        tab.data.loading = false;
+        this.openTabs = [...this.openTabs];
+      }
+    },
+
+    resumeConversation(conversationId) {
+      if (!conversationId) return;
+      this.switchConversation(conversationId);
+      if (this.$store.mobile.isMobile) {
+        this.$store.mobile.expandChat("half");
+      }
+    },
+
     getCurrentTabContext() {
       // Return pinned chat context (set when user views a tab)
       return this.chatContext;
@@ -1813,6 +1927,16 @@ function chat() {
             return t;
           });
           this.openTabs = state.openTabs;
+          // Re-fetch conversation tab transcripts after restore (nextTick avoids race with x-for render)
+          this.$nextTick(() => {
+            for (const tab of this.openTabs) {
+              if (tab.type === "conversation" && tab.data) {
+                tab.data.loading = true;
+                tab.data.turns = [];
+                this._fetchConversationTabData(tab);
+              }
+            }
+          });
         }
         if (state.activeTab) {
           // Verify active tab exists in openTabs
@@ -1853,7 +1977,12 @@ function chat() {
     },
 
     async logout() {
-      if (!confirm("Disconnect AI? You'll need to re-enter credentials to reconnect.")) return;
+      if (
+        !confirm(
+          "Disconnect AI? You'll need to re-enter credentials to reconnect.",
+        )
+      )
+        return;
       const res = await fetch("/api/auth/logout", { method: "POST" });
       if (!res.ok) {
         console.error("[App] Logout failed:", res.status);
@@ -4635,38 +4764,64 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     async loadNotebookWidgetContent() {
       this.notebookWidgetLoading = true;
       try {
-        // Fetch all files in parallel
+        // Fetch notebook tree first to know which files exist (avoids 404 spam)
+        let existingPaths = new Set();
+        try {
+          const treeRes = await fetch("/api/notebook");
+          if (treeRes.ok) {
+            const tree = await treeRes.json();
+            const collectPaths = (items) => {
+              for (const item of items || []) {
+                if (item.type === "file" && item.path)
+                  existingPaths.add(item.path);
+                if (item.children) collectPaths(item.children);
+              }
+            };
+            // Response shape: { tree: [...], summary: {...}, notebookDir }
+            collectPaths(tree.tree || []);
+          }
+        } catch (_) {
+          // Tree fetch failed — fall back to fetching all (will get 404s but handle gracefully)
+        }
+
+        const todayPath = `daily/${new Date().toISOString().slice(0, 10)}.md`;
+        const filesToFetch = [
+          "operations/standing-orders.md",
+          "operations/external-communications.md",
+          "lists/reminders.md",
+          "reference/contacts.md",
+          todayPath,
+        ];
+
+        // Only fetch files that are known to exist (if tree loaded), otherwise fetch all
+        const fetchFile = async (path) => {
+          if (existingPaths.size > 0 && !existingPaths.has(path)) return null;
+          try {
+            // Do NOT encodeURIComponent — the route is a wildcard /*
+            // and the server expects the raw path with forward slashes intact
+            const res = await fetch(`/api/notebook/${path}`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data.content || null;
+          } catch (_) {
+            return null;
+          }
+        };
+
         const [
           standingOrdersRes,
           externalCommsRes,
           remindersRes,
           contactsRes,
           todayRes,
-        ] = await Promise.allSettled([
-          fetch("/api/notebook/operations/standing-orders.md"),
-          fetch("/api/notebook/operations/external-communications.md"),
-          fetch("/api/notebook/lists/reminders.md"),
-          fetch("/api/notebook/reference/contacts.md"),
-          fetch(
-            `/api/notebook/daily/${new Date().toISOString().slice(0, 10)}.md`,
-          ),
-        ]);
+        ] = await Promise.all(filesToFetch.map(fetchFile));
 
-        // Helper to extract content from response
-        const getContent = async (res) => {
-          if (res.status === "fulfilled" && res.value.ok) {
-            const data = await res.value.json();
-            return data.content || "";
-          }
-          return null;
-        };
-
-        // Process results
-        const standingOrders = await getContent(standingOrdersRes);
-        const externalComms = await getContent(externalCommsRes);
-        const reminders = await getContent(remindersRes);
-        const contacts = await getContent(contactsRes);
-        const dailyLog = await getContent(todayRes);
+        // Results are already string | null from fetchFile()
+        const standingOrders = standingOrdersRes;
+        const externalComms = externalCommsRes;
+        const reminders = remindersRes;
+        const contacts = contactsRes;
+        const dailyLog = todayRes;
 
         // Combine content for each tab
         // Orders: standing-orders + external-communications

@@ -102,11 +102,6 @@ document.addEventListener("alpine:init", () => {
       // Haptic feedback for navigation
       window.haptic?.light();
 
-      // Close conv switcher if collapsing to peek
-      if (state === "peek" && this.convSwitcherOpen) {
-        this.convSwitcherOpen = false;
-      }
-
       const ratio =
         state === "peek"
           ? CHAT_RATIO_PEEK
@@ -118,7 +113,6 @@ document.addEventListener("alpine:init", () => {
 
     collapseChat() {
       if (!this.isMobile) return;
-      this.convSwitcherOpen = false;
       setChatRatio(CHAT_RATIO_PEEK);
     },
 
@@ -202,30 +196,6 @@ document.addEventListener("alpine:init", () => {
 
     get isPopoverOpen() {
       return this.popover !== null;
-    },
-
-    /* ── Conversation switcher (full chat state) ───────────────── */
-    convSwitcherOpen: false,
-
-    openConvSwitcher() {
-      if (!this.isMobile || this.chatState === "peek") return;
-      // Haptic feedback for navigation
-      window.haptic?.light();
-      this.convSwitcherOpen = true;
-    },
-
-    closeConvSwitcher() {
-      // Haptic feedback for navigation
-      window.haptic?.light();
-      this.convSwitcherOpen = false;
-    },
-
-    toggleConvSwitcher() {
-      if (this.convSwitcherOpen) {
-        this.closeConvSwitcher();
-      } else {
-        this.openConvSwitcher();
-      }
     },
 
     /* ── Focus management ──────────────────────────────────────── */
@@ -732,11 +702,6 @@ function initChatSheetGesture(el) {
     } else {
       /* Slow drag: snap to nearest preset based on current position */
       setChatRatio(nearestPreset(currentRatio));
-    }
-
-    // Close conv switcher if collapsing to peek
-    if (store.chatState === "peek" && store.convSwitcherOpen) {
-      store.convSwitcherOpen = false;
     }
   }
 

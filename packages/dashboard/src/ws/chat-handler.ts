@@ -580,9 +580,25 @@ export async function registerChatWebSocket(
     }
 
     /**
+     * Delete a conversation if it has no turns (empty conversation cleanup)
+     */
+    async function deleteIfEmpty(conversationId: string): Promise<void> {
+      if (!conversationId) return;
+      const conv = await conversationManager.get(conversationId);
+      if (conv && conv.turnCount === 0) {
+        await conversationManager.delete(conversationId);
+      }
+    }
+
+    /**
      * Handle new conversation
      */
     async function handleNewConversation(): Promise<void> {
+      // Delete the previous conversation if it's empty
+      if (currentConversationId) {
+        await deleteIfEmpty(currentConversationId);
+      }
+
       // Queue abbreviation for the conversation we're leaving
       queueAbbreviationForCurrent();
 
@@ -626,6 +642,11 @@ export async function registerChatWebSocket(
     async function handleSwitchConversation(
       conversationId: string,
     ): Promise<void> {
+      // Delete the previous conversation if it's empty
+      if (currentConversationId) {
+        await deleteIfEmpty(currentConversationId);
+      }
+
       // Queue abbreviation for the conversation we're leaving
       queueAbbreviationForCurrent();
 
