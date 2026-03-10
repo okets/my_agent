@@ -449,6 +449,8 @@ function chat() {
           this.currentThinkingText = "";
           this.isThinking = false;
           this.needsAuth = false;
+          // Refresh channels on reconnect to get current status
+          this.fetchChannels();
         },
         onClose: () => {
           console.log("[App] WebSocket disconnected");
