@@ -217,21 +217,38 @@ export class ChannelManager {
       return;
     }
 
-    // Auto-connect on startup if credentials exist (will show QR if not)
-    // Skip auto-connect for newly created channels that need explicit pairing
+    // Auto-connect on startup ONLY if credentials exist
+    // Skip auto-connect for newly created channels or channels without credentials
     if (config.processing === "immediate" && !skipConnect) {
-      // Enter pairing mode before connect to suppress reconnect loops during QR display.
-      // If the channel has valid credentials, it will connect successfully and clear this flag.
-      // If it needs QR pairing, this prevents rapid reconnect loops.
-      entry.pairing = true;
-      console.log(`[ChannelManager] Entering pairing mode for ${id} (startup)`);
-      try {
-        await plugin.connect();
-        console.log(`[ChannelManager] Connected channel: ${id}`);
-      } catch (err) {
-        console.error(`[ChannelManager] Failed to connect ${id}:`, err);
-        entry.status.lastError =
-          err instanceof Error ? err.message : String(err);
+      // Check if plugin has valid credentials before auto-connecting
+      const hasCredentials =
+        "hasValidCredentials" in plugin &&
+        typeof plugin.hasValidCredentials === "function"
+          ? await (plugin as { hasValidCredentials: () => Promise<boolean> }).hasValidCredentials()
+          : true; // Default to true for plugins that don't implement this
+
+      if (hasCredentials) {
+        // Enter pairing mode before connect to suppress reconnect loops during QR display.
+        entry.pairing = true;
+        console.log(`[ChannelManager] Auto-connecting ${id} (credentials found)`);
+        try {
+          await plugin.connect();
+          console.log(`[ChannelManager] Connected channel: ${id}`);
+        } catch (err) {
+          console.error(`[ChannelManager] Failed to connect ${id}:`, err);
+          entry.status.lastError =
+            err instanceof Error ? err.message : String(err);
+        }
+      } else {
+        // No credentials — wait for user to choose pairing method
+        console.log(`[ChannelManager] Channel ${id} needs pairing (no credentials)`);
+        entry.status = {
+          ...entry.status,
+          running: false,
+          connected: false,
+        };
+        // Notify handlers of the initial disconnected status
+        this.handlePluginStatus(id, entry.status);
       }
     }
 

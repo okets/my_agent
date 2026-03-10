@@ -3,7 +3,6 @@ import makeWASocket, {
   makeCacheableSignalKeyStore,
   DisconnectReason,
   downloadMediaMessage,
-  Browsers,
   fetchLatestBaileysVersion,
   type WASocket,
   type BaileysEventMap,
@@ -20,7 +19,7 @@ import type {
   PluginStatus,
 } from "@my-agent/core";
 import { initialStatus } from "@my-agent/core";
-import { CredentialSaveQueue } from "./auth.js";
+import { CredentialSaveQueue, CredentialBackupManager } from "./auth.js";
 import { qrToDataUrl } from "./qr.js";
 
 // ─────────────────────────────────────────────────────────────────
@@ -167,6 +166,11 @@ export class BaileysPlugin implements ChannelPlugin {
     }
 
     const authDir = this.resolveAuthDir();
+
+    // Ensure credentials are valid before loading — restore from backup if corrupted
+    const backupManager = new CredentialBackupManager(authDir);
+    await backupManager.ensureValidCredentials();
+
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
 
     // Fetch WhatsApp version (with fallback)
@@ -187,8 +191,8 @@ export class BaileysPlugin implements ChannelPlugin {
       },
       logger,
       printQRInTerminal: false,
-      // Explicit browser config for Linux/WSL2 compatibility
-      browser: Browsers.ubuntu("Chrome"),
+      // Custom client identity
+      browser: ["My-Agent", "Desktop", "1.0.0"],
       // Explicit version to avoid dynamic fetch failures
       version,
       // Don't mark as "online" — avoids conflicts with phone app presence
@@ -338,7 +342,11 @@ export class BaileysPlugin implements ChannelPlugin {
 
     // ── Event: credential updates ────────────────────────────────
     sock.ev.on("creds.update", () => {
-      this.saveQueue.enqueue(() => saveCreds());
+      this.saveQueue.enqueue(async () => {
+        await saveCreds();
+        // Backup credentials after each successful save
+        await backupManager.createBackup();
+      });
     });
 
     // ── Event: incoming messages ─────────────────────────────────
@@ -494,6 +502,28 @@ export class BaileysPlugin implements ChannelPlugin {
     };
 
     this.emitStatus();
+  }
+
+  /**
+   * Check if valid credentials exist (can auto-connect without pairing).
+   * Returns true if creds.json exists and contains valid JSON.
+   */
+  async hasValidCredentials(): Promise<boolean> {
+    const authDir = this.resolveAuthDir();
+    const backupManager = new CredentialBackupManager(authDir);
+    // Check if creds are valid (this also restores from backup if needed)
+    const fs = await import("fs/promises");
+    const credsPath = `${authDir}/creds.json`;
+    try {
+      const content = await fs.readFile(credsPath, "utf8");
+      if (!content || content.trim().length === 0) {
+        return false;
+      }
+      JSON.parse(content);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
