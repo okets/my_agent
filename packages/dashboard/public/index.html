@@ -692,13 +692,13 @@
                         <div class="flex-1 min-w-0">
                           <!-- Row 1: title + time -->
                           <div class="flex items-center gap-2">
-                            <span class="text-xs text-tokyo-text/80 truncate" x-text="conv.title || 'New conversation'"></span>
+                            <span class="text-xs text-tokyo-text/80 truncate flex-1" x-text="conv.title || 'New conversation'"></span>
                             <span class="text-[10px] text-tokyo-muted shrink-0" x-text="conv.updated ? formatRelativeTime(conv.updated) : ''"></span>
                           </div>
-                          <!-- Row 2: preview + count -->
-                          <div x-show="conv.preview || conv.turnCount" class="flex items-center gap-2 mt-0.5">
+                          <!-- Row 2: preview text (optional) + message count -->
+                          <div class="flex items-center gap-2 mt-0.5">
                             <span class="text-[11px] text-tokyo-muted truncate flex-1" x-text="conv.preview || ''"></span>
-                            <span class="text-[10px] text-tokyo-muted/70 shrink-0" x-text="(conv.turnCount || 0) + ' msgs'"></span>
+                            <span class="text-[10px] text-tokyo-muted/60 shrink-0" x-text="(conv.turnCount || 0) + ' msgs'"></span>
                           </div>
                         </div>
                         <!-- View arrow -->
