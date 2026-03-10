@@ -570,7 +570,7 @@ function chat() {
         const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(q)}&limit=20`);
         const data = await res.json();
         this.convSearchResults = (data.results || data || []).filter(
-          (r) => r.id !== this.currentConversationId && (r.turn_count || r.turnCount || 0) > 0
+          (r) => (r.conversationId || r.id) !== this.currentConversationId
         );
       } catch (err) {
         console.error("[App] Conversation search failed:", err);

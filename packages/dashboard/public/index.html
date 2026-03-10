@@ -658,18 +658,18 @@
                     <template x-if="convSearchResults.length === 0">
                       <div class="px-4 py-4 text-center text-xs text-tokyo-muted">No results found</div>
                     </template>
-                    <template x-for="result in convSearchResults" :key="result.id">
+                    <template x-for="result in convSearchResults" :key="result.conversationId || result.id">
                       <button
-                        @click="openConversationPreview({ id: result.id, title: result.title, turnCount: result.turn_count || result.turnCount || 1 })"
+                        @click="openConversationPreview({ id: result.conversationId || result.id, title: result.conversationTitle || result.title || 'Conversation', turnCount: 1 })"
                         class="w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors flex items-start gap-3 group"
                       >
                         <div class="flex-1 min-w-0">
                           <div class="flex items-center gap-2">
-                            <span class="text-xs text-tokyo-text/80 truncate" x-text="result.title || 'Conversation'"></span>
-                            <span class="text-[10px] text-tokyo-muted shrink-0" x-text="result.updated ? formatRelativeTime(result.updated) : ''"></span>
+                            <span class="text-xs text-tokyo-text/80 truncate" x-text="result.conversationTitle || result.title || 'Conversation'"></span>
+                            <span class="text-[10px] text-tokyo-muted shrink-0" x-text="result.timestamp ? formatRelativeTime(result.timestamp) : ''"></span>
                           </div>
-                          <div x-show="result.preview" class="mt-0.5">
-                            <span class="text-[11px] text-tokyo-muted truncate block" x-text="result.preview || ''"></span>
+                          <div x-show="result.snippet" class="mt-0.5">
+                            <span class="text-[11px] text-tokyo-muted truncate block" x-text="result.snippet || ''"></span>
                           </div>
                         </div>
                         <span class="text-[10px] text-tokyo-blue opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1">View &rarr;</span>
