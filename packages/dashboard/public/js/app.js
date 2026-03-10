@@ -1814,7 +1814,11 @@ function chat() {
           },
         };
         this.openTab(tab);
-        this.$nextTick(() => this._fetchConversationTabData(tab));
+        // Fetch the proxied tab from openTabs so Alpine reactivity works
+        this.$nextTick(() => {
+          const proxyTab = this.openTabs.find((t) => t.id === tabId);
+          if (proxyTab) this._fetchConversationTabData(proxyTab);
+        });
       }
     },
 
