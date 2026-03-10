@@ -1232,7 +1232,7 @@
 
                       <!-- Channel actions (for non-error states) -->
                       <template x-if="ch.status !== 'error'">
-                        <div class="flex flex-wrap items-center gap-2 px-4 pb-4 pt-0">
+                        <div class="px-4 pb-4 pt-0">
                           <!-- Connect/Pair options (for disconnected/logged_out channels) -->
                           <template
                             x-if="ch.status !== 'connected' && ch.status !== 'connecting' && !pairingCodes[ch.id]"
@@ -1266,48 +1266,51 @@
                             </button>
                           </template>
 
-                          <!-- Owner info + Remove button (when has owner) -->
-                          <template
-                            x-if="ch.status === 'connected' && !authTokens[ch.id] && ch.hasOwner"
-                          >
-                            <div class="flex items-center gap-2">
-                              <span class="text-xs text-tokyo-muted">
-                                Owner:
-                                <span
-                                  class="text-tokyo-text"
-                                  x-text="ch.ownerNumber || 'Verified'"
-                                ></span>
-                              </span>
-                              <button
-                                @click="removeOwner(ch.id)"
-                                class="text-xs px-2 py-1 rounded font-medium text-tokyo-muted hover:text-tokyo-text hover:bg-white/5 transition-colors"
-                              >
-                                Remove
-                              </button>
+                          <!-- Connected channel: owner badge + action buttons -->
+                          <template x-if="ch.status === 'connected' && !authTokens[ch.id]">
+                            <div class="flex items-center justify-between gap-3">
+                              <!-- Owner status badge (left) -->
+                              <template x-if="ch.hasOwner">
+                                <span class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20">
+                                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                  </svg>
+                                  <span x-text="ch.ownerNumber ? ch.ownerNumber : 'Owner Verified'"></span>
+                                </span>
+                              </template>
+                              <template x-if="!ch.hasOwner">
+                                <div></div>
+                              </template>
+
+                              <!-- Action buttons (right) -->
+                              <div class="flex items-center gap-1">
+                                <template x-if="ch.hasOwner">
+                                  <button
+                                    @click="removeOwner(ch.id)"
+                                    class="text-[11px] px-2.5 py-1 rounded-md font-medium bg-white/5 text-tokyo-muted hover:text-tokyo-text hover:bg-white/10 transition-colors border border-white/5"
+                                  >
+                                    Unverify
+                                  </button>
+                                </template>
+                                <button
+                                  @click="disconnectChannel(ch.id)"
+                                  class="text-[11px] px-2.5 py-1 rounded-md font-medium bg-white/5 text-tokyo-muted hover:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/20 transition-colors border border-white/5"
+                                >
+                                  Disconnect
+                                </button>
+                                <button
+                                  @click="removeChannel(ch.id)"
+                                  class="text-[11px] px-2.5 py-1 rounded-md font-medium bg-white/5 text-tokyo-muted hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-colors border border-white/5"
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             </div>
                           </template>
 
-                          <!-- Disconnect button (for connected channels) -->
-                          <template x-if="ch.status === 'connected'">
-                            <button
-                              @click="disconnectChannel(ch.id)"
-                              class="text-xs px-3 py-1.5 rounded-lg font-medium text-tokyo-muted hover:text-tokyo-red hover:bg-tokyo-red/10 transition-colors"
-                            >
-                              Disconnect
-                            </button>
-                          </template>
-
-                          <!-- Remove button (always visible) -->
-                          <button
-                            @click="removeChannel(ch.id)"
-                            class="text-xs px-3 py-1.5 rounded-lg font-medium text-tokyo-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                          >
-                            Remove
-                          </button>
-
                           <!-- Reconnect attempts info -->
                           <template x-if="ch.reconnectAttempts > 0">
-                            <span class="text-[10px] text-tokyo-muted ml-auto">
+                            <span class="text-[10px] text-tokyo-muted block mt-2">
                               Reconnect attempt
                               <span x-text="ch.reconnectAttempts"></span>
                             </span>
@@ -5219,9 +5222,10 @@
                   <button
                     x-show="!showAddChannel"
                     @click="showAddChannel = true"
-                    class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
+                    class="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 bg-[rgba(37,211,102,0.15)] text-[#25d366] active:bg-[rgba(37,211,102,0.25)]"
                   >
-                    + Add
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+                    Add WhatsApp
                   </button>
                 </div>
 
@@ -5521,11 +5525,11 @@
                       </template>
 
                       <!-- Actions for connected channels (mobile) -->
-                      <template x-if="channel.status === 'connected'">
-                        <div class="px-3 pb-3 flex flex-wrap gap-2">
+                      <template x-if="channel.status === 'connected' && !authTokens[channel.id]">
+                        <div class="px-3 pb-3 space-y-3">
                           <!-- Verify Owner (dedicated, no owner) -->
                           <template
-                            x-if="!authTokens[channel.id] && !channel.hasOwner && channel.role === 'dedicated'"
+                            x-if="!channel.hasOwner && channel.role === 'dedicated'"
                           >
                             <button
                               @click="requestAuthToken(channel.id)"
@@ -5534,38 +5538,40 @@
                               Verify Owner
                             </button>
                           </template>
-                          <!-- Owner info (when has owner) -->
-                          <template
-                            x-if="!authTokens[channel.id] && channel.hasOwner"
-                          >
-                            <div class="flex items-center gap-2">
-                              <span class="text-xs text-tokyo-muted">
-                                Owner:
-                                <span
-                                  class="text-tokyo-text"
-                                  x-text="channel.ownerNumber || 'Verified'"
-                                ></span>
-                              </span>
+
+                          <!-- Owner verified badge -->
+                          <template x-if="channel.hasOwner">
+                            <span class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20">
+                              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                              </svg>
+                              <span x-text="channel.ownerNumber ? channel.ownerNumber : 'Owner Verified'"></span>
+                            </span>
+                          </template>
+
+                          <!-- Action buttons row -->
+                          <div class="flex flex-wrap items-center gap-1.5">
+                            <template x-if="channel.hasOwner">
                               <button
                                 @click="removeOwner(channel.id)"
-                                class="text-xs px-2 py-1 rounded font-medium text-tokyo-muted active:text-tokyo-text active:bg-white/5"
+                                class="text-[11px] px-2.5 py-1.5 rounded-md font-medium bg-white/5 text-tokyo-muted active:text-tokyo-text active:bg-white/10 border border-white/5"
                               >
-                                Remove
+                                Unverify
                               </button>
-                            </div>
-                          </template>
-                          <button
-                            @click="disconnectChannel(channel.id)"
-                            class="text-xs px-3 py-1.5 rounded-lg font-medium text-tokyo-muted active:text-tokyo-red active:bg-tokyo-red/10"
-                          >
-                            Disconnect
-                          </button>
-                          <button
-                            @click="removeChannel(channel.id)"
-                            class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] active:bg-[rgba(247,118,142,0.25)]"
-                          >
-                            Remove
-                          </button>
+                            </template>
+                            <button
+                              @click="disconnectChannel(channel.id)"
+                              class="text-[11px] px-2.5 py-1.5 rounded-md font-medium bg-white/5 text-tokyo-muted active:text-amber-400 active:bg-amber-500/10 border border-white/5"
+                            >
+                              Disconnect
+                            </button>
+                            <button
+                              @click="removeChannel(channel.id)"
+                              class="text-[11px] px-2.5 py-1.5 rounded-md font-medium bg-white/5 text-tokyo-muted active:text-red-400 active:bg-red-500/10 border border-white/5"
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </div>
                       </template>
 
