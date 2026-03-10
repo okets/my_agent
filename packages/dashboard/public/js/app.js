@@ -4740,11 +4740,12 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
             const tree = await treeRes.json();
             const collectPaths = (items) => {
               for (const item of items || []) {
-                if (item.path) existingPaths.add(item.path);
+                if (item.type === "file" && item.path) existingPaths.add(item.path);
                 if (item.children) collectPaths(item.children);
               }
             };
-            collectPaths(tree.files || tree.items || tree || []);
+            // Response shape: { tree: [...], summary: {...}, notebookDir }
+            collectPaths(tree.tree || []);
           }
         } catch (_) {
           // Tree fetch failed — fall back to fetching all (will get 404s but handle gracefully)
@@ -4763,7 +4764,9 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         const fetchFile = async (path) => {
           if (existingPaths.size > 0 && !existingPaths.has(path)) return null;
           try {
-            const res = await fetch(`/api/notebook/${encodeURIComponent(path)}`);
+            // Do NOT encodeURIComponent — the route is a wildcard /*
+            // and the server expects the raw path with forward slashes intact
+            const res = await fetch(`/api/notebook/${path}`);
             if (!res.ok) return null;
             const data = await res.json();
             return data.content || null;
