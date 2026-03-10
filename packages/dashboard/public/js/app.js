@@ -567,11 +567,18 @@ function chat() {
       }
       this.convSearchLoading = true;
       try {
-        const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(q)}&limit=20`);
-        const data = await res.json();
-        this.convSearchResults = (data.results || data || []).filter(
-          (r) => (r.conversationId || r.id) !== this.currentConversationId
+        const res = await fetch(
+          `/api/conversations/search?q=${encodeURIComponent(q)}&limit=20`,
         );
+        const data = await res.json();
+        this.convSearchResults = (data.results || data || [])
+          .map((r) => ({
+            id: r.conversationId || r.id,
+            title: r.conversationTitle || r.title || "Conversation",
+            preview: r.snippet || r.preview || "",
+            timestamp: r.timestamp,
+          }))
+          .filter((r) => r.id !== this.currentConversationId);
       } catch (err) {
         console.error("[App] Conversation search failed:", err);
         this.convSearchResults = [];
@@ -1239,8 +1246,13 @@ function chat() {
         case "channel_qr_code": {
           // QR code received from server during pairing
           // Ignore QR codes if we're in phone pairing mode
-          if (this.pairingByPhone[data.channelId] || this.pairingCodes[data.channelId]) {
-            console.log(`[App] Ignoring QR code for ${data.channelId} - phone pairing active`);
+          if (
+            this.pairingByPhone[data.channelId] ||
+            this.pairingCodes[data.channelId]
+          ) {
+            console.log(
+              `[App] Ignoring QR code for ${data.channelId} - phone pairing active`,
+            );
             break;
           }
           // Store per-channel for auto-display when connecting
@@ -1773,7 +1785,11 @@ function chat() {
           turns: [],
           loading: true,
         };
-        this.$store.mobile.openPopoverWithFocus("conversation", popoverData, null);
+        this.$store.mobile.openPopoverWithFocus(
+          "conversation",
+          popoverData,
+          null,
+        );
         // Fetch and update with full object reassignment for Alpine reactivity
         this._fetchConversationTabData({ data: popoverData }).then(() => {
           this.$store.mobile.popover = {
@@ -1804,7 +1820,9 @@ function chat() {
 
     async _fetchConversationTabData(tab) {
       try {
-        const res = await fetch(`/api/conversations/${tab.data.conversationId}`);
+        const res = await fetch(
+          `/api/conversations/${tab.data.conversationId}`,
+        );
         const data = await res.json();
         const turns = data.turns || data.messages || [];
         // Mutate properties IN PLACE on the existing tab.data proxy so Alpine
@@ -1955,7 +1973,12 @@ function chat() {
     },
 
     async logout() {
-      if (!confirm("Disconnect AI? You'll need to re-enter credentials to reconnect.")) return;
+      if (
+        !confirm(
+          "Disconnect AI? You'll need to re-enter credentials to reconnect.",
+        )
+      )
+        return;
       const res = await fetch("/api/auth/logout", { method: "POST" });
       if (!res.ok) {
         console.error("[App] Logout failed:", res.status);
@@ -4745,7 +4768,8 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
             const tree = await treeRes.json();
             const collectPaths = (items) => {
               for (const item of items || []) {
-                if (item.type === "file" && item.path) existingPaths.add(item.path);
+                if (item.type === "file" && item.path)
+                  existingPaths.add(item.path);
                 if (item.children) collectPaths(item.children);
               }
             };

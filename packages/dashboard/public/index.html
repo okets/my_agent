@@ -612,10 +612,23 @@
             <!-- Conversations Widget -->
             <div class="glass-strong rounded-xl overflow-hidden mb-4 mt-4">
               <!-- Header -->
-              <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                <h2 class="text-sm font-semibold text-tokyo-text flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
-                    <path fill-rule="evenodd" d="M1 8.74c0 .983.713 1.825 1.69 1.943.764.092 1.534.164 2.31.216v2.35a.75.75 0 0 0 1.28.53l2.51-2.51c.366-.006.73-.02 1.093-.04 1.2-.065 2.157-.932 2.39-2.045A24.424 24.424 0 0 0 12.5 7c0-.734-.056-1.453-.164-2.153C12.134 3.682 11.044 2.75 9.826 2.75c-1.056-.053-2.125-.053-3.204 0-1.218 0-2.308.932-2.51 2.097A24.847 24.847 0 0 0 3.95 7c0 .596.034 1.179.1 1.747H3.93l-.002.002A2.48 2.48 0 0 1 3.5 8.74Zm5.25.01h.002a.75.75 0 0 1-.002 0Z" clip-rule="evenodd" />
+              <div
+                class="flex items-center justify-between px-4 py-3 border-b border-white/5"
+              >
+                <h2
+                  class="text-sm font-semibold text-tokyo-text flex items-center gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    class="w-3.5 h-3.5 text-tokyo-muted"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M1 8.74c0 .983.713 1.825 1.69 1.943.764.092 1.534.164 2.31.216v2.35a.75.75 0 0 0 1.28.53l2.51-2.51c.366-.006.73-.02 1.093-.04 1.2-.065 2.157-.932 2.39-2.045A24.424 24.424 0 0 0 12.5 7c0-.734-.056-1.453-.164-2.153C12.134 3.682 11.044 2.75 9.826 2.75c-1.056-.053-2.125-.053-3.204 0-1.218 0-2.308.932-2.51 2.097A24.847 24.847 0 0 0 3.95 7c0 .596.034 1.179.1 1.747H3.93l-.002.002A2.48 2.48 0 0 1 3.5 8.74Zm5.25.01h.002a.75.75 0 0 1-.002 0Z"
+                      clip-rule="evenodd"
+                    />
                   </svg>
                   Conversations
                 </h2>
@@ -626,14 +639,27 @@
                   :class="convWidgetSearchOpen ? 'bg-tokyo-blue/20 text-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text hover:bg-tokyo-card/50'"
                   title="Search conversations"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5">
-                    <path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    class="w-3.5 h-3.5"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z"
+                      clip-rule="evenodd"
+                    />
                   </svg>
                 </button>
               </div>
 
               <!-- Collapsible search input -->
-              <div x-show="convWidgetSearchOpen" x-transition class="px-4 py-2 border-b border-white/5">
+              <div
+                x-show="convWidgetSearchOpen"
+                x-transition
+                class="px-4 py-2 border-b border-white/5"
+              >
                 <input
                   x-ref="convWidgetSearchInput"
                   x-model="convSearchQuery"
@@ -648,43 +674,78 @@
               <!-- Conversation list -->
               <div class="max-h-[320px] overflow-y-auto">
                 <!-- Search loading -->
-                <div x-show="convWidgetSearchOpen && convSearchLoading" class="px-4 py-4 text-center text-xs text-tokyo-muted">
+                <div
+                  x-show="convWidgetSearchOpen && convSearchLoading"
+                  class="px-4 py-4 text-center text-xs text-tokyo-muted"
+                >
                   Searching...
                 </div>
 
                 <!-- Search results -->
-                <template x-if="convWidgetSearchOpen && !convSearchLoading && convSearchQuery.trim()">
+                <template
+                  x-if="convWidgetSearchOpen && !convSearchLoading && convSearchQuery.trim()"
+                >
                   <div>
                     <template x-if="convSearchResults.length === 0">
-                      <div class="px-4 py-4 text-center text-xs text-tokyo-muted">No results found</div>
+                      <div
+                        class="px-4 py-4 text-center text-xs text-tokyo-muted"
+                      >
+                        No results found
+                      </div>
                     </template>
-                    <template x-for="result in convSearchResults" :key="result.conversationId || result.id">
+                    <template
+                      x-for="result in convSearchResults"
+                      :key="result.id"
+                    >
                       <button
-                        @click="openConversationPreview({ id: result.conversationId || result.id, title: result.conversationTitle || result.title || 'Conversation', turnCount: 1 })"
+                        @click="openConversationPreview({ id: result.id, title: result.title, turnCount: 1 })"
                         class="w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors flex items-start gap-3 group"
                       >
                         <div class="flex-1 min-w-0">
                           <div class="flex items-center gap-2">
-                            <span class="text-xs text-tokyo-text/80 truncate" x-text="result.conversationTitle || result.title || 'Conversation'"></span>
-                            <span class="text-[10px] text-tokyo-muted shrink-0" x-text="result.timestamp ? formatRelativeTime(result.timestamp) : ''"></span>
+                            <span
+                              class="text-xs text-tokyo-text/80 truncate"
+                              x-text="result.title"
+                            ></span>
+                            <span
+                              class="text-[10px] text-tokyo-muted shrink-0"
+                              x-text="result.timestamp ? formatRelativeTime(result.timestamp) : ''"
+                            ></span>
                           </div>
-                          <div x-show="result.snippet" class="mt-0.5">
-                            <span class="text-[11px] text-tokyo-muted truncate block" x-text="result.snippet || ''"></span>
+                          <div x-show="result.preview" class="mt-0.5">
+                            <span
+                              class="text-[11px] text-tokyo-muted truncate block"
+                              x-text="result.preview"
+                            ></span>
                           </div>
                         </div>
-                        <span class="text-[10px] text-tokyo-blue opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1">View &rarr;</span>
+                        <span
+                          class="text-[10px] text-tokyo-blue opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1"
+                          >View &rarr;</span
+                        >
                       </button>
                     </template>
                   </div>
                 </template>
 
                 <!-- Normal list (when not searching) -->
-                <template x-if="!convWidgetSearchOpen || !convSearchQuery.trim()">
+                <template
+                  x-if="!convWidgetSearchOpen || !convSearchQuery.trim()"
+                >
                   <div>
-                    <template x-if="conversations.filter(c => c.id !== currentConversationId && c.turnCount > 0).length === 0">
-                      <div class="px-4 py-4 text-center text-xs text-tokyo-muted">No past conversations</div>
+                    <template
+                      x-if="conversations.filter(c => c.id !== currentConversationId && c.turnCount > 0).length === 0"
+                    >
+                      <div
+                        class="px-4 py-4 text-center text-xs text-tokyo-muted"
+                      >
+                        No past conversations
+                      </div>
                     </template>
-                    <template x-for="conv in conversations.filter(c => c.id !== currentConversationId && c.turnCount > 0)" :key="conv.id">
+                    <template
+                      x-for="conv in conversations.filter(c => c.id !== currentConversationId && c.turnCount > 0)"
+                      :key="conv.id"
+                    >
                       <button
                         @click="openConversationPreview(conv)"
                         class="w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors flex items-start gap-3 group"
@@ -692,17 +753,32 @@
                         <div class="flex-1 min-w-0">
                           <!-- Row 1: title + time -->
                           <div class="flex items-center gap-2">
-                            <span class="text-xs text-tokyo-text/80 truncate flex-1" x-text="conv.title || 'New conversation'"></span>
-                            <span class="text-[10px] text-tokyo-muted shrink-0" x-text="conv.updated ? formatRelativeTime(conv.updated) : ''"></span>
+                            <span
+                              class="text-xs text-tokyo-text/80 truncate flex-1"
+                              x-text="conv.title || 'New conversation'"
+                            ></span>
+                            <span
+                              class="text-[10px] text-tokyo-muted shrink-0"
+                              x-text="conv.updated ? formatRelativeTime(conv.updated) : ''"
+                            ></span>
                           </div>
                           <!-- Row 2: preview text (optional) + message count -->
                           <div class="flex items-center gap-2 mt-0.5">
-                            <span class="text-[11px] text-tokyo-muted truncate flex-1" x-text="conv.preview || ''"></span>
-                            <span class="text-[10px] text-tokyo-muted/60 shrink-0" x-text="(conv.turnCount || 0) + ' msgs'"></span>
+                            <span
+                              class="text-[11px] text-tokyo-muted truncate flex-1"
+                              x-text="conv.preview || ''"
+                            ></span>
+                            <span
+                              class="text-[10px] text-tokyo-muted/60 shrink-0"
+                              x-text="(conv.turnCount || 0) + ' msgs'"
+                            ></span>
                           </div>
                         </div>
                         <!-- View arrow -->
-                        <span class="text-[10px] text-tokyo-blue opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1">View &rarr;</span>
+                        <span
+                          class="text-[10px] text-tokyo-blue opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1"
+                          >View &rarr;</span
+                        >
                       </button>
                     </template>
                   </div>
@@ -1033,10 +1109,20 @@
                     @click="showAddChannel = true"
                     class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5"
                     style="background: rgba(37, 211, 102, 0.15); color: #25d366"
-                    onmouseover="this.style.background = 'rgba(37,211,102,0.25)'"
+                    onmouseover="
+                      this.style.background = 'rgba(37,211,102,0.25)'
+                    "
                     onmouseout="this.style.background = 'rgba(37,211,102,0.15)'"
                   >
-                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+                    <svg
+                      class="w-3.5 h-3.5"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"
+                      />
+                    </svg>
                     Add WhatsApp
                   </button>
                 </div>
@@ -1368,20 +1454,38 @@
                           </template>
 
                           <!-- Connected channel: owner badge + action buttons -->
-                          <template x-if="ch.status === 'connected' && !authTokens[ch.id]">
+                          <template
+                            x-if="ch.status === 'connected' && !authTokens[ch.id]"
+                          >
                             <div class="flex flex-wrap items-center gap-2">
                               <!-- Owner status badge -->
                               <template x-if="ch.hasOwner">
-                                <span class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20">
-                                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                <span
+                                  class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20"
+                                >
+                                  <svg
+                                    class="w-3.5 h-3.5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                                    />
                                   </svg>
-                                  <span x-text="ch.ownerNumber ? ch.ownerNumber : 'Owner Verified'"></span>
+                                  <span
+                                    x-text="ch.ownerNumber ? ch.ownerNumber : 'Owner Verified'"
+                                  ></span>
                                 </span>
                               </template>
 
                               <!-- Action buttons -->
-                              <div class="flex flex-wrap items-center gap-1 ml-auto">
+                              <div
+                                class="flex flex-wrap items-center gap-1 ml-auto"
+                              >
                                 <template x-if="ch.hasOwner">
                                   <button
                                     @click="removeOwner(ch.id)"
@@ -1408,7 +1512,9 @@
 
                           <!-- Reconnect attempts info -->
                           <template x-if="ch.reconnectAttempts > 0">
-                            <span class="text-[10px] text-tokyo-muted block mt-2">
+                            <span
+                              class="text-[10px] text-tokyo-muted block mt-2"
+                            >
                               Reconnect attempt
                               <span x-text="ch.reconnectAttempts"></span>
                             </span>
@@ -1417,7 +1523,9 @@
                       </template>
 
                       <!-- Phone number input (desktop) -->
-                      <template x-if="pairingByPhone[ch.id] && !pairingCodes[ch.id] && ch.status !== 'connected'">
+                      <template
+                        x-if="pairingByPhone[ch.id] && !pairingCodes[ch.id] && ch.status !== 'connected'"
+                      >
                         <div class="p-4 border-t border-white/5">
                           <div class="flex flex-wrap items-center gap-2">
                             <input
@@ -1452,14 +1560,23 @@
                       <template x-if="pairingCodes[ch.id]">
                         <div class="p-4 border-t border-white/5">
                           <p class="text-xs text-tokyo-muted mb-3">
-                            Open WhatsApp on the phone &rarr; Settings &rarr; Linked Devices &rarr; Link a Device &rarr; enter this code:
+                            Open WhatsApp on the phone &rarr; Settings &rarr;
+                            Linked Devices &rarr; Link a Device &rarr; enter
+                            this code:
                           </p>
                           <div
                             @click="copyPairingCode(ch.id)"
                             class="relative px-6 py-4 rounded-lg bg-white/5 border border-white/10 font-mono text-3xl tracking-[0.2em] text-tokyo-text text-center cursor-pointer hover:bg-white/10 transition-colors"
                           >
-                            <span x-show="!codeCopied[ch.id]" x-text="formatPairingCode(pairingCodes[ch.id])"></span>
-                            <span x-show="codeCopied[ch.id]" class="text-green-400 text-xl">Copied!</span>
+                            <span
+                              x-show="!codeCopied[ch.id]"
+                              x-text="formatPairingCode(pairingCodes[ch.id])"
+                            ></span>
+                            <span
+                              x-show="codeCopied[ch.id]"
+                              class="text-green-400 text-xl"
+                              >Copied!</span
+                            >
                             <svg
                               class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tokyo-muted"
                               fill="none"
@@ -1474,7 +1591,9 @@
                               />
                             </svg>
                           </div>
-                          <p class="text-[10px] text-tokyo-muted mt-2 text-center">
+                          <p
+                            class="text-[10px] text-tokyo-muted mt-2 text-center"
+                          >
                             Waiting for confirmation...
                           </p>
                           <div class="mt-3 text-center">
@@ -1799,10 +1918,19 @@
                         class="w-full text-left p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors disabled:opacity-50"
                       >
                         <div class="text-sm text-tokyo-text">
-                          <span x-show="!embeddingsActivating">Local Embeddings</span>
-                          <span x-show="embeddingsActivating" class="text-tokyo-blue animate-pulse">Downloading model...</span>
+                          <span x-show="!embeddingsActivating"
+                            >Local Embeddings</span
+                          >
+                          <span
+                            x-show="embeddingsActivating"
+                            class="text-tokyo-blue animate-pulse"
+                            >Downloading model...</span
+                          >
                         </div>
-                        <div x-show="!embeddingsActivating" class="text-[10px] text-tokyo-muted">
+                        <div
+                          x-show="!embeddingsActivating"
+                          class="text-[10px] text-tokyo-muted"
+                        >
                           embeddinggemma-300M (~328MB download)
                         </div>
                       </button>
@@ -2129,7 +2257,9 @@
                 <h3
                   class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
                 >
-                  <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                  <span
+                    class="w-2 h-2 rounded-full bg-green-400 animate-pulse"
+                  ></span>
                   AI Connection
                 </h3>
                 <div class="flex items-center justify-between">
@@ -2698,13 +2828,23 @@
             x-for="tab in openTabs.filter(t => t.type === 'conversation')"
             :key="tab.id"
           >
-            <div x-show="activeTab === tab.id" class="p-6 h-full overflow-y-auto" x-cloak>
+            <div
+              x-show="activeTab === tab.id"
+              class="p-6 h-full overflow-y-auto"
+              x-cloak
+            >
               <div class="max-w-2xl mx-auto">
                 <!-- Header: title + resume button -->
                 <div class="flex items-center justify-between mb-4">
                   <div>
-                    <h2 class="text-lg font-semibold" x-text="tab.data?.title || 'Conversation'"></h2>
-                    <span class="text-xs text-tokyo-muted" x-text="(tab.data?.turns?.length || 0) + ' messages'"></span>
+                    <h2
+                      class="text-lg font-semibold"
+                      x-text="tab.data?.title || 'Conversation'"
+                    ></h2>
+                    <span
+                      class="text-xs text-tokyo-muted"
+                      x-text="(tab.data?.turns?.length || 0) + ' messages'"
+                    ></span>
                   </div>
                   <button
                     @click="resumeConversation(tab.data?.conversationId); closeTab(tab.id)"
@@ -2714,16 +2854,29 @@
                   </button>
                 </div>
                 <!-- Loading state -->
-                <div x-show="tab.data?.loading" class="text-center py-8 text-tokyo-muted text-sm">Loading...</div>
+                <div
+                  x-show="tab.data?.loading"
+                  class="text-center py-8 text-tokyo-muted text-sm"
+                >
+                  Loading...
+                </div>
                 <!-- Transcript -->
                 <div x-show="!tab.data?.loading" class="space-y-3">
-                  <template x-for="turn in (tab.data?.turns || [])" :key="turn.timestamp || turn.id">
-                    <div :class="turn.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                  <template
+                    x-for="turn in (tab.data?.turns || [])"
+                    :key="turn.timestamp || turn.id"
+                  >
+                    <div
+                      :class="turn.role === 'user' ? 'flex justify-end' : 'flex justify-start'"
+                    >
                       <div
                         class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm"
                         :class="turn.role === 'user' ? 'user-bubble' : 'assistant-bubble'"
                       >
-                        <div class="chat-md" x-html="renderMarkdown(turn.content || turn.text || '')"></div>
+                        <div
+                          class="chat-md"
+                          x-html="renderMarkdown(turn.content || turn.text || '')"
+                        ></div>
                       </div>
                     </div>
                   </template>
@@ -5184,7 +5337,15 @@
                     @click="showAddChannel = true"
                     class="text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 bg-[rgba(37,211,102,0.15)] text-[#25d366] active:bg-[rgba(37,211,102,0.25)]"
                   >
-                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+                    <svg
+                      class="w-3.5 h-3.5"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"
+                      />
+                    </svg>
                     Add WhatsApp
                   </button>
                 </div>
@@ -5197,7 +5358,9 @@
                 >
                   <div class="space-y-3">
                     <div>
-                      <label class="block text-xs text-tokyo-muted mb-1">Channel ID</label>
+                      <label class="block text-xs text-tokyo-muted mb-1"
+                        >Channel ID</label
+                      >
                       <input
                         type="text"
                         x-model="newChannel.id"
@@ -5206,17 +5369,24 @@
                       />
                     </div>
                     <div>
-                      <label class="block text-xs text-tokyo-muted mb-1">Role</label>
+                      <label class="block text-xs text-tokyo-muted mb-1"
+                        >Role</label
+                      >
                       <select
                         x-model="newChannel.role"
                         class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-tokyo-text focus:border-[#e07a5f]/50 focus:outline-none"
                       >
-                        <option value="dedicated">Dedicated (agent's own number)</option>
+                        <option value="dedicated">
+                          Dedicated (agent's own number)
+                        </option>
                         <option value="personal">Personal (your number)</option>
                       </select>
                     </div>
                     <template x-if="addChannelError">
-                      <p class="text-xs text-red-400" x-text="addChannelError"></p>
+                      <p
+                        class="text-xs text-red-400"
+                        x-text="addChannelError"
+                      ></p>
                     </template>
                     <div class="flex gap-2">
                       <button
@@ -5238,7 +5408,9 @@
                 </div>
 
                 <template x-if="channels.length === 0 && !showAddChannel">
-                  <p class="text-sm text-tokyo-muted">No channels configured. Tap "+ Add" to get started.</p>
+                  <p class="text-sm text-tokyo-muted">
+                    No channels configured. Tap "+ Add" to get started.
+                  </p>
                 </template>
                 <div class="space-y-3">
                   <template x-for="channel in channels" :key="channel.id">
@@ -5366,7 +5538,9 @@
                       </template>
 
                       <!-- Pair options (mobile — two-tab design) -->
-                      <template x-if="channel.status !== 'error' && channel.status !== 'connected' && channel.status !== 'connecting' && !pairingCodes[channel.id] && !(pairingChannelId === channel.id && qrCodeDataUrl)">
+                      <template
+                        x-if="channel.status !== 'error' && channel.status !== 'connected' && channel.status !== 'connecting' && !pairingCodes[channel.id] && !(pairingChannelId === channel.id && qrCodeDataUrl)"
+                      >
                         <div class="px-3 pb-3">
                           <!-- Tab bar -->
                           <div class="flex rounded-lg bg-white/5 p-1 mb-3">
@@ -5391,7 +5565,9 @@
                           </div>
 
                           <!-- Phone Number tab content -->
-                          <template x-if="getPairingTab(channel.id) === 'phone'">
+                          <template
+                            x-if="getPairingTab(channel.id) === 'phone'"
+                          >
                             <div class="flex flex-col gap-2">
                               <template x-if="!pairingStarted[channel.id]">
                                 <button
@@ -5420,7 +5596,8 @@
                                     </button>
                                   </div>
                                   <p class="text-[10px] text-tokyo-muted">
-                                    Any format: +1-555-123-4567, 15551234567, etc.
+                                    Any format: +1-555-123-4567, 15551234567,
+                                    etc.
                                   </p>
                                 </div>
                               </template>
@@ -5436,7 +5613,9 @@
                               >
                                 Generate QR Code
                               </button>
-                              <p class="text-[10px] text-tokyo-muted text-center">
+                              <p
+                                class="text-[10px] text-tokyo-muted text-center"
+                              >
                                 Scan with WhatsApp to link this device
                               </p>
                             </div>
@@ -5448,14 +5627,22 @@
                       <template x-if="pairingCodes[channel.id]">
                         <div class="p-3 border-t border-white/5">
                           <p class="text-xs text-tokyo-muted mb-2">
-                            WhatsApp &rarr; Linked Devices &rarr; Link a Device &rarr; enter code:
+                            WhatsApp &rarr; Linked Devices &rarr; Link a Device
+                            &rarr; enter code:
                           </p>
                           <div
                             @click="copyPairingCode(channel.id)"
                             class="relative px-4 py-3 rounded-lg bg-white/5 border border-white/10 font-mono text-2xl tracking-[0.15em] text-tokyo-text text-center cursor-pointer active:bg-white/10 transition-colors"
                           >
-                            <span x-show="!codeCopied[channel.id]" x-text="formatPairingCode(pairingCodes[channel.id])"></span>
-                            <span x-show="codeCopied[channel.id]" class="text-green-400 text-lg">Copied!</span>
+                            <span
+                              x-show="!codeCopied[channel.id]"
+                              x-text="formatPairingCode(pairingCodes[channel.id])"
+                            ></span>
+                            <span
+                              x-show="codeCopied[channel.id]"
+                              class="text-green-400 text-lg"
+                              >Copied!</span
+                            >
                             <svg
                               class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-tokyo-muted"
                               fill="none"
@@ -5470,7 +5657,9 @@
                               />
                             </svg>
                           </div>
-                          <p class="text-[10px] text-tokyo-muted mt-1.5 text-center">
+                          <p
+                            class="text-[10px] text-tokyo-muted mt-1.5 text-center"
+                          >
                             Waiting for confirmation...
                           </p>
                           <div class="mt-3 text-center">
@@ -5485,7 +5674,9 @@
                       </template>
 
                       <!-- Actions for connected channels (mobile) -->
-                      <template x-if="channel.status === 'connected' && !authTokens[channel.id]">
+                      <template
+                        x-if="channel.status === 'connected' && !authTokens[channel.id]"
+                      >
                         <div class="px-3 pb-3 space-y-3">
                           <!-- Verify Owner (dedicated, no owner) -->
                           <template
@@ -5501,11 +5692,25 @@
 
                           <!-- Owner verified badge -->
                           <template x-if="channel.hasOwner">
-                            <span class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20">
-                              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            <span
+                              class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20"
+                            >
+                              <svg
+                                class="w-3.5 h-3.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="2"
+                                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                                />
                               </svg>
-                              <span x-text="channel.ownerNumber ? channel.ownerNumber : 'Owner Verified'"></span>
+                              <span
+                                x-text="channel.ownerNumber ? channel.ownerNumber : 'Owner Verified'"
+                              ></span>
                             </span>
                           </template>
 
@@ -5536,7 +5741,9 @@
                       </template>
 
                       <!-- Remove button for disconnected/logged_out channels (mobile) -->
-                      <template x-if="channel.status === 'disconnected' || channel.status === 'logged_out'">
+                      <template
+                        x-if="channel.status === 'disconnected' || channel.status === 'logged_out'"
+                      >
                         <div class="px-3 pb-3">
                           <button
                             @click="removeChannel(channel.id)"
@@ -5551,9 +5758,13 @@
                       <template
                         x-if="authTokens[channel.id] && channel.status === 'connected'"
                       >
-                        <div class="p-3 border-t border-white/5 flex flex-col items-center gap-2">
+                        <div
+                          class="p-3 border-t border-white/5 flex flex-col items-center gap-2"
+                        >
                           <div class="flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                            <span
+                              class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"
+                            ></span>
                             <p class="text-xs text-amber-400 font-medium">
                               Owner Verification
                             </p>
@@ -5771,8 +5982,14 @@
                         :disabled="embeddingsActivating"
                         class="w-full text-left p-2 rounded bg-white/5 text-xs text-tokyo-text"
                       >
-                        <span x-show="!embeddingsActivating">Local Embeddings</span>
-                        <span x-show="embeddingsActivating" class="text-tokyo-blue animate-pulse">Downloading model...</span>
+                        <span x-show="!embeddingsActivating"
+                          >Local Embeddings</span
+                        >
+                        <span
+                          x-show="embeddingsActivating"
+                          class="text-tokyo-blue animate-pulse"
+                          >Downloading model...</span
+                        >
                       </button>
                       <button
                         @click="showOllamaSetup = true"
@@ -5969,8 +6186,12 @@
 
               <!-- AI Connection section (mobile) -->
               <div class="glass-strong rounded-xl p-4">
-                <h3 class="text-sm font-semibold text-tokyo-text mb-3 flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                <h3
+                  class="text-sm font-semibold text-tokyo-text mb-3 flex items-center gap-2"
+                >
+                  <span
+                    class="w-2 h-2 rounded-full bg-green-400 animate-pulse"
+                  ></span>
                   AI Connection
                 </h3>
                 <div class="flex items-center justify-between">
@@ -6368,8 +6589,14 @@
               <!-- Header: title + resume + close -->
               <div class="flex items-start justify-between gap-3 mb-4">
                 <div class="flex-1 min-w-0">
-                  <h2 class="text-base font-semibold text-tokyo-text truncate" x-text="$store.mobile.popover?.data?.title || 'Conversation'"></h2>
-                  <span class="text-xs text-tokyo-muted" x-text="($store.mobile.popover?.data?.turns?.length || 0) + ' messages'"></span>
+                  <h2
+                    class="text-base font-semibold text-tokyo-text truncate"
+                    x-text="$store.mobile.popover?.data?.title || 'Conversation'"
+                  ></h2>
+                  <span
+                    class="text-xs text-tokyo-muted"
+                    x-text="($store.mobile.popover?.data?.turns?.length || 0) + ' messages'"
+                  ></span>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
                   <button
@@ -6387,18 +6614,32 @@
                 </div>
               </div>
               <!-- Loading state -->
-              <div x-show="$store.mobile.popover?.data?.loading" class="text-center py-8 text-tokyo-muted text-sm">
+              <div
+                x-show="$store.mobile.popover?.data?.loading"
+                class="text-center py-8 text-tokyo-muted text-sm"
+              >
                 Loading...
               </div>
               <!-- Transcript -->
-              <div x-show="!$store.mobile.popover?.data?.loading" class="space-y-3">
-                <template x-for="turn in ($store.mobile.popover?.data?.turns || [])" :key="turn.timestamp || turn.id">
-                  <div :class="turn.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+              <div
+                x-show="!$store.mobile.popover?.data?.loading"
+                class="space-y-3"
+              >
+                <template
+                  x-for="turn in ($store.mobile.popover?.data?.turns || [])"
+                  :key="turn.timestamp || turn.id"
+                >
+                  <div
+                    :class="turn.role === 'user' ? 'flex justify-end' : 'flex justify-start'"
+                  >
                     <div
                       class="max-w-[85%] rounded-2xl px-3 py-2 text-sm"
                       :class="turn.role === 'user' ? 'user-bubble' : 'assistant-bubble'"
                     >
-                      <div class="chat-md" x-html="renderMarkdown(turn.content || turn.text || '')"></div>
+                      <div
+                        class="chat-md"
+                        x-html="renderMarkdown(turn.content || turn.text || '')"
+                      ></div>
                     </div>
                   </div>
                 </template>
@@ -6662,7 +6903,10 @@
             </div>
 
             <!-- Messages area -->
-            <div x-ref="mobileMessagesContainer" class="chat-messages-area flex-1 p-4 space-y-4">
+            <div
+              x-ref="mobileMessagesContainer"
+              class="chat-messages-area flex-1 p-4 space-y-4"
+            >
               <template x-for="msg in messages" :key="msg.id">
                 <div
                   class="msg-enter"
