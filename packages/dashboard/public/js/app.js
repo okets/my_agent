@@ -4732,38 +4732,60 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     async loadNotebookWidgetContent() {
       this.notebookWidgetLoading = true;
       try {
-        // Fetch all files in parallel
+        // Fetch notebook tree first to know which files exist (avoids 404 spam)
+        let existingPaths = new Set();
+        try {
+          const treeRes = await fetch("/api/notebook");
+          if (treeRes.ok) {
+            const tree = await treeRes.json();
+            const collectPaths = (items) => {
+              for (const item of items || []) {
+                if (item.path) existingPaths.add(item.path);
+                if (item.children) collectPaths(item.children);
+              }
+            };
+            collectPaths(tree.files || tree.items || tree || []);
+          }
+        } catch (_) {
+          // Tree fetch failed — fall back to fetching all (will get 404s but handle gracefully)
+        }
+
+        const todayPath = `daily/${new Date().toISOString().slice(0, 10)}.md`;
+        const filesToFetch = [
+          "operations/standing-orders.md",
+          "operations/external-communications.md",
+          "lists/reminders.md",
+          "reference/contacts.md",
+          todayPath,
+        ];
+
+        // Only fetch files that are known to exist (if tree loaded), otherwise fetch all
+        const fetchFile = async (path) => {
+          if (existingPaths.size > 0 && !existingPaths.has(path)) return null;
+          try {
+            const res = await fetch(`/api/notebook/${encodeURIComponent(path)}`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            return data.content || null;
+          } catch (_) {
+            return null;
+          }
+        };
+
         const [
           standingOrdersRes,
           externalCommsRes,
           remindersRes,
           contactsRes,
           todayRes,
-        ] = await Promise.allSettled([
-          fetch("/api/notebook/operations/standing-orders.md"),
-          fetch("/api/notebook/operations/external-communications.md"),
-          fetch("/api/notebook/lists/reminders.md"),
-          fetch("/api/notebook/reference/contacts.md"),
-          fetch(
-            `/api/notebook/daily/${new Date().toISOString().slice(0, 10)}.md`,
-          ),
-        ]);
+        ] = await Promise.all(filesToFetch.map(fetchFile));
 
-        // Helper to extract content from response
-        const getContent = async (res) => {
-          if (res.status === "fulfilled" && res.value.ok) {
-            const data = await res.value.json();
-            return data.content || "";
-          }
-          return null;
-        };
-
-        // Process results
-        const standingOrders = await getContent(standingOrdersRes);
-        const externalComms = await getContent(externalCommsRes);
-        const reminders = await getContent(remindersRes);
-        const contacts = await getContent(contactsRes);
-        const dailyLog = await getContent(todayRes);
+        // Results are already string | null from fetchFile()
+        const standingOrders = standingOrdersRes;
+        const externalComms = externalCommsRes;
+        const reminders = remindersRes;
+        const contacts = contactsRes;
+        const dailyLog = todayRes;
 
         // Combine content for each tab
         // Orders: standing-orders + external-communications
