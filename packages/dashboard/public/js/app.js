@@ -58,6 +58,12 @@ function chat() {
     ],
     activeTab: "home",
 
+    // Conversations widget state
+    convWidgetSearchOpen: false,
+    convSearchQuery: "",
+    convSearchResults: [],
+    convSearchLoading: false,
+
     // Chat context (pinned tab context, sent to Nina with messages)
     chatContext: null, // { type, title, icon, file?, conversationId? }
 
@@ -551,6 +557,27 @@ function chat() {
       window.haptic?.medium();
 
       this.ws.send({ type: "switch_conversation", conversationId });
+    },
+
+    async searchConversations() {
+      const q = this.convSearchQuery.trim();
+      if (!q) {
+        this.convSearchResults = [];
+        return;
+      }
+      this.convSearchLoading = true;
+      try {
+        const res = await fetch(`/api/conversations/search?q=${encodeURIComponent(q)}&limit=20`);
+        const data = await res.json();
+        this.convSearchResults = (data.results || data || []).filter(
+          (r) => r.id !== this.currentConversationId && (r.turn_count || r.turnCount || 0) > 0
+        );
+      } catch (err) {
+        console.error("[App] Conversation search failed:", err);
+        this.convSearchResults = [];
+      } finally {
+        this.convSearchLoading = false;
+      }
     },
 
     formatRelativeTime(isoString) {

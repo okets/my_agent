@@ -609,6 +609,107 @@
               </div>
             </div>
 
+            <!-- Conversations Widget -->
+            <div class="glass-strong rounded-xl overflow-hidden mb-4 mt-4">
+              <!-- Header -->
+              <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                <h2 class="text-sm font-semibold text-tokyo-text flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
+                    <path fill-rule="evenodd" d="M1 8.74c0 .983.713 1.825 1.69 1.943.764.092 1.534.164 2.31.216v2.35a.75.75 0 0 0 1.28.53l2.51-2.51c.366-.006.73-.02 1.093-.04 1.2-.065 2.157-.932 2.39-2.045A24.424 24.424 0 0 0 12.5 7c0-.734-.056-1.453-.164-2.153C12.134 3.682 11.044 2.75 9.826 2.75c-1.056-.053-2.125-.053-3.204 0-1.218 0-2.308.932-2.51 2.097A24.847 24.847 0 0 0 3.95 7c0 .596.034 1.179.1 1.747H3.93l-.002.002A2.48 2.48 0 0 1 3.5 8.74Zm5.25.01h.002a.75.75 0 0 1-.002 0Z" clip-rule="evenodd" />
+                  </svg>
+                  Conversations
+                </h2>
+                <!-- Search toggle -->
+                <button
+                  @click="convWidgetSearchOpen = !convWidgetSearchOpen; if (convWidgetSearchOpen) $nextTick(() => $refs.convWidgetSearchInput?.focus())"
+                  class="w-6 h-6 flex items-center justify-center rounded-md transition-colors"
+                  :class="convWidgetSearchOpen ? 'bg-tokyo-blue/20 text-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text hover:bg-tokyo-card/50'"
+                  title="Search conversations"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5">
+                    <path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Collapsible search input -->
+              <div x-show="convWidgetSearchOpen" x-transition class="px-4 py-2 border-b border-white/5">
+                <input
+                  x-ref="convWidgetSearchInput"
+                  x-model="convSearchQuery"
+                  @input.debounce.300ms="searchConversations()"
+                  @keydown.escape="convWidgetSearchOpen = false; convSearchQuery = ''; convSearchResults = []"
+                  type="text"
+                  placeholder="Search conversations..."
+                  class="w-full text-xs bg-tokyo-card/50 border border-white/10 rounded-md px-2.5 py-1.5 text-tokyo-text placeholder:text-tokyo-muted outline-none focus:border-tokyo-blue/50"
+                />
+              </div>
+
+              <!-- Conversation list -->
+              <div class="max-h-[320px] overflow-y-auto">
+                <!-- Search loading -->
+                <div x-show="convWidgetSearchOpen && convSearchLoading" class="px-4 py-4 text-center text-xs text-tokyo-muted">
+                  Searching...
+                </div>
+
+                <!-- Search results -->
+                <template x-if="convWidgetSearchOpen && !convSearchLoading && convSearchQuery.trim()">
+                  <div>
+                    <template x-if="convSearchResults.length === 0">
+                      <div class="px-4 py-4 text-center text-xs text-tokyo-muted">No results found</div>
+                    </template>
+                    <template x-for="result in convSearchResults" :key="result.id">
+                      <button
+                        @click="openConversationPreview({ id: result.id, title: result.title, turnCount: result.turn_count || result.turnCount || 1 })"
+                        class="w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors flex items-start gap-3 group"
+                      >
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-center gap-2">
+                            <span class="text-xs text-tokyo-text/80 truncate" x-text="result.title || 'Conversation'"></span>
+                            <span class="text-[10px] text-tokyo-muted shrink-0" x-text="result.updated ? formatRelativeTime(result.updated) : ''"></span>
+                          </div>
+                          <div x-show="result.preview" class="mt-0.5">
+                            <span class="text-[11px] text-tokyo-muted truncate block" x-text="result.preview || ''"></span>
+                          </div>
+                        </div>
+                        <span class="text-[10px] text-tokyo-blue opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1">View &rarr;</span>
+                      </button>
+                    </template>
+                  </div>
+                </template>
+
+                <!-- Normal list (when not searching) -->
+                <template x-if="!convWidgetSearchOpen || !convSearchQuery.trim()">
+                  <div>
+                    <template x-if="conversations.filter(c => c.id !== currentConversationId && c.turnCount > 0).length === 0">
+                      <div class="px-4 py-4 text-center text-xs text-tokyo-muted">No past conversations</div>
+                    </template>
+                    <template x-for="conv in conversations.filter(c => c.id !== currentConversationId && c.turnCount > 0)" :key="conv.id">
+                      <button
+                        @click="openConversationPreview(conv)"
+                        class="w-full text-left px-4 py-2.5 hover:bg-white/5 transition-colors flex items-start gap-3 group"
+                      >
+                        <div class="flex-1 min-w-0">
+                          <!-- Row 1: title + time -->
+                          <div class="flex items-center gap-2">
+                            <span class="text-xs text-tokyo-text/80 truncate" x-text="conv.title || 'New conversation'"></span>
+                            <span class="text-[10px] text-tokyo-muted shrink-0" x-text="conv.updated ? formatRelativeTime(conv.updated) : ''"></span>
+                          </div>
+                          <!-- Row 2: preview + count -->
+                          <div x-show="conv.preview || conv.turnCount" class="flex items-center gap-2 mt-0.5">
+                            <span class="text-[11px] text-tokyo-muted truncate flex-1" x-text="conv.preview || ''"></span>
+                            <span class="text-[10px] text-tokyo-muted/70 shrink-0" x-text="(conv.turnCount || 0) + ' msgs'"></span>
+                          </div>
+                        </div>
+                        <!-- View arrow -->
+                        <span class="text-[10px] text-tokyo-blue opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1">View &rarr;</span>
+                      </button>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+
             <!-- Timeline Section -->
             <div class="timeline-section mt-6 mx-0 px-4 py-4">
               <div class="flex items-center justify-between mb-4">
