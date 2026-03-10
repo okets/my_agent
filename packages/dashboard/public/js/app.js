@@ -1798,7 +1798,7 @@ function chat() {
           },
         };
         this.openTab(tab);
-        this._fetchConversationTabData(tab);
+        this.$nextTick(() => this._fetchConversationTabData(tab));
       }
     },
 
@@ -1905,14 +1905,16 @@ function chat() {
             return t;
           });
           this.openTabs = state.openTabs;
-          // Re-fetch conversation tab transcripts after restore
-          for (const tab of this.openTabs) {
-            if (tab.type === "conversation" && tab.data) {
-              tab.data.loading = true;
-              tab.data.turns = [];
-              this._fetchConversationTabData(tab);
+          // Re-fetch conversation tab transcripts after restore (nextTick avoids race with x-for render)
+          this.$nextTick(() => {
+            for (const tab of this.openTabs) {
+              if (tab.type === "conversation" && tab.data) {
+                tab.data.loading = true;
+                tab.data.turns = [];
+                this._fetchConversationTabData(tab);
+              }
             }
-          }
+          });
         }
         if (state.activeTab) {
           // Verify active tab exists in openTabs
