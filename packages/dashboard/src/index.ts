@@ -93,6 +93,18 @@ async function main() {
   // Create shared ConversationManager
   const conversationManager = new ConversationManager(agentDir);
 
+  // Startup cleanup: delete any empty conversations left from previous runs
+  {
+    const allConvs = await conversationManager.list();
+    const emptyConvs = allConvs.filter((c) => c.turnCount === 0);
+    for (const conv of emptyConvs) {
+      await conversationManager.delete(conv.id);
+    }
+    if (emptyConvs.length > 0) {
+      console.log(`Cleaned up ${emptyConvs.length} empty conversation(s) on startup`);
+    }
+  }
+
   // Initialize abbreviation queue (only if hatched and auth available)
   let abbreviationQueue: AbbreviationQueue | null = null;
 
