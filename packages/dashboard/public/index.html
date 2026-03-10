@@ -2848,7 +2848,7 @@
                   </div>
                   <button
                     @click="resumeConversation(tab.data?.conversationId); closeTab(tab.id)"
-                    class="px-3 py-1.5 text-xs bg-tokyo-blue/15 text-tokyo-blue rounded-lg hover:bg-tokyo-blue/25 transition-colors"
+                    class="px-4 py-2 text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90 transition-opacity"
                   >
                     Resume conversation
                   </button>
@@ -2877,6 +2877,19 @@
                           class="chat-md"
                           x-html="renderMarkdown(turn.content || turn.text || '')"
                         ></div>
+                        <div class="flex items-center justify-end gap-1.5 mt-1">
+                          <template x-if="turn.channel && turn.channel !== 'web'">
+                            <span class="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-tokyo-muted">
+                              <span class="w-2.5 h-2.5" x-html="getChannelBadgeIcon(turn.channel)"></span>
+                              <span x-text="turn.channel"></span>
+                            </span>
+                          </template>
+                          <span
+                            class="text-tokyo-muted"
+                            style="font-size: 11px"
+                            x-text="turn.timestamp ? new Date(turn.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : ''"
+                          ></span>
+                        </div>
                       </div>
                     </div>
                   </template>
@@ -6601,7 +6614,7 @@
                 <div class="flex items-center gap-2 shrink-0">
                   <button
                     @click="resumeConversation($store.mobile.popover?.data?.conversationId); $store.mobile.closePopoverWithFocus()"
-                    class="px-3 py-1.5 text-xs bg-tokyo-blue/15 text-tokyo-blue rounded-lg hover:bg-tokyo-blue/25 transition-colors min-h-[36px]"
+                    class="px-4 py-2 text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90 transition-opacity min-h-[36px]"
                   >
                     Resume
                   </button>
@@ -6640,6 +6653,19 @@
                         class="chat-md"
                         x-html="renderMarkdown(turn.content || turn.text || '')"
                       ></div>
+                      <div class="flex items-center justify-end gap-1.5 mt-1">
+                        <template x-if="turn.channel && turn.channel !== 'web'">
+                          <span class="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-tokyo-muted">
+                            <span class="w-2.5 h-2.5" x-html="getChannelBadgeIcon(turn.channel)"></span>
+                            <span x-text="turn.channel"></span>
+                          </span>
+                        </template>
+                        <span
+                          class="text-tokyo-muted"
+                          style="font-size: 11px"
+                          x-text="turn.timestamp ? new Date(turn.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : ''"
+                        ></span>
+                      </div>
                     </div>
                   </div>
                 </template>
