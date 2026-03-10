@@ -317,25 +317,107 @@ System-role, trusted, not visible to user:
 
 ---
 
+## Search Infrastructure (M6.7-S4)
+
+Conversation search follows the same architecture as notebook memory search: **files are the source of truth, embeddings are a disposable derived index.**
+
+### Source of Truth
+
+| Layer | Storage | Rebuildable From |
+|-------|---------|-----------------|
+| Transcript content | JSONL files (`{agentDir}/conversations/{id}.jsonl`) | — (primary) |
+| Conversation metadata | `agent.db` → `conversations` table | JSONL headers |
+| FTS5 keyword index | `agent.db` → `turns_fts` | JSONL turn content |
+| Vector embeddings | `agent.db` → `conv_vec` + `conversation_embedding_map` | JSONL turn content + embedding model |
+
+All embeddings can be dropped and rebuilt from transcript files. This enables:
+- Swapping embedding models (local → Ollama, or different Ollama models)
+- Changing vector dimensions without data loss
+- Full database rebuild from source files after migration/crash
+
+### Hybrid Search (FTS5 + Vector)
+
+Two search paths, merged with **Reciprocal Rank Fusion (RRF, K=60)** — same algorithm as the memory system:
+
+1. **FTS5 (keyword):** BM25 ranking on `turns_fts` virtual table
+2. **Vector (semantic):** Cosine similarity on `conv_vec` via sqlite-vec
+
+When embeddings are unavailable (Ollama down, no model configured), search gracefully degrades to FTS5-only. No error to the user.
+
+### Embedding Flow
+
+```
+User/assistant message arrives
+  → conversationManager.appendTurn()     # FTS5 indexed (synchronous, must succeed)
+  → searchService.indexTurn()            # Vector embedded (fire-and-forget, never blocks)
+```
+
+On conversation delete:
+```
+  → searchService.removeConversation()   # Clean up embeddings + mapping
+  → conversationManager.delete()         # Clean up metadata + FTS + transcript
+```
+
+On startup or model recovery:
+```
+  → searchService.indexMissing()         # Catch up turns without embeddings
+```
+
+### Architecture
+
+```
+ConversationSearchDB (search-db.ts)
+  ├── searchKeyword()     → FTS5 BM25 via turns_fts
+  ├── searchVector()      → sqlite-vec KNN via conv_vec + mapping
+  ├── upsertEmbedding()   → BigInt rowids, JSON-encoded vectors
+  └── removeTurns()       → Cleanup on conversation delete
+
+ConversationSearchService (search-service.ts)
+  ├── search()            → Hybrid RRF merge (K=60)
+  ├── indexTurn()          → Fire-and-forget embedding
+  ├── indexMissing()       → Startup catch-up
+  └── removeConversation() → Delegates to searchDb.removeTurns()
+```
+
+### sqlite-vec Patterns
+
+These patterns match the memory system's `MemoryDb`:
+
+- **BigInt rowids:** vec0 requires `BigInt(rowid)` for inserts
+- **JSON-encoded embeddings:** `JSON.stringify(embedding)` for both insert and query (not Float32Array)
+- **KNN with JOINs:** Use `WHERE v.embedding MATCH ? AND v.k = ?` (not `LIMIT ?`, which is invisible through JOINs)
+
+---
+
 ## MCP Conversation Tools
 
-Nina can reference past conversations via MCP tools:
+Nina can reference past conversations via MCP tools (registered as `conversations` namespace on the brain MCP server):
 
 ### conversation_search
 
-Search across conversation transcripts by keyword or topic.
+Search across conversation transcripts using hybrid keyword + semantic search.
 
-**Input:** `{ query: string }`
-**Output:** Matching conversations with ID, title, snippet, date
+**Input:** `{ query: string, limit?: number }`
+**Output:** Matching turns with conversation ID, title, channel, snippet, timestamp, RRF score
 
 ### conversation_read
 
 Load the full transcript of a specific conversation.
 
 **Input:** `{ conversationId: string }`
-**Output:** Full transcript with timestamps, channel badges, turn content
+**Output:** Conversation metadata + all turns with timestamps and roles
 
 These tools enable Nina to recall prior discussions without the user navigating the UI.
+
+### REST API
+
+Three endpoints under `/api/conversations`:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /search?q=&limit=` | Hybrid search with metadata enrichment |
+| `GET /:id` | Full conversation with all turns |
+| `GET /` | List conversations with preview snippets |
 
 ---
 

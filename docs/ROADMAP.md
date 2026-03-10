@@ -18,7 +18,7 @@
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
-| **M6.7: Two-Agent Refactor** | In Progress | S1-S3 on master, S4-S6 need reconstruction |
+| **M6.7: Two-Agent Refactor** | In Progress | S1-S3 on master, S4 complete (on branch), S5-S6 pending |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M6.6: Agentic Lifecycle**  | Planned  | Design complete, 4 sprints   |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
@@ -413,7 +413,7 @@ Conversation Nina becomes a resumable long-lived session with a system prompt re
 | S1 | Core Architecture | **Complete (on master).** SystemPromptBuilder (6-layer prompt with caching), unified `buildQuery()` (always resume+systemPrompt), context-builder.ts removed. Review: [review.md](sprints/m6.7-s1-core-architecture/review.md) |
 | S2 | Conversation Lifecycle | **Complete (on master).** Conversation status model (current/inactive with atomic swap), ConversationRouter (owner/external routing, Web→WhatsApp switch detection), wired into chat-handler + message-handler. Review: [review.md](sprints/m6.7-s2-conversation-lifecycle/review.md) |
 | S3 | Conversation Lifecycle UI | **Complete (on master).** Current/inactive indicators in conversation sidebar (green dot + bold/muted styling, desktop + mobile), channel badges on transcript messages (icon + name for non-web channels). Review: [review.md](sprints/m6.7-s3-conversation-lifecycle-ui/review.md) |
-| S4 | Search Infrastructure | **Needs reconstruction.** Backend search: FTS5 + sqlite-vec tables, search service with RRF, REST API, MCP tools, indexing wiring. Plan: [plan.md](sprints/m6.7-s4-search-infrastructure/plan.md) |
+| S4 | Search Infrastructure | **Complete (on branch).** Backend search: FTS5 + sqlite-vec tables, ConversationSearchDB + ConversationSearchService with hybrid RRF (K=60), REST API (`/api/conversations/{search,:id,list}`), MCP tools (`conversation_search`, `conversation_read`), fire-and-forget indexing wired into chat flow. 38 tests. Branch: `sprint/m6.7-s4-search-infrastructure`. Review: [review.md](sprints/m6.7-s4-search-infrastructure/review.md) |
 | S5 | Conversation Home Widget | **Needs reconstruction.** UI overhaul: remove tab bar, simplify chat header, Home widget (browse/search/resume), read-only preview (tab + popover), empty conversation cleanup. Plan: [plan.md](sprints/m6.7-s5-conversation-home-widget/plan.md) |
 | S6 | E2E Validation + Semantic Search | **Needs reconstruction.** 16 E2E test scenarios, semantic search verification (not implementation), human-in-the-loop scenarios, milestone wrap-up. Plan: [plan.md](sprints/m6.7-s6-e2e-validation/plan.md) |
 
