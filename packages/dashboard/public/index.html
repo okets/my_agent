@@ -3437,7 +3437,7 @@
         :style="{ width: chatWidth + 'px' }"
         style="min-width: 300px; max-width: 85vw"
       >
-        <!-- Chat header: conversation dropdown + rename -->
+        <!-- Chat header: title + New chat button -->
         <header
           class="flex items-center gap-2 px-3 h-12 shrink-0 divider-bottom"
         >
@@ -3450,38 +3450,17 @@
             A
           </div>
 
-          <!-- Conversation dropdown + editable title -->
-          <div
-            class="relative flex-1 min-w-0"
-            x-data="{ convDropdownOpen: false }"
-          >
-            <!-- Title display (click to open dropdown) -->
+          <!-- Title + Rename + New chat -->
+          <div class="flex-1 min-w-0 flex items-center gap-1.5">
+            <!-- Title display (read-only) -->
             <div
               x-show="!editingTitle"
-              class="flex items-center gap-1.5 min-w-0"
+              class="flex items-center gap-1.5 min-w-0 flex-1"
             >
-              <button
-                @click="convDropdownOpen = !convDropdownOpen"
-                @click.outside="convDropdownOpen = false"
-                class="flex-1 flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-tokyo-card/50 transition-colors text-left min-w-0"
-                title="Click to switch conversations"
-              >
-                <span
-                  class="text-sm font-medium truncate flex-1"
-                  x-text="currentTitle || 'New conversation'"
-                ></span>
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="currentColor"
-                  class="w-3 h-3 text-tokyo-muted shrink-0"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
+              <span
+                class="text-sm font-medium truncate flex-1"
+                x-text="currentTitle || 'New conversation'"
+              ></span>
               <!-- Rename pencil button -->
               <button
                 @click="startTitleEdit()"
@@ -3508,164 +3487,31 @@
               x-ref="titleInput"
               x-model="editTitleValue"
               type="text"
-              class="w-full text-sm text-tokyo-text bg-tokyo-card/50 border border-tokyo-blue/30 rounded-md px-2 py-1 outline-none focus:border-tokyo-blue"
+              class="flex-1 min-w-0 text-sm text-tokyo-text bg-tokyo-card/50 border border-tokyo-blue/30 rounded-md px-2 py-1 outline-none focus:border-tokyo-blue"
               placeholder="Conversation title"
               @keydown.enter="confirmTitleEdit()"
               @keydown.escape="cancelTitleEdit()"
               @blur="confirmTitleEdit()"
             />
 
-            <!-- Dropdown menu (wider, percent-based) -->
-            <div
-              x-show="convDropdownOpen"
-              x-transition:enter="transition ease-out duration-200"
-              x-transition:enter-start="opacity-0 -translate-y-2"
-              x-transition:enter-end="opacity-100 translate-y-0"
-              x-transition:leave="transition ease-in duration-150"
-              x-transition:leave-start="opacity-100 translate-y-0"
-              x-transition:leave-end="opacity-0 -translate-y-2"
-              class="absolute top-full left-0 mt-1 rounded-lg bg-tokyo-panel border border-tokyo-muted/20 shadow-lg overflow-hidden z-50 transform"
-              style="
-                width: calc(100% + 2rem);
-                min-width: 280px;
-                max-width: 90vw;
-              "
-              x-cloak
+            <!-- New chat button -->
+            <button
+              @click="createNewConversation()"
+              class="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-tokyo-blue hover:bg-tokyo-blue/10 transition-colors shrink-0"
+              title="New conversation"
             >
-              <!-- New conversation button -->
-              <button
-                @click="createNewConversation(); convDropdownOpen = false"
-                class="w-full text-left px-3 py-2 text-xs text-tokyo-blue hover:bg-tokyo-card/50 transition-colors flex items-center gap-2 border-b border-white/5"
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                class="w-3.5 h-3.5"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 16 16"
-                  fill="currentColor"
-                  class="w-3 h-3"
-                >
-                  <path
-                    d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z"
-                  />
-                </svg>
-                New conversation
-              </button>
-
-              <div class="max-h-80 overflow-y-auto">
-                <!-- Active channel conversations (single section) -->
-                <template
-                  x-if="channels.some(ch => getChannelConversations(ch.id).length > 0)"
-                >
-                  <div class="border-b border-white/5">
-                    <div
-                      class="px-3 py-1.5 text-[10px] text-tokyo-muted uppercase tracking-wide"
-                    >
-                      Active Channels
-                    </div>
-                    <template x-for="ch in channels" :key="ch.id">
-                      <template
-                        x-for="conv in getChannelConversations(ch.id)"
-                        :key="conv.id"
-                      >
-                        <div class="group relative">
-                          <button
-                            @click="switchConversation(conv.id); convDropdownOpen = false"
-                            class="w-full text-left px-3 pr-8 py-2 text-xs transition-colors flex items-center gap-2"
-                            :class="
-                              currentConversationId === conv.id
-                                ? 'bg-tokyo-blue/15 text-tokyo-blue'
-                                : 'text-tokyo-text hover:bg-tokyo-card/50'
-                            "
-                          >
-                            <!-- Channel icon -->
-                            <span
-                              class="channel-icon w-3.5 h-3.5 shrink-0 text-tokyo-muted"
-                              x-html="ch.icon"
-                            ></span>
-                            <!-- Connection dot -->
-                            <span
-                              class="w-1.5 h-1.5 rounded-full shrink-0"
-                              :class="channelDotClass(ch.status)"
-                            ></span>
-                            <span
-                              class="truncate flex-1"
-                              x-text="conv.title || 'Chat'"
-                            ></span>
-                            <span
-                              class="text-[9px] px-1 py-0.5 rounded bg-tokyo-muted/10 text-tokyo-muted shrink-0"
-                              >read-only</span
-                            >
-                          </button>
-                        </div>
-                      </template>
-                    </template>
-                  </div>
-                </template>
-
-                <!-- All conversations (web + unpinned channel) -->
-                <div
-                  class="px-3 py-1.5 text-[10px] text-tokyo-muted uppercase tracking-wide"
-                >
-                  Conversations
-                </div>
-                <template x-for="conv in conversations" :key="conv.id">
-                  <div class="group relative">
-                    <button
-                      @click="switchConversation(conv.id); convDropdownOpen = false"
-                      class="w-full text-left px-3 pr-8 py-2 text-xs transition-colors flex items-center gap-2"
-                      :class="
-                        currentConversationId === conv.id
-                          ? 'bg-tokyo-blue/15 text-tokyo-blue'
-                          : conv.status === 'current'
-                            ? 'text-tokyo-text hover:bg-tokyo-card/50'
-                            : 'text-tokyo-muted hover:bg-tokyo-card/50 hover:text-tokyo-text'
-                      "
-                    >
-                      <!-- Channel icon (for non-web conversations) -->
-                      <template x-if="conv.channel && conv.channel !== 'web'">
-                        <span
-                          class="channel-icon w-3.5 h-3.5 shrink-0 text-tokyo-muted"
-                          x-html="getConversationChannel(conv)?.icon || ''"
-                        ></span>
-                      </template>
-                      <!-- Status dot: green for current, transparent for inactive -->
-                      <span
-                        class="w-1.5 h-1.5 rounded-full shrink-0"
-                        :class="conv.status === 'current' ? 'bg-green-400' : 'bg-transparent'"
-                      ></span>
-                      <!-- Title: bold for current, muted for inactive (overridden by blue when selected) -->
-                      <span
-                        class="truncate flex-1"
-                        :class="conv.status === 'current' && currentConversationId !== conv.id ? 'font-medium' : ''"
-                        x-text="conv.title || 'New conversation'"
-                      ></span>
-                      <span
-                        class="text-tokyo-muted text-[10px] shrink-0"
-                        x-text="formatRelativeTime(conv.updated)"
-                      ></span>
-                    </button>
-                    <!-- Delete button (hover) -->
-                    <button
-                      @click.stop="confirmDeleteConversation(conv.id, conv.title); convDropdownOpen = false"
-                      class="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-tokyo-muted hover:text-tokyo-red hover:bg-tokyo-red/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 16 16"
-                        fill="currentColor"
-                        class="w-3 h-3"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5Z"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </template>
-              </div>
-            </div>
+                <path
+                  d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z"
+                />
+              </svg>
+              <span class="hidden sm:inline">New chat</span>
+            </button>
           </div>
 
           <!-- Settings button -->
@@ -6626,164 +6472,32 @@
         <!-- Half/Full state: messages + full compose -->
         <template x-if="$store.mobile.chatState !== 'peek'">
           <div class="flex flex-col flex-1 min-h-0">
-            <!-- Conversation switcher (half + full states) -->
+            <!-- Mobile chat sub-header: title + New chat -->
             <div
               x-show="$store.mobile.chatState !== 'peek'"
-              class="px-3 py-2 border-b border-white/5 shrink-0"
+              class="px-3 py-2 border-b border-white/5 shrink-0 flex items-center justify-between"
             >
+              <span
+                class="text-xs text-tokyo-muted truncate"
+                x-text="currentTitle || 'New conversation'"
+              ></span>
               <button
-                class="flex items-center gap-1.5 text-xs text-tokyo-muted hover:text-tokyo-text transition-colors"
-                @click="$store.mobile.toggleConvSwitcher()"
-                aria-label="Switch conversation"
-                :aria-expanded="$store.mobile.convSwitcherOpen"
-              >
-                <span
-                  class="truncate"
-                  x-text="currentTitle || 'New conversation'"
-                ></span>
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="currentColor"
-                  class="w-3 h-3 shrink-0 transition-transform"
-                  :class="{ 'rotate-180': $store.mobile.convSwitcherOpen }"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <!-- Conversation switcher backdrop -->
-            <div
-              x-show="$store.mobile.convSwitcherOpen"
-              @click="$store.mobile.closeConvSwitcher()"
-              class="conv-switcher-backdrop"
-              :class="{ 'active': $store.mobile.convSwitcherOpen }"
-              aria-hidden="true"
-            ></div>
-
-            <!-- Conversation switcher dropdown -->
-            <div
-              x-show="$store.mobile.convSwitcherOpen"
-              @keydown.escape.window="$store.mobile.convSwitcherOpen && $store.mobile.closeConvSwitcher()"
-              class="conversation-dropdown-mobile"
-              :class="{ 'open': $store.mobile.convSwitcherOpen }"
-              role="listbox"
-              aria-label="Conversations"
-              x-cloak
-            >
-              <!-- New conversation button -->
-              <button
-                @click="createNewConversation(); $store.mobile.closeConvSwitcher()"
-                class="conv-switcher-item"
-                style="
-                  color: var(--color-blue);
-                  border-bottom: 1px solid var(--border-subtle);
-                "
+                @click="createNewConversation()"
+                class="flex items-center gap-1 px-2 py-1 rounded text-xs text-tokyo-blue hover:bg-tokyo-blue/10 transition-colors shrink-0"
+                title="New conversation"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 16 16"
                   fill="currentColor"
-                  class="w-4 h-4 shrink-0"
+                  class="w-3.5 h-3.5"
                 >
                   <path
                     d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z"
                   />
                 </svg>
-                New conversation
+                New
               </button>
-
-              <!-- Active channel conversations -->
-              <template
-                x-if="channels.some(ch => getChannelConversations(ch.id).length > 0)"
-              >
-                <div style="border-bottom: 1px solid var(--border-subtle)">
-                  <div
-                    class="px-4 py-1.5 text-[10px] text-tokyo-muted uppercase tracking-wide"
-                  >
-                    Active Channels
-                  </div>
-                  <template x-for="ch in channels" :key="ch.id">
-                    <template
-                      x-for="conv in getChannelConversations(ch.id)"
-                      :key="conv.id"
-                    >
-                      <button
-                        @click="switchConversation(conv.id); $store.mobile.closeConvSwitcher()"
-                        class="conv-switcher-item"
-                        :class="{ 'current': currentConversationId === conv.id }"
-                        role="option"
-                        :aria-selected="currentConversationId === conv.id"
-                      >
-                        <span
-                          class="channel-icon w-4 h-4 shrink-0 text-tokyo-muted"
-                          x-html="ch.icon"
-                        ></span>
-                        <span
-                          class="w-1.5 h-1.5 rounded-full shrink-0"
-                          :class="channelDotClass(ch.status)"
-                        ></span>
-                        <span
-                          class="truncate flex-1"
-                          x-text="conv.title || 'Chat'"
-                        ></span>
-                        <span
-                          class="text-[10px] px-1.5 py-0.5 rounded bg-tokyo-muted/10 text-tokyo-muted shrink-0"
-                          >read-only</span
-                        >
-                      </button>
-                    </template>
-                  </template>
-                </div>
-              </template>
-
-              <!-- Web conversations -->
-              <div>
-                <div
-                  class="px-4 py-1.5 text-[10px] text-tokyo-muted uppercase tracking-wide"
-                >
-                  Conversations
-                </div>
-                <template x-for="conv in conversations" :key="conv.id">
-                  <button
-                    @click="switchConversation(conv.id); $store.mobile.closeConvSwitcher()"
-                    class="conv-switcher-item"
-                    :class="{ 'current': currentConversationId === conv.id }"
-                    role="option"
-                    :aria-selected="currentConversationId === conv.id"
-                  >
-                    <!-- Channel icon (for non-web conversations) -->
-                    <template x-if="conv.channel && conv.channel !== 'web'">
-                      <span
-                        class="channel-icon w-4 h-4 shrink-0 text-tokyo-muted"
-                        x-html="getConversationChannel(conv)?.icon || ''"
-                      ></span>
-                    </template>
-                    <!-- Status dot -->
-                    <span
-                      class="w-1.5 h-1.5 rounded-full shrink-0"
-                      :class="conv.status === 'current' ? 'bg-green-400' : 'bg-transparent'"
-                    ></span>
-                    <!-- Title with status-aware styling -->
-                    <span
-                      class="truncate flex-1"
-                      :class="{
-                        'font-medium': conv.status === 'current' && currentConversationId !== conv.id,
-                        'text-tokyo-muted': conv.status !== 'current' && currentConversationId !== conv.id
-                      }"
-                      x-text="conv.title || 'New conversation'"
-                    ></span>
-                    <span
-                      class="text-tokyo-muted text-[10px] shrink-0"
-                      x-text="formatRelativeTime(conv.updated)"
-                    ></span>
-                  </button>
-                </template>
-              </div>
             </div>
 
             <!-- Messages area -->
