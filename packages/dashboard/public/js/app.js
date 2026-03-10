@@ -1764,6 +1764,68 @@ function chat() {
       });
     },
 
+    openConversationPreview(conv) {
+      if (this.$store.mobile.isMobile) {
+        // Mobile: open popover with loading state
+        const popoverData = {
+          conversationId: conv.id,
+          title: conv.title || "Conversation",
+          turns: [],
+          loading: true,
+        };
+        this.$store.mobile.openPopoverWithFocus("conversation", popoverData, null);
+        // Fetch and update with full object reassignment for Alpine reactivity
+        this._fetchConversationTabData({ data: popoverData }).then(() => {
+          this.$store.mobile.popover = {
+            type: "conversation",
+            data: { ...popoverData },
+          };
+        });
+      } else {
+        // Desktop: open left-panel tab
+        const tabId = `conv-${conv.id}`;
+        const tab = {
+          id: tabId,
+          type: "conversation",
+          title: conv.title || "Conversation",
+          icon: "💬",
+          closeable: true,
+          data: {
+            conversationId: conv.id,
+            title: conv.title || "Conversation",
+            turns: [],
+            loading: true,
+          },
+        };
+        this.openTab(tab);
+        this._fetchConversationTabData(tab);
+      }
+    },
+
+    async _fetchConversationTabData(tab) {
+      try {
+        const res = await fetch(`/api/conversations/${tab.data.conversationId}`);
+        const data = await res.json();
+        const turns = data.turns || data.messages || [];
+        // Reassign as new object to trigger Alpine reactivity on nested data
+        tab.data = { ...tab.data, turns, loading: false };
+        // Trigger array reactivity for desktop tab
+        this.openTabs = [...this.openTabs];
+      } catch (err) {
+        console.error("[App] Failed to load conversation:", err);
+        tab.data = { ...tab.data, loading: false };
+        this.openTabs = [...this.openTabs];
+      }
+    },
+
+    resumeConversation(conversationId) {
+      if (!conversationId) return;
+      this.switchConversation(conversationId);
+      if (this.$store.mobile.isMobile) {
+        this.$store.mobile.expandChat("half");
+      }
+    },
+
     getCurrentTabContext() {
       // Return pinned chat context (set when user views a tab)
       return this.chatContext;
@@ -1840,6 +1902,14 @@ function chat() {
             return t;
           });
           this.openTabs = state.openTabs;
+          // Re-fetch conversation tab transcripts after restore
+          for (const tab of this.openTabs) {
+            if (tab.type === "conversation" && tab.data) {
+              tab.data.loading = true;
+              tab.data.turns = [];
+              this._fetchConversationTabData(tab);
+            }
+          }
         }
         if (state.activeTab) {
           // Verify active tab exists in openTabs

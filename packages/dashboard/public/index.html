@@ -2692,26 +2692,42 @@
           </div>
 
           <!-- ======================================================== -->
-          <!-- Conversation Tab (external, read-only)                   -->
+          <!-- Conversation Preview Tab (read-only transcript)          -->
           <!-- ======================================================== -->
           <template
             x-for="tab in openTabs.filter(t => t.type === 'conversation')"
             :key="tab.id"
           >
-            <div x-show="activeTab === tab.id" class="p-6" x-cloak>
+            <div x-show="activeTab === tab.id" class="p-6 h-full overflow-y-auto" x-cloak>
               <div class="max-w-2xl mx-auto">
+                <!-- Header: title + resume button -->
                 <div class="flex items-center justify-between mb-4">
-                  <h2 class="text-lg font-semibold" x-text="tab.title"></h2>
-                  <span
-                    class="text-xs text-tokyo-muted px-2 py-1 rounded bg-tokyo-card"
+                  <div>
+                    <h2 class="text-lg font-semibold" x-text="tab.data?.title || 'Conversation'"></h2>
+                    <span class="text-xs text-tokyo-muted" x-text="(tab.data?.turns?.length || 0) + ' messages'"></span>
+                  </div>
+                  <button
+                    @click="resumeConversation(tab.data?.conversationId); closeTab(tab.id)"
+                    class="px-3 py-1.5 text-xs bg-tokyo-blue/15 text-tokyo-blue rounded-lg hover:bg-tokyo-blue/25 transition-colors"
                   >
-                    read-only
-                  </span>
+                    Resume conversation
+                  </button>
                 </div>
-                <p class="text-sm text-tokyo-muted">
-                  External conversation view will be implemented in a future
-                  sprint.
-                </p>
+                <!-- Loading state -->
+                <div x-show="tab.data?.loading" class="text-center py-8 text-tokyo-muted text-sm">Loading...</div>
+                <!-- Transcript -->
+                <div x-show="!tab.data?.loading" class="space-y-3">
+                  <template x-for="turn in (tab.data?.turns || [])" :key="turn.timestamp || turn.id">
+                    <div :class="turn.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                      <div
+                        class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm"
+                        :class="turn.role === 'user' ? 'user-bubble' : 'assistant-bubble'"
+                      >
+                        <div class="chat-md" x-html="renderMarkdown(turn.content || turn.text || '')"></div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
           </template>
@@ -6343,6 +6359,50 @@
                 class="text-sm text-tokyo-text chat-md"
                 x-html="renderMarkdown(fileContent)"
               ></div>
+            </div>
+          </template>
+
+          <!-- Conversation preview popover -->
+          <template x-if="$store.mobile.popover?.type === 'conversation'">
+            <div class="space-y-0" x-data="{}">
+              <!-- Header: title + resume + close -->
+              <div class="flex items-start justify-between gap-3 mb-4">
+                <div class="flex-1 min-w-0">
+                  <h2 class="text-base font-semibold text-tokyo-text truncate" x-text="$store.mobile.popover?.data?.title || 'Conversation'"></h2>
+                  <span class="text-xs text-tokyo-muted" x-text="($store.mobile.popover?.data?.turns?.length || 0) + ' messages'"></span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <button
+                    @click="resumeConversation($store.mobile.popover?.data?.conversationId); $store.mobile.closePopoverWithFocus()"
+                    class="px-3 py-1.5 text-xs bg-tokyo-blue/15 text-tokyo-blue rounded-lg hover:bg-tokyo-blue/25 transition-colors min-h-[36px]"
+                  >
+                    Resume
+                  </button>
+                  <button
+                    @click="$store.mobile.closePopoverWithFocus()"
+                    class="w-8 h-8 flex items-center justify-center text-tokyo-muted hover:text-tokyo-text"
+                  >
+                    &times;
+                  </button>
+                </div>
+              </div>
+              <!-- Loading state -->
+              <div x-show="$store.mobile.popover?.data?.loading" class="text-center py-8 text-tokyo-muted text-sm">
+                Loading...
+              </div>
+              <!-- Transcript -->
+              <div x-show="!$store.mobile.popover?.data?.loading" class="space-y-3">
+                <template x-for="turn in ($store.mobile.popover?.data?.turns || [])" :key="turn.timestamp || turn.id">
+                  <div :class="turn.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                    <div
+                      class="max-w-[85%] rounded-2xl px-3 py-2 text-sm"
+                      :class="turn.role === 'user' ? 'user-bubble' : 'assistant-bubble'"
+                    >
+                      <div class="chat-md" x-html="renderMarkdown(turn.content || turn.text || '')"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </div>
           </template>
 
