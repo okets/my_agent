@@ -30,6 +30,8 @@ import { createServer } from "./server.js";
 import {
   ConversationManager,
   AbbreviationQueue,
+  ConversationSearchDB,
+  ConversationSearchService,
 } from "./conversations/index.js";
 import {
   ChannelManager,
@@ -426,28 +428,55 @@ async function main() {
         getDegradedHealth: () => pluginRegistry?.getDegradedHealth() ?? null,
       });
 
+      // Determine intended plugin from config
+      const configPluginId =
+        embeddingsConfig.plugin === "ollama"
+          ? "embeddings-ollama"
+          : "embeddings-local";
+
       // Try to restore previously active embeddings plugin
+      // Config takes precedence: if user changed config.yaml, switch to the new plugin
       const indexMeta = memoryDb.getIndexMeta();
-      if (indexMeta.embeddingsPlugin) {
-        const savedPluginId = indexMeta.embeddingsPlugin;
-        const savedPlugin = pluginRegistry.get(savedPluginId);
+      const savedPluginId = indexMeta.embeddingsPlugin ?? null;
+      const restorePluginId =
+        savedPluginId && savedPluginId !== configPluginId
+          ? configPluginId // Config changed — use new plugin
+          : savedPluginId ?? configPluginId; // No change or no saved state — use saved or config
+
+      if (savedPluginId && savedPluginId !== configPluginId) {
+        console.log(
+          `[Embeddings] Config changed: ${savedPluginId} → ${configPluginId}, switching plugin`,
+        );
+      }
+
+      if (restorePluginId) {
+        const savedPlugin = pluginRegistry.get(restorePluginId);
         if (savedPlugin) {
           try {
             await savedPlugin.initialize();
             const isReady = await savedPlugin.isReady();
             if (isReady) {
-              await pluginRegistry.setActive(savedPluginId);
-              // Re-initialize vector table with saved dimensions
+              await pluginRegistry.setActive(restorePluginId);
+              // Reset vector index (handles dimension change + meta update)
               const dims = savedPlugin.getDimensions();
               if (dims) {
-                memoryDb.initVectorTable(dims);
+                const { modelChanged } = memoryDb.resetVectorIndex(
+                  restorePluginId,
+                  savedPlugin.modelName,
+                  dims,
+                );
+                if (modelChanged) {
+                  console.log(
+                    `[Embeddings] Model changed — memory vector index reset (${dims} dims)`,
+                  );
+                }
               }
               console.log(
-                `Restored embeddings plugin: ${savedPluginId} (${savedPlugin.modelName})`,
+                `Restored embeddings plugin: ${restorePluginId} (${savedPlugin.modelName})`,
               );
             } else {
               // Plugin initialized but not ready — enter degraded mode
-              pluginRegistry.setIntended(savedPluginId);
+              pluginRegistry.setIntended(restorePluginId);
               const health = await savedPlugin.healthCheck();
               pluginRegistry.setDegraded(
                 health.healthy
@@ -463,13 +492,13 @@ async function main() {
                 memoryDb.initVectorTable(indexMeta.dimensions);
               }
               console.warn(
-                `Embeddings plugin ${savedPluginId} not ready — entering degraded mode`,
+                `Embeddings plugin ${restorePluginId} not ready — entering degraded mode`,
               );
             }
           } catch (err) {
             // Plugin failed to initialize — enter degraded mode
             const errMsg = err instanceof Error ? err.message : String(err);
-            pluginRegistry.setIntended(savedPluginId);
+            pluginRegistry.setIntended(restorePluginId);
             pluginRegistry.setDegraded({
               healthy: false,
               message: errMsg,
@@ -485,12 +514,12 @@ async function main() {
               memoryDb.initVectorTable(indexMeta.dimensions);
             }
             console.warn(
-              `Failed to restore embeddings plugin ${savedPluginId} — entering degraded mode: ${errMsg}`,
+              `Failed to restore embeddings plugin ${restorePluginId} — entering degraded mode: ${errMsg}`,
             );
           }
         } else {
           console.warn(
-            `Saved embeddings plugin ${savedPluginId} not found — continuing without embeddings`,
+            `Embeddings plugin ${restorePluginId} not found — continuing without embeddings`,
           );
         }
       }
@@ -523,10 +552,51 @@ async function main() {
   server.searchService = searchService;
   server.pluginRegistry = pluginRegistry;
 
+  // ── Conversation Search Infrastructure (M6.7-S4) ──
+  let conversationSearchService: ConversationSearchService | null = null;
+  let conversationSearchDb: ConversationSearchDB | null = null;
+
+  if (conversationManager) {
+    try {
+      const rawDb = conversationManager.getDb();
+      conversationSearchDb = new ConversationSearchDB(rawDb);
+
+      // Initialize vector table if embeddings plugin is active
+      const activePlugin = pluginRegistry?.getActive() ?? null;
+      if (activePlugin) {
+        const dims = activePlugin.getDimensions();
+        if (dims) {
+          conversationSearchDb.initVectorTable(dims);
+          console.log(
+            `[ConversationSearch] Vector table initialized (${dims} dims)`,
+          );
+        }
+      }
+
+      conversationSearchService = new ConversationSearchService({
+        searchDb: conversationSearchDb,
+        getPlugin: () => pluginRegistry?.getActive() ?? null,
+      });
+
+      server.conversationSearchService = conversationSearchService;
+      console.log("[ConversationSearch] Service initialized");
+    } catch (err) {
+      console.warn(
+        "[ConversationSearch] Failed to initialize:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   // Wire MCP memory tools into brain sessions
   if (searchService) {
     const notebookDir = join(agentDir, "notebook");
-    initMcpServers(searchService, notebookDir);
+    initMcpServers(
+      searchService,
+      notebookDir,
+      conversationSearchService ?? undefined,
+      conversationManager ?? undefined,
+    );
   }
 
   // Connect memory services to state publisher for live updates
@@ -576,6 +646,9 @@ async function main() {
                   const dims = plugin.getDimensions();
                   if (dims && memoryDb) {
                     memoryDb.initVectorTable(dims);
+                  }
+                  if (dims && conversationSearchDb) {
+                    conversationSearchDb.initVectorTable(dims);
                   }
                   console.log(
                     `[HealthMonitor] Embeddings recovered: ${intendedId} (${plugin.modelName})`,

@@ -25,7 +25,42 @@ Present team composition options based on sprint complexity:
 | Backend Dev | Sonnet | Server work |
 | Reviewer | Opus | Always (independent) |
 
-Recommend a team based on the sprint's tasks.
+Recommend a team based on the sprint's tasks. Add **custom roles** when useful (e.g., Recovery Analyst, API Specialist).
+
+## Agent Team Setup
+
+**Use Claude Code's native Teams feature** to run the sprint as a real agent team.
+
+### Setup steps
+
+1. **Create the team** with `TeamCreate`: `team_name` = `sprint-m{N}-s{N}-{name}`
+2. **Create shared tasks** with `TaskCreate` — one per sprint task
+3. **Spawn teammates** with the `Agent` tool using `team_name` and `name`:
+
+| Sprint Role | Agent `name` | `subagent_type` | `mode` |
+|---|---|---|---|
+| Backend Dev | `backend-dev` | `general-purpose` | `acceptEdits` |
+| Frontend Dev | `frontend-dev` | `general-purpose` | `acceptEdits` |
+| Reviewer | `reviewer` | `general-purpose` | `plan` |
+
+4. **Agents communicate via `SendMessage`** — DMs for task handoffs, `broadcast` only for blockers
+5. **Shared task list** — agents check `TaskList`, claim tasks, mark complete
+6. **Shutdown** with `shutdown_request` when done, then `TeamDelete`
+
+### Agent prompt guidelines
+
+Include in each agent's prompt:
+- Role and responsibility
+- Sprint plan (full task text)
+- Communication expectations (DM reviewer when ready, DM tech lead on blockers)
+- For CTO-present sprints: "Escalate architectural decisions to tech lead, who will ask CTO"
+
+### When NOT to use teams
+
+Use single-agent execution instead when:
+- Sprint has fewer than 3 tasks
+- All tasks are strictly sequential
+- Sprint is pure research/planning
 
 ## Execution Rules
 
@@ -46,11 +81,12 @@ Decision needed?
 ## Sprint Flow
 
 1. Break down tasks from plan
-2. Assign to team members (parallel where possible)
-3. Execute task by task
-4. Reviewer checks each major piece
-5. Integration + verification
-6. Present user stories for CTO testing
+2. **Set up agent team** (TeamCreate → TaskCreate → spawn teammates)
+3. Assign initial tasks to teammates
+4. Orchestrate: relay context, escalate decisions to CTO, unblock agents
+5. Reviewer checks each major piece (DMs findings to implementers)
+6. Integration + verification
+7. Shut down teammates, present user stories for CTO testing
 
 ## Verification Checklist
 

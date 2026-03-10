@@ -762,6 +762,11 @@ export async function registerChatWebSocket(
         attachmentService.deleteConversationAttachments(conversationId);
       }
 
+      // Remove conversation search embeddings (M6.7-S4)
+      if (fastify.conversationSearchService) {
+        fastify.conversationSearchService.removeConversation(conversationId);
+      }
+
       // Delete from database + transcript
       await conversationManager.delete(conversationId);
 
@@ -1112,6 +1117,13 @@ export async function registerChatWebSocket(
 
       await conversationManager.appendTurn(currentConversationId, userTurn);
 
+      // Fire-and-forget embedding for conversation search (M6.7-S4)
+      if (fastify.conversationSearchService) {
+        fastify.conversationSearchService
+          .indexTurn(currentConversationId, turnNumber, "user", content)
+          .catch(() => {});
+      }
+
       // Touch idle timer on user message
       if (idleTimerManager) {
         idleTimerManager.touch(currentConversationId);
@@ -1213,6 +1225,18 @@ export async function registerChatWebSocket(
           currentConversationId,
           assistantTurn,
         );
+
+        // Fire-and-forget embedding for conversation search (M6.7-S4)
+        if (fastify.conversationSearchService && assistantContent) {
+          fastify.conversationSearchService
+            .indexTurn(
+              currentConversationId,
+              turnNumber,
+              "assistant",
+              assistantContent,
+            )
+            .catch(() => {});
+        }
 
         // Persist SDK session ID for future resumption (cold starts, server restarts)
         const sdkSid = sessionManager?.getSessionId();

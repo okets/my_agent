@@ -1,6 +1,6 @@
 # Database Schema Reference
 
-> **Last updated:** 2026-02-28 (M6.5-S4)
+> **Last updated:** 2026-03-10 (M6.7-S4)
 > **Source of truth:** This document. Update when schema changes.
 
 ---
@@ -101,6 +101,30 @@ Junction table linking tasks to conversations (M5-S5). Soft references, no FK co
 | `conversation_id` | No | Reference to conversations.id |
 | `turn_number` | No | |
 | `timestamp` | No | |
+
+### conversation_embedding_map (M6.7-S4)
+
+Maps sqlite-vec rowids to conversation turns. Used by `ConversationSearchDB` in `packages/dashboard/src/conversations/search-db.ts`.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `rowid` | INTEGER PK AUTOINCREMENT | Maps to conv_vec rowid |
+| `conversation_id` | TEXT NOT NULL | Reference to conversations.id |
+| `turn_number` | INTEGER NOT NULL | |
+| `role` | TEXT NOT NULL | `"user"` or `"assistant"` |
+
+**Unique constraint:** `(conversation_id, turn_number, role)`
+**Indexes:** `idx_conv_embed_map_conv(conversation_id)`
+
+### conv_vec (vec0 virtual table, M6.7-S4)
+
+```sql
+CREATE VIRTUAL TABLE conv_vec USING vec0(embedding FLOAT[{dimensions}]);
+```
+
+Created dynamically by `ConversationSearchDB.initVectorTable(dimensions)`. `rowid` maps to `conversation_embedding_map.rowid`. Requires `BigInt` for rowid inserts and `JSON.stringify()` for embedding values.
+
+**Note:** KNN queries through JOINs require `WHERE v.embedding MATCH ? AND v.k = ?` (not `LIMIT ?`).
 
 ### external_messages
 

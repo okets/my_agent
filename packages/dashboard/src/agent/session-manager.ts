@@ -17,6 +17,9 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { processStream, type StreamEvent } from "./stream-processor.js";
 import { SystemPromptBuilder } from "./system-prompt-builder.js";
 import type { BuildContext } from "./system-prompt-builder.js";
+import { createConversationServer } from "../mcp/conversation-server.js";
+import type { ConversationSearchService } from "../conversations/search-service.js";
+import type { ConversationManager } from "../conversations/manager.js";
 
 /** Cached MCP servers — initialized once via initMcpServers() */
 let sharedMcpServers: Options["mcpServers"] | null = null;
@@ -28,12 +31,29 @@ let sharedMcpServers: Options["mcpServers"] | null = null;
 export function initMcpServers(
   searchService: SearchService,
   notebookDir: string,
+  conversationSearchService?: ConversationSearchService,
+  conversationManager?: ConversationManager,
 ): void {
   const memoryServer = createMemoryServer({ notebookDir, searchService });
-  sharedMcpServers = { memory: memoryServer };
-  console.log(
-    `[SessionManager] MCP servers initialized (memory → ${notebookDir})`,
-  );
+  const servers: NonNullable<Options["mcpServers"]> = {
+    memory: memoryServer,
+  };
+
+  if (conversationSearchService && conversationManager) {
+    servers.conversations = createConversationServer({
+      conversationSearchService,
+      conversationManager,
+    });
+    console.log(
+      `[SessionManager] MCP servers initialized (memory → ${notebookDir}, conversations)`,
+    );
+  } else {
+    console.log(
+      `[SessionManager] MCP servers initialized (memory → ${notebookDir})`,
+    );
+  }
+
+  sharedMcpServers = servers;
 }
 
 interface StreamOptions {
