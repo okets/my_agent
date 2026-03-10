@@ -703,7 +703,6 @@ function initChatSheetGesture(el) {
       /* Slow drag: snap to nearest preset based on current position */
       setChatRatio(nearestPreset(currentRatio));
     }
-
   }
 
   /* Listen on the ENTIRE chat panel — passive: false so we can
