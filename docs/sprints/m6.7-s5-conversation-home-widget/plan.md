@@ -513,13 +513,21 @@ git push origin <branch>
 
 ---
 
-## Task 5: Live Updates + Mobile Polish
+## Task 5: Fix Notebook Widget 404s + Live Updates + Mobile Polish
 
 Verify live updates work and polish mobile experience.
 
 **Files:**
 - Possibly modify: `packages/dashboard/public/js/ws-client.js` (if needed)
 - Modify: `packages/dashboard/public/index.html` (mobile header adjustments)
+
+### Fix Notebook Widget 404 Spam
+
+The notebook widget (from M6-S3) eagerly fetches 5 files on every page load (`standing-orders.md`, `external-communications.md`, `reminders.md`, `contacts.md`, `daily/{today}.md`). These files don't exist until the agent is hatched and running, causing 404 errors in the browser console.
+
+**Fix:** In `loadNotebookWidgetContent()` (`app.js` ~line 4635), fetch the notebook file list first via `GET /api/notebook`, then only fetch files that actually exist. Alternatively, have the server return empty content (200) instead of 404 for missing notebook files.
+
+**Files:** `packages/dashboard/public/js/app.js`
 
 ### Live Update Verification
 
@@ -547,6 +555,7 @@ Ensure the old `convSwitcherOpen` / `toggleConvSwitcher()` references are remove
 - [ ] Desktop: all live updates work
 - [ ] Mobile: all live updates work
 - [ ] Mobile header clean (no switcher remnants)
+- [ ] No notebook 404 errors in console (files fetched only if they exist)
 - [ ] No console errors
 
 ### Commit
