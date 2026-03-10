@@ -467,48 +467,6 @@
     transform: translateY(0);
   }
 
-  /* Conversation switcher backdrop (covers messages, not compose) */
-  .conv-switcher-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 49;
-    background: rgba(0, 0, 0, 0.3);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 200ms ease;
-  }
-
-  .conv-switcher-backdrop.active {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  /* Conversation switcher items */
-  .conv-switcher-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 10px 16px;
-    min-height: 44px;
-    text-align: left;
-    border: none;
-    background: transparent;
-    color: var(--color-text);
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 100ms ease;
-  }
-
-  .conv-switcher-item:active {
-    background: rgba(122, 162, 247, 0.1);
-  }
-
-  .conv-switcher-item.current {
-    background: rgba(122, 162, 247, 0.12);
-    color: var(--color-blue);
-  }
-
   /* ── Notification popover (uses popover-sheet) ─────────────── */
   .notification-popover .notification-item {
     min-height: 48px;
