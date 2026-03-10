@@ -31,6 +31,7 @@ export interface VectorResult {
 export class ConversationSearchDB {
   private db: Database.Database;
   private vecInitialized = false;
+  private vecDimensions: number | null = null;
 
   constructor(db: Database.Database) {
     this.db = db;
@@ -39,6 +40,7 @@ export class ConversationSearchDB {
     sqliteVec.load(db);
 
     this.initializeTables();
+    this.detectExistingDimensions();
   }
 
   private initializeTables(): void {
@@ -62,15 +64,50 @@ export class ConversationSearchDB {
   }
 
   /**
+   * Detect dimensions of existing conv_vec table (if any).
+   * Used to detect dimension changes on model switch.
+   */
+  private detectExistingDimensions(): void {
+    try {
+      // Check if conv_vec exists by querying sqlite_master
+      const row = this.db
+        .prepare(
+          "SELECT sql FROM sqlite_master WHERE type='table' AND name='conv_vec'",
+        )
+        .get() as { sql: string } | undefined;
+
+      if (row?.sql) {
+        // Extract dimensions from "embedding FLOAT[384]"
+        const match = row.sql.match(/FLOAT\[(\d+)\]/);
+        if (match) {
+          this.vecDimensions = parseInt(match[1], 10);
+          this.vecInitialized = true;
+        }
+      }
+    } catch {
+      // Table doesn't exist yet — that's fine
+    }
+  }
+
+  /**
    * Initialize the vector table with the given dimensions.
    * Must be called once the embedding plugin dimensions are known.
+   * Drops and recreates if dimensions changed (model switch).
    */
   initVectorTable(dimensions: number): void {
+    // Drop existing vector table if dimensions changed
+    if (this.vecDimensions !== null && this.vecDimensions !== dimensions) {
+      this.db.exec("DROP TABLE IF EXISTS conv_vec");
+      // Clear embedding map since old embeddings are incompatible
+      this.db.exec("DELETE FROM conversation_embedding_map");
+    }
+
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS conv_vec USING vec0(
         embedding FLOAT[${dimensions}]
       )
     `);
+    this.vecDimensions = dimensions;
     this.vecInitialized = true;
   }
 

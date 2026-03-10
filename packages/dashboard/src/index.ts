@@ -428,28 +428,55 @@ async function main() {
         getDegradedHealth: () => pluginRegistry?.getDegradedHealth() ?? null,
       });
 
+      // Determine intended plugin from config
+      const configPluginId =
+        embeddingsConfig.plugin === "ollama"
+          ? "embeddings-ollama"
+          : "embeddings-local";
+
       // Try to restore previously active embeddings plugin
+      // Config takes precedence: if user changed config.yaml, switch to the new plugin
       const indexMeta = memoryDb.getIndexMeta();
-      if (indexMeta.embeddingsPlugin) {
-        const savedPluginId = indexMeta.embeddingsPlugin;
-        const savedPlugin = pluginRegistry.get(savedPluginId);
+      const savedPluginId = indexMeta.embeddingsPlugin ?? null;
+      const restorePluginId =
+        savedPluginId && savedPluginId !== configPluginId
+          ? configPluginId // Config changed — use new plugin
+          : savedPluginId ?? configPluginId; // No change or no saved state — use saved or config
+
+      if (savedPluginId && savedPluginId !== configPluginId) {
+        console.log(
+          `[Embeddings] Config changed: ${savedPluginId} → ${configPluginId}, switching plugin`,
+        );
+      }
+
+      if (restorePluginId) {
+        const savedPlugin = pluginRegistry.get(restorePluginId);
         if (savedPlugin) {
           try {
             await savedPlugin.initialize();
             const isReady = await savedPlugin.isReady();
             if (isReady) {
-              await pluginRegistry.setActive(savedPluginId);
-              // Re-initialize vector table with saved dimensions
+              await pluginRegistry.setActive(restorePluginId);
+              // Reset vector index (handles dimension change + meta update)
               const dims = savedPlugin.getDimensions();
               if (dims) {
-                memoryDb.initVectorTable(dims);
+                const { modelChanged } = memoryDb.resetVectorIndex(
+                  restorePluginId,
+                  savedPlugin.modelName,
+                  dims,
+                );
+                if (modelChanged) {
+                  console.log(
+                    `[Embeddings] Model changed — memory vector index reset (${dims} dims)`,
+                  );
+                }
               }
               console.log(
-                `Restored embeddings plugin: ${savedPluginId} (${savedPlugin.modelName})`,
+                `Restored embeddings plugin: ${restorePluginId} (${savedPlugin.modelName})`,
               );
             } else {
               // Plugin initialized but not ready — enter degraded mode
-              pluginRegistry.setIntended(savedPluginId);
+              pluginRegistry.setIntended(restorePluginId);
               const health = await savedPlugin.healthCheck();
               pluginRegistry.setDegraded(
                 health.healthy
@@ -465,13 +492,13 @@ async function main() {
                 memoryDb.initVectorTable(indexMeta.dimensions);
               }
               console.warn(
-                `Embeddings plugin ${savedPluginId} not ready — entering degraded mode`,
+                `Embeddings plugin ${restorePluginId} not ready — entering degraded mode`,
               );
             }
           } catch (err) {
             // Plugin failed to initialize — enter degraded mode
             const errMsg = err instanceof Error ? err.message : String(err);
-            pluginRegistry.setIntended(savedPluginId);
+            pluginRegistry.setIntended(restorePluginId);
             pluginRegistry.setDegraded({
               healthy: false,
               message: errMsg,
@@ -487,12 +514,12 @@ async function main() {
               memoryDb.initVectorTable(indexMeta.dimensions);
             }
             console.warn(
-              `Failed to restore embeddings plugin ${savedPluginId} — entering degraded mode: ${errMsg}`,
+              `Failed to restore embeddings plugin ${restorePluginId} — entering degraded mode: ${errMsg}`,
             );
           }
         } else {
           console.warn(
-            `Saved embeddings plugin ${savedPluginId} not found — continuing without embeddings`,
+            `Embeddings plugin ${restorePluginId} not found — continuing without embeddings`,
           );
         }
       }
