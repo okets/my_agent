@@ -54,6 +54,9 @@ If plan.md tasks all done:
   └─ Check review.md exists → if not: "Sprint needs review"
   └─ Check test-report.md exists → if not: "Sprint needs QA"
   └─ Check roadmap updated → if not: "Update roadmap"
+  └─ Verify ROADMAP.md links: for each sprint with plan.md or review.md on disk,
+     confirm the roadmap table has a [plan] or [review] link (not "—")
+     → if missing: "Roadmap has missing links for existing files"
 ```
 
 ### 6. Success Criteria
