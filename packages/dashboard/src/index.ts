@@ -142,7 +142,7 @@ async function main() {
         "";
 
       if (apiKey) {
-        abbreviationQueue = new AbbreviationQueue(conversationManager, apiKey);
+        abbreviationQueue = new AbbreviationQueue(conversationManager, apiKey, agentDir);
         await abbreviationQueue.retryPending();
       } else {
         console.warn(

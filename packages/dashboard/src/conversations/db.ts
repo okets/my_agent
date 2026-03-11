@@ -119,6 +119,13 @@ export class ConversationDatabase {
       );
     }
 
+    // Migration: add last_extracted_at_turn for fact extraction tracking (M6.6-S3)
+    if (!columns.some((c) => c.name === "last_extracted_at_turn")) {
+      this.db.exec(
+        "ALTER TABLE conversations ADD COLUMN last_extracted_at_turn INTEGER DEFAULT NULL",
+      );
+    }
+
     // Migration: add status column for conversation lifecycle (M6.7-S2)
     if (!columns.some((c) => c.name === "status")) {
       this.db.exec(
@@ -381,6 +388,11 @@ export class ConversationDatabase {
       values.push(updates.lastRenamedAtTurn);
     }
 
+    if (updates.lastExtractedAtTurn !== undefined) {
+      fields.push("last_extracted_at_turn = ?");
+      values.push(updates.lastExtractedAtTurn);
+    }
+
     if (updates.model !== undefined) {
       fields.push("model = ?");
       values.push(updates.model);
@@ -505,6 +517,7 @@ export class ConversationDatabase {
       needsAbbreviation: row.needs_abbreviation === 1,
       manuallyNamed: row.manually_named === 1,
       lastRenamedAtTurn: row.last_renamed_at_turn ?? null,
+      lastExtractedAtTurn: row.last_extracted_at_turn ?? null,
       model: row.model ?? null,
       externalParty: row.external_party ?? null,
       isPinned: row.is_pinned !== 0,

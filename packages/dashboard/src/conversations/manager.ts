@@ -51,6 +51,7 @@ export class ConversationManager {
       needsAbbreviation: false,
       manuallyNamed: false,
       lastRenamedAtTurn: null,
+      lastExtractedAtTurn: null,
       model: options?.model ?? null,
       externalParty: options?.externalParty ?? null,
       isPinned: true,
