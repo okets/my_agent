@@ -17,6 +17,7 @@ import { registerTaskRoutes } from "./routes/tasks.js";
 import { registerNotebookRoutes } from "./routes/notebook.js";
 import { registerMemoryRoutes } from "./routes/memory.js";
 import { registerConversationSearchRoutes } from "./routes/conversation-search.js";
+import { registerWorkLoopRoutes } from "./routes/work-loop.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
@@ -37,6 +38,7 @@ import type {
 } from "@my-agent/core";
 import type { StatePublisher } from "./state/state-publisher.js";
 import type { ConversationSearchService } from "./conversations/search-service.js";
+import type { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
 
 export interface ServerOptions {
   agentDir: string;
@@ -64,6 +66,7 @@ declare module "fastify" {
     searchService: SearchService | null;
     pluginRegistry: PluginRegistry | null;
     conversationSearchService: ConversationSearchService | null;
+    workLoopScheduler: WorkLoopScheduler | null;
   }
 }
 
@@ -154,6 +157,7 @@ export async function createServer(
   fastify.decorate("searchService", null);
   fastify.decorate("pluginRegistry", null);
   fastify.decorate("conversationSearchService", null);
+  fastify.decorate("workLoopScheduler", null);
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);
@@ -225,6 +229,9 @@ export async function createServer(
     },
     { prefix: "/api/conversations" },
   );
+
+  // Register work loop routes (M6.6-S2)
+  await registerWorkLoopRoutes(fastify);
 
   // Legacy notebook API - read runtime files (backward compatibility)
   // TODO: Remove after migration to notebook/ is complete

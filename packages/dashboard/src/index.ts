@@ -45,6 +45,7 @@ import {
   TaskProcessor,
   TaskScheduler,
 } from "./tasks/index.js";
+import { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
 import { connectionRegistry, sessionRegistry } from "./ws/chat-handler.js";
 import { StatePublisher } from "./state/state-publisher.js";
 import {
@@ -367,6 +368,29 @@ async function main() {
   server.taskProcessor = taskProcessor;
   server.taskScheduler = taskScheduler;
 
+  // Initialize work loop scheduler (M6.6-S2)
+  let workLoopScheduler: WorkLoopScheduler | null = null;
+
+  if (hatched) {
+    try {
+      const db = conversationManager.getDb();
+      workLoopScheduler = new WorkLoopScheduler({
+        db,
+        agentDir,
+        pollIntervalMs: 60_000,
+      });
+      await workLoopScheduler.start();
+      console.log("Work loop scheduler started");
+    } catch (err) {
+      console.warn(
+        "Failed to initialize work loop scheduler:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  server.workLoopScheduler = workLoopScheduler;
+
   // Initialize StatePublisher — live state sync to all connected dashboard clients
   if (hatched) {
     const statePublisher = new StatePublisher({
@@ -568,6 +592,8 @@ async function main() {
       syncService.on("sync", () => {
         server.statePublisher?.publishMemory();
         getPromptBuilder()?.invalidateCache();
+        // Reload work patterns if config file changed
+        workLoopScheduler?.reloadPatterns().catch(() => {});
       });
 
       console.log("Memory file watcher started");
@@ -739,6 +765,12 @@ async function main() {
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} received, shutting down gracefully...`);
     try {
+      // Stop work loop scheduler (wait for in-flight job)
+      if (workLoopScheduler) {
+        await workLoopScheduler.stop();
+        console.log("Work loop scheduler stopped.");
+      }
+
       // Stop task scheduler
       if (taskScheduler) {
         taskScheduler.stop();

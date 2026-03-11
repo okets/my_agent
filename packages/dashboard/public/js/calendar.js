@@ -48,21 +48,29 @@ function initCalendar(el, options = {}) {
     height: "100%",
     themeSystem: "standard",
 
-    // Event source
-    events: {
-      url: "/api/calendar/events",
-      method: "GET",
-      extraParams: () => {
-        // Filter by visible calendars
-        if (visibleCalendars.length > 0) {
-          return { calendars: visibleCalendars.join(",") };
-        }
-        return {};
+    // Event sources: CalDAV + Work Loop
+    eventSources: [
+      {
+        url: "/api/calendar/events",
+        method: "GET",
+        extraParams: () => {
+          if (visibleCalendars.length > 0) {
+            return { calendars: visibleCalendars.join(",") };
+          }
+          return {};
+        },
+        failure: (err) => {
+          console.error("[Calendar] Failed to fetch events:", err);
+        },
       },
-      failure: (err) => {
-        console.error("[Calendar] Failed to fetch events:", err);
+      {
+        url: "/api/work-loop/events",
+        method: "GET",
+        failure: (err) => {
+          console.error("[Calendar] Failed to fetch work loop events:", err);
+        },
       },
-    },
+    ],
 
     // Event handlers
     eventClick: (info) => {
