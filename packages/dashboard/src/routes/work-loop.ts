@@ -107,13 +107,19 @@ export async function registerWorkLoopRoutes(
       });
     }
 
-    // Upcoming scheduled runs (from patterns)
+    // Upcoming scheduled runs (recurring — generate occurrences within the requested range)
     const patterns = scheduler.getPatterns();
     for (const pattern of patterns) {
-      const nextTime = getNextScheduledTime(pattern.cadence);
-      if (nextTime && nextTime >= startDate && nextTime <= endDate) {
+      let cursor = new Date(startDate);
+      let safety = 0;
+      const maxOccurrences = 50;
+
+      while (safety < maxOccurrences) {
+        const nextTime = getNextScheduledTime(pattern.cadence, cursor);
+        if (!nextTime || nextTime > endDate) break;
+
         events.push({
-          id: `wl-next-${pattern.name}`,
+          id: `wl-sched-${pattern.name}-${nextTime.getTime()}`,
           title: `${pattern.displayName} (scheduled)`,
           start: nextTime.toISOString(),
           end: new Date(nextTime.getTime() + 60_000).toISOString(),
@@ -128,6 +134,10 @@ export async function registerWorkLoopRoutes(
             status: "scheduled",
           },
         });
+
+        // Move cursor past this occurrence to find the next one
+        cursor = new Date(nextTime.getTime() + 60_000);
+        safety++;
       }
     }
 

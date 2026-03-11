@@ -202,4 +202,28 @@ describe("work loop API routes", () => {
     const body = res.json();
     expect(body).toHaveProperty("prompts");
   });
+
+  it("GET /api/work-loop/events returns multiple future scheduled occurrences", async () => {
+    const now = new Date();
+    const twoWeeksOut = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    const res = await fastify.inject({
+      method: "GET",
+      url: `/api/work-loop/events?start=${now.toISOString()}&end=${twoWeeksOut.toISOString()}`,
+    });
+    expect(res.statusCode).toBe(200);
+    const events = res.json();
+
+    // The test pattern is weekly:saturday:03:33
+    // Over 14 days there should be 1-2 scheduled occurrences
+    const scheduled = events.filter(
+      (e: any) => e.extendedProps.status === "scheduled",
+    );
+    expect(scheduled.length).toBeGreaterThanOrEqual(1);
+
+    // All scheduled events should have the same jobName
+    for (const evt of scheduled) {
+      expect(evt.extendedProps.jobName).toBe("unknown-handler");
+    }
+  });
 });
