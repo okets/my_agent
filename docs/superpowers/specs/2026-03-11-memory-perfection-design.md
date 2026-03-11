@@ -37,8 +37,7 @@ BACKGROUND (Work Loop)
 
 CONVERSATION
 ├── New: fresh session, system prompt includes current-state.md + reference/* + daily logs
-├── Resumed: SDK session resume, system prompt rebuilt every query (fresh context)
-└── Pre-compaction: flush important facts before context compressed
+└── Resumed: SDK session resume, system prompt rebuilt every query (fresh context)
 
 SYSTEM PROMPT INJECTION (every query)
 ├── Layer 1-2: Identity + skills (cached)
@@ -71,7 +70,7 @@ SYSTEM PROMPT INJECTION (every query)
 
 **Updated:** M6.7 → M6.6 (M6.8 is independent)
 
-The M6.8 dependency was for loading `work-patterns.md` via `settingSources`. Since `work-patterns.md` lives in `notebook/operations/` and is injected by the existing `loadNotebookOperations()` loader, M6.8 is not required.
+The M6.8 dependency was for loading `work-patterns.md` via `settingSources` and the broader "responsibilities" framework (autonomy levels, effort-based prioritization, terms of responsibility). Since `work-patterns.md` lives in `notebook/operations/` and is injected by the existing `loadNotebookOperations()` loader, M6.8 is not required for M6.6's scope. The three hardcoded jobs (morning prep, daily summary, weekly review) deliver the core value. The general-purpose responsibility framework is deferred to a post-M6.6 enhancement — M7 (Coding Projects) and M9 (Email) will need it extended when those milestones begin.
 
 ---
 
@@ -83,10 +82,12 @@ All synthetic test data follows one story arc across all 4 sprints:
 - "I just landed in Chiang Mai"
 - "Found an amazing pad krapao place near Tha Phae Gate"
 - "Meeting a local guide named Kai tomorrow for a temple tour"
-- "Flying to Krabi on the 15th, back to Tel Aviv on the 20th"
+- "Flying to Krabi on `{today+4}`, back to Tel Aviv on `{today+9}`"
+
+**Date handling:** All dates in test fixtures use offsets from `Date.now()`, not hardcoded dates. This prevents tests from breaking due to dates being in the past.
 
 **Sprint 2 processes:**
-- Morning prep writes `current-state.md`: "Location: Chiang Mai, Thailand (until 15th, then Krabi)"
+- Morning prep writes `current-state.md`: "Location: Chiang Mai, Thailand (until `{today+4}`, then Krabi)"
 - Daily summary consolidates learnings
 
 **Sprint 3 extracts:**
@@ -153,17 +154,23 @@ Morning prep writes current-state.md
 
 `reference/*` uses the same mechanism — rare changes, cache-friendly, invalidated on write.
 
+**Cross-package wiring:** `SyncService` lives in `packages/core/`, `SystemPromptBuilder` lives in `packages/dashboard/`. The wiring happens at the dashboard initialization layer (`packages/dashboard/src/index.ts`) where both instances are available — subscribe to SyncService's `sync` event and call `SystemPromptBuilder.invalidateCache()`.
+
 #### 1.4 Verify `loadNotebookOperations()`
 
 Confirm `current-state.md` is injected by the existing loader in `packages/core/src/prompt.ts`. The function reads all `*.md` from `notebook/operations/`. If not working, wire it.
 
-#### 1.4 Verify `notebook.md` skill
+#### 1.5 Verify `notebook.md` skill
 
 Confirm the skill file (`.my_agent/brain/skills/notebook.md`) is included in the assembled system prompt. Verify Nina calls `recall()` when asked a factual question.
 
-#### 1.6 Fix stale data
+#### 1.6 Fix stale data (test setup, not deliverable)
 
-`reference/contacts.md` currently says "Location: Tel Aviv" — auto-injected into every prompt, actively providing wrong information. Update for testing with synthetic vacation data.
+`reference/contacts.md` currently says "Location: Tel Aviv" — auto-injected into every prompt, actively providing wrong information. Update for testing with synthetic vacation data. This is a test setup step for `.my_agent/` private files, not a framework deliverable.
+
+#### 1.7 Fix `channel NOT NULL` schema bug
+
+Pre-existing bug: `conversations` CREATE TABLE has `channel TEXT NOT NULL` but the M6.7 refactor removed `channel` from the Conversation type. `ConversationManager.create()` doesn't pass a channel value. Fix the schema to make `channel` nullable or remove it — otherwise fresh DB creation will fail during testing.
 
 ### E2E Tests
 
@@ -179,6 +186,7 @@ Confirm the skill file (`.my_agent/brain/skills/notebook.md`) is included in the
 
 - `packages/dashboard/src/agent/system-prompt-builder.ts` — Add temporal context to dynamic block, wire `invalidateCache()` to SyncService file change events
 - `packages/core/src/prompt.ts` — Verify `loadNotebookOperations()` works (no changes expected)
+- `packages/dashboard/src/conversations/db.ts` — Fix `channel NOT NULL` schema bug
 - `.my_agent/notebook/operations/current-state.md` — Create with synthetic test data (gitignored)
 - `.my_agent/notebook/reference/contacts.md` — Update for testing (gitignored)
 
@@ -201,7 +209,7 @@ Confirm the skill file (`.my_agent/brain/skills/notebook.md`) is included in the
 New class following `TaskScheduler` pattern:
 
 - Polls every 60s, checks which jobs are due
-- Job definitions read from `notebook/operations/work-patterns.md` (markdown = source of truth)
+- Job definitions read from `notebook/config/work-patterns.md` (markdown = source of truth)
 - `lastRun` stored in `work_loop_runs` table (SQLite = execution history only)
 - Sequential execution — one Haiku call at a time
 - States: `pending` → `running` → `completed` / `failed`
@@ -227,9 +235,17 @@ New class following `TaskScheduler` pattern:
 
 Scheduler reads this file on startup and on file change (via existing `SyncService` watcher). Edit the markdown → schedule changes on next cycle. Delete the database → lose history but schedule still works.
 
+**Why `notebook/config/` not `notebook/operations/`:** `loadNotebookOperations()` injects all `*.md` from `operations/` into the system prompt. `work-patterns.md` is machine config for the scheduler — injecting it into conversation context wastes tokens and confuses the model. `notebook/config/` is a new directory for machine-readable config that should NOT be prompt-injected.
+
+**Parsing:** The scheduler parses markdown H2 headings as job names and `- key: value` lines as config. Malformed entries are logged and skipped (no crash). On parse error, the scheduler continues with previously valid jobs.
+
+**Timezone:** All cadence times use the system timezone (configured via `TZ` environment variable, default: server local time). The `work-patterns.md` file should document the assumed timezone.
+
 #### 2.3 Background Haiku query utility
 
-Lightweight function: sends a single prompt to Haiku with notebook context, returns structured output. Should use `createBrainQuery()` from `@my-agent/core` (same pattern as `AbbreviationQueue`) with model override to `claude-haiku-4-5-20251001`. This keeps the existing SDK query pattern consistent across the codebase.
+Lightweight function: sends a single prompt to Haiku with pre-assembled notebook context, returns structured output. Should use `createBrainQuery()` from `@my-agent/core` (same pattern as `AbbreviationQueue`) with model override to `claude-haiku-4-5-20251001`. This keeps the existing SDK query pattern consistent across the codebase.
+
+**No MCP tools for background jobs.** Morning prep and daily summary receive all source content pre-assembled into the prompt (read files, concatenate, pass as context). They don't need search — they're reading specific known files. This keeps background jobs simple and avoids MCP server dependencies.
 
 #### 2.10 Graceful shutdown
 
@@ -273,6 +289,7 @@ Second event source on existing calendar:
 - `events: { url: "/api/work-loop/events" }` alongside existing CalDAV source
 - Clicking a system event shows job output in a detail panel
 - Distinct visual treatment from personal calendar events
+- Toggle to show/hide system events (calendar sidebar checkbox, default: visible)
 
 #### 2.9 Manual trigger API
 
@@ -301,7 +318,7 @@ Second event source on existing calendar:
 - `packages/dashboard/src/routes/work-loop.ts` — New (API routes)
 - `packages/dashboard/src/index.ts` — Wire scheduler + routes
 - `packages/dashboard/public/js/calendar.js` — Add second event source
-- `.my_agent/notebook/operations/work-patterns.md` — Job definitions (gitignored)
+- `.my_agent/notebook/config/work-patterns.md` — Job definitions (gitignored)
 - DB migration: `work_loop_runs` table
 
 ### What S2 Does NOT Do
@@ -327,7 +344,7 @@ Conversation triggers (idle OR inactive)
   → Check: turnCount > lastExtractedAtTurn?
     → NO: skip (no new messages since last extraction)
     → YES:
-      → Promise.all([
+      → Promise.allSettled([
           summarize(turns),        // existing: lossy compression
           extractFacts(turns),     // NEW: precision extraction
         ])
@@ -336,7 +353,7 @@ Conversation triggers (idle OR inactive)
       → update lastExtractedAtTurn
 ```
 
-Both run on the **original transcript**, not chained. Different goals, same input.
+Both run on the **original transcript**, not chained. Different goals, same input. Uses `Promise.allSettled` so fact extraction failure does not kill abbreviation (or vice versa). Failed branches log errors and continue.
 
 #### 3.2 Dual trigger for extraction
 
@@ -357,7 +374,7 @@ Haiku extracts structured facts from the transcript:
 - Decisions and commitments
 - Output: one fact per line, categorized
 
-Deduplication: before appending, search existing `knowledge/` content via search service. Skip facts that already exist (exact or high-confidence semantic match).
+Deduplication: before appending, search existing `knowledge/` content via search service. Skip facts that already exist (exact or high-confidence semantic match). **Fallback:** If embeddings/Ollama are unavailable, use exact substring matching against existing file content. Accept occasional duplicates over losing facts.
 
 #### 3.4 `notebook/knowledge/` writes
 
@@ -366,6 +383,8 @@ Extracted facts appended to category files:
 - `knowledge/facts.md` — general learned facts (location, schedule, events)
 - `knowledge/people.md` — people mentioned (name, context, relationship)
 - `knowledge/preferences.md` — inferred preferences (separate from `reference/preferences.md` which holds confirmed/promoted preferences)
+
+**Concurrent write safety:** The `AbbreviationQueue` already processes sequentially (one conversation at a time). However, the weekly review job runs via `WorkLoopScheduler` and could write to `knowledge/` at the same time as an extraction. Mitigation: the weekly review job acquires a simple file lock (or uses the same `AbbreviationQueue` as a write coordinator) before modifying `knowledge/` or `reference/` files.
 
 #### 3.5 Weekly review job
 
@@ -377,15 +396,7 @@ Added to `work-patterns.md` with cadence `weekly:sunday:09:00`:
 - **Conflict resolution:** If `knowledge/` contradicts `reference/` (e.g., location changed) → update `reference/`, log the change
 - Writes changes to both directories, logs to daily log
 
-#### 3.6 Pre-compaction flush
-
-Wire existing `getPreCompactionFlushMessage()`:
-
-- Before SDK compacts context, inject system message prompting Nina to save important facts
-- Nina calls `remember()` / `daily_log()` with key facts from the conversation
-- Trigger: token count > 75% of context window, or SDK `pre_compaction` event if available
-
-#### 3.7 Calendar visibility
+#### 3.6 Calendar visibility
 
 Each extraction run and weekly review creates a `work_loop_runs` entry, visible on the system calendar with extracted facts / review actions as output.
 
@@ -404,8 +415,7 @@ Each extraction run and weekly review creates a `work_loop_runs` entry, visible 
 | 9 | Skip when no new turns | Trigger extraction twice, no new messages between | Second call skipped (no Haiku call) |
 | 10 | Weekly review promotes | Seed `knowledge/` with fact 3+ times → trigger review | Fact in `reference/`, removed from `knowledge/` |
 | 11 | Weekly review resolves conflicts | `reference/` says Tel Aviv, `knowledge/` says Chiang Mai → review | `reference/` updated |
-| 12 | Pre-compaction flush | Call `POST /api/debug/memory/simulate-compaction` or mock token count > 75% threshold | `getPreCompactionFlushMessage()` output injected as system message in conversation |
-| 13 | Calendar shows extraction | Trigger extraction → GET `/api/work-loop/events` | Event with extracted facts in output |
+| 12 | Calendar shows extraction | Trigger extraction → GET `/api/work-loop/events` | Event with extracted facts in output |
 
 ### Files Created/Modified
 
@@ -414,8 +424,7 @@ Each extraction run and weekly review creates a `work_loop_runs` entry, visible 
 - `packages/dashboard/src/scheduler/jobs/weekly-review.ts` — New
 - `packages/dashboard/src/conversations/manager.ts` — Enqueue abbreviation when conversation status changes to inactive (this is where `create()` demotes the old conversation)
 - `packages/dashboard/src/ws/chat-handler.ts` — Enqueue abbreviation on `/new` slash command (conversation switch via web UI)
-- `packages/dashboard/src/agent/session-manager.ts` — Wire pre-compaction flush
-- `.my_agent/notebook/operations/work-patterns.md` — Add weekly review entry (gitignored)
+- `.my_agent/notebook/config/work-patterns.md` — Add weekly review entry (gitignored)
 
 ### What S3 Does NOT Do
 
@@ -443,7 +452,7 @@ export const THAILAND_CONVERSATIONS = [
       { role: "assistant", content: "Tha Phae Gate area has great food ...", channel: "whatsapp" },
       { role: "user", content: "Meeting a local guide named Kai tomorrow for a temple tour", channel: "whatsapp" },
       { role: "assistant", content: "Temple tours are the best way ...", channel: "whatsapp" },
-      { role: "user", content: "Flying to Krabi on the 15th, back to Tel Aviv on the 20th", channel: "whatsapp" },
+      { role: "user", content: `Flying to Krabi on ${formatDate(today+4)}, back to Tel Aviv on ${formatDate(today+9)}`, channel: "whatsapp" },
       { role: "assistant", content: "Great itinerary! ...", channel: "whatsapp" },
     ],
   },
@@ -491,7 +500,8 @@ export const THAILAND_CONVERSATIONS = [
 | # | Test | Pass Criteria |
 |---|------|---------------|
 | 14 | Database rebuild | Delete `memory.db`, trigger sync → index rebuilt, search works |
-| 15 | Cold start | Empty `knowledge/` + `operations/`, send message → no errors, graceful fallback |
+| 15 | Cold start (no notebook data) | Empty `knowledge/` + `operations/`, send message → no errors, graceful fallback |
+| 15b | Cold start (no work-patterns) | Delete `config/work-patterns.md`, restart scheduler → no crash, scheduler runs with no jobs, logs warning |
 | 16 | Concurrent extraction | Two conversations go idle simultaneously → no file corruption |
 | 17 | Haiku API down | Mock failure in morning prep → fails, logs, retries next heartbeat, no crash |
 
@@ -542,9 +552,12 @@ Add to project `CLAUDE.md` under a new "Core Principles" section:
 
 | Change | Original (design doc) | M6.6 (this spec) | Rationale |
 |--------|----------------------|-------------------|-----------|
-| `work-patterns.md` location | `.my_agent/brain/work-patterns.md` | `notebook/operations/work-patterns.md` | Auto-injected by `loadNotebookOperations()`, no new loader needed |
+| `work-patterns.md` location | `.my_agent/brain/work-patterns.md` | `notebook/config/work-patterns.md` | Auto-injected by `loadNotebookOperations()`, no new loader needed |
 | `knowledge/` file names | `facts.md`, `patterns.md` | `facts.md`, `people.md`, `preferences.md` | Better semantic separation; `patterns.md` deferred (not needed for MVP) |
 | Context refresher on resume | Dedicated mtime-based detection + injection | Not needed — `SystemPromptBuilder` rebuilds every query | M6.7's architecture already solved this; no separate mechanism required |
+| Pre-compaction flush | Inject system message before SDK compacts context | Dropped | Fact extraction reads from DB (full transcript), not SDK context. Compaction doesn't lose data. See analysis in sprint planning session. |
+| Responsibility framework | Full autonomy levels, effort-based prioritization, terms of responsibility | Deferred (3 hardcoded jobs) | 90% of value with 10% of complexity. General-purpose framework needed by M7/M9, not M6.6. |
+| `work-patterns.md` directory | `notebook/operations/` | `notebook/config/` | `loadNotebookOperations()` injects all `operations/*.md` into prompt. Scheduler config is machine-readable, not conversation context. |
 
 ---
 
@@ -554,7 +567,9 @@ Add to project `CLAUDE.md` under a new "Core Principles" section:
 |------|------------|
 | Token budget bloat in `current-state.md` | Morning prep prompt enforces 500–1000 char limit |
 | Haiku extraction quality | Structured prompt with examples; deduplication prevents noise accumulation |
-| Concurrent file writes | Sequential job execution; extraction uses append with section markers |
+| Concurrent file writes | AbbreviationQueue sequential + weekly review file lock; no parallel writes to same file |
+| Fact extraction failure | `Promise.allSettled` isolates extraction from abbreviation; neither blocks the other |
+| Embeddings down during dedup | Falls back to exact substring matching; accepts occasional duplicates over lost facts |
 | Stale `current-state.md` | SyncService triggers cache invalidation on file change; temporal context lets Nina reason about freshness |
 | Heartbeat storm after long outage | Sequential execution + cadence check prevents burst |
 | Fact conflicts (knowledge vs reference) | Weekly review explicitly resolves; most recent wins |
@@ -588,7 +603,7 @@ Add to project `CLAUDE.md` under a new "Core Principles" section:
 
 ### Private Files (gitignored, `.my_agent/`)
 - `notebook/operations/current-state.md`
-- `notebook/operations/work-patterns.md`
+- `notebook/config/work-patterns.md`
 - `notebook/knowledge/facts.md`
 - `notebook/knowledge/people.md`
 - `notebook/knowledge/preferences.md`
