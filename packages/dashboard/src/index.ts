@@ -148,6 +148,13 @@ async function main() {
           agentDir,
         );
         await abbreviationQueue.retryPending();
+
+        // Wire inactive trigger: programmatic callers (not just chat-handler)
+        // trigger extraction when a conversation goes inactive
+        const queue = abbreviationQueue;
+        conversationManager.onConversationInactive = (oldConvId) => {
+          queue.enqueue(oldConvId);
+        };
       } else {
         console.warn(
           "No API key available - abbreviation queue will not start",
