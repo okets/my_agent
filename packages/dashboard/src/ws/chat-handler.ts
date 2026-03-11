@@ -526,7 +526,6 @@ export async function registerChatWebSocket(
           .getSdkSessionId(conversation.id);
         sessionManager = await sessionRegistry.getOrCreate(
           conversation.id,
-          "web",
           storedSessionId,
         );
 
@@ -550,23 +549,12 @@ export async function registerChatWebSocket(
         });
       }
 
-      // Get all conversations and split by pinned status
+      // Send all conversations as a unified list
       const allConversations = await conversationManager.list({});
-
-      // Pinned channel conversations → show in Channels section (read-only)
-      const pinnedChannelConvs = allConversations.filter(
-        (c) => c.channel !== "web" && c.isPinned,
-      );
-
-      // Web conversations + unpinned channel conversations → regular list
-      const regularConvs = allConversations.filter(
-        (c) => c.channel === "web" || !c.isPinned,
-      );
 
       send({
         type: "conversation_list",
-        conversations: regularConvs.slice(0, 50).map(toConversationMeta),
-        channelConversations: pinnedChannelConvs.map(toConversationMeta),
+        conversations: allConversations.slice(0, 50).map(toConversationMeta),
       });
     }
 
@@ -603,16 +591,13 @@ export async function registerChatWebSocket(
       queueAbbreviationForCurrent();
 
       // Create new conversation
-      const conversation = await conversationManager.create("web");
+      const conversation = await conversationManager.create();
 
       currentConversationId = conversation.id;
       currentTurnNumber = 0;
 
       // Create session for new conversation (will be cold/empty)
-      sessionManager = await sessionRegistry.getOrCreate(
-        conversation.id,
-        "web",
-      );
+      sessionManager = await sessionRegistry.getOrCreate(conversation.id);
 
       // Update registry
       connectionRegistry.switchConversation(socket, conversation.id);
@@ -663,6 +648,9 @@ export async function registerChatWebSocket(
       // Make this the current conversation
       await conversationManager.makeCurrent(conversationId);
 
+      // Broadcast updated conversation state to all clients
+      fastify.statePublisher?.publishConversations();
+
       // Load turns
       const turns = await conversationManager.getTurns(conversation.id, {
         limit: TURNS_PER_PAGE,
@@ -677,7 +665,6 @@ export async function registerChatWebSocket(
         .getSdkSessionId(conversationId);
       sessionManager = await sessionRegistry.getOrCreate(
         conversationId,
-        "web",
         storedSessionId,
       );
 
@@ -855,16 +842,13 @@ export async function registerChatWebSocket(
         queueAbbreviationForCurrent();
 
         // Create new conversation
-        const conversation = await conversationManager.create("web");
+        const conversation = await conversationManager.create();
 
         currentConversationId = conversation.id;
         currentTurnNumber = 0;
 
         // Create session for new conversation
-        sessionManager = await sessionRegistry.getOrCreate(
-          conversation.id,
-          "web",
-        );
+        sessionManager = await sessionRegistry.getOrCreate(conversation.id);
 
         // Update registry
         connectionRegistry.switchConversation(socket, conversation.id);
@@ -999,7 +983,7 @@ export async function registerChatWebSocket(
 
       // Create conversation if needed
       if (!currentConversationId) {
-        const conversation = await conversationManager.create("web");
+        const conversation = await conversationManager.create();
         currentConversationId = conversation.id;
         currentTurnNumber = 0;
 
@@ -1036,7 +1020,6 @@ export async function registerChatWebSocket(
           .getSdkSessionId(currentConversationId);
         sessionManager = await sessionRegistry.getOrCreate(
           currentConversationId,
-          "web",
           storedSid,
         );
         const isWarm = sessionRegistry.isWarm(currentConversationId);
@@ -1443,7 +1426,6 @@ export async function registerChatWebSocket(
 function toConversationMeta(conv: Conversation): ConversationMeta {
   return {
     id: conv.id,
-    channel: conv.channel,
     title: conv.title,
     topics: conv.topics,
     created: conv.created.toISOString(),

@@ -17,6 +17,7 @@ document.addEventListener("alpine:init", () => {
 
   Alpine.store("conversations", {
     items: [],
+    serverCurrentId: null,
   });
 
   Alpine.store("memory", {

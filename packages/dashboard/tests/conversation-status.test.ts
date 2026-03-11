@@ -20,15 +20,15 @@ describe("Conversation status model", () => {
   });
 
   it("new conversation is created as current", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     expect(conv.status).toBe("current");
   });
 
   it("only one conversation can be current at a time", async () => {
-    const convA = await manager.create("web");
+    const convA = await manager.create();
     expect(convA.status).toBe("current");
 
-    const convB = await manager.create("web");
+    const convB = await manager.create();
     expect(convB.status).toBe("current");
 
     // Conv A should now be inactive
@@ -37,8 +37,8 @@ describe("Conversation status model", () => {
   });
 
   it("makeCurrent swaps status", async () => {
-    const convA = await manager.create("web");
-    const convB = await manager.create("web");
+    const convA = await manager.create();
+    const convB = await manager.create();
 
     // B is current, A is inactive
     expect((await manager.get(convB.id))!.status).toBe("current");
@@ -52,8 +52,8 @@ describe("Conversation status model", () => {
   });
 
   it("getCurrent returns the current conversation", async () => {
-    await manager.create("web");
-    const convB = await manager.create("web");
+    await manager.create();
+    const convB = await manager.create();
 
     const current = await manager.getCurrent();
     expect(current).not.toBeNull();

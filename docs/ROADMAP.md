@@ -18,7 +18,7 @@
 | ~~**M5.5: Live Dashboard**~~ | Absorbed | → M5-S10                     |
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
-| **M6.7: Two-Agent Refactor** | In Progress | S1-S3 on master, S4 complete (on branch), S5-S6 pending |
+| **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M6.6: Agentic Lifecycle**  | Planned  | Design complete, 4 sprints   |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
@@ -413,11 +413,11 @@ Conversation Nina becomes a resumable long-lived session with a system prompt re
 | S1 | Core Architecture | **Complete (on master).** SystemPromptBuilder (6-layer prompt with caching), unified `buildQuery()` (always resume+systemPrompt), context-builder.ts removed. Review: [review.md](sprints/m6.7-s1-core-architecture/review.md) |
 | S2 | Conversation Lifecycle | **Complete (on master).** Conversation status model (current/inactive with atomic swap), ConversationRouter (owner/external routing, Web→WhatsApp switch detection), wired into chat-handler + message-handler. Review: [review.md](sprints/m6.7-s2-conversation-lifecycle/review.md) |
 | S3 | Conversation Lifecycle UI | **Complete (on master).** Current/inactive indicators in conversation sidebar (green dot + bold/muted styling, desktop + mobile), channel badges on transcript messages (icon + name for non-web channels). Review: [review.md](sprints/m6.7-s3-conversation-lifecycle-ui/review.md) |
-| S4 | Search Infrastructure | **Complete (on branch).** Backend search: FTS5 + sqlite-vec tables, ConversationSearchDB + ConversationSearchService with hybrid RRF (K=60), REST API (`/api/conversations/{search,:id,list}`), MCP tools (`conversation_search`, `conversation_read`), fire-and-forget indexing wired into chat flow. 38 tests. Branch: `sprint/m6.7-s4-search-infrastructure`. Review: [review.md](sprints/m6.7-s4-search-infrastructure/review.md) |
-| S5 | Conversation Home Widget | **Needs reconstruction.** UI overhaul: remove tab bar, simplify chat header, Home widget (browse/search/resume), read-only preview (tab + popover), empty conversation cleanup. Plan: [plan.md](sprints/m6.7-s5-conversation-home-widget/plan.md) |
-| S6 | E2E Validation + Semantic Search | **Needs reconstruction.** 16 E2E test scenarios, semantic search verification (not implementation), human-in-the-loop scenarios, milestone wrap-up. Plan: [plan.md](sprints/m6.7-s6-e2e-validation/plan.md) |
+| S4 | Search Infrastructure | **Complete (on master).** Backend search: FTS5 + sqlite-vec tables, ConversationSearchDB + ConversationSearchService with hybrid RRF (K=60), REST API (`/api/conversations/{search,:id,list}`), MCP tools (`conversation_search`, `conversation_read`), fire-and-forget indexing wired into chat flow. 38 tests. Review: [review.md](sprints/m6.7-s4-search-infrastructure/review.md) |
+| S5 | Conversation Home Widget | **Complete (on master).** UI overhaul: removed dropdown/switcher, simplified chat header, Home widget (browse/search/resume), read-only preview (desktop tab + mobile popover), empty conversation auto-cleanup. 15 commits, 30/32 review criteria pass. Review: [review.md](sprints/m6.7-s5-conversation-home-widget/review.md) |
+| S6 | E2E Validation + Semantic Search | **Complete (on master).** 28 automated E2E tests (Vitest), semantic search verified (80ms latency, Ollama + nomic-embed-text), 5 human-in-the-loop scenarios prepared for CTO walkthrough. Review: [review.md](sprints/m6.7-s6-e2e-validation/review.md) |
 
-**Recovery notes:** S4-S7 were completed but lost due to unpushed branches during machine migration. Restructured as S4-S6 (original S4 tab bar rejected, S7 merged into S6). Recovery transcripts and analysis: [recovery/m6.7-conversations/](recovery/m6.7-conversations/). Key corrections from review: conversation UI uses Home widget (not tab bar), semantic search was already implemented (S6 = verification only).
+**Recovery notes:** S4-S7 were originally completed but lost due to unpushed branches during machine migration. Restructured as S4-S6 (original S4 tab bar rejected, S7 merged into S6). S4-S5 reconstructed and merged to master. S6 validates the complete milestone. Recovery transcripts and analysis: [recovery/m6.7-conversations/](recovery/m6.7-conversations/).
 
 **What this delivers:**
 

@@ -101,7 +101,9 @@ async function main() {
       await conversationManager.delete(conv.id);
     }
     if (emptyConvs.length > 0) {
-      console.log(`Cleaned up ${emptyConvs.length} empty conversation(s) on startup`);
+      console.log(
+        `Cleaned up ${emptyConvs.length} empty conversation(s) on startup`,
+      );
     }
   }
 
@@ -163,6 +165,10 @@ async function main() {
       updateChannelConfig: (channelId, update) =>
         channelManager!.updateChannelConfig(channelId, update),
       agentDir,
+      statePublisher: {
+        publishConversations: () =>
+          server.statePublisher?.publishConversations(),
+      },
     });
 
     channelManager.onMessage((channelId, messages) => {
@@ -453,7 +459,7 @@ async function main() {
       const restorePluginId =
         savedPluginId && savedPluginId !== configPluginId
           ? configPluginId // Config changed — use new plugin
-          : savedPluginId ?? configPluginId; // No change or no saved state — use saved or config
+          : (savedPluginId ?? configPluginId); // No change or no saved state — use saved or config
 
       if (savedPluginId && savedPluginId !== configPluginId) {
         console.log(

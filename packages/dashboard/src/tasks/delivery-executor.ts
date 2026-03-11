@@ -144,8 +144,8 @@ export class DeliveryExecutor {
         `[DeliveryExecutor] WhatsApp message sent to ${ownerJid} for task ${task.id}`,
       );
 
-      // Record the sent message in the WhatsApp conversation
-      await this.recordInChannelConversation(whatsappChannelId, content);
+      // Record the sent message in the owner's conversation
+      await this.recordInChannelConversation(ownerJid, content);
 
       return { channel: "whatsapp", success: true };
     } catch (err) {
@@ -156,19 +156,19 @@ export class DeliveryExecutor {
   }
 
   /**
-   * Record an outbound message in the channel's active conversation
+   * Record an outbound message in the external party's active conversation
    *
    * Ensures the brain has context when the user replies on that channel.
    */
   private async recordInChannelConversation(
-    channelId: string,
+    externalParty: string,
     content: string,
   ): Promise<void> {
     if (!this.conversationManager) return;
 
     try {
       const conversation =
-        await this.conversationManager.getMostRecent(channelId);
+        await this.conversationManager.getByExternalParty(externalParty);
       if (!conversation) return;
 
       const turnNumber = conversation.turnCount + 1;

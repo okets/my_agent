@@ -65,7 +65,7 @@ interface StreamOptions {
 
 export class SessionManager {
   private conversationId: string;
-  private channel: string;
+  private channel: string = "web";
   private sdkSessionId: string | null;
   private config: BrainConfig | null = null;
   private hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> | null =
@@ -75,14 +75,14 @@ export class SessionManager {
   private messageIndex = 0;
   private promptBuilder: SystemPromptBuilder | null = null;
 
-  constructor(
-    conversationId: string,
-    channel: string,
-    sdkSessionId?: string | null,
-  ) {
+  constructor(conversationId: string, sdkSessionId?: string | null) {
     this.conversationId = conversationId;
-    this.channel = channel;
     this.sdkSessionId = sdkSessionId ?? null;
+  }
+
+  /** Set the channel for the next query (per-message, not per-session) */
+  setChannel(channel: string): void {
+    this.channel = channel;
   }
 
   /**

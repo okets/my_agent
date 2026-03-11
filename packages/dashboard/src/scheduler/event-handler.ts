@@ -36,7 +36,7 @@ async function getSchedulerConversation(
   manager: ConversationManager,
 ): Promise<string> {
   // Try to find existing scheduler conversation
-  const conversations = await manager.list({ channel: SCHEDULER_CHANNEL });
+  const conversations = await manager.list({});
   const existing = conversations.find(
     (c) => c.title === SCHEDULER_CONVERSATION_TITLE,
   );
@@ -46,7 +46,7 @@ async function getSchedulerConversation(
   }
 
   // Create new conversation for scheduler events
-  const conv = await manager.create(SCHEDULER_CHANNEL, {
+  const conv = await manager.create({
     title: SCHEDULER_CONVERSATION_TITLE,
   });
 

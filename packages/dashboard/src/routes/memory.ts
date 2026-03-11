@@ -331,7 +331,7 @@ export async function registerMemoryRoutes(
       });
     }
 
-    const { q, maxResults, channel } = request.query;
+    const { q, maxResults } = request.query;
 
     if (!q || !q.trim()) {
       return {
@@ -379,7 +379,6 @@ export async function registerMemoryRoutes(
           return {
             conversationId: r.conversationId,
             conversationTitle: conv?.title || "Untitled",
-            channel: conv?.channel || "unknown",
             turnNumber: r.turnNumber,
             snippet: r.content.slice(0, 200),
             timestamp: r.timestamp,
@@ -387,15 +386,10 @@ export async function registerMemoryRoutes(
         }),
       );
 
-      // Filter by channel if specified
-      const filtered = channel
-        ? results.filter((r) => r.channel === channel)
-        : results;
-
       return {
         query: q.trim(),
-        results: filtered,
-        totalResults: filtered.length,
+        results,
+        totalResults: results.length,
       };
     } catch (err) {
       fastify.log.error(err, "[Memory] Conversation search failed");

@@ -1,8 +1,4 @@
-import {
-  checkEnvAuth,
-  validateSetupToken,
-  setEnvValue,
-} from "@my-agent/core";
+import { checkEnvAuth, validateSetupToken, setEnvValue } from "@my-agent/core";
 import type { ServerMessage } from "../ws/protocol.js";
 
 type State = "AUTH_DETECT" | "AUTH_INPUT" | "DONE";

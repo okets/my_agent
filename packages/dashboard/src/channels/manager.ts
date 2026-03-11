@@ -195,7 +195,9 @@ export class ChannelManager {
       entry.pairing = true;
       // Suppress QR codes during phone number pairing
       if (this.phonePairingChannels.has(id)) {
-        console.log(`[ChannelManager] QR suppressed for ${id} — phone pairing active`);
+        console.log(
+          `[ChannelManager] QR suppressed for ${id} — phone pairing active`,
+        );
         return;
       }
       console.log(
@@ -224,13 +226,17 @@ export class ChannelManager {
       const hasCredentials =
         "hasValidCredentials" in plugin &&
         typeof plugin.hasValidCredentials === "function"
-          ? await (plugin as { hasValidCredentials: () => Promise<boolean> }).hasValidCredentials()
+          ? await (
+              plugin as { hasValidCredentials: () => Promise<boolean> }
+            ).hasValidCredentials()
           : true; // Default to true for plugins that don't implement this
 
       if (hasCredentials) {
         // Enter pairing mode before connect to suppress reconnect loops during QR display.
         entry.pairing = true;
-        console.log(`[ChannelManager] Auto-connecting ${id} (credentials found)`);
+        console.log(
+          `[ChannelManager] Auto-connecting ${id} (credentials found)`,
+        );
         try {
           await plugin.connect();
           console.log(`[ChannelManager] Connected channel: ${id}`);
@@ -241,7 +247,9 @@ export class ChannelManager {
         }
       } else {
         // No credentials — wait for user to choose pairing method
-        console.log(`[ChannelManager] Channel ${id} needs pairing (no credentials)`);
+        console.log(
+          `[ChannelManager] Channel ${id} needs pairing (no credentials)`,
+        );
         entry.status = {
           ...entry.status,
           running: false,

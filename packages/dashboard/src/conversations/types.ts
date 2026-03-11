@@ -12,9 +12,6 @@ export interface Conversation {
   /** Stable unique ID: conv-{ulid} */
   id: string;
 
-  /** Communication channel (supports any channel plugin ID) */
-  channel: string;
-
   /** Haiku display name (null before turn 5) */
   title: string | null;
 
@@ -51,8 +48,7 @@ export interface Conversation {
   /** External party identifier for channel conversations (phone, email) */
   externalParty: string | null;
 
-  /** Whether this is the pinned (active) conversation for a channel.
-   *  Channel messages always route to the pinned conversation.
+  /** Whether this is the pinned conversation for channel message routing.
    *  Unpinned conversations can still be viewed/continued via web. */
   isPinned: boolean;
 
@@ -114,8 +110,8 @@ export interface TranscriptMeta {
   /** Conversation ID */
   id: string;
 
-  /** Channel */
-  channel: string;
+  /** Channel (vestigial — channel is per-turn, not per-conversation) */
+  channel?: string;
 
   /** Creation timestamp */
   created: string;
@@ -183,9 +179,6 @@ export type TranscriptLine =
  * Options for listing conversations
  */
 export interface ListConversationsOptions {
-  /** Filter by channel */
-  channel?: string;
-
   /** Maximum number of results */
   limit?: number;
 }

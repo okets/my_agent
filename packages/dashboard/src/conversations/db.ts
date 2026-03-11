@@ -273,7 +273,7 @@ export class ConversationDatabase {
 
     stmt.run(
       conversation.id,
-      conversation.channel,
+      "web", // vestigial — channel is per-turn, not per-conversation
       conversation.title,
       JSON.stringify(conversation.topics),
       conversation.created.toISOString(),
@@ -311,19 +311,9 @@ export class ConversationDatabase {
   /**
    * List conversations with optional filtering
    */
-  listConversations(options?: {
-    channel?: string;
-    limit?: number;
-  }): Conversation[] {
-    let sql = "SELECT * FROM conversations";
+  listConversations(options?: { limit?: number }): Conversation[] {
+    let sql = "SELECT * FROM conversations ORDER BY updated DESC";
     const params: any[] = [];
-
-    if (options?.channel) {
-      sql += " WHERE channel = ?";
-      params.push(options.channel);
-    }
-
-    sql += " ORDER BY updated DESC";
 
     if (options?.limit) {
       sql += " LIMIT ?";
@@ -337,26 +327,6 @@ export class ConversationDatabase {
   }
 
   /**
-   * Get the most recent conversation for a channel
-   */
-  getMostRecent(channel: string): Conversation | null {
-    const stmt = this.db.prepare(`
-      SELECT * FROM conversations
-      WHERE channel = ?
-      ORDER BY updated DESC
-      LIMIT 1
-    `);
-
-    const row = stmt.get(channel) as any;
-
-    if (!row) {
-      return null;
-    }
-
-    return this.rowToConversation(row);
-  }
-
-  /**
    * Update conversation metadata
    */
   updateConversation(
@@ -365,11 +335,6 @@ export class ConversationDatabase {
   ): void {
     const fields: string[] = [];
     const values: any[] = [];
-
-    if (updates.channel !== undefined) {
-      fields.push("channel = ?");
-      values.push(updates.channel);
-    }
 
     if (updates.title !== undefined) {
       fields.push("title = ?");
@@ -530,7 +495,6 @@ export class ConversationDatabase {
   private rowToConversation(row: any): Conversation {
     return {
       id: row.id,
-      channel: row.channel,
       title: row.title,
       topics: row.topics ? JSON.parse(row.topics) : [],
       created: new Date(row.created),
@@ -578,20 +542,17 @@ export class ConversationDatabase {
   }
 
   /**
-   * Get conversation by external party (channel + external party).
-   * Only returns pinned conversations — unpinned ones are web-only.
+   * Get pinned conversation by external party identifier.
+   * Only returns pinned conversations — unpinned ones don't receive channel messages.
    */
-  getByExternalParty(
-    channel: string,
-    externalParty: string,
-  ): Conversation | null {
+  getByExternalParty(externalParty: string): Conversation | null {
     const stmt = this.db.prepare(`
       SELECT * FROM conversations
-      WHERE channel = ? AND external_party = ? AND is_pinned = 1
+      WHERE external_party = ? AND is_pinned = 1
       ORDER BY updated DESC
       LIMIT 1
     `);
-    const row = stmt.get(channel, externalParty) as any;
+    const row = stmt.get(externalParty) as any;
     if (!row) return null;
     return this.rowToConversation(row);
   }

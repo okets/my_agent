@@ -31,16 +31,16 @@ export class ConversationManager {
   /**
    * Create a new conversation
    */
-  async create(
-    channel: string,
-    options?: { externalParty?: string; title?: string; model?: string | null },
-  ): Promise<Conversation> {
+  async create(options?: {
+    externalParty?: string;
+    title?: string;
+    model?: string | null;
+  }): Promise<Conversation> {
     const now = new Date();
     const conversationId = `conv-${ulid()}`;
 
     const conversation: Conversation = {
       id: conversationId,
-      channel,
       title: options?.title ?? null,
       topics: [],
       created: now,
@@ -67,7 +67,6 @@ export class ConversationManager {
     const meta: TranscriptMeta = {
       type: "meta",
       id: conversationId,
-      channel,
       created: now.toISOString(),
       participants: ["user"],
     };
@@ -95,20 +94,13 @@ export class ConversationManager {
   }
 
   /**
-   * Get the most recent conversation for a channel
-   */
-  async getMostRecent(channel: string): Promise<Conversation | null> {
-    return this.db.getMostRecent(channel);
-  }
-
-  /**
-   * Get conversation by external party (channel + external party identifier)
+   * Get conversation by external party identifier (phone, email).
+   * Only returns pinned conversations — unpinned ones don't receive channel messages.
    */
   async getByExternalParty(
-    channel: string,
     externalParty: string,
   ): Promise<Conversation | null> {
-    return this.db.getByExternalParty(channel, externalParty);
+    return this.db.getByExternalParty(externalParty);
   }
 
   /**

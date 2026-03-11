@@ -218,14 +218,10 @@ export class StatePublisher {
     if (this.conversationManager) {
       try {
         const conversations = await this.conversationManager.list({});
-        const regularConvs = conversations.filter(
-          (c) => c.channel === "web" || !c.isPinned,
-        );
         const payload = JSON.stringify({
           type: "state:conversations",
-          conversations: regularConvs.slice(0, 50).map((conv) => ({
+          conversations: conversations.slice(0, 50).map((conv) => ({
             id: conv.id,
-            channel: conv.channel,
             title: conv.title,
             topics: conv.topics,
             created: conv.created.toISOString(),
@@ -297,14 +293,10 @@ export class StatePublisher {
     if (!this.conversationManager) return;
     try {
       const conversations = await this.conversationManager.list({});
-      const regularConvs = conversations.filter(
-        (c) => c.channel === "web" || !c.isPinned,
-      );
-      const metas: ConversationMeta[] = regularConvs
+      const metas: ConversationMeta[] = conversations
         .slice(0, 50)
         .map((conv) => ({
           id: conv.id,
-          channel: conv.channel,
           title: conv.title,
           topics: conv.topics,
           created: conv.created.toISOString(),

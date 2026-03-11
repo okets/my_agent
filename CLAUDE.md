@@ -169,7 +169,7 @@ The roadmap contains:
 - Dependency graph
 - Work breakdown
 
-**Current:** M6.7 Two-Agent Refactor (S1-S3 complete, S4-S5 pending)
+**Current:** M6.7 Two-Agent Refactor — Complete (S1-S6, pending CTO walkthrough)
 
 ---
 

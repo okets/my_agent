@@ -78,7 +78,13 @@ class NinaWebSocket {
               break;
             case "state:conversations":
               if (Alpine.store("conversations")) {
-                Alpine.store("conversations").items = data.conversations || [];
+                const all = data.conversations || [];
+                Alpine.store("conversations").items = all;
+                // Track server's current conversation ID for sync
+                const current = all.find((c) => c.status === "current");
+                Alpine.store("conversations").serverCurrentId = current
+                  ? current.id
+                  : null;
               }
               break;
             case "state:memory":

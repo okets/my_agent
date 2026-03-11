@@ -24,13 +24,11 @@ export class SessionRegistry {
    * Get or create a session for a conversation
    *
    * @param conversationId - The conversation ID
-   * @param channel - The channel this conversation belongs to (e.g. "web")
    * @param sdkSessionId - Optional SDK session ID for resumption (from DB)
    * @returns SessionManager (warm if cached, cold if new)
    */
   async getOrCreate(
     conversationId: string,
-    channel: string,
     sdkSessionId?: string | null,
   ): Promise<SessionManager> {
     // Check if session exists (warm)
@@ -41,7 +39,7 @@ export class SessionRegistry {
     }
 
     // Cold start — create new session
-    const session = new SessionManager(conversationId, channel, sdkSessionId);
+    const session = new SessionManager(conversationId, sdkSessionId);
 
     // Evict LRU if at capacity
     if (this.sessions.size >= this.maxSessions) {

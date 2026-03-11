@@ -52,12 +52,9 @@ export function createConversationServer(deps: ConversationServerDeps) {
           result.conversationId,
         );
         const title = conversation?.title ?? "Untitled";
-        const channel = conversation?.channel
-          ? ` [${conversation.channel}]`
-          : "";
 
         lines.push(
-          `  ${result.conversationId} — "${title}"${channel} (turn ${result.turnNumber}, ${result.timestamp})`,
+          `  ${result.conversationId} — "${title}" (turn ${result.turnNumber}, ${result.timestamp})`,
         );
 
         // Show snippet (first 200 chars of content)
@@ -102,7 +99,6 @@ export function createConversationServer(deps: ConversationServerDeps) {
       const lines: string[] = [
         `CONVERSATION: ${conversation.id}`,
         `Title: ${conversation.title ?? "Untitled"}`,
-        `Channel: ${conversation.channel}`,
         `Created: ${conversation.created.toISOString()}`,
         `Updated: ${conversation.updated.toISOString()}`,
         `Turns: ${conversation.turnCount}`,

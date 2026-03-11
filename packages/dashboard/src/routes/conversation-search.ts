@@ -61,7 +61,6 @@ export async function registerConversationSearchRoutes(
           return {
             conversationId: r.conversationId,
             conversationTitle: conv?.title ?? "Untitled",
-            channel: conv?.channel ?? "unknown",
             turnNumber: r.turnNumber,
             role: r.role,
             snippet: r.content.slice(0, 200),
@@ -111,7 +110,6 @@ export async function registerConversationSearchRoutes(
       id: conversation.id,
       title: conversation.title,
       status: conversation.status,
-      channel: conversation.channel,
       turnCount: conversation.turnCount,
       turns: turns.map((t) => ({
         role: t.role,
@@ -130,7 +128,7 @@ export async function registerConversationSearchRoutes(
    * List all conversations with metadata and a preview of the latest turn.
    */
   fastify.get<{
-    Querystring: { channel?: string; limit?: string };
+    Querystring: { limit?: string };
   }>("/", async (request, reply) => {
     const conversationManager = fastify.conversationManager;
 
@@ -140,11 +138,11 @@ export async function registerConversationSearchRoutes(
         .send({ error: "Conversation manager not initialized" });
     }
 
-    const { channel, limit: limitStr } = request.query;
+    const { limit: limitStr } = request.query;
     const limit = limitStr ? parseInt(limitStr, 10) : undefined;
 
     try {
-      const conversations = await conversationManager.list({ channel, limit });
+      const conversations = await conversationManager.list({ limit });
 
       const result = await Promise.all(
         conversations.map(async (conv) => {
@@ -169,7 +167,6 @@ export async function registerConversationSearchRoutes(
             id: conv.id,
             title: conv.title,
             status: conv.status,
-            channel: conv.channel,
             turnCount: conv.turnCount,
             preview,
             updated: conv.updated.toISOString(),

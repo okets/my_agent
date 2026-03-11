@@ -172,16 +172,13 @@ export async function registerAdminRoutes(
           .send({ error: "Conversation manager not initialized" });
       }
 
-      const { channel = "web", title } = request.body || {};
+      const { title } = request.body || {};
 
-      const conversation = await conversationManager.create(channel, { title });
-      fastify.log.info(
-        `[Admin] Created conversation ${conversation.id} on channel ${channel}`,
-      );
+      const conversation = await conversationManager.create({ title });
+      fastify.log.info(`[Admin] Created conversation ${conversation.id}`);
 
       return {
         id: conversation.id,
-        channel: conversation.channel,
         title: conversation.title,
         created: conversation.created.toISOString(),
       };
@@ -214,7 +211,6 @@ export async function registerAdminRoutes(
 
       return {
         id: conversation.id,
-        channel: conversation.channel,
         title: conversation.title,
         created: conversation.created.toISOString(),
         updated: conversation.updated.toISOString(),

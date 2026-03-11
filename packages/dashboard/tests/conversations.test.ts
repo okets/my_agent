@@ -73,9 +73,8 @@ describe("ConversationManager", () => {
   });
 
   it("creates a conversation with conv-{ulid} ID format", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     expect(conv.id).toMatch(/^conv-[A-Z0-9]{26}$/);
-    expect(conv.channel).toBe("web");
     expect(conv.title).toBeNull();
     expect(conv.turnCount).toBe(0);
     expect(conv.topics).toEqual([]);
@@ -85,7 +84,7 @@ describe("ConversationManager", () => {
   });
 
   it("creates JSONL transcript file on conversation create", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     const transcriptPath = path.join(
       tempDir,
       "conversations",
@@ -97,15 +96,14 @@ describe("ConversationManager", () => {
     const meta = JSON.parse(content.trim());
     expect(meta.type).toBe("meta");
     expect(meta.id).toBe(conv.id);
-    expect(meta.channel).toBe("web");
+    // channel is vestigial in transcript meta — may or may not be present
   });
 
   it("retrieves conversation by ID", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     const retrieved = await manager.get(conv.id);
     expect(retrieved).not.toBeNull();
     expect(retrieved!.id).toBe(conv.id);
-    expect(retrieved!.channel).toBe("web");
   });
 
   it("returns null for non-existent conversation", async () => {
@@ -114,10 +112,10 @@ describe("ConversationManager", () => {
   });
 
   it("lists conversations ordered by updated DESC", async () => {
-    const conv1 = await manager.create("web");
+    const conv1 = await manager.create();
     // Small delay to ensure different timestamps
     await new Promise((r) => setTimeout(r, 10));
-    const conv2 = await manager.create("web");
+    const conv2 = await manager.create();
 
     const list = await manager.list({ channel: "web" });
     expect(list.length).toBe(2);
@@ -126,23 +124,8 @@ describe("ConversationManager", () => {
     expect(list[1].id).toBe(conv1.id);
   });
 
-  it("gets most recent conversation for a channel", async () => {
-    await manager.create("web");
-    await new Promise((r) => setTimeout(r, 10));
-    const conv2 = await manager.create("web");
-
-    const recent = await manager.getMostRecent("web");
-    expect(recent).not.toBeNull();
-    expect(recent!.id).toBe(conv2.id);
-  });
-
-  it("returns null when no conversations exist for channel", async () => {
-    const recent = await manager.getMostRecent("web");
-    expect(recent).toBeNull();
-  });
-
   it("appends turns and persists to transcript", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
 
     const userTurn = makeTurn("user", "Hello agent", 1);
     const assistantTurn = makeTurn("assistant", "Hello user!", 1);
@@ -159,7 +142,7 @@ describe("ConversationManager", () => {
   });
 
   it("increments turn count only on user messages", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
 
     await manager.appendTurn(conv.id, makeTurn("user", "msg1", 1));
     let updated = await manager.get(conv.id);
@@ -176,7 +159,7 @@ describe("ConversationManager", () => {
   });
 
   it("gets recent turns (tail) for context injection", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
 
     // Add 20 turns (10 user + 10 assistant)
     for (let i = 1; i <= 10; i++) {
@@ -194,7 +177,7 @@ describe("ConversationManager", () => {
   });
 
   it("sets and retrieves title", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     await manager.setTitle(conv.id, "autumn-wind-drifts");
 
     const updated = await manager.get(conv.id);
@@ -202,7 +185,7 @@ describe("ConversationManager", () => {
   });
 
   it("sets and retrieves abbreviation", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     await manager.setAbbreviation(conv.id, "Discussed server monitoring.");
 
     const updated = await manager.get(conv.id);
@@ -211,8 +194,8 @@ describe("ConversationManager", () => {
   });
 
   it("marks and retrieves pending abbreviations", async () => {
-    const conv1 = await manager.create("web");
-    const conv2 = await manager.create("web");
+    const conv1 = await manager.create();
+    const conv2 = await manager.create();
 
     await manager.markNeedsAbbreviation(conv1.id);
     await manager.markNeedsAbbreviation(conv2.id);
@@ -225,7 +208,7 @@ describe("ConversationManager", () => {
 
   it("limits conversation list results", async () => {
     for (let i = 0; i < 5; i++) {
-      await manager.create("web");
+      await manager.create();
       await new Promise((r) => setTimeout(r, 5));
     }
 
@@ -234,7 +217,7 @@ describe("ConversationManager", () => {
   });
 
   it("conversation survives manager re-creation (persistence)", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     await manager.appendTurn(conv.id, makeTurn("user", "persistent msg", 1));
     await manager.setTitle(conv.id, "test-title");
     manager.close();
@@ -274,7 +257,7 @@ describe("FTS Search", () => {
   });
 
   it("finds messages by keyword", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
 
     await manager.appendTurn(
       conv.id,
@@ -299,8 +282,8 @@ describe("FTS Search", () => {
   });
 
   it("searches across multiple conversations", async () => {
-    const conv1 = await manager.create("web");
-    const conv2 = await manager.create("web");
+    const conv1 = await manager.create();
+    const conv2 = await manager.create();
 
     await manager.appendTurn(
       conv1.id,
@@ -320,7 +303,7 @@ describe("FTS Search", () => {
   });
 
   it("returns empty for no matches", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     await manager.appendTurn(conv.id, makeTurn("user", "Hello world", 1));
 
     const results = await manager.search("xyznonexistentterm");
@@ -347,7 +330,7 @@ describe("JSONL Resilience", () => {
   });
 
   it("handles corrupt JSONL lines gracefully", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
 
     // Append a valid turn
     await manager.appendTurn(conv.id, makeTurn("user", "Before corruption", 1));
@@ -377,7 +360,7 @@ describe("JSONL Resilience", () => {
   });
 
   it("handles partial line at end of file", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     await manager.appendTurn(conv.id, makeTurn("user", "Valid message", 1));
 
     // Write a partial line (simulating crash mid-write)
@@ -409,7 +392,7 @@ describe("SessionRegistry", () => {
     const manager = new ConversationManager(tempDir);
 
     try {
-      const conv = await manager.create("web");
+      const conv = await manager.create();
       await registry.getOrCreate(conv.id, "web");
       expect(registry.isWarm(conv.id)).toBe(true);
     } finally {
@@ -429,9 +412,9 @@ describe("SessionRegistry", () => {
     const manager = new ConversationManager(tempDir);
 
     try {
-      const conv1 = await manager.create("web");
-      const conv2 = await manager.create("web");
-      const conv3 = await manager.create("web");
+      const conv1 = await manager.create();
+      const conv2 = await manager.create();
+      const conv3 = await manager.create();
 
       await registry.getOrCreate(conv1.id, "web");
       await registry.getOrCreate(conv2.id, "web");
@@ -459,9 +442,9 @@ describe("SessionRegistry", () => {
     const manager = new ConversationManager(tempDir);
 
     try {
-      const conv1 = await manager.create("web");
-      const conv2 = await manager.create("web");
-      const conv3 = await manager.create("web");
+      const conv1 = await manager.create();
+      const conv2 = await manager.create();
+      const conv3 = await manager.create();
 
       await registry.getOrCreate(conv1.id, "web");
       await registry.getOrCreate(conv2.id, "web");
@@ -487,7 +470,7 @@ describe("SessionRegistry", () => {
     const manager = new ConversationManager(tempDir);
 
     try {
-      const conv = await manager.create("web");
+      const conv = await manager.create();
       await registry.getOrCreate(conv.id, "web");
       expect(registry.isWarm(conv.id)).toBe(true);
 
@@ -507,7 +490,7 @@ describe("SessionRegistry", () => {
 
     try {
       for (let i = 0; i < 3; i++) {
-        const conv = await manager.create("web");
+        const conv = await manager.create();
         await registry.getOrCreate(conv.id, "web");
       }
       expect(registry.size()).toBe(3);
@@ -786,7 +769,7 @@ describe("Conversation Rename", () => {
   });
 
   it("updates title in database", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     await manager.setTitle(conv.id, "morning-code-flows");
 
     const updated = await manager.get(conv.id);
@@ -794,7 +777,7 @@ describe("Conversation Rename", () => {
   });
 
   it("appends title_assigned event to transcript", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     await manager.setTitle(conv.id, "autumn-wind-drifts");
 
     const transcriptPath = path.join(
@@ -837,7 +820,7 @@ describe("ConversationDatabase", () => {
   });
 
   it("creates database file", () => {
-    const dbFile = path.join(tempDir, "conversations", "conversations.db");
+    const dbFile = path.join(tempDir, "conversations", "agent.db");
     expect(fs.existsSync(dbFile)).toBe(true);
   });
 
@@ -881,7 +864,7 @@ describe("Pagination", () => {
   });
 
   it("paginates turns with offset and limit", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
 
     for (let i = 1; i <= 5; i++) {
       await manager.appendTurn(conv.id, makeTurn("user", `msg ${i}`, i));
@@ -896,7 +879,7 @@ describe("Pagination", () => {
   });
 
   it("handles offset beyond end gracefully", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     await manager.appendTurn(conv.id, makeTurn("user", "only msg", 1));
 
     const page = await manager.getTurns(conv.id, { offset: 100, limit: 10 });
@@ -923,7 +906,7 @@ describe("Topics", () => {
   });
 
   it("sets topics as JSON array", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     await manager.setTopics(conv.id, ["server-monitoring", "deployment"]);
 
     const updated = await manager.get(conv.id);
@@ -1023,7 +1006,7 @@ describe("getTurnsBefore (cursor pagination)", () => {
   });
 
   it("returns turns before a given timestamp", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
 
     const timestamps: string[] = [];
     for (let i = 1; i <= 10; i++) {
@@ -1053,7 +1036,7 @@ describe("getTurnsBefore (cursor pagination)", () => {
   });
 
   it("returns hasMore=false when no older turns exist", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
 
     const timestamps: string[] = [];
     for (let i = 1; i <= 3; i++) {
@@ -1082,7 +1065,7 @@ describe("getTurnsBefore (cursor pagination)", () => {
   });
 
   it("returns empty when timestamp not found", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
 
     await manager.appendTurn(conv.id, makeTurn("user", "msg", 1));
 
@@ -1097,7 +1080,7 @@ describe("getTurnsBefore (cursor pagination)", () => {
   });
 
   it("returns empty when before is the first turn", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
 
     const ts = new Date().toISOString();
     await manager.appendTurn(conv.id, {
@@ -1174,7 +1157,7 @@ describe("Conversation updated timestamp", () => {
   });
 
   it("updated timestamp changes on appendTurn", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     const originalUpdated = conv.updated.getTime();
 
     // Small delay to ensure different timestamp
@@ -1187,7 +1170,7 @@ describe("Conversation updated timestamp", () => {
   });
 
   it("assistant turn also updates timestamp", async () => {
-    const conv = await manager.create("web");
+    const conv = await manager.create();
     await manager.appendTurn(conv.id, makeTurn("user", "hello", 1));
 
     const afterUser = await manager.get(conv.id);

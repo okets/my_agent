@@ -16,7 +16,6 @@ import type {
 } from "@my-agent/core";
 import { saveChannelToConfig } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
-import type { ConversationRouter } from "../agent/conversation-router.js";
 import { SessionRegistry } from "../agent/session-registry.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import type { TranscriptTurn } from "../conversations/types.js";
@@ -50,7 +49,7 @@ interface MessageHandlerDeps {
     update: Partial<ChannelInstanceConfig>,
   ) => void;
   agentDir: string;
-  conversationRouter?: ConversationRouter;
+  statePublisher?: { publishConversations: () => void } | null;
 }
 
 /**
@@ -161,7 +160,7 @@ export class ChannelMessageHandler {
     const isOwner = isOwnerMessage(channelConfig, first.from);
     console.log(
       `[ChannelMessageHandler] Message from "${first.from}" (normalized: "${senderNormalized}"), ` +
-      `ownerIdentities: ${JSON.stringify(channelConfig?.ownerIdentities)}, isOwner: ${isOwner}`
+        `ownerIdentities: ${JSON.stringify(channelConfig?.ownerIdentities)}, isOwner: ${isOwner}`,
     );
 
     if (isOwner) {
@@ -242,28 +241,33 @@ export class ChannelMessageHandler {
 
     // Look up existing conversation for slash command context
     const existingConversation =
-      await this.deps.conversationManager.getByExternalParty(
-        channelId,
-        externalParty,
-      );
+      await this.deps.conversationManager.getByExternalParty(externalParty);
 
-    // Check for channel-switch new conversation trigger
+    // Check for channel-switch new conversation trigger.
+    // Rule: if the current conversation's most recent turn came from a
+    // different channel than this incoming message, start a new conversation.
+    // This ensures e.g. a WhatsApp user gets a fresh thread when their
+    // previous conversation was "polluted" by a web message they can't see.
     let forceNewConversation = false;
-    if (this.deps.conversationRouter) {
-      const routeResult = this.deps.conversationRouter.route({
-        channel: channelId,
-        sender: first.from,
-      });
-
-      if (routeResult.newConversation && existingConversation) {
-        // Channel switch detected (e.g., web → whatsapp) — force new conversation
-        await this.deps.conversationManager.unpin(existingConversation.id);
-        this.deps.connectionRegistry.broadcastToAll({
-          type: "conversation_unpinned",
-          conversationId: existingConversation.id,
-        });
-        forceNewConversation = true;
+    if (existingConversation) {
+      const recentTurns =
+        await this.deps.conversationManager.getRecentTurns(
+          existingConversation.id,
+          1,
+        );
+      if (recentTurns.length > 0) {
+        const lastTurnChannel = recentTurns[0].channel ?? "web";
+        if (lastTurnChannel !== channelId) {
+          // Last turn was from a different channel — force new conversation
+          await this.deps.conversationManager.unpin(existingConversation.id);
+          this.deps.connectionRegistry.broadcastToAll({
+            type: "conversation_unpinned",
+            conversationId: existingConversation.id,
+          });
+          forceNewConversation = true;
+        }
       }
+      // If conversation has no turns yet, continue using it (no channel conflict)
     }
 
     // ── Slash command: /new ───────────────────────────────────────────
@@ -283,14 +287,11 @@ export class ChannelMessageHandler {
 
       // Create new pinned conversation (inherits model)
       const title = first.senderName ?? first.groupName ?? undefined;
-      const newConversation = await this.deps.conversationManager.create(
-        channelId,
-        {
-          externalParty,
-          title,
-          model: currentModel,
-        },
-      );
+      const newConversation = await this.deps.conversationManager.create({
+        externalParty,
+        title,
+        model: currentModel,
+      });
 
       // Send confirmation via channel
       await this.deps.sendViaChannel(channelId, replyTo, {
@@ -302,7 +303,6 @@ export class ChannelMessageHandler {
         type: "conversation_created",
         conversation: {
           id: newConversation.id,
-          channel: newConversation.channel,
           title: newConversation.title,
           topics: newConversation.topics,
           created: newConversation.created.toISOString(),
@@ -314,6 +314,9 @@ export class ChannelMessageHandler {
           status: newConversation.status,
         },
       });
+
+      // Broadcast full conversation state so all clients sync active conversation
+      this.deps.statePublisher?.publishConversations();
 
       return; // Don't process as normal message
     }
@@ -388,10 +391,16 @@ export class ChannelMessageHandler {
     // ── Normal message processing ─────────────────────────────────────
     let conversation = forceNewConversation ? null : existingConversation;
 
+    // Existing channel conversation receiving a message becomes current
+    if (conversation && conversation.status !== "current") {
+      await this.deps.conversationManager.makeCurrent(conversation.id);
+      this.deps.statePublisher?.publishConversations();
+    }
+
     if (!conversation) {
       // Create new conversation for this channel + party
       const title = first.senderName ?? first.groupName ?? undefined;
-      conversation = await this.deps.conversationManager.create(channelId, {
+      conversation = await this.deps.conversationManager.create({
         externalParty,
         title,
       });
@@ -401,7 +410,6 @@ export class ChannelMessageHandler {
         type: "conversation_created",
         conversation: {
           id: conversation.id,
-          channel: conversation.channel,
           title: conversation.title,
           topics: conversation.topics,
           created: conversation.created.toISOString(),
@@ -413,6 +421,9 @@ export class ChannelMessageHandler {
           status: conversation.status,
         },
       });
+
+      // Broadcast full conversation state so all clients sync active conversation
+      this.deps.statePublisher?.publishConversations();
     }
 
     // Combine message contents (if debounced, join with newlines)
@@ -508,8 +519,8 @@ export class ChannelMessageHandler {
     // Get or create session for this conversation
     const sessionManager = await this.deps.sessionRegistry.getOrCreate(
       conversation.id,
-      channelId,
     );
+    sessionManager.setChannel(channelId);
 
     // Stream brain response
     let assistantContent = "";

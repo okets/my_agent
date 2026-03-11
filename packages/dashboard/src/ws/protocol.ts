@@ -34,7 +34,6 @@ export type ChatControl = ButtonsControl | CardsControl;
 // Conversation metadata for UI display
 export interface ConversationMeta {
   id: string;
-  channel: string;
   title: string | null;
   topics: string[];
   created: string;
@@ -42,9 +41,7 @@ export interface ConversationMeta {
   turnCount: number;
   model: string | null;
   externalParty: string | null;
-  /** Whether this is the pinned (active) conversation for a channel.
-   *  Only pinned channel conversations are read-only in dashboard.
-   *  Unpinned channel conversations can be continued via dashboard. */
+  /** Whether this is the pinned conversation for channel message routing */
   isPinned?: boolean;
   status: "current" | "inactive";
 }
@@ -137,7 +134,6 @@ export type ServerMessage =
   | {
       type: "conversation_list";
       conversations: ConversationMeta[];
-      channelConversations?: ConversationMeta[];
     }
   | { type: "conversation_renamed"; conversationId: string; title: string }
   | { type: "conversation_created"; conversation: ConversationMeta }
