@@ -138,11 +138,20 @@ Nina can reason about staleness naturally — "that was updated this morning" vs
 
 **Implementation note:** Temporal context belongs in `SystemPromptBuilder.build()` (dashboard, layer 3 dynamic block), not in `packages/core/src/prompt.ts` (shared core). The core `assembleSystemPrompt()` is used by both REPL and dashboard — temporal context is a dashboard-only concern. `packages/core/src/prompt.ts` changes are limited to ensuring `loadNotebookOperations()` works correctly.
 
-#### 1.3 Move `operations/*` to dynamic prompt block
+#### 1.3 Cache invalidation for `operations/*`
 
-`SystemPromptBuilder` currently loads `operations/*` (including `current-state.md`) as part of the cached stable prompt (layers 1–2). This means `current-state.md` content goes stale after first load until `invalidateCache()` is called.
+`SystemPromptBuilder` caches `operations/*` (including `current-state.md`) as part of the stable prompt (layers 1–2). This is correct — `current-state.md` changes once daily (morning prep), not every query. Re-reading from disk on every query would be wasteful.
 
-**Fix:** Move `operations/*` loading from the cached stable block into the dynamic block (layer 3) in `SystemPromptBuilder.build()`. This ensures `current-state.md` is re-read on every query — matching the "rebuilt every query" intent of layer 3. `reference/*` stays cached (it changes rarely).
+**Fix:** Wire `SyncService` file change events to `SystemPromptBuilder.invalidateCache()`. When the work loop writes `current-state.md`, the sync service detects the change and triggers cache invalidation. The next query loads fresh content and re-caches.
+
+```
+Morning prep writes current-state.md
+  → SyncService detects file change in operations/
+  → SystemPromptBuilder.invalidateCache()
+  → Next query loads fresh content, re-caches
+```
+
+`reference/*` uses the same mechanism — rare changes, cache-friendly, invalidated on write.
 
 #### 1.4 Verify `loadNotebookOperations()`
 
@@ -168,7 +177,7 @@ Confirm the skill file (`.my_agent/brain/skills/notebook.md`) is included in the
 
 ### Files Modified
 
-- `packages/dashboard/src/agent/system-prompt-builder.ts` — Move `operations/*` from cached to dynamic block, add temporal context injection
+- `packages/dashboard/src/agent/system-prompt-builder.ts` — Add temporal context to dynamic block, wire `invalidateCache()` to SyncService file change events
 - `packages/core/src/prompt.ts` — Verify `loadNotebookOperations()` works (no changes expected)
 - `.my_agent/notebook/operations/current-state.md` — Create with synthetic test data (gitignored)
 - `.my_agent/notebook/reference/contacts.md` — Update for testing (gitignored)
@@ -546,7 +555,7 @@ Add to project `CLAUDE.md` under a new "Core Principles" section:
 | Token budget bloat in `current-state.md` | Morning prep prompt enforces 500–1000 char limit |
 | Haiku extraction quality | Structured prompt with examples; deduplication prevents noise accumulation |
 | Concurrent file writes | Sequential job execution; extraction uses append with section markers |
-| Stale `current-state.md` | Temporal context injection lets Nina reason about freshness |
+| Stale `current-state.md` | SyncService triggers cache invalidation on file change; temporal context lets Nina reason about freshness |
 | Heartbeat storm after long outage | Sequential execution + cadence check prevents burst |
 | Fact conflicts (knowledge vs reference) | Weekly review explicitly resolves; most recent wins |
 
