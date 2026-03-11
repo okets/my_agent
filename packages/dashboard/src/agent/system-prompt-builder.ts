@@ -67,7 +67,11 @@ export class SystemPromptBuilder {
     // Temporal context lets Nina reason about freshness ("updated this morning" vs "3 days old").
     const sessionStart = this.sessionStartTime ?? now;
     const tz = process.env.TZ || "Asia/Jerusalem";
-    const localeOpts: Intl.DateTimeFormatOptions = { timeZone: tz, dateStyle: "full", timeStyle: "short" };
+    const localeOpts: Intl.DateTimeFormatOptions = {
+      timeZone: tz,
+      dateStyle: "full",
+      timeStyle: "short",
+    };
     const temporalLines = [
       `[Temporal Context]`,
       `Current time: ${now.toLocaleString("en-IL", localeOpts)}`,
@@ -76,7 +80,9 @@ export class SystemPromptBuilder {
     const notebookUpdated = this.config.getNotebookLastUpdated?.();
     if (notebookUpdated) {
       const notebookDate = new Date(notebookUpdated);
-      temporalLines.push(`Notebook last updated: ${notebookDate.toLocaleString("en-IL", localeOpts)}`);
+      temporalLines.push(
+        `Notebook last updated: ${notebookDate.toLocaleString("en-IL", localeOpts)}`,
+      );
     }
     temporalLines.push(`[End Temporal Context]`);
     dynamicParts.push(temporalLines.join("\n"));

@@ -62,9 +62,8 @@ describe("M6.7 Conversation Lifecycle E2E", () => {
 
     it("SystemPromptBuilder produces 6-layer prompt with both stable and dynamic blocks", async () => {
       // Mock @my-agent/core to avoid filesystem deps
-      const { SystemPromptBuilder } = await import(
-        "../../src/agent/system-prompt-builder.js"
-      );
+      const { SystemPromptBuilder } =
+        await import("../../src/agent/system-prompt-builder.js");
 
       // The mock is already set up by system-prompt-builder.test.ts vi.mock
       // but we need our own instance
@@ -105,9 +104,8 @@ describe("M6.7 Conversation Lifecycle E2E", () => {
     });
 
     it("buildQuery always includes systemPrompt (via dynamic block content)", async () => {
-      const { SystemPromptBuilder } = await import(
-        "../../src/agent/system-prompt-builder.js"
-      );
+      const { SystemPromptBuilder } =
+        await import("../../src/agent/system-prompt-builder.js");
 
       const builder = new SystemPromptBuilder({
         brainDir: "/tmp/test-brain",
@@ -636,10 +634,7 @@ describe("M6.7 Conversation Lifecycle E2E", () => {
       // Create mix of empty and non-empty conversations
       const empty1 = await manager.create();
       const withTurns = await manager.create();
-      await manager.appendTurn(
-        withTurns.id,
-        makeTurn("user", "content", 1),
-      );
+      await manager.appendTurn(withTurns.id, makeTurn("user", "content", 1));
       const empty2 = await manager.create();
 
       // Simulate startup cleanup: find and delete all empty conversations

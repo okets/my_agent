@@ -218,7 +218,11 @@ describeWithApi("morning prep prompt", () => {
 
       for (const input of inputs) {
         const result = await runMorningPrep(input.context);
-        results.push({ name: input.name, length: result.length, output: result });
+        results.push({
+          name: input.name,
+          length: result.length,
+          output: result,
+        });
       }
 
       console.log("\n=== BUDGET DISCOVERY: Morning Prep ===");

@@ -250,11 +250,10 @@ export class ChannelMessageHandler {
     // conversation is happening.
     let forceNewConversation = false;
     if (existingConversation) {
-      const recentTurns =
-        await this.deps.conversationManager.getRecentTurns(
-          existingConversation.id,
-          1,
-        );
+      const recentTurns = await this.deps.conversationManager.getRecentTurns(
+        existingConversation.id,
+        1,
+      );
       if (recentTurns.length > 0) {
         const lastTurnChannel = recentTurns[0].channel ?? "web";
         if (lastTurnChannel !== channelId) {

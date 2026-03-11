@@ -112,12 +112,7 @@ describe("ConversationSearchService", () => {
   describe("search (hybrid FTS5 + vector)", () => {
     beforeEach(async () => {
       insertFtsTurn("conv-001", 1, "user", "How do I configure webhooks?");
-      insertFtsTurn(
-        "conv-002",
-        1,
-        "user",
-        "Tell me about ocean coral reefs.",
-      );
+      insertFtsTurn("conv-002", 1, "user", "Tell me about ocean coral reefs.");
 
       // Add embeddings for both turns
       await service.indexTurn(
