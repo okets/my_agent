@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { WorkLoopScheduler } from "../src/scheduler/work-loop-scheduler.js";
+import { isDue } from "../src/scheduler/work-patterns.js";
 
 // Create a fresh temp agent dir for each test
 function createTempAgentDir(): string {
@@ -244,6 +245,82 @@ describe("WorkLoopScheduler", () => {
     await scheduler.start();
     await scheduler.start(); // Should warn but not throw
     await scheduler.stop();
+  });
+
+  // --- Heartbeat Retry ---
+
+  it("failed job leaves getLastRun null (heartbeat retry)", async () => {
+    // Write patterns with a job that has an unknown handler name
+    writeWorkPatterns(
+      agentDir,
+      `## Unknown Job Type\n- cadence: daily:08:00\n- model: haiku\n`,
+    );
+
+    const scheduler = new WorkLoopScheduler({
+      db,
+      agentDir,
+      pollIntervalMs: 999_999,
+    });
+
+    await scheduler.start();
+
+    // Trigger the unknown job — it will fail with "No handler for job"
+    const run = await scheduler.triggerJob("unknown-job-type");
+    expect(run.status).toBe("failed");
+    expect(run.error).toContain("No handler for job");
+
+    // getLastRun only considers completed runs — failed run means null
+    expect(scheduler.getLastRun("unknown-job-type")).toBeNull();
+
+    // isDue sees null lastRun → job stays due (would retry on next poll)
+    // Use a time that is past the 08:00 cadence
+    const afternoon = new Date();
+    afternoon.setHours(14, 0, 0, 0);
+    expect(isDue("daily:08:00", null, afternoon)).toBe(true);
+
+    await scheduler.stop();
+  });
+
+  // --- Restart Persistence ---
+
+  it("persists run history across scheduler restart", () => {
+    writeWorkPatterns(agentDir, LIFECYCLE_PATTERNS);
+
+    // Insert a completed run directly into the DB
+    // Truncate to seconds to match SQLite ISO string round-trip
+    const completedAt = new Date();
+    completedAt.setMilliseconds(0);
+    const startedAt = new Date(completedAt.getTime() - 1000);
+
+    // Need to ensure the table exists first
+    new WorkLoopScheduler({ db, agentDir, pollIntervalMs: 999_999 });
+
+    db.prepare(
+      `INSERT INTO work_loop_runs (id, job_name, started_at, completed_at, status, duration_ms, output)
+       VALUES (?, ?, ?, ?, 'completed', 1000, 'test output')`,
+    ).run(
+      "persist-test",
+      "morning-prep",
+      startedAt.toISOString(),
+      completedAt.toISOString(),
+    );
+
+    // Create a NEW scheduler instance (simulating restart) with same DB
+    const scheduler2 = new WorkLoopScheduler({
+      db,
+      agentDir,
+      pollIntervalMs: 999_999,
+    });
+
+    // Verify it can see the previous run
+    const lastRun = scheduler2.getLastRun("morning-prep");
+    expect(lastRun).not.toBeNull();
+    expect(lastRun!.getTime()).toBe(completedAt.getTime());
+
+    // Verify getRuns returns it too
+    const runs = scheduler2.getRuns({ jobName: "morning-prep" });
+    expect(runs).toHaveLength(1);
+    expect(runs[0].status).toBe("completed");
   });
 });
 
