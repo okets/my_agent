@@ -55,6 +55,14 @@ export class AbbreviationQueue {
   /** Callback invoked when a conversation is auto-renamed after abbreviation */
   onRenamed?: (conversationId: string, title: string) => void;
 
+  /** Callback invoked when fact extraction completes (for calendar visibility) */
+  onExtractionComplete?: (result: {
+    conversationId: string;
+    newFactCount: number;
+    durationMs: number;
+    error?: string;
+  }) => void;
+
   constructor(manager: ConversationManager, apiKey: string, agentDir: string) {
     this.manager = manager;
     this.apiKey = apiKey;
@@ -308,15 +316,34 @@ export class AbbreviationQueue {
     transcriptText: string,
     turnCount: number,
   ): Promise<number> {
-    const facts = await extractFacts(transcriptText);
-    const newCount = await persistFacts(this.agentDir, facts);
+    const startTime = Date.now();
+    try {
+      const facts = await extractFacts(transcriptText);
+      const newCount = await persistFacts(this.agentDir, facts);
 
-    // Update lastExtractedAtTurn
-    await this.manager.update(conversationId, {
-      lastExtractedAtTurn: turnCount,
-    });
+      // Update lastExtractedAtTurn
+      await this.manager.update(conversationId, {
+        lastExtractedAtTurn: turnCount,
+      });
 
-    return newCount;
+      const durationMs = Date.now() - startTime;
+      this.onExtractionComplete?.({
+        conversationId,
+        newFactCount: newCount,
+        durationMs,
+      });
+
+      return newCount;
+    } catch (err) {
+      const durationMs = Date.now() - startTime;
+      this.onExtractionComplete?.({
+        conversationId,
+        newFactCount: 0,
+        durationMs,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
   }
 
   /**

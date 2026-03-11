@@ -403,6 +403,19 @@ async function main() {
 
   server.workLoopScheduler = workLoopScheduler;
 
+  // Wire fact extraction calendar logging (M6.6-S3)
+  if (abbreviationQueue && workLoopScheduler) {
+    const scheduler = workLoopScheduler;
+    abbreviationQueue.onExtractionComplete = (result) => {
+      scheduler.logExternalRun(
+        "fact-extraction",
+        result.durationMs,
+        `Extracted ${result.newFactCount} new facts from conversation ${result.conversationId}`,
+        result.error,
+      );
+    };
+  }
+
   // Initialize StatePublisher — live state sync to all connected dashboard clients
   if (hatched) {
     const statePublisher = new StatePublisher({

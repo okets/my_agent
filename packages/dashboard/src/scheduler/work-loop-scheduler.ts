@@ -31,6 +31,11 @@ import {
   SYSTEM_PROMPT as SUMMARY_SYSTEM,
   USER_PROMPT_TEMPLATE as SUMMARY_USER,
 } from "./jobs/daily-summary.js";
+import {
+  runWeeklyReview,
+  SYSTEM_PROMPT as REVIEW_SYSTEM,
+  USER_PROMPT_TEMPLATE as REVIEW_USER,
+} from "./jobs/weekly-review.js";
 
 export interface WorkLoopSchedulerConfig {
   db: Database.Database;
@@ -214,6 +219,7 @@ export class WorkLoopScheduler {
   > = {
     "morning-prep": { system: MORNING_SYSTEM, userTemplate: MORNING_USER },
     "daily-summary": { system: SUMMARY_SYSTEM, userTemplate: SUMMARY_USER },
+    "weekly-review": { system: REVIEW_SYSTEM, userTemplate: REVIEW_USER },
   };
 
   getJobPrompts(
@@ -287,6 +293,9 @@ export class WorkLoopScheduler {
         case "daily-summary":
           output = await this.handleDailySummary();
           break;
+        case "weekly-review":
+          output = await this.handleWeeklyReview();
+          break;
         default:
           throw new Error(`No handler for job: ${pattern.name}`);
       }
@@ -334,6 +343,50 @@ export class WorkLoopScheduler {
       this.isExecuting = false;
       return run;
     }
+  }
+
+  /**
+   * Log an external run (e.g., fact extraction from abbreviation queue)
+   */
+  logExternalRun(
+    jobName: string,
+    durationMs: number,
+    output: string,
+    error?: string,
+  ): void {
+    const runId = randomUUID();
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO work_loop_runs (id, job_name, started_at, completed_at, status, duration_ms, output, error)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        runId,
+        jobName,
+        now,
+        now,
+        error ? "failed" : "completed",
+        durationMs,
+        output,
+        error || null,
+      );
+  }
+
+  /**
+   * Weekly Review - reads knowledge + reference, promotes facts, resolves conflicts
+   */
+  private async handleWeeklyReview(): Promise<string> {
+    const notebookDir = join(this.agentDir, "notebook");
+    const output = await runWeeklyReview(this.agentDir);
+
+    // Log to daily log
+    await this.appendToDailyLog(
+      notebookDir,
+      `- Weekly review completed (${output.length} chars)`,
+    );
+
+    return output;
   }
 
   /**
