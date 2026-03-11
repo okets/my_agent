@@ -384,15 +384,20 @@ function chat() {
           self.conversations = store.items;
         }
       });
-      // Sync active conversation from server (multi-window support)
+      // Sync active conversation from server (multi-window + channel support).
+      // Uses "connect" (not "switch_conversation") to avoid deleteIfEmpty races.
       Alpine.effect(() => {
         const store = Alpine.store("conversations");
         if (
           store &&
           store.serverCurrentId &&
-          store.serverCurrentId !== self.currentConversationId
+          store.serverCurrentId !== self.currentConversationId &&
+          !self._pendingNewConversation
         ) {
-          self.switchConversation(store.serverCurrentId);
+          self.ws.send({
+            type: "connect",
+            conversationId: store.serverCurrentId,
+          });
         }
       });
       Alpine.effect(() => {
@@ -542,11 +547,11 @@ function chat() {
       // Haptic feedback for primary action
       window.haptic?.strong();
 
-      // Reset chat immediately so the UI switches to the empty state
+      // Send /new as a slash command — same path as WhatsApp /new
       this.resetChatState();
       this.currentConversationId = null;
       this._pendingNewConversation = true;
-      this.ws.send({ type: "new_conversation" });
+      this.ws.send({ type: "message", content: "/new" });
       this.$nextTick(() => {
         this.$refs.chatInput?.focus();
       });
@@ -1015,16 +1020,26 @@ function chat() {
           this.conversations = data.conversations;
           if (typeof Alpine !== "undefined" && Alpine.store("conversations")) {
             Alpine.store("conversations").items = this.conversations;
+            const current = this.conversations.find(
+              (c) => c.status === "current",
+            );
+            Alpine.store("conversations").serverCurrentId = current
+              ? current.id
+              : null;
           }
           break;
 
         case "conversation_created": {
           this.conversations.unshift(data.conversation);
 
-          // Only switch to it if THIS client created it
+          // Switch to it if:
+          // 1. THIS client created it (_pendingNewConversation)
+          // 2. No active conversation
+          // 3. Server says it's current (channel-originated, e.g. WhatsApp /new)
           if (
             this._pendingNewConversation ||
-            this.currentConversationId === null
+            this.currentConversationId === null ||
+            data.conversation.status === "current"
           ) {
             this.currentConversationId = data.conversation.id;
             this._pendingNewConversation = false;

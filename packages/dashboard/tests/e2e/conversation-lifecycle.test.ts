@@ -254,6 +254,33 @@ describe("M6.7 Conversation Lifecycle E2E", () => {
       expect(lastTurnChannel).toBe(incomingChannel);
     });
 
+    it("assistant response on same channel does not trigger new conversation", async () => {
+      const conv = await manager.create({ externalParty: "+1555000000" });
+
+      // WhatsApp user message followed by assistant response on same channel
+      await manager.appendTurn(conv.id, {
+        type: "turn",
+        turnNumber: 1,
+        role: "user",
+        content: "hello from whatsapp",
+        timestamp: new Date().toISOString(),
+        channel: "ninas_dedicated_whatsapp",
+      });
+      await manager.appendTurn(conv.id, {
+        type: "turn",
+        turnNumber: 1,
+        role: "assistant",
+        content: "hi there!",
+        timestamp: new Date().toISOString(),
+        channel: "ninas_dedicated_whatsapp",
+      });
+
+      // Last turn (assistant) is on WhatsApp — incoming WhatsApp should continue
+      const recentTurns = await manager.getRecentTurns(conv.id, 1);
+      const lastTurnChannel = recentTurns[0].channel ?? "web";
+      expect(lastTurnChannel).toBe("ninas_dedicated_whatsapp");
+    });
+
     it("empty conversation does not trigger new conversation for any channel", async () => {
       const conv = await manager.create({ externalParty: "+1555000000" });
 

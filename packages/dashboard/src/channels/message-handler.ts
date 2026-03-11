@@ -244,10 +244,10 @@ export class ChannelMessageHandler {
       await this.deps.conversationManager.getByExternalParty(externalParty);
 
     // Check for channel-switch new conversation trigger.
-    // Rule: if the current conversation's most recent turn came from a
-    // different channel than this incoming message, start a new conversation.
-    // This ensures e.g. a WhatsApp user gets a fresh thread when their
-    // previous conversation was "polluted" by a web message they can't see.
+    // Rule: if the most recent turn's channel differs from the incoming
+    // message's channel, start a new conversation. Both user and assistant
+    // turns carry the channel they were sent on, tracking where the
+    // conversation is happening.
     let forceNewConversation = false;
     if (existingConversation) {
       const recentTurns =
@@ -258,7 +258,7 @@ export class ChannelMessageHandler {
       if (recentTurns.length > 0) {
         const lastTurnChannel = recentTurns[0].channel ?? "web";
         if (lastTurnChannel !== channelId) {
-          // Last turn was from a different channel — force new conversation
+          // Last turn was on a different channel — force new conversation
           await this.deps.conversationManager.unpin(existingConversation.id);
           this.deps.connectionRegistry.broadcastToAll({
             type: "conversation_unpinned",
@@ -267,7 +267,7 @@ export class ChannelMessageHandler {
           forceNewConversation = true;
         }
       }
-      // If conversation has no turns yet, continue using it (no channel conflict)
+      // If conversation has no turns yet, continue using it
     }
 
     // ── Slash command: /new ───────────────────────────────────────────
@@ -547,13 +547,14 @@ export class ChannelMessageHandler {
     }
 
     if (assistantContent) {
-      // Save assistant turn
+      // Save assistant turn (inherit channel from the incoming message)
       const assistantTurn: TranscriptTurn = {
         type: "turn",
         role: "assistant",
         content: assistantContent,
         timestamp: new Date().toISOString(),
         turnNumber,
+        channel: channelId,
       };
 
       await this.deps.conversationManager.appendTurn(

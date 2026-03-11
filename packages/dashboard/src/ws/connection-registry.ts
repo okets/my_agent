@@ -71,6 +71,7 @@ export class ConnectionRegistry {
     exclude?: WebSocket,
   ): void {
     const payload = JSON.stringify(message);
+    let sent = 0;
 
     for (const info of this.sockets.values()) {
       if (
@@ -80,8 +81,12 @@ export class ConnectionRegistry {
       ) {
         // WebSocket.OPEN
         info.socket.send(payload);
+        sent++;
       }
     }
+    console.log(
+      `[ConnectionRegistry] broadcastToConversation(${conversationId.slice(-6)}): sent to ${sent}/${this.sockets.size} sockets`,
+    );
   }
 
   /**

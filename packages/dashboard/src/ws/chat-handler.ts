@@ -838,6 +838,10 @@ export async function registerChatWebSocket(
 
       // ── Slash command: /new ─────────────────────────────────────────
       if (textContent === "/new") {
+        // Delete the previous conversation if it's empty
+        if (currentConversationId) {
+          await deleteIfEmpty(currentConversationId);
+        }
         // Queue abbreviation for the conversation we're leaving
         queueAbbreviationForCurrent();
 
