@@ -3539,10 +3539,16 @@ function chat() {
      * If the event has a linked taskId, opens the task view instead
      */
     async openEventTab(event) {
-      // Work loop events: open job tab
+      // Work loop events: open job tab (desktop) or popover (mobile)
       const extProps = event.extendedProps || {};
       if (extProps.type === "work-loop") {
-        this.openWorkLoopTab(extProps.jobName);
+        const mobile = Alpine.store("mobile");
+        if (mobile && mobile.isMobile) {
+          await this.loadWorkLoopJobDetail(extProps.jobName);
+          mobile.openPopoverWithFocus("workloop", this.workLoopJobDetail);
+        } else {
+          this.openWorkLoopTab(extProps.jobName);
+        }
         return;
       }
 
