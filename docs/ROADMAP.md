@@ -19,7 +19,7 @@
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
-| **M6.6: Agentic Lifecycle**  | Active   | S1-S2.5 complete, 2 sprints remaining |
+| **M6.6: Agentic Lifecycle**  | Complete | 5/5 sprints (S1-S4), 253 tests, pending CTO review |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -541,8 +541,8 @@ The agent gets a life outside of conversations. Background work loop maintains c
 | S1 | Context Foundation | Complete | [plan](sprints/m6.6-s1-context-foundation/plan.md) | [review](sprints/m6.6-s1-context-foundation/review.md) |
 | S2 | Work Loop Scheduler + System Calendar | Complete | [plan](sprints/m6.6-s2-work-loop-scheduler/plan.md) | [review](sprints/m6.6-s2-work-loop-scheduler/review.md) |
 | S2.5 | Work Loop UX Polish | Complete | [plan](sprints/m6.6-s2.5-work-loop-ux/plan.md) | [review](sprints/m6.6-s2.5-work-loop-ux/review.md) |
-| S3 | Passive Learning | Planned | — | — |
-| S4 | E2E Validation | Planned | — | — |
+| S3 | Passive Learning | Complete | [plan](sprints/m6.6-s3-passive-learning/plan.md) | [review](sprints/m6.6-s3-passive-learning/review.md) |
+| S4 | E2E Validation | Complete | [plan](sprints/m6.6-s4-e2e-validation/plan.md) | [review](sprints/m6.6-s4-e2e-validation/review.md) |
 
 **Core principle:** Markdown is source of truth. SQLite is derived — deletable, rebuildable.
 
