@@ -19,7 +19,7 @@
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
-| **M6.6: Agentic Lifecycle**  | Next     | Design complete, spec approved, 4 sprints |
+| **M6.6: Agentic Lifecycle**  | Active   | S1 complete, 3 sprints remaining |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -536,12 +536,12 @@ The agent gets a life outside of conversations. Background work loop maintains c
 **Design spec:** [memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md)
 **Original design:** [memory-first-agent-design.md](plans/2026-03-01-memory-first-agent-design.md)
 
-| Sprint | Name | Scope |
-|--------|------|-------|
-| S1 | Context Foundation | `current-state.md` schema + wiring, temporal context injection, SyncService → cache invalidation, fix `channel NOT NULL` schema bug, verify `notebook.md` skill |
-| S2 | Work Loop Scheduler + System Calendar | `WorkLoopScheduler` (reads `notebook/config/work-patterns.md`), morning-prep + daily-summary Haiku jobs, system calendar on FullCalendar, manual trigger API |
-| S3 | Passive Learning | Fact extraction parallel with abbreviation (`Promise.allSettled`), dual trigger (idle + inactive), `lastExtractedAtTurn` guard, weekly-review job, `notebook/knowledge/` writes |
-| S4 | E2E Validation | Full lifecycle tests using Thailand vacation narrative, 18 automated tests across 5 phases, human walkthrough |
+| Sprint | Name | Status | Plan | Review |
+|--------|------|--------|------|--------|
+| S1 | Context Foundation | Complete | — | [review](sprints/m6.6-s1-context-foundation/review.md) |
+| S2 | Work Loop Scheduler + System Calendar | Planned | — | — |
+| S3 | Passive Learning | Planned | — | — |
+| S4 | E2E Validation | Planned | — | — |
 
 **Core principle:** Markdown is source of truth. SQLite is derived — deletable, rebuildable.
 
