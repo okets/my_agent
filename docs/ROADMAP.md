@@ -538,7 +538,7 @@ The agent gets a life outside of conversations. Background work loop maintains c
 
 | Sprint | Name | Status | Plan | Review |
 |--------|------|--------|------|--------|
-| S1 | Context Foundation | Complete | — | [review](sprints/m6.6-s1-context-foundation/review.md) |
+| S1 | Context Foundation | Complete | [plan](sprints/m6.6-s1-context-foundation/plan.md) | [review](sprints/m6.6-s1-context-foundation/review.md) |
 | S2 | Work Loop Scheduler + System Calendar | Complete | — | [review](sprints/m6.6-s2-work-loop-scheduler/review.md) |
 | S2.5 | Work Loop UX Polish | Complete | [plan](sprints/m6.6-s2.5-work-loop-ux/plan.md) | [review](sprints/m6.6-s2.5-work-loop-ux/review.md) |
 | S3 | Passive Learning | Planned | — | — |
