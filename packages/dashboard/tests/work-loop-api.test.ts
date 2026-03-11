@@ -148,4 +148,58 @@ describe("work loop API routes", () => {
     expect(body.run.status).toBe("failed");
     expect(body.run.error).toContain("No handler for job");
   });
+
+  it("GET /api/work-loop/jobs/:jobName returns job detail with run history", async () => {
+    const now = new Date();
+    for (let i = 0; i < 3; i++) {
+      const started = new Date(now.getTime() - (i + 1) * 3600_000);
+      db.prepare(
+        `INSERT INTO work_loop_runs (id, job_name, started_at, completed_at, status, duration_ms, output)
+         VALUES (?, ?, ?, ?, 'completed', 5000, 'output ${i}')`,
+      ).run(
+        `history-${i}`,
+        "unknown-handler",
+        started.toISOString(),
+        started.toISOString(),
+      );
+    }
+
+    const res = await fastify.inject({
+      method: "GET",
+      url: "/api/work-loop/jobs/unknown-handler",
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+
+    expect(body.name).toBe("unknown-handler");
+    expect(body.displayName).toBe("Unknown Handler");
+    expect(body.cadence).toBeTruthy();
+    expect(body.model).toBeTruthy();
+    expect(body.nextRun).toBeTruthy();
+
+    expect(body.runs).toBeInstanceOf(Array);
+    expect(body.runs.length).toBe(3);
+    expect(body.runs[0].status).toBe("completed");
+    expect(
+      new Date(body.runs[0].started_at).getTime(),
+    ).toBeGreaterThan(new Date(body.runs[1].started_at).getTime());
+  });
+
+  it("GET /api/work-loop/jobs/nonexistent returns 404", async () => {
+    const res = await fastify.inject({
+      method: "GET",
+      url: "/api/work-loop/jobs/nonexistent",
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("GET /api/work-loop/jobs/:jobName includes prompts field", async () => {
+    const res = await fastify.inject({
+      method: "GET",
+      url: "/api/work-loop/jobs/unknown-handler",
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty("prompts");
+  });
 });

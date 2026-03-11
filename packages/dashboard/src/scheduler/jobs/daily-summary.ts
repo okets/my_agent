@@ -10,7 +10,7 @@
 
 import { queryHaiku } from "../haiku-query.js";
 
-const SYSTEM_PROMPT = `You consolidate a day's activity log and conversation summaries into a brief recap.
+export const SYSTEM_PROMPT = `You consolidate a day's activity log and conversation summaries into a brief recap.
 
 STRICT RULES:
 1. Output ONLY the summary — no preamble, no "I'll analyze...", no explanation, no thinking out loud
@@ -22,7 +22,7 @@ STRICT RULES:
 7. Write in English regardless of input language
 8. Do NOT attempt to read files, search, or use tools — all content is already provided`;
 
-const USER_PROMPT_TEMPLATE = `Summarize today's activity into an end-of-day recap.
+export const USER_PROMPT_TEMPLATE = `Summarize today's activity into an end-of-day recap.
 
 Format:
 ## Daily Summary

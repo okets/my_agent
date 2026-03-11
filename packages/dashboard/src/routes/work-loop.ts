@@ -164,6 +164,45 @@ export async function registerWorkLoopRoutes(
   });
 
   /**
+   * GET /api/work-loop/jobs/:jobName
+   *
+   * Returns job metadata + run history for a single job
+   */
+  fastify.get<{
+    Params: { jobName: string };
+    Querystring: { limit?: string };
+  }>("/api/work-loop/jobs/:jobName", async (request, reply) => {
+    const scheduler = fastify.workLoopScheduler;
+    if (!scheduler) {
+      return reply.code(503).send({ error: "Scheduler not running" });
+    }
+
+    const { jobName } = request.params;
+    const limit = parseInt(request.query.limit || "20", 10);
+
+    const pattern = scheduler.getPatterns().find((p) => p.name === jobName);
+    if (!pattern) {
+      return reply.code(404).send({ error: `Unknown job: ${jobName}` });
+    }
+
+    const runs = scheduler.getRuns({ jobName, limit });
+    const lastRun = scheduler.getLastRun(jobName);
+    const nextRun = getNextScheduledTime(pattern.cadence);
+    const prompts = scheduler.getJobPrompts(jobName);
+
+    return {
+      name: pattern.name,
+      displayName: pattern.displayName,
+      cadence: pattern.cadence,
+      model: pattern.model,
+      lastRun: lastRun?.toISOString() ?? null,
+      nextRun: nextRun?.toISOString() ?? null,
+      prompts: prompts ?? null,
+      runs,
+    };
+  });
+
+  /**
    * POST /api/work-loop/trigger/:jobName
    *
    * Manually trigger a job. Returns the run result.

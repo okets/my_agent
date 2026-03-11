@@ -11,7 +11,7 @@
 
 import { queryHaiku } from "../haiku-query.js";
 
-const SYSTEM_PROMPT = `You produce a daily briefing from notebook content provided by the user.
+export const SYSTEM_PROMPT = `You produce a daily briefing from notebook content provided by the user.
 
 STRICT RULES:
 1. Output ONLY the briefing — no preamble, no "I'll read...", no explanation, no thinking out loud
@@ -22,7 +22,7 @@ STRICT RULES:
 6. Write in English regardless of input language
 7. Do NOT attempt to read files, search, or use tools — all content is already provided in the user message`;
 
-const USER_PROMPT_TEMPLATE = `Based on the following notebook content, write a current-state briefing.
+export const USER_PROMPT_TEMPLATE = `Based on the following notebook content, write a current-state briefing.
 
 Format:
 ## Current State (updated {date})
