@@ -120,6 +120,12 @@ function chat() {
     todayEvents: [], // Events for today (mini calendar list)
     upcomingEvents: [], // Events for next 7 days (timeline)
 
+    // Work loop system events
+    showSystemEvents: true, // Toggle work loop events visibility
+    workLoopPatterns: [], // Work loop job patterns from API
+    workLoopDetail: null, // { jobName, status, output, error, duration, startedAt }
+    showWorkLoopDetail: false,
+
     // Event modal
     eventModalOpen: false,
     editingEvent: null, // Event being edited (null = creating new)
@@ -3085,6 +3091,7 @@ function chat() {
 
       this.calendar = CalendarModule.initCalendar(el, {
         visibleCalendars,
+        showSystemEvents: this.showSystemEvents,
         onEventClick: (event, el) => {
           this.openEventTab(event);
         },
@@ -3117,6 +3124,9 @@ function chat() {
         this.calendarViewType = view.type;
         this.updateCalendarContext();
       }
+
+      // Load work loop patterns for sidebar
+      this.loadWorkLoopPatterns();
     },
 
     /**
@@ -3322,6 +3332,63 @@ function chat() {
           calendars: visibleCalendars.join(","),
         },
       });
+
+      // Re-add work loop source if visible
+      if (this.showSystemEvents) {
+        this.calendar.addEventSource({
+          url: "/api/work-loop/events",
+          method: "GET",
+        });
+      }
+    },
+
+    /**
+     * Load work loop patterns for sidebar display
+     */
+    async loadWorkLoopPatterns() {
+      try {
+        const res = await fetch("/api/work-loop/status");
+        if (res.ok) {
+          const data = await res.json();
+          this.workLoopPatterns = data.patterns || [];
+        }
+      } catch (err) {
+        console.error("[App] Failed to load work loop patterns:", err);
+      }
+    },
+
+    /**
+     * Trigger a work loop job manually
+     */
+    async triggerWorkLoopJob(jobName) {
+      try {
+        const res = await fetch(
+          `/api/work-loop/trigger/${encodeURIComponent(jobName)}`,
+          { method: "POST" },
+        );
+        const data = await res.json();
+        if (data.success) {
+          // Show the result in detail panel
+          this.workLoopDetail = {
+            jobName: data.run.job_name,
+            displayName: jobName
+              .split("-")
+              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+              .join(" "),
+            status: data.run.status,
+            output: data.run.output || null,
+            error: data.run.error || null,
+            durationMs: data.run.duration_ms || null,
+            startedAt: data.run.started_at,
+          };
+          this.showWorkLoopDetail = true;
+          this.refreshCalendar();
+        } else {
+          console.error("[App] Job trigger failed:", data.error);
+        }
+      } catch (err) {
+        console.error("[App] Failed to trigger job:", err);
+      }
     },
 
     /**
@@ -3444,6 +3511,25 @@ function chat() {
      * If the event has a linked taskId, opens the task view instead
      */
     async openEventTab(event) {
+      // Work loop events: show detail panel instead of opening a tab
+      const extProps = event.extendedProps || {};
+      if (extProps.type === "work-loop") {
+        this.workLoopDetail = {
+          jobName: extProps.jobName,
+          displayName: event.title,
+          status: extProps.status,
+          output: extProps.output || null,
+          error: extProps.error || null,
+          durationMs: extProps.durationMs || null,
+          startedAt:
+            event.start instanceof Date
+              ? event.start.toISOString()
+              : event.start,
+        };
+        this.showWorkLoopDetail = true;
+        return;
+      }
+
       // Normalize event data (FullCalendar event or raw API format)
       const eventData = {
         id: event.id,

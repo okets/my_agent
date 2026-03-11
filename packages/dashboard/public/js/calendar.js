@@ -19,6 +19,7 @@ function initCalendar(el, options = {}) {
     onEventResize,
     onDatesSet,
     visibleCalendars = [],
+    showSystemEvents = true,
   } = options;
 
   const calendar = new FullCalendar.Calendar(el, {
@@ -48,7 +49,7 @@ function initCalendar(el, options = {}) {
     height: "100%",
     themeSystem: "standard",
 
-    // Event sources: CalDAV + Work Loop
+    // Event sources: CalDAV + Work Loop (conditional)
     eventSources: [
       {
         url: "/api/calendar/events",
@@ -63,13 +64,20 @@ function initCalendar(el, options = {}) {
           console.error("[Calendar] Failed to fetch events:", err);
         },
       },
-      {
-        url: "/api/work-loop/events",
-        method: "GET",
-        failure: (err) => {
-          console.error("[Calendar] Failed to fetch work loop events:", err);
-        },
-      },
+      ...(showSystemEvents
+        ? [
+            {
+              url: "/api/work-loop/events",
+              method: "GET",
+              failure: (err) => {
+                console.error(
+                  "[Calendar] Failed to fetch work loop events:",
+                  err,
+                );
+              },
+            },
+          ]
+        : []),
     ],
 
     // Event handlers
