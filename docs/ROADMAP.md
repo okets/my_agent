@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-09
+> **Updated:** 2026-03-11
 
 ---
 
@@ -19,8 +19,8 @@
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
+| **M6.6: Agentic Lifecycle**  | Next     | Design complete, spec approved, 4 sprints |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
-| **M6.6: Agentic Lifecycle**  | Planned  | Design complete, 4 sprints   |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
 | **M9: Email Integration**    | Redesign | Redesign post-M6.7 (Working Agent routing) |
@@ -37,15 +37,15 @@
 M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory        M6.5 SDK
 [████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
    COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
-                                                                                                    M6.7 Two-Agent   M6.8 Skills   M6.6 Lifecycle
-                                                                                                    [░░░░░░░░░░░░]   [░░░░░░░░░░]  [░░░░░░░░░░░░]
-                                                                                                       PLANNED         PLANNED        PLANNED
-                                                                                                                                        │
-                                                                                                                                  ┌─────┴─────┐
-                                                                                                                                  ▼           ▼
-                                                                                                                            M7 (redesign)  M9 (redesign)
-                                                                                                                                              │
-                                                                                                                                           M10 (redesign)
+                                                                                                    M6.7 Two-Agent   M6.6 Lifecycle   M6.8 Skills
+                                                                                                    [████████████]   [░░░░░░░░░░░░]  [░░░░░░░░░░]
+                                                                                                       COMPLETE         NEXT            PLANNED
+                                                                                                                          │
+                                                                                                                    ┌─────┴─────┐
+                                                                                                                    ▼           ▼
+                                                                                                              M7 (redesign)  M9 (redesign)
+                                                                                                                                │
+                                                                                                                             M10 (redesign)
 ```
 
 ---
@@ -529,63 +529,54 @@ Skills come from:
 
 ---
 
-### M6.6: Agentic Lifecycle — PLANNED
+### M6.6: Agentic Lifecycle — NEXT
 
-The agent gets a life outside of conversations. Background work loop maintains context, learns from conversations passively, and executes responsibilities proactively. Foundational for all subsequent milestones.
+The agent gets a life outside of conversations. Background work loop maintains context, learns from conversations passively. Perfect memory: pre-loaded context eliminates most `recall()` needs, passive fact extraction catches what the agent misses, weekly review promotes recurring facts.
 
-**Design spec:** [memory-first-agent-design.md](plans/2026-03-01-memory-first-agent-design.md)
+**Design spec:** [memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md)
+**Original design:** [memory-first-agent-design.md](plans/2026-03-01-memory-first-agent-design.md)
 
 | Sprint | Name | Scope |
 |--------|------|-------|
-| S1 | Context Foundation | Define `current-state.md` content/format in `notebook/operations/`, wire into M6.7's SystemPromptBuilder layer 3 (Current State). No separate context refresher needed — M6.7 rebuilds the system prompt every query. |
-| S2 | Work Loop Scheduler | `WorkLoopScheduler` (cron-like, follows `TaskScheduler` pattern), background query utility (Haiku), morning-prep job, daily-summary job, heartbeat with cadence-based responsibility filtering, restart persistence |
-| S3 | Passive Learning + Hatching | Fact extraction in parallel with summarization (on original transcript), `notebook/knowledge/` writes, weekly-review job, `work-patterns.md` hatching step, effort-based prioritization |
-| S4 | E2E Validation + Human Test | Automated E2E tests for all lifecycle phases (context refresher, work loop triggers, fact extraction, heartbeat filtering), plus one comprehensive human-in-the-loop test covering the full daily cycle |
+| S1 | Context Foundation | `current-state.md` schema + wiring, temporal context injection, SyncService → cache invalidation, fix `channel NOT NULL` schema bug, verify `notebook.md` skill |
+| S2 | Work Loop Scheduler + System Calendar | `WorkLoopScheduler` (reads `notebook/config/work-patterns.md`), morning-prep + daily-summary Haiku jobs, system calendar on FullCalendar, manual trigger API |
+| S3 | Passive Learning | Fact extraction parallel with abbreviation (`Promise.allSettled`), dual trigger (idle + inactive), `lastExtractedAtTurn` guard, weekly-review job, `notebook/knowledge/` writes |
+| S4 | E2E Validation | Full lifecycle tests using Thailand vacation narrative, 18 automated tests across 5 phases, human walkthrough |
+
+**Core principle:** Markdown is source of truth. SQLite is derived — deletable, rebuildable.
 
 **Key design decisions:**
 
-- **No context refresher needed.** M6.7 rebuilds the system prompt every query with fresh `current-state.md` content in layer 3. No separate injection mechanism or mtime tracking required.
-- **Heartbeat as retry.** If a work loop job fails, the heartbeat retries on next cycle. No per-job retry logic.
-- **Haiku for all background work.** Main model reserved for conversations only.
-- **Fact extraction on original transcript.** Not chained after summarization — different goals, run in parallel.
-- **Terms of responsibility.** Standing obligations with scope, autonomy level, cadence, expiry. Entered via conversations → tasks → `work-patterns.md`.
-- **Effort by context compaction.** Low (fits in context → do), Medium (needs session → idle), High (needs compaction → suggest to user).
-
-**Deliverables:**
-
-- _(S1)_ `current-state.md` in `notebook/operations/`, wired into SystemPromptBuilder layer 3 (no separate refresher — M6.7 handles natively)
-- _(S2)_ `WorkLoopScheduler` with morning-prep and daily-summary jobs, heartbeat with cadence-filtered responsibility scanning, background Haiku query utility, `lastRun` persistence across restarts
-- _(S3)_ Parallel fact extraction pipeline in `AbbreviationQueue`, `notebook/knowledge/` fact storage, weekly review job for fact promotion/archival, `work-patterns.md` schema + hatching step
-- _(S4)_ E2E test suite, human test walkthrough (user stories), sprint review
+- **No context refresher needed.** M6.7 rebuilds the system prompt every query. SyncService triggers cache invalidation when `operations/*` or `reference/*` change.
+- **Heartbeat as retry.** Failed jobs stay due until they succeed. No per-job retry logic.
+- **Haiku for all background work.** Pre-assembled context, no MCP tools. Main model reserved for conversations.
+- **Fact extraction on original transcript.** Not chained after summarization — different goals, run in parallel via `Promise.allSettled`.
+- **No pre-compaction flush.** Fact extraction reads from DB (full JSONL transcript), not SDK context. Compaction doesn't lose data.
+- **`work-patterns.md` in `notebook/config/`** (not `operations/`). Machine config should not be prompt-injected.
+- **Responsibility framework deferred.** Three hardcoded jobs (morning prep, daily summary, weekly review) deliver core value. General-purpose responsibility system needed by M7/M9, not M6.6.
 
 **Architecture:**
 
 ```
-HATCHING (once)
-└─ Produces: identity, personality, restrictions (LOCKED)
-└─ Produces: work-patterns.md (OPERATIONAL — terms of responsibility)
-
 DAILY CYCLE (repeats)
 ├── Morning Prep (scheduled, Haiku) → writes current-state.md
 ├── Conversations (reactive) → system prompt rebuilt every query (M6.7), always fresh context
-├── Post-Conversation (idle trigger) → fact extraction + medium-effort responsibilities
-├── Heartbeat (every N min, Haiku) → scan responsibilities by cadence, triage by effort
-└── Daily Summary (scheduled, Haiku) → consolidate, spot patterns, seed next morning
-
-EVOLUTION (continuous)
-└─ New responsibilities from conversations → tasks → work-patterns.md
-└─ Weekly review promotes facts, archives stale, prunes responsibilities
+├── Post-Conversation (idle OR inactive trigger) → fact extraction parallel with abbreviation
+├── Daily Summary (scheduled, Haiku) → consolidate, spot patterns, seed next morning
+└── Weekly Review (scheduled, Haiku) → promote facts, resolve conflicts, archive stale
 ```
 
-**Dependencies:** M6.7 (two-agent refactor — SystemPromptBuilder layer 3 for current state, conversation lifecycle), M6.8 (skills architecture — responsibilities load as skills/procedures via `settingSources`)
+**Dependencies:** M6.7 only (two-agent refactor — SystemPromptBuilder, conversation lifecycle). M6.8 is independent.
 
-**Note:** M8 (Operations Dashboard) has been absorbed into M6.6. UI work for work loop status, responsibility management, and `current-state.md` visibility will be included in M6.6 sprints.
+**Note:** M8 (Operations Dashboard) absorbed into M6.6. System calendar provides work loop visibility.
 
 **Risk mitigations:**
 
-- Token budget for `current-state.md` capped at 500-1000 chars
+- Token budget for `current-state.md` capped at 500–1000 chars
 - Heartbeat retries failed jobs automatically
-- `expiresAfter` field prevents stale responsibilities from accumulating
+- `Promise.allSettled` isolates extraction from abbreviation failures
+- Dedup falls back to substring matching when embeddings unavailable
+- File lock prevents concurrent writes between extraction and weekly review
 
 ---
 
@@ -679,7 +670,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | settingSources       | Revised  | M6.5, M6.8  | [design/settings-sources-evaluation.md](design/settings-sources-evaluation.md) |
 | Two-Agent Refactor   | Approved | M6.7        | [plans/2026-03-04-conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Skills Architecture  | Idea     | M6.8        | TBD at [design/skills-architecture.md](design/skills-architecture.md) |
-| Agentic Lifecycle    | Complete | M6.6        | [plans/2026-03-01-memory-first-agent-design.md](plans/2026-03-01-memory-first-agent-design.md) |
+| Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Absorbed | ~~M8~~ → M6.6 | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
@@ -707,9 +698,6 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                       │       │
                                                                       │       └─────────────────────────┐
                                                                       ▼                                 │
-                                                               M6.8 Skills Architecture                 │
-                                                                      │                                 │
-                                                                      ▼                                 │
                                                           M6.6 Agentic Lifecycle (+ M8 absorbed)        │
                                                                       │                                 │
                                                                ┌──────┴──────┐                          │
@@ -717,24 +705,24 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                      M7 Coding Projects   M9 Email ◄───────────────────┘
                                                        (needs redesign)     (needs redesign)
                                                                               │
-                                                                              ▼
-                                                                      M10 External Comms
-                                                                        (needs redesign)
+                                                               M6.8 Skills    ▼
+                                                              Architecture  M10 External Comms
+                                                              (independent)   (needs redesign)
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.8 → M6.6. All complete through M6.5. M6.7 is next.
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6. All complete through M6.7. M6.6 is next.
 
 **M6.7 delivers conversation architecture.** Unified resume+systemPrompt path, 6-layer system prompt with caching, conversation lifecycle (current/inactive), channel routing (owner → Nina, external → Working Agents), asymmetric channel switching. Removes context-builder.ts and the two-branch buildQuery bug. This is the foundation for all subsequent milestones.
 
-**M6.8 builds on M6.7.** Skills architecture needs the conversation/worker split to route skills by agent type via cwd. M6.7's SystemPromptBuilder layer 2 (Skills) provides the injection point.
+**M6.6 builds on M6.7 only.** `current-state.md` is injected via existing `loadNotebookOperations()`. `work-patterns.md` lives in `notebook/config/` (not prompt-injected). No M6.8 dependency — the responsibility framework is deferred to post-M6.6.
 
-**M6.6 builds on both M6.7 and M6.8.** M6.7's SystemPromptBuilder layer 3 (Current State) replaces M6.6's "context refresher on resume" — the system prompt is rebuilt every query, so `current-state.md` is injected automatically. M6.6's ongoing responsibilities and `work-patterns.md` load as skills/procedures via M6.8.
+**M6.8 is independent.** Skills architecture can happen before or after M6.6. It provides the general-purpose responsibility loading that M7 and M9 will eventually need.
 
-**M9 builds on M6.7.** Email integration uses M6.7's external contact routing (inbound email → Working Agent) and escalation queue (Working Agent → Nina's system prompt → owner).
+**M9 builds on M6.7 + M6.6.** Email integration uses M6.7's external contact routing and M6.6's work loop for email monitoring responsibilities.
 
-**M7 requires M6.6:** Autonomous coding projects are triggered by the work loop's responsibility system. Needs redesign to reframe as Working Agent pattern.
+**M7 requires M6.6:** Autonomous coding projects are triggered by the work loop. M7 will extend the `work-patterns.md` schema to support dynamic responsibility spawning.
 
-**M8 absorbed into M6.6:** Operations Dashboard UI is folded into M6.6 lifecycle sprints. Most dashboard already exists from M5-S10 and M6.
+**M8 absorbed into M6.6:** System calendar provides work loop visibility. Most dashboard already exists from M5-S10 and M6.
 
 **M9 and M10 need redesign:** Both were designed pre-M6.7. External contacts now route to Working Agents, not to Conversation Nina. May merge into a single "Working Agent for External Contacts" milestone.
 

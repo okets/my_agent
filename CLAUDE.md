@@ -6,6 +6,12 @@
 
 ---
 
+## Core Principles
+
+**Markdown is source of truth. SQLite is derived.** Job definitions, facts, configuration, and operational state live in markdown files. Databases store run history, search indexes, and caches. If the database is deleted, the system rebuilds from markdown. If markdown is deleted, data is lost.
+
+---
+
 ## Project Structure
 
 ```
@@ -169,7 +175,7 @@ The roadmap contains:
 - Dependency graph
 - Work breakdown
 
-**Current:** M6.7 Two-Agent Refactor — Complete (S1-S6, pending CTO walkthrough)
+**Current:** M6.6 Agentic Lifecycle (Memory Perfection) — Spec approved, 4 sprints planned
 
 ---
 
