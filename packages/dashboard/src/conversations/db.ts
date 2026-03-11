@@ -66,7 +66,7 @@ export class ConversationDatabase {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
-        channel TEXT NOT NULL,
+        channel TEXT,
         title TEXT,
         topics TEXT,
         created TEXT NOT NULL,

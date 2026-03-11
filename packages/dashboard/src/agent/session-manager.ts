@@ -24,6 +24,30 @@ import type { ConversationManager } from "../conversations/manager.js";
 /** Cached MCP servers — initialized once via initMcpServers() */
 let sharedMcpServers: Options["mcpServers"] | null = null;
 
+/** Shared prompt builder — initialized once via initPromptBuilder(), shared across all sessions */
+let sharedPromptBuilder: SystemPromptBuilder | null = null;
+
+/**
+ * Initialize the shared SystemPromptBuilder.
+ * Call once from index.ts after agent dir is known.
+ * Returns the builder so index.ts can wire cache invalidation.
+ */
+export function initPromptBuilder(
+  brainDir: string,
+  agentDir: string,
+): SystemPromptBuilder {
+  sharedPromptBuilder = new SystemPromptBuilder({ brainDir, agentDir });
+  console.log(`[SessionManager] Shared SystemPromptBuilder initialized`);
+  return sharedPromptBuilder;
+}
+
+/**
+ * Get the shared prompt builder (for cache invalidation wiring).
+ */
+export function getPromptBuilder(): SystemPromptBuilder | null {
+  return sharedPromptBuilder;
+}
+
 /**
  * Initialize MCP servers for brain sessions.
  * Call once from index.ts after searchService is ready.
@@ -104,11 +128,13 @@ export class SessionManager {
 
     const agentDir = this.config.brainDir.replace(/\/brain$/, "");
 
-    // Create SystemPromptBuilder (handles calendar, identity, skills)
-    this.promptBuilder = new SystemPromptBuilder({
-      brainDir: this.config.brainDir,
-      agentDir,
-    });
+    // Use shared SystemPromptBuilder (initialized in index.ts), fall back to local instance
+    this.promptBuilder =
+      sharedPromptBuilder ??
+      new SystemPromptBuilder({
+        brainDir: this.config.brainDir,
+        agentDir,
+      });
 
     // Wire hooks for audit logging and safety
     this.hooks = createHooks("brain", { agentDir });

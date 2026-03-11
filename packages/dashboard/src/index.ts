@@ -47,7 +47,11 @@ import {
 } from "./tasks/index.js";
 import { connectionRegistry, sessionRegistry } from "./ws/chat-handler.js";
 import { StatePublisher } from "./state/state-publisher.js";
-import { initMcpServers } from "./agent/session-manager.js";
+import {
+  initMcpServers,
+  initPromptBuilder,
+  getPromptBuilder,
+} from "./agent/session-manager.js";
 
 // Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
 // When the dashboard is started from within a Claude Code session (e.g. during dev),
@@ -88,6 +92,13 @@ async function main() {
     console.log(
       "Agent not hatched yet. Hatching wizard will be available in the web UI.",
     );
+  }
+
+  // Initialize shared SystemPromptBuilder (M6.6-S1)
+  // Must happen before any SessionManager is created so all sessions share the same cache.
+  if (hatched) {
+    const brainDir = join(agentDir, "brain");
+    initPromptBuilder(brainDir, agentDir);
   }
 
   // Create shared ConversationManager
@@ -552,8 +563,11 @@ async function main() {
       syncService.startWatching();
 
       // Publish memory state to dashboard on every sync event
+      // Also invalidate SystemPromptBuilder cache so operations/* and reference/* changes
+      // are picked up on the next query (M6.6-S1)
       syncService.on("sync", () => {
         server.statePublisher?.publishMemory();
+        getPromptBuilder()?.invalidateCache();
       });
 
       console.log("Memory file watcher started");

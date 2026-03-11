@@ -38,9 +38,15 @@ export interface SystemPromptBlock {
 export class SystemPromptBuilder {
   private config: BuilderConfig;
   private stablePromptCache: string | null = null;
+  private sessionStartTime: Date = new Date();
 
   constructor(config: BuilderConfig) {
     this.config = config;
+  }
+
+  /** Reset session start time (call when a new conversation session begins). */
+  resetSessionStart(): void {
+    this.sessionStartTime = new Date();
   }
 
   /**
@@ -55,10 +61,17 @@ export class SystemPromptBuilder {
     const dynamicParts: string[] = [];
     const now = new Date();
 
-    // Layer 3: Current state
-    // Populated by work loop in M6.6 — timestamp placeholder for now
+    // Layer 3: Temporal context + current state
+    // current-state.md is included via assembleSystemPrompt → loadNotebookOperations.
+    // Temporal context lets Nina reason about freshness ("updated this morning" vs "3 days old").
+    const sessionStart = this.sessionStartTime ?? now;
     dynamicParts.push(
-      `[Current State]\nTimestamp: ${now.toISOString()}\n[End Current State]`,
+      [
+        `[Temporal Context]`,
+        `Current time: ${now.toLocaleString("en-IL", { timeZone: process.env.TZ || "Asia/Jerusalem", dateStyle: "full", timeStyle: "short" })}`,
+        `Session started: ${sessionStart.toLocaleString("en-IL", { timeZone: process.env.TZ || "Asia/Jerusalem", dateStyle: "full", timeStyle: "short" })}`,
+        `[End Temporal Context]`,
+      ].join("\n"),
     );
 
     // Layer 4: Memory context
