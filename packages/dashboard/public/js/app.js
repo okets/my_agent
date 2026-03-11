@@ -123,8 +123,9 @@ function chat() {
     // Work loop system events
     showSystemEvents: true, // Toggle work loop events visibility
     workLoopPatterns: [], // Work loop job patterns from API
-    workLoopDetail: null, // { jobName, status, output, error, duration, startedAt }
-    showWorkLoopDetail: false,
+    workLoopJobDetail: null, // { name, displayName, cadence, model, lastRun, nextRun, prompts, runs }
+    workLoopExpandedRun: null, // ID of expanded run in activity log
+    workLoopShowPrompts: false, // Whether prompts section is expanded
 
     // Event modal
     eventModalOpen: false,
@@ -3358,6 +3359,49 @@ function chat() {
     },
 
     /**
+     * Open a work loop job tab (or refresh if already open)
+     */
+    async openWorkLoopTab(jobName) {
+      const tabId = `workloop-${jobName}`;
+
+      // If tab already open, refresh and switch
+      const existing = this.openTabs.find((t) => t.id === tabId);
+      if (existing) {
+        this.switchTab(tabId);
+        await this.loadWorkLoopJobDetail(jobName);
+        return;
+      }
+
+      // Fetch job detail from API
+      await this.loadWorkLoopJobDetail(jobName);
+
+      this.openTab({
+        id: tabId,
+        type: "workloop",
+        title: this.workLoopJobDetail?.displayName || jobName,
+        icon: "\u{1F504}",
+        closeable: true,
+        data: { jobName, file: "notebook/config/work-patterns.md" },
+      });
+    },
+
+    /**
+     * Load work loop job detail from API
+     */
+    async loadWorkLoopJobDetail(jobName) {
+      try {
+        const res = await fetch(
+          `/api/work-loop/jobs/${encodeURIComponent(jobName)}`,
+        );
+        if (res.ok) {
+          this.workLoopJobDetail = await res.json();
+        }
+      } catch (err) {
+        console.error("[App] Failed to load work loop job detail:", err);
+      }
+    },
+
+    /**
      * Trigger a work loop job manually
      */
     async triggerWorkLoopJob(jobName) {
@@ -3367,25 +3411,9 @@ function chat() {
           { method: "POST" },
         );
         const data = await res.json();
-        if (data.success) {
-          // Show the result in detail panel
-          this.workLoopDetail = {
-            jobName: data.run.job_name,
-            displayName: jobName
-              .split("-")
-              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-              .join(" "),
-            status: data.run.status,
-            output: data.run.output || null,
-            error: data.run.error || null,
-            durationMs: data.run.duration_ms || null,
-            startedAt: data.run.started_at,
-          };
-          this.showWorkLoopDetail = true;
-          this.refreshCalendar();
-        } else {
-          console.error("[App] Job trigger failed:", data.error);
-        }
+        // Open the tab (will show the new run in history)
+        await this.openWorkLoopTab(jobName);
+        this.refreshCalendar();
       } catch (err) {
         console.error("[App] Failed to trigger job:", err);
       }
@@ -3511,22 +3539,10 @@ function chat() {
      * If the event has a linked taskId, opens the task view instead
      */
     async openEventTab(event) {
-      // Work loop events: show detail panel instead of opening a tab
+      // Work loop events: open job tab
       const extProps = event.extendedProps || {};
       if (extProps.type === "work-loop") {
-        this.workLoopDetail = {
-          jobName: extProps.jobName,
-          displayName: event.title,
-          status: extProps.status,
-          output: extProps.output || null,
-          error: extProps.error || null,
-          durationMs: extProps.durationMs || null,
-          startedAt:
-            event.start instanceof Date
-              ? event.start.toISOString()
-              : event.start,
-        };
-        this.showWorkLoopDetail = true;
+        this.openWorkLoopTab(extProps.jobName);
         return;
       }
 
