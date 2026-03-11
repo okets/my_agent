@@ -19,6 +19,7 @@ import {
 export interface BuilderConfig {
   brainDir: string;
   agentDir: string;
+  getNotebookLastUpdated?: () => string | null;
 }
 
 export interface BuildContext {
@@ -65,14 +66,20 @@ export class SystemPromptBuilder {
     // current-state.md is included via assembleSystemPrompt → loadNotebookOperations.
     // Temporal context lets Nina reason about freshness ("updated this morning" vs "3 days old").
     const sessionStart = this.sessionStartTime ?? now;
-    dynamicParts.push(
-      [
-        `[Temporal Context]`,
-        `Current time: ${now.toLocaleString("en-IL", { timeZone: process.env.TZ || "Asia/Jerusalem", dateStyle: "full", timeStyle: "short" })}`,
-        `Session started: ${sessionStart.toLocaleString("en-IL", { timeZone: process.env.TZ || "Asia/Jerusalem", dateStyle: "full", timeStyle: "short" })}`,
-        `[End Temporal Context]`,
-      ].join("\n"),
-    );
+    const tz = process.env.TZ || "Asia/Jerusalem";
+    const localeOpts: Intl.DateTimeFormatOptions = { timeZone: tz, dateStyle: "full", timeStyle: "short" };
+    const temporalLines = [
+      `[Temporal Context]`,
+      `Current time: ${now.toLocaleString("en-IL", localeOpts)}`,
+      `Session started: ${sessionStart.toLocaleString("en-IL", localeOpts)}`,
+    ];
+    const notebookUpdated = this.config.getNotebookLastUpdated?.();
+    if (notebookUpdated) {
+      const notebookDate = new Date(notebookUpdated);
+      temporalLines.push(`Notebook last updated: ${notebookDate.toLocaleString("en-IL", localeOpts)}`);
+    }
+    temporalLines.push(`[End Temporal Context]`);
+    dynamicParts.push(temporalLines.join("\n"));
 
     // Layer 4: Memory context
     // Daily summary is included in stable prompt via assembleSystemPrompt.

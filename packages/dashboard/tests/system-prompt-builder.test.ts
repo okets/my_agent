@@ -123,6 +123,58 @@ describe("SystemPromptBuilder", () => {
     });
   });
 
+  it("includes notebook last updated when callback returns a timestamp", async () => {
+    const builderWithNotebook = new SystemPromptBuilder({
+      brainDir: "/tmp/test-brain",
+      agentDir: "/tmp/test-agent",
+      getNotebookLastUpdated: () => "2026-03-11T10:30:00.000Z",
+    });
+
+    const result = await builderWithNotebook.build({
+      channel: "web",
+      conversationId: "conv-NB1",
+      messageIndex: 1,
+    });
+
+    const dynamicText = result[1].text;
+    expect(dynamicText).toContain("Notebook last updated:");
+    expect(dynamicText).toContain("[Temporal Context]");
+    expect(dynamicText).toContain("[End Temporal Context]");
+  });
+
+  it("omits notebook last updated when callback returns null", async () => {
+    const builderWithNull = new SystemPromptBuilder({
+      brainDir: "/tmp/test-brain",
+      agentDir: "/tmp/test-agent",
+      getNotebookLastUpdated: () => null,
+    });
+
+    const result = await builderWithNull.build({
+      channel: "web",
+      conversationId: "conv-NB2",
+      messageIndex: 1,
+    });
+
+    const dynamicText = result[1].text;
+    expect(dynamicText).not.toContain("Notebook last updated:");
+    expect(dynamicText).toContain("[Temporal Context]");
+    expect(dynamicText).toContain("[End Temporal Context]");
+  });
+
+  it("omits notebook last updated when callback is not provided", async () => {
+    // Default builder (no getNotebookLastUpdated)
+    const result = await builder.build({
+      channel: "web",
+      conversationId: "conv-NB3",
+      messageIndex: 1,
+    });
+
+    const dynamicText = result[1].text;
+    expect(dynamicText).not.toContain("Notebook last updated:");
+    expect(dynamicText).toContain("[Temporal Context]");
+    expect(dynamicText).toContain("[End Temporal Context]");
+  });
+
   it("invalidateCache forces re-read of stable prompt", async () => {
     const { assembleSystemPrompt } = await import("@my-agent/core");
 

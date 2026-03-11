@@ -35,8 +35,13 @@ let sharedPromptBuilder: SystemPromptBuilder | null = null;
 export function initPromptBuilder(
   brainDir: string,
   agentDir: string,
+  options?: { getNotebookLastUpdated?: () => string | null },
 ): SystemPromptBuilder {
-  sharedPromptBuilder = new SystemPromptBuilder({ brainDir, agentDir });
+  sharedPromptBuilder = new SystemPromptBuilder({
+    brainDir,
+    agentDir,
+    getNotebookLastUpdated: options?.getNotebookLastUpdated,
+  });
   console.log(`[SessionManager] Shared SystemPromptBuilder initialized`);
   return sharedPromptBuilder;
 }

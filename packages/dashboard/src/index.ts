@@ -95,11 +95,23 @@ async function main() {
     );
   }
 
+  // Declare memoryDb early so the lazy callback in initPromptBuilder can reference it.
+  // Actual initialization happens later in the memory system block.
+  let memoryDb: MemoryDb | null = null;
+
   // Initialize shared SystemPromptBuilder (M6.6-S1)
   // Must happen before any SessionManager is created so all sessions share the same cache.
   if (hatched) {
     const brainDir = join(agentDir, "brain");
-    initPromptBuilder(brainDir, agentDir);
+    initPromptBuilder(brainDir, agentDir, {
+      getNotebookLastUpdated: () => {
+        try {
+          return memoryDb?.getStatus().lastSync ?? null;
+        } catch {
+          return null;
+        }
+      },
+    });
   }
 
   // Create shared ConversationManager
@@ -415,7 +427,6 @@ async function main() {
   }
 
   // Initialize memory system (M6-S2)
-  let memoryDb: MemoryDb | null = null;
   let syncService: SyncService | null = null;
   let searchService: SearchService | null = null;
   let pluginRegistry: PluginRegistry | null = null;
