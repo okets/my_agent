@@ -180,9 +180,9 @@ describe("work loop API routes", () => {
     expect(body.runs).toBeInstanceOf(Array);
     expect(body.runs.length).toBe(3);
     expect(body.runs[0].status).toBe("completed");
-    expect(
-      new Date(body.runs[0].started_at).getTime(),
-    ).toBeGreaterThan(new Date(body.runs[1].started_at).getTime());
+    expect(new Date(body.runs[0].started_at).getTime()).toBeGreaterThan(
+      new Date(body.runs[1].started_at).getTime(),
+    );
   });
 
   it("GET /api/work-loop/jobs/nonexistent returns 404", async () => {
@@ -201,6 +201,84 @@ describe("work loop API routes", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveProperty("prompts");
+  });
+
+  it("GET /api/work-loop/events shows multiple manual runs as separate events", async () => {
+    const now = new Date();
+    // Simulate 3 manual triggers 10 minutes apart
+    for (let i = 0; i < 3; i++) {
+      const started = new Date(now.getTime() - i * 10 * 60_000);
+      db.prepare(
+        `INSERT INTO work_loop_runs (id, job_name, started_at, completed_at, status, duration_ms, output)
+         VALUES (?, ?, ?, ?, 'completed', 5000, 'manual run ${i}')`,
+      ).run(
+        `manual-${i}`,
+        "unknown-handler",
+        started.toISOString(),
+        started.toISOString(),
+      );
+    }
+
+    const res = await fastify.inject({
+      method: "GET",
+      url: "/api/work-loop/events",
+    });
+    expect(res.statusCode).toBe(200);
+    const events = res.json();
+
+    // All 3 manual runs should appear as separate completed events
+    const manualRuns = events.filter(
+      (e: any) =>
+        e.id.startsWith("wl-manual-") && e.extendedProps.status === "completed",
+    );
+    expect(manualRuns.length).toBe(3);
+
+    // Each should have a distinct start time
+    const starts = new Set(manualRuns.map((e: any) => e.start));
+    expect(starts.size).toBe(3);
+  });
+
+  it("GET /api/work-loop/events does not duplicate scheduled and completed for same time", async () => {
+    // Insert a completed run at the pattern's scheduled time (Saturday 03:33)
+    // Find the next Saturday 03:33 from now
+    const now = new Date();
+    const nextSat = new Date(now);
+    nextSat.setDate(now.getDate() + ((6 - now.getDay() + 7) % 7 || 7));
+    nextSat.setHours(3, 33, 0, 0);
+
+    // Insert a run at that exact time (simulating it already ran)
+    db.prepare(
+      `INSERT INTO work_loop_runs (id, job_name, started_at, completed_at, status, duration_ms, output)
+       VALUES (?, ?, ?, ?, 'completed', 5000, 'ran on schedule')`,
+    ).run(
+      "sched-run",
+      "unknown-handler",
+      nextSat.toISOString(),
+      nextSat.toISOString(),
+    );
+
+    // Query a range that includes that Saturday
+    const start = new Date(now.getTime() - 24 * 60 * 60_000);
+    const end = new Date(nextSat.getTime() + 24 * 60 * 60_000);
+
+    const res = await fastify.inject({
+      method: "GET",
+      url: `/api/work-loop/events?start=${start.toISOString()}&end=${end.toISOString()}`,
+    });
+    expect(res.statusCode).toBe(200);
+    const events = res.json();
+
+    // The completed run should be there
+    const completedRun = events.find((e: any) => e.id === "wl-sched-run");
+    expect(completedRun).toBeTruthy();
+
+    // Scheduled occurrences should only be in the future (after now)
+    const scheduled = events.filter(
+      (e: any) => e.extendedProps.status === "scheduled",
+    );
+    for (const evt of scheduled) {
+      expect(new Date(evt.start).getTime()).toBeGreaterThan(now.getTime());
+    }
   });
 
   it("GET /api/work-loop/events returns multiple future scheduled occurrences", async () => {

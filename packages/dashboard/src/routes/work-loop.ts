@@ -71,9 +71,10 @@ export async function registerWorkLoopRoutes(
       const runStart = new Date(run.started_at);
       if (runStart > endDate) continue;
 
-      const durationMs = run.duration_ms ?? 60_000; // Default 1min display width
+      const durationMs = run.duration_ms ?? 30 * 60_000; // Default 30min display width
+      const minDisplay = 30 * 60_000; // 30 min so it's visible in week view
       const runEnd = new Date(
-        runStart.getTime() + Math.max(durationMs, 60_000),
+        runStart.getTime() + Math.max(durationMs, minDisplay),
       );
 
       let color: string;
@@ -107,10 +108,11 @@ export async function registerWorkLoopRoutes(
       });
     }
 
-    // Upcoming scheduled runs (recurring — generate occurrences within the requested range)
+    // Upcoming scheduled runs (future only — past occurrences show as actual runs from DB)
+    const now = new Date();
     const patterns = scheduler.getPatterns();
     for (const pattern of patterns) {
-      let cursor = new Date(startDate);
+      let cursor = new Date(Math.max(startDate.getTime(), now.getTime()));
       let safety = 0;
       const maxOccurrences = 50;
 
@@ -118,11 +120,12 @@ export async function registerWorkLoopRoutes(
         const nextTime = getNextScheduledTime(pattern.cadence, cursor);
         if (!nextTime || nextTime > endDate) break;
 
+        const displayDuration = 30 * 60_000; // 30 min so it's visible in week view
         events.push({
           id: `wl-sched-${pattern.name}-${nextTime.getTime()}`,
           title: `${pattern.displayName} (scheduled)`,
           start: nextTime.toISOString(),
-          end: new Date(nextTime.getTime() + 60_000).toISOString(),
+          end: new Date(nextTime.getTime() + displayDuration).toISOString(),
           allDay: false,
           color: "transparent",
           textColor: COLORS.purple,
@@ -136,7 +139,7 @@ export async function registerWorkLoopRoutes(
         });
 
         // Move cursor past this occurrence to find the next one
-        cursor = new Date(nextTime.getTime() + 60_000);
+        cursor = new Date(nextTime.getTime() + displayDuration);
         safety++;
       }
     }

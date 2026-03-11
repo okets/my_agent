@@ -24,7 +24,7 @@ function initCalendar(el, options = {}) {
 
   const calendar = new FullCalendar.Calendar(el, {
     // Views
-    initialView: "timeGridWeek",
+    initialView: "listWeek",
     headerToolbar: {
       left: "prev,next today",
       center: "title",
@@ -48,6 +48,27 @@ function initCalendar(el, options = {}) {
     // Styling
     height: "100%",
     themeSystem: "standard",
+    slotEventOverlap: false,
+
+    // Per-view settings
+    displayEventTime: false,
+    views: {
+      dayGridMonth: {
+        eventContent: (arg) => {
+          const title = (arg.event.title || "").replace(" (scheduled)", "");
+          return { html: `<span class="fc-event-title">${title}</span>` };
+        },
+      },
+      timeGridWeek: {
+        eventContent: (arg) => {
+          const title = (arg.event.title || "").replace(" (scheduled)", "");
+          return { html: `<span class="fc-event-title">${title}</span>` };
+        },
+      },
+      listWeek: {
+        displayEventTime: true,
+      },
+    },
 
     // Event sources: CalDAV + Work Loop (conditional)
     eventSources: [

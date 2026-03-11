@@ -21,8 +21,16 @@ import {
 import { existsSync } from "node:fs";
 import type Database from "better-sqlite3";
 import { loadWorkPatterns, isDue, type WorkPattern } from "./work-patterns.js";
-import { runMorningPrep, SYSTEM_PROMPT as MORNING_SYSTEM, USER_PROMPT_TEMPLATE as MORNING_USER } from "./jobs/morning-prep.js";
-import { runDailySummary, SYSTEM_PROMPT as SUMMARY_SYSTEM, USER_PROMPT_TEMPLATE as SUMMARY_USER } from "./jobs/daily-summary.js";
+import {
+  runMorningPrep,
+  SYSTEM_PROMPT as MORNING_SYSTEM,
+  USER_PROMPT_TEMPLATE as MORNING_USER,
+} from "./jobs/morning-prep.js";
+import {
+  runDailySummary,
+  SYSTEM_PROMPT as SUMMARY_SYSTEM,
+  USER_PROMPT_TEMPLATE as SUMMARY_USER,
+} from "./jobs/daily-summary.js";
 
 export interface WorkLoopSchedulerConfig {
   db: Database.Database;
@@ -200,12 +208,17 @@ export class WorkLoopScheduler {
     return this.patterns;
   }
 
-  private static readonly JOB_PROMPTS: Record<string, { system: string; userTemplate: string }> = {
+  private static readonly JOB_PROMPTS: Record<
+    string,
+    { system: string; userTemplate: string }
+  > = {
     "morning-prep": { system: MORNING_SYSTEM, userTemplate: MORNING_USER },
     "daily-summary": { system: SUMMARY_SYSTEM, userTemplate: SUMMARY_USER },
   };
 
-  getJobPrompts(jobName: string): { system: string; userTemplate: string } | null {
+  getJobPrompts(
+    jobName: string,
+  ): { system: string; userTemplate: string } | null {
     return WorkLoopScheduler.JOB_PROMPTS[jobName] ?? null;
   }
 

@@ -3934,26 +3934,8 @@
                     class="w-2 h-2 rounded-full shrink-0"
                     style="background: #cba6f7"
                   ></span>
-                  <span class="text-sm">Work Loop Jobs</span>
+                  <span class="text-sm">Show system tasks</span>
                 </label>
-
-                <!-- Work Loop Jobs -->
-                <div class="mt-2 space-y-1">
-                  <template x-for="job in workLoopPatterns" :key="job.name">
-                    <div class="flex items-center justify-between py-1 px-2">
-                      <span
-                        class="text-xs text-gray-400 truncate"
-                        x-text="job.displayName"
-                      ></span>
-                      <button
-                        @click="triggerWorkLoopJob(job.name)"
-                        class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 hover:bg-violet-500/25 transition-colors shrink-0 ml-1"
-                      >
-                        Run
-                      </button>
-                    </div>
-                  </template>
-                </div>
               </div>
 
               <!-- New Task button -->

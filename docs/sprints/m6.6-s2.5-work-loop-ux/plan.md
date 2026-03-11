@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Work loop jobs display as recurring calendar events and open as full tabs with activity logs and chat context tags.
+**Goal:** Work loop jobs display as recurring calendar events and open as full tabs with activity logs, prompt inspection, and chat context tags.
 
-**Architecture:** Replace the modal detail panel with a proper tab view (following the existing task/event tab pattern). Add a per-job API endpoint for run history. Show recurring scheduled occurrences on the calendar using FullCalendar's rrule-compatible approach. Wire chat context so the active conversation knows when the user is viewing a work loop job.
+**Architecture:** Replace the modal detail panel with a proper tab view (following the existing task/event tab pattern). Add a per-job API endpoint for run history and prompt templates. Show recurring scheduled occurrences on the calendar using FullCalendar's rrule-compatible approach. Wire chat context so the active conversation knows when the user is viewing a work loop job. Expose Haiku system prompts and user prompt templates so they're inspectable in the tab.
 
 **Tech Stack:** TypeScript, Alpine.js, Fastify, FullCalendar, better-sqlite3
 
@@ -16,7 +16,10 @@
 
 | File | Responsibility | Action |
 |------|---------------|--------|
-| `src/routes/work-loop.ts` | API for job detail + run history | Modify |
+| `src/scheduler/jobs/morning-prep.ts` | Export prompt constants | Modify |
+| `src/scheduler/jobs/daily-summary.ts` | Export prompt constants | Modify |
+| `src/scheduler/work-loop-scheduler.ts` | Expose prompts per job name | Modify |
+| `src/routes/work-loop.ts` | API for job detail + run history + prompts | Modify |
 | `public/js/app.js` | Work loop tab type, chat context, state | Modify |
 | `public/js/calendar.js` | Recurring event generation | Modify |
 | `public/index.html` | Work loop tab template (replaces modal) | Modify |
@@ -142,9 +145,91 @@ git commit -m "feat(m6.6-s2.5): add job detail API with run history"
 
 ---
 
-## Chunk 2: Recurring Calendar Events
+## Chunk 2: Prompt Exposure
 
-### Task 2: Show recurring scheduled occurrences on the calendar
+### Task 2: Export prompt constants and expose via API
+
+Export `SYSTEM_PROMPT` and `USER_PROMPT_TEMPLATE` from each job module so the tab UI can display them.
+
+**Files:**
+- Modify: `packages/dashboard/src/scheduler/jobs/morning-prep.ts`
+- Modify: `packages/dashboard/src/scheduler/jobs/daily-summary.ts`
+- Modify: `packages/dashboard/src/scheduler/work-loop-scheduler.ts`
+- Modify: `packages/dashboard/src/routes/work-loop.ts`
+- Modify: `packages/dashboard/tests/work-loop-api.test.ts`
+
+- [ ] **Step 1: Export prompt constants from morning-prep.ts**
+
+Change `const SYSTEM_PROMPT` to `export const SYSTEM_PROMPT` and `const USER_PROMPT_TEMPLATE` to `export const USER_PROMPT_TEMPLATE` (if it exists as a separate constant — otherwise extract the template string into an exported constant).
+
+- [ ] **Step 2: Export prompt constants from daily-summary.ts**
+
+Same change: `export const SYSTEM_PROMPT` and `export const USER_PROMPT_TEMPLATE`.
+
+- [ ] **Step 3: Add `getJobPrompts(jobName)` to WorkLoopScheduler**
+
+```typescript
+import { SYSTEM_PROMPT as MORNING_SYSTEM, USER_PROMPT_TEMPLATE as MORNING_USER } from "./jobs/morning-prep.js";
+import { SYSTEM_PROMPT as SUMMARY_SYSTEM, USER_PROMPT_TEMPLATE as SUMMARY_USER } from "./jobs/daily-summary.js";
+
+const JOB_PROMPTS: Record<string, { system: string; userTemplate: string }> = {
+  "morning-prep": { system: MORNING_SYSTEM, userTemplate: MORNING_USER },
+  "daily-summary": { system: SUMMARY_SYSTEM, userTemplate: SUMMARY_USER },
+};
+
+getJobPrompts(jobName: string): { system: string; userTemplate: string } | null {
+  return JOB_PROMPTS[jobName] ?? null;
+}
+```
+
+- [ ] **Step 4: Include prompts in GET /api/work-loop/jobs/:jobName response**
+
+Add to the endpoint implemented in Task 1:
+
+```typescript
+const prompts = scheduler.getJobPrompts(jobName);
+
+return {
+  // ...existing fields...
+  prompts: prompts ?? null,
+};
+```
+
+- [ ] **Step 5: Write the failing test**
+
+Add to `tests/work-loop-api.test.ts`:
+
+```typescript
+it("GET /api/work-loop/jobs/:jobName includes prompts", async () => {
+  const res = await fastify.inject({
+    method: "GET",
+    url: "/api/work-loop/jobs/unknown-handler",
+  });
+  expect(res.statusCode).toBe(200);
+  const body = res.json();
+  // The test fixture uses "unknown-handler" which won't have prompts
+  // This test verifies the field exists (null for unknown jobs)
+  expect(body).toHaveProperty("prompts");
+});
+```
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run: `npx vitest run tests/work-loop-api.test.ts`
+Expected: All tests pass
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/scheduler/jobs/morning-prep.ts src/scheduler/jobs/daily-summary.ts src/scheduler/work-loop-scheduler.ts src/routes/work-loop.ts tests/work-loop-api.test.ts
+git commit -m "feat(m6.6-s2.5): export job prompts and expose via API"
+```
+
+---
+
+## Chunk 3: Recurring Calendar Events
+
+### Task 3: Show recurring scheduled occurrences on the calendar
 
 Currently the calendar shows one "next scheduled" event per job. It should show multiple upcoming occurrences so the user sees the recurring pattern (like a repeating meeting).
 
@@ -239,9 +324,9 @@ git commit -m "feat(m6.6-s2.5): show recurring scheduled occurrences on calendar
 
 ---
 
-## Chunk 3: Work Loop Tab View
+## Chunk 4: Work Loop Tab View
 
-### Task 3: Replace modal with proper tab for work loop events
+### Task 4: Replace modal with proper tab for work loop events
 
 Remove the glass modal. When a work loop event is clicked on the calendar (or "Run" is pressed), open a tab with job metadata, run history, output, and chat context.
 
@@ -345,7 +430,7 @@ git add public/js/app.js public/index.html
 git commit -m "feat(m6.6-s2.5): replace work loop modal with tab — state and logic"
 ```
 
-### Task 4: Add work loop tab HTML template
+### Task 5: Add work loop tab HTML template
 
 Add the tab content template to `index.html`, following the task tab pattern.
 
@@ -404,6 +489,37 @@ After the existing event tab template (`x-if="openTabs.find(t => t.id === active
                  x-text="workLoopJobDetail.nextRun ? new Date(workLoopJobDetail.nextRun).toLocaleString() : 'Unknown'"></div>
           </div>
         </div>
+
+        <!-- Prompts (collapsible) -->
+        <template x-if="workLoopJobDetail.prompts">
+          <div class="mb-6">
+            <button @click="workLoopShowPrompts = !workLoopShowPrompts"
+                    class="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3 hover:text-gray-200 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 transition-transform"
+                   :class="workLoopShowPrompts ? 'rotate-90' : ''"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+              </svg>
+              Prompts
+            </button>
+            <template x-if="workLoopShowPrompts">
+              <div class="space-y-3">
+                <div>
+                  <div class="text-[10px] text-gray-500 uppercase tracking-wide mb-1">System Prompt</div>
+                  <pre class="text-xs text-gray-300 whitespace-pre-wrap p-3 rounded-lg max-h-48 overflow-y-auto"
+                       style="background: rgba(0,0,0,0.3);"
+                       x-text="workLoopJobDetail.prompts.system"></pre>
+                </div>
+                <div>
+                  <div class="text-[10px] text-gray-500 uppercase tracking-wide mb-1">User Prompt Template</div>
+                  <pre class="text-xs text-gray-300 whitespace-pre-wrap p-3 rounded-lg max-h-48 overflow-y-auto"
+                       style="background: rgba(0,0,0,0.3);"
+                       x-text="workLoopJobDetail.prompts.userTemplate"></pre>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
 
         <!-- Activity Log (Run History) -->
         <div>
@@ -478,6 +594,7 @@ In the calendar state section:
 
 ```javascript
 workLoopExpandedRun: null,        // ID of expanded run in activity log
+workLoopShowPrompts: false,       // Whether prompts section is expanded
 ```
 
 - [ ] **Step 3: Commit**
@@ -489,9 +606,9 @@ git commit -m "feat(m6.6-s2.5): add work loop job tab with activity log"
 
 ---
 
-## Chunk 4: Chat Context Tag
+## Chunk 5: Chat Context Tag
 
-### Task 5: Wire chat context for work loop tabs
+### Task 6: Wire chat context for work loop tabs
 
 When a work loop tab is active, the chat should show a context tag (like it does for tasks and conversations) so Nina knows the user is looking at a specific job.
 
@@ -535,9 +652,9 @@ git commit -m "feat(m6.6-s2.5): wire chat context for work loop tabs"
 
 ---
 
-## Chunk 5: Cleanup + Verification
+## Chunk 6: Cleanup + Verification
 
-### Task 6: Full suite verification
+### Task 7: Full suite verification
 
 - [ ] **Step 1: Run all tests**
 
@@ -577,11 +694,68 @@ git commit -m "style: apply prettier formatting"
 
 ---
 
+## Chunk 7: UI Polish + Mobile
+
+### Task 8: Design language compliance + mobile popover
+
+Ensure the work loop tab follows the Nina V1 design language and has a proper mobile view.
+
+**Files:**
+- Modify: `packages/dashboard/public/index.html` (desktop tab template + mobile popover)
+- Modify: `packages/dashboard/public/js/app.js` (mobile popover handler)
+
+- [ ] **Step 1: Audit desktop tab template against design language**
+
+Verify all elements use correct tokens:
+- Glass panels: `glass-strong` class or `rgba(30, 30, 46, 0.8)` with blur
+- Badges: `text-[9px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400`
+- Status colors: green-500/20 for completed, red-500/20 for failed
+- Text: `text-tokyo-text` for headings, `text-gray-300` for body, `text-gray-500` for labels
+- Buttons: `cal-action-btn cal-action-btn-cta` for primary CTA
+
+Fix any deviations.
+
+- [ ] **Step 2: Add mobile popover template for work loop**
+
+Add a `<template x-if="$store.mobile.popover?.type === 'workloop'">` block in the mobile popover section of index.html (after the existing task/event/calendar/settings/notebook popovers). Follow the task popover pattern:
+- Header with title + badges (cadence, model)
+- `glass-strong rounded-xl` metadata card (last run, next run)
+- Collapsible prompts section
+- Activity log with expandable runs
+
+- [ ] **Step 3: Wire mobile event click to open work loop popover**
+
+In app.js, update the mobile event click handler to detect work-loop events and open a mobile popover instead of the desktop tab:
+
+```javascript
+// In mobile context, open popover for work loop events
+if (this.isMobile && extProps.type === 'work-loop') {
+  await this.loadWorkLoopJobDetail(extProps.jobName);
+  this.$store.mobile.openPopover({ type: 'workloop', data: this.workLoopJobDetail });
+  return;
+}
+```
+
+- [ ] **Step 4: Browser validation (desktop + mobile)**
+
+1. Desktop: Open work loop tab — verify glass panels, badges, prompts section, activity log all render correctly with Tokyo Night colors
+2. Mobile: Click work loop event — verify popover opens with same content, sheet gesture works
+3. Toggle system events — verify recurring events appear/disappear on both views
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add public/index.html public/js/app.js
+git commit -m "feat(m6.6-s2.5): design language polish + mobile work loop popover"
+```
+
+---
+
 ## Dependency Graph
 
 ```
-T1 (API endpoint) → T2 (recurring events)
-                  → T3 (tab logic) → T4 (tab HTML) → T5 (chat context) → T6 (verify)
+T1 (API endpoint) → T2 (prompt export) → T4 (tab logic) → T5 (tab HTML + prompts) → T6 (chat context) → T7 (verify) → T8 (polish + mobile)
+                  → T3 (recurring events)
 ```
 
-T1 and T2 are independent. T3 depends on T1 (needs the API). T4 depends on T3. T5 depends on T4. T6 is final.
+T1 first (API base). T2 builds on T1 (adds prompts to response). T3 is independent of T2. T4 depends on T1 (needs the API). T5 depends on T2+T4 (tab HTML renders prompts). T6 depends on T5. T7 is verification. T8 is final polish + mobile.
