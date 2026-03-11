@@ -1110,7 +1110,11 @@ describe("AbbreviationQueue", () => {
       markNeedsAbbreviation: async () => {},
     } as unknown as ConversationManager;
 
-    const queue = new AbbreviationQueue(mockManager, "fake-key", "/tmp/test-agent");
+    const queue = new AbbreviationQueue(
+      mockManager,
+      "fake-key",
+      "/tmp/test-agent",
+    );
     queue.enqueue("conv-1");
     queue.enqueue("conv-1"); // duplicate
 
@@ -1126,7 +1130,11 @@ describe("AbbreviationQueue", () => {
       markNeedsAbbreviation: async () => {},
     } as unknown as ConversationManager;
 
-    const queue = new AbbreviationQueue(mockManager, "fake-key", "/tmp/test-agent");
+    const queue = new AbbreviationQueue(
+      mockManager,
+      "fake-key",
+      "/tmp/test-agent",
+    );
 
     // Drain immediately (no tasks processing)
     await queue.drain();

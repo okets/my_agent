@@ -89,9 +89,7 @@ export function factExistsInContent(
 ): boolean {
   // Normalize whitespace for comparison
   const normalizedFact = fact.toLowerCase().replace(/\s+/g, " ").trim();
-  const normalizedContent = existingContent
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+  const normalizedContent = existingContent.toLowerCase().replace(/\s+/g, " ");
   return normalizedContent.includes(normalizedFact);
 }
 

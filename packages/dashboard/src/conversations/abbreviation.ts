@@ -161,17 +161,16 @@ export class AbbreviationQueue {
 
       // Run abbreviation and fact extraction in parallel
       // Both operate on the ORIGINAL transcript, not chained
-      const [abbreviationResult, extractionResult] =
-        await Promise.allSettled([
-          this.generateAbbreviation(transcriptText),
-          needsExtraction
-            ? this.extractAndPersistFacts(
-                conversationId,
-                transcriptText,
-                conversation.turnCount,
-              )
-            : Promise.resolve(null),
-        ]);
+      const [abbreviationResult, extractionResult] = await Promise.allSettled([
+        this.generateAbbreviation(transcriptText),
+        needsExtraction
+          ? this.extractAndPersistFacts(
+              conversationId,
+              transcriptText,
+              conversation.turnCount,
+            )
+          : Promise.resolve(null),
+      ]);
 
       this.currentQuery = null;
 
@@ -260,9 +259,7 @@ export class AbbreviationQueue {
   /**
    * Generate abbreviation text via Haiku (extracted from abbreviateConversation)
    */
-  private async generateAbbreviation(
-    transcriptText: string,
-  ): Promise<string> {
+  private async generateAbbreviation(transcriptText: string): Promise<string> {
     const fullPrompt = `${ABBREVIATION_PROMPT}\n\n---\n\nConversation transcript:\n\n${transcriptText}`;
 
     const query = createBrainQuery(fullPrompt, {

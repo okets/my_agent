@@ -49,9 +49,9 @@ describe("parseFacts", () => {
 describe("factExistsInContent", () => {
   it("detects exact substring match (case insensitive)", () => {
     const content = "- User is in Chiang Mai, Thailand _(2026-03-11)_\n";
-    expect(factExistsInContent("User is in Chiang Mai, Thailand", content)).toBe(
-      true,
-    );
+    expect(
+      factExistsInContent("User is in Chiang Mai, Thailand", content),
+    ).toBe(true);
   });
 
   it("returns false for non-matching fact", () => {

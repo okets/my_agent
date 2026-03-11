@@ -43,12 +43,12 @@ describe("fact extraction integration", () => {
     expect(count).toBe(3);
 
     // Verify files exist with content
-    expect(
-      existsSync(join(tmpDir, "notebook", "knowledge", "facts.md")),
-    ).toBe(true);
-    expect(
-      existsSync(join(tmpDir, "notebook", "knowledge", "people.md")),
-    ).toBe(true);
+    expect(existsSync(join(tmpDir, "notebook", "knowledge", "facts.md"))).toBe(
+      true,
+    );
+    expect(existsSync(join(tmpDir, "notebook", "knowledge", "people.md"))).toBe(
+      true,
+    );
     expect(
       existsSync(join(tmpDir, "notebook", "knowledge", "preferences.md")),
     ).toBe(true);
