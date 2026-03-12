@@ -17,6 +17,7 @@ Before starting, verify:
 - [ ] Risk review done (check `docs/sprints/m2-planning.md`)
 - [ ] Scope is clear (no ambiguous requirements — those block overnight work)
 - [ ] Branch will be created
+- [ ] Plan includes traceability matrix (spec requirement → task → verification)
 
 If any pre-flight item fails, **stop and ask now** — overnight sprints cannot block on questions.
 
@@ -137,6 +138,9 @@ Must pass:
 - [ ] All user stories manually tested
 - [ ] No console errors in browser
 - [ ] No unhandled rejections in server
+- [ ] External reviewer spec coverage verified
+- [ ] External reviewer verdict is PASS or PASS WITH CONCERNS
+- [ ] Browser verification passed (when sprint touches UI/server)
 
 Should pass:
 - [ ] Works after server restart
@@ -171,4 +175,5 @@ If sprint cannot complete:
 9. Reviewer operates independently (DMs findings to implementers)
 10. QA tests at end (spawned after implementation tasks complete)
 11. **Design–implementation gap analysis** — compare what was built against the design spec; flag any mismatches, missing features, or deviations (record findings in `DEVIATIONS.md`)
-12. Shut down teammates, commit final state to branch
+12. **External reviewer (mandatory)** — dispatch independent Opus agent to verify spec coverage and run browser checks (see `docs/procedures/external-reviewer.md`). The reviewer's report goes into `review.md` and `test-report.md`.
+13. Shut down teammates, commit final state to branch
