@@ -267,6 +267,17 @@ Observations: timestamped facts attached to entities
 - Phase 2: Mem0 with graph memory (auto entity extraction)
 - Phase 3: Graphiti + Memgraph (temporal reasoning, high performance)
 
+### 4.4 Knowledge Lifecycle (M6.9)
+
+**Full spec:** [knowledge-lifecycle-design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md)
+
+Key changes from M6.6:
+- Facts classified as PERMANENT (staging then user approval), TEMPORAL (daily logs then summaries), or PROPERTY (real-time YAML)
+- Summary rollup chain: daily then weekly then monthly (replaces indefinite fact accumulation)
+- `properties/status.yaml` for dynamic metadata (location, timezone, availability)
+- `queryModel()` replaces `queryHaiku()` for model-selectable background queries
+- Morning prep reads summary stack instead of raw knowledge files
+
 ### 5. Skill System
 
 Skills are markdown files that give the agent specialized capabilities. Same format as Claude Code skills.

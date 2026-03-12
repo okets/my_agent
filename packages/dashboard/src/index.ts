@@ -507,6 +507,7 @@ async function main() {
         notebookDir,
         db: memoryDb,
         getPlugin: () => pluginRegistry?.getActive() ?? null,
+        excludePatterns: ['knowledge/extracted/**'],
       });
 
       // Create search service (hybrid FTS5 + vector)

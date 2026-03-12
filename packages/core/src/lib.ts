@@ -51,7 +51,7 @@ export {
 export type { YamlEmbeddingsConfig } from './config.js'
 export type { BrainConfig, HealthConfig } from './types.js'
 
-export { assembleSystemPrompt } from './prompt.js'
+export { assembleSystemPrompt, loadProperties } from './prompt.js'
 
 export { resolveAuth, validateSetupToken, isAuthenticated, clearAuth } from './auth.js'
 export type { ResolvedAuth } from './auth.js'

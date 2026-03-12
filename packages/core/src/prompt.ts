@@ -1,6 +1,8 @@
 import * as path from 'node:path'
 import { readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { globby } from 'globby'
+import { parse as parseYaml } from 'yaml'
 
 const DEFAULT_PERSONALITY_PATH = path.resolve(
   import.meta.dirname,
@@ -142,8 +144,9 @@ async function buildNotebookTree(agentDir: string): Promise<string | null> {
 }
 
 /**
- * Load all files from notebook/reference/ directory.
+ * Load all files from notebook/reference/ directory recursively.
  * Returns formatted sections up to MAX_REFERENCE_TOTAL_CHARS total.
+ * Files are sorted alphabetically by their full relative path for deterministic ordering.
  */
 async function loadNotebookReference(agentDir: string): Promise<string | null> {
   const referenceDir = path.join(agentDir, 'notebook', 'reference')
@@ -152,21 +155,21 @@ async function loadNotebookReference(agentDir: string): Promise<string | null> {
     return null
   }
 
-  let entries: string[]
+  let relPaths: string[]
   try {
-    entries = await readdir(referenceDir)
+    relPaths = await globby('**/*.md', { cwd: referenceDir })
   } catch {
     return null
   }
 
+  // Sort alphabetically by relative path for deterministic ordering
+  relPaths.sort()
+
   const sections: string[] = []
   let totalChars = 0
 
-  // Sort entries for consistent ordering
-  for (const entry of entries.sort()) {
-    if (!entry.endsWith('.md')) continue
-
-    const filePath = path.join(referenceDir, entry)
+  for (const relPath of relPaths) {
+    const filePath = path.join(referenceDir, relPath)
     let content = await readOptionalFile(filePath)
     if (!content || content.trim() === '') continue
 
@@ -181,8 +184,9 @@ async function loadNotebookReference(agentDir: string): Promise<string | null> {
       break
     }
 
-    // Format with header derived from filename
-    const name = entry.replace('.md', '').replace(/-/g, ' ')
+    // Format with header derived from filename (basename without extension)
+    const basename = path.basename(relPath, '.md')
+    const name = basename.replace(/-/g, ' ')
     const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1)
     sections.push(`### ${capitalizedName}\n\n${content.trim()}`)
     totalChars += content.length
@@ -251,6 +255,56 @@ async function loadNotebookOperations(agentDir: string): Promise<string | null> 
 }
 
 /**
+ * Load notebook/properties/status.yaml and format it as a dynamic status block.
+ * Returns null if the file does not exist or cannot be parsed.
+ */
+export async function loadProperties(agentDir: string): Promise<string | null> {
+  const propsFile = path.join(agentDir, 'notebook', 'properties', 'status.yaml')
+
+  const content = await readOptionalFile(propsFile)
+  if (!content || content.trim() === '') {
+    return null
+  }
+
+  let data: Record<string, { value: string; confidence?: string; updated?: string }>
+  try {
+    data = parseYaml(content)
+  } catch {
+    console.warn('[Prompt] Failed to parse status.yaml')
+    return null
+  }
+
+  if (!data || typeof data !== 'object') {
+    return null
+  }
+
+  const lines: string[] = ['[Dynamic Status]']
+
+  for (const [key, entry] of Object.entries(data)) {
+    if (!entry || typeof entry !== 'object' || !entry.value) continue
+
+    const label = key.charAt(0).toUpperCase() + key.slice(1)
+    const parts = [entry.value]
+    if (entry.confidence) {
+      parts.push(`${entry.confidence} confidence`)
+    }
+    if (entry.updated) {
+      parts.push(`updated ${entry.updated}`)
+    }
+
+    lines.push(`${label}: ${parts[0]} (${parts.slice(1).join(', ')})`)
+  }
+
+  lines.push('[End Dynamic Status]')
+
+  if (lines.length <= 2) {
+    return null
+  }
+
+  return lines.join('\n')
+}
+
+/**
  * Load today's and yesterday's daily logs.
  */
 async function loadDailyLogs(agentDir: string): Promise<string | null> {
@@ -293,7 +347,7 @@ async function loadDailyLogs(agentDir: string): Promise<string | null> {
 }
 
 /**
- * Check if notebook/reference has any content.
+ * Check if notebook/reference has any content (including subdirectories).
  * Used to determine if we should fall back to legacy runtime files.
  */
 async function hasNotebookReference(agentDir: string): Promise<boolean> {
@@ -304,8 +358,8 @@ async function hasNotebookReference(agentDir: string): Promise<boolean> {
   }
 
   try {
-    const entries = await readdir(referenceDir)
-    return entries.some((e) => e.endsWith('.md'))
+    const matches = await globby('**/*.md', { cwd: referenceDir })
+    return matches.length > 0
   } catch {
     return false
   }

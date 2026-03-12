@@ -1,49 +1,57 @@
 /**
- * Morning Prep Job
+ * Morning Prep Job (Morning Brief)
  *
- * Reads notebook context (reference/*, daily/*, knowledge/*) and produces
- * a concise current-state briefing. Output is written to
- * notebook/operations/current-state.md by the scheduler.
+ * Reads summary stack + calendar + properties + staging,
+ * produces operations/current-state.md with past+future temporal context.
  *
- * This module exports the pure prompt function for testability.
- * The scheduler handles file I/O.
+ * Design spec: docs/sprints/m6.6-s6-knowledge-lifecycle/design.md Section 7.3
  */
 
-import { queryHaiku } from "../haiku-query.js";
+import { queryModel } from "../query-model.js";
 
-export const SYSTEM_PROMPT = `You produce a daily briefing from notebook content provided by the user.
+export const SYSTEM_PROMPT = `You produce a daily briefing by synthesizing past and future context.
 
 STRICT RULES:
-1. Output ONLY the briefing — no preamble, no "I'll read...", no explanation, no thinking out loud
-2. Use ONLY facts explicitly stated in the user's message — NEVER invent, assume, or use outside knowledge
-3. If the provided content is empty or has no useful information, respond with EXACTLY: "No context available yet."
-4. If information conflicts, use the MOST RECENT source (daily logs > reference files)
-5. Be concise: bullet points, not paragraphs
+1. Output ONLY the briefing -- no preamble, no explanation, no thinking out loud
+2. Use ONLY facts from the provided content -- NEVER invent or assume
+3. If the content is empty, respond with EXACTLY: "No context available yet."
+4. HARD CAP: Output must be under 3000 characters
+5. Use the past+future format provided
 6. Write in English regardless of input language
-7. Do NOT attempt to read files, search, or use tools — all content is already provided in the user message`;
+7. Do NOT attempt to read files, search, or use tools`;
 
-export const USER_PROMPT_TEMPLATE = `Based on the following notebook content, write a current-state briefing.
+export const USER_PROMPT_TEMPLATE = `Based on the following context, write a current-state briefing.
 
 Format:
-## Current State (updated {date})
-- Location: [where the owner is, if known]
-- Focus: [what they're doing / vacation / work / etc.]
-- Schedule: [upcoming events today or soon]
-- Pending: [open items, tasks, things to follow up on]
+## Today -- {date}
+- [today's events, deadlines, plans]
+
+## This Week Ahead
+- [upcoming events, milestones]
+
+## This Month Ahead
+- [bigger picture, travel, goals]
+
+## Yesterday
+- [key events from yesterday]
+
+## Past 7 Days
+- [weekly summary highlights]
+
+## Past 30 Days
+- [monthly summary highlights]
 
 Only include sections where you have information. Skip sections with no data.
+Hard cap: 3000 characters.
 
 ---
 
 {context}`;
 
 /**
- * Run the morning prep prompt and return the briefing text.
- *
- * @param notebookContext - Pre-assembled notebook content (reference + daily + knowledge)
- * @returns The current-state briefing text
+ * Run the morning prep (morning brief) prompt.
  */
-export async function runMorningPrep(notebookContext: string): Promise<string> {
+export async function runMorningPrep(assembledContext: string): Promise<string> {
   const today = new Date().toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -52,8 +60,9 @@ export async function runMorningPrep(notebookContext: string): Promise<string> {
 
   const userPrompt = USER_PROMPT_TEMPLATE.replace("{date}", today).replace(
     "{context}",
-    notebookContext,
+    assembledContext,
   );
 
-  return queryHaiku(userPrompt, SYSTEM_PROMPT);
+  // TODO: M6.9-S2 upgrades morning brief to sonnet/opus for higher-judgement synthesis
+  return queryModel(userPrompt, SYSTEM_PROMPT, "haiku");
 }
