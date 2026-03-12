@@ -23,9 +23,19 @@ import type Database from "better-sqlite3";
 import { loadWorkPatterns, isDue, type WorkPattern } from "./work-patterns.js";
 import {
   runMorningPrep,
+  formatStagedFactsSection,
+  formatStalePropertiesSection,
   SYSTEM_PROMPT as MORNING_SYSTEM,
   USER_PROMPT_TEMPLATE as MORNING_USER,
 } from "./jobs/morning-prep.js";
+import type { ModelAlias } from "./query-model.js";
+import { loadPreferences } from "@my-agent/core";
+import { readProperties, detectStaleProperties } from "../conversations/properties.js";
+import {
+  readStagingFiles,
+  cleanExpiredFacts,
+  incrementAllAttempts,
+} from "../conversations/knowledge-staging.js";
 import {
   runDailySummary,
   SYSTEM_PROMPT as SUMMARY_SYSTEM,
@@ -567,7 +577,34 @@ export class WorkLoopScheduler {
       ? sections.join("\n\n---\n\n")
       : "No context available.";
 
-    const output = await runMorningPrep(context);
+    // Clean expired facts before building the prompt (max 3 attempts)
+    await cleanExpiredFacts(this.agentDir, 3);
+
+    // Build staged facts section for prompt
+    const stagingFiles = await readStagingFiles(this.agentDir);
+    const stagedFactsSection = formatStagedFactsSection(stagingFiles);
+
+    // Build stale properties section
+    const properties = await readProperties(this.agentDir);
+    const todayDate = new Date().toISOString().split("T")[0];
+    const staleProps = detectStaleProperties(properties, todayDate);
+    const stalePropertiesSection = formatStalePropertiesSection(staleProps);
+
+    // Get model preference
+    const preferences = loadPreferences(this.agentDir);
+    const model = preferences.morningBrief.model as ModelAlias;
+
+    const output = await runMorningPrep(
+      context,
+      model,
+      stagedFactsSection,
+      stalePropertiesSection,
+    );
+
+    // Auto-increment attempts for all proposed facts
+    for (const file of stagingFiles) {
+      await incrementAllAttempts(file.filePath);
+    }
 
     // Write to operations/current-state.md
     const opsDir = join(notebookDir, "operations");

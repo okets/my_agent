@@ -7,7 +7,9 @@
  * Design spec: docs/sprints/m6.6-s6-knowledge-lifecycle/design.md Section 7.3
  */
 
-import { queryModel } from "../query-model.js";
+import { queryModel, type ModelAlias } from "../query-model.js";
+import type { StagingFile } from "../../conversations/knowledge-staging.js";
+import type { StaleProperty } from "../../conversations/properties.js";
 
 export const SYSTEM_PROMPT = `You produce a daily briefing by synthesizing past and future context.
 
@@ -49,20 +51,64 @@ Hard cap: 3000 characters.
 {context}`;
 
 /**
+ * Format staged facts for inclusion in the morning brief prompt.
+ */
+export function formatStagedFactsSection(stagingFiles: StagingFile[]): string {
+  const allFacts = stagingFiles.flatMap((f) =>
+    f.facts.map(
+      (fact) =>
+        `- [${fact.subcategory}] ${fact.text} (source: "${f.conversationTitle}", attempts: ${fact.attempts})`,
+    ),
+  );
+  if (allFacts.length === 0) return "";
+  return [
+    "",
+    "PENDING KNOWLEDGE — propose these to the user naturally:",
+    ...allFacts,
+    "",
+    "For each pending fact, include a brief natural proposal in today's section.",
+    'Example: "I noted you mentioned Noa and Maya — shall I add them to your profile?"',
+    "If the user has ignored a fact multiple times (high attempts), give it lower priority.",
+  ].join("\n");
+}
+
+/**
+ * Format stale properties for inclusion in the morning brief prompt.
+ */
+export function formatStalePropertiesSection(staleProps: StaleProperty[]): string {
+  if (staleProps.length === 0) return "";
+  return [
+    "",
+    "STALE PROPERTIES — ask the user if these are still current:",
+    ...staleProps.map(
+      (p) =>
+        `- ${p.key}: "${p.value}" (last updated ${p.daysSinceUpdate} days ago, threshold: ${p.threshold} days)`,
+    ),
+  ].join("\n");
+}
+
+/**
  * Run the morning prep (morning brief) prompt.
  */
-export async function runMorningPrep(assembledContext: string): Promise<string> {
+export async function runMorningPrep(
+  assembledContext: string,
+  model: ModelAlias = "sonnet",
+  stagedFactsSection: string = "",
+  stalePropertiesSection: string = "",
+): Promise<string> {
   const today = new Date().toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 
+  const fullContext =
+    assembledContext + stagedFactsSection + stalePropertiesSection;
+
   const userPrompt = USER_PROMPT_TEMPLATE.replace("{date}", today).replace(
     "{context}",
-    assembledContext,
+    fullContext,
   );
 
-  // TODO: M6.9-S2 upgrades morning brief to sonnet/opus for higher-judgement synthesis
-  return queryModel(userPrompt, SYSTEM_PROMPT, "haiku");
+  return queryModel(userPrompt, SYSTEM_PROMPT, model);
 }
