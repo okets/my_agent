@@ -1,6 +1,7 @@
 import * as path from 'node:path'
 import { readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { globby } from 'globby'
 
 const DEFAULT_PERSONALITY_PATH = path.resolve(
   import.meta.dirname,
@@ -142,8 +143,9 @@ async function buildNotebookTree(agentDir: string): Promise<string | null> {
 }
 
 /**
- * Load all files from notebook/reference/ directory.
+ * Load all files from notebook/reference/ directory recursively.
  * Returns formatted sections up to MAX_REFERENCE_TOTAL_CHARS total.
+ * Files are sorted alphabetically by their full relative path for deterministic ordering.
  */
 async function loadNotebookReference(agentDir: string): Promise<string | null> {
   const referenceDir = path.join(agentDir, 'notebook', 'reference')
@@ -152,21 +154,21 @@ async function loadNotebookReference(agentDir: string): Promise<string | null> {
     return null
   }
 
-  let entries: string[]
+  let relPaths: string[]
   try {
-    entries = await readdir(referenceDir)
+    relPaths = await globby('**/*.md', { cwd: referenceDir })
   } catch {
     return null
   }
 
+  // Sort alphabetically by relative path for deterministic ordering
+  relPaths.sort()
+
   const sections: string[] = []
   let totalChars = 0
 
-  // Sort entries for consistent ordering
-  for (const entry of entries.sort()) {
-    if (!entry.endsWith('.md')) continue
-
-    const filePath = path.join(referenceDir, entry)
+  for (const relPath of relPaths) {
+    const filePath = path.join(referenceDir, relPath)
     let content = await readOptionalFile(filePath)
     if (!content || content.trim() === '') continue
 
@@ -181,8 +183,9 @@ async function loadNotebookReference(agentDir: string): Promise<string | null> {
       break
     }
 
-    // Format with header derived from filename
-    const name = entry.replace('.md', '').replace(/-/g, ' ')
+    // Format with header derived from filename (basename without extension)
+    const basename = path.basename(relPath, '.md')
+    const name = basename.replace(/-/g, ' ')
     const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1)
     sections.push(`### ${capitalizedName}\n\n${content.trim()}`)
     totalChars += content.length
@@ -293,7 +296,7 @@ async function loadDailyLogs(agentDir: string): Promise<string | null> {
 }
 
 /**
- * Check if notebook/reference has any content.
+ * Check if notebook/reference has any content (including subdirectories).
  * Used to determine if we should fall back to legacy runtime files.
  */
 async function hasNotebookReference(agentDir: string): Promise<boolean> {
@@ -304,8 +307,8 @@ async function hasNotebookReference(agentDir: string): Promise<boolean> {
   }
 
   try {
-    const entries = await readdir(referenceDir)
-    return entries.some((e) => e.endsWith('.md'))
+    const matches = await globby('**/*.md', { cwd: referenceDir })
+    return matches.length > 0
   } catch {
     return false
   }
