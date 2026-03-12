@@ -18,6 +18,7 @@ import { registerNotebookRoutes } from "./routes/notebook.js";
 import { registerMemoryRoutes } from "./routes/memory.js";
 import { registerConversationSearchRoutes } from "./routes/conversation-search.js";
 import { registerWorkLoopRoutes } from "./routes/work-loop.js";
+import { registerSettingsRoutes } from "./routes/settings.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
@@ -232,6 +233,9 @@ export async function createServer(
 
   // Register work loop routes (M6.6-S2)
   await registerWorkLoopRoutes(fastify);
+
+  // Register settings routes (M6.9-S2)
+  await registerSettingsRoutes(fastify);
 
   // Legacy notebook API - read runtime files (backward compatibility)
   // TODO: Remove after migration to notebook/ is complete

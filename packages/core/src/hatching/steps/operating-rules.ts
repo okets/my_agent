@@ -1,6 +1,8 @@
 import * as readline from 'node:readline/promises'
 import * as path from 'node:path'
 import { writeFile, mkdir } from 'node:fs/promises'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { parse, stringify } from 'yaml'
 import type { HatchingStep } from '../index.js'
 
 const AUTONOMY_OPTIONS: Record<string, string> = {
@@ -80,5 +82,53 @@ export const operatingRulesStep: HatchingStep = {
 
     await writeFile(standingOrdersPath, `# Standing Orders\n${rulesSection}`, 'utf-8')
     console.log('\nOperating rules saved to standing-orders.md.')
+
+    // ── Morning brief preferences ──
+    console.log('\n--- Morning Brief ---\n')
+
+    const briefTimeRaw = await rl.question(
+      'What time should your morning brief be delivered? (HH:MM, default 08:00): ',
+    )
+    const briefTime = briefTimeRaw.trim() || '08:00'
+
+    const timezoneRaw = await rl.question(
+      'What is your timezone? (e.g. Europe/Paris, America/New_York, UTC — default UTC): ',
+    )
+    const timezone = timezoneRaw.trim() || 'UTC'
+
+    console.log('\nWhich model should run your morning brief?')
+    console.log('  1. haiku   — Fast and lightweight')
+    console.log('  2. sonnet  — Balanced (default)')
+    console.log('  3. opus    — Most capable')
+    const MODEL_OPTIONS: Record<string, string> = { '1': 'haiku', '2': 'sonnet', '3': 'opus' }
+    let briefModel = 'sonnet'
+    const modelChoice = await rl.question('\nPick a number (1-3, default 2): ')
+    const modelMatch = MODEL_OPTIONS[modelChoice.trim()]
+    if (modelMatch) {
+      briefModel = modelMatch
+    }
+
+    // Write preferences to config.yaml using raw YAML read/write pattern
+    const configPath = path.join(agentDir, 'config.yaml')
+    let yaml: Record<string, unknown> = {}
+    if (existsSync(configPath)) {
+      try {
+        yaml = (parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>) ?? {}
+      } catch {
+        yaml = {}
+      }
+    }
+
+    yaml.preferences = {
+      morningBrief: {
+        time: briefTime,
+        model: briefModel,
+        channel: 'default',
+      },
+      timezone,
+    }
+
+    writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
+    console.log(`\nMorning brief preferences saved (${briefTime} ${timezone}, model: ${briefModel}).`)
   },
 }

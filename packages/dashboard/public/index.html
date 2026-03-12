@@ -2252,6 +2252,76 @@
                 </details>
               </div>
 
+              <!-- Morning Brief section (M6.9-S2) -->
+              <div id="settings-morning-brief" class="glass-strong rounded-xl p-5">
+                <h3
+                  class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class="w-4 h-4 text-tokyo-blue"
+                  >
+                    <path
+                      d="M10 2a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 2ZM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM15.657 5.404a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM6.464 14.596a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM18 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 18 10ZM5 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 5 10ZM14.596 15.657a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 1 0-1.06 1.06l1.06 1.061ZM5.404 6.464a.75.75 0 0 0 1.06-1.06L5.403 4.343a.75.75 0 0 0-1.06 1.06l1.06 1.061Z"
+                    />
+                  </svg>
+                  Morning Brief
+                </h3>
+                <div class="space-y-4">
+                  <!-- Time + Timezone row -->
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-xs text-tokyo-muted mb-1.5">Delivery time</label>
+                      <input
+                        type="time"
+                        x-model="briefTime"
+                        class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-xs text-tokyo-muted mb-1.5">Timezone</label>
+                      <input
+                        type="text"
+                        x-model="briefTimezone"
+                        placeholder="e.g. Europe/Paris"
+                        class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors placeholder-tokyo-muted/50"
+                      />
+                    </div>
+                  </div>
+                  <!-- Model selector row -->
+                  <div>
+                    <label class="block text-xs text-tokyo-muted mb-1.5">Model</label>
+                    <select
+                      x-model="briefModel"
+                      class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                      style="background-color: rgba(30, 30, 46, 0.9); color: #e5e7eb;"
+                    >
+                      <option value="haiku" style="background-color: #1f2335; color: #e5e7eb;">Haiku — Fast and lightweight</option>
+                      <option value="sonnet" style="background-color: #1f2335; color: #e5e7eb;">Sonnet — Balanced</option>
+                      <option value="opus" style="background-color: #1f2335; color: #e5e7eb;">Opus — Most capable</option>
+                    </select>
+                  </div>
+                  <!-- Save row -->
+                  <div class="flex items-center justify-between pt-1">
+                    <span
+                      class="text-xs transition-opacity"
+                      :class="preferencesStatus === 'saved' ? 'text-green-400 opacity-100' : preferencesStatus === 'error' ? 'text-red-400 opacity-100' : 'opacity-0'"
+                      x-text="preferencesStatus === 'saved' ? 'Preferences saved' : preferencesStatus === 'error' ? 'Failed to save' : ''"
+                    ></span>
+                    <button
+                      @click="savePreferences()"
+                      :disabled="savingPreferences"
+                      class="px-4 py-1.5 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25 hover:border-blue-500/35 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span x-show="!savingPreferences">Save</span>
+                      <span x-show="savingPreferences">Saving…</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <!-- AI Connection section -->
               <div class="glass-strong rounded-xl p-5">
                 <h3
@@ -6458,6 +6528,73 @@
                     </template>
                   </div>
                 </details>
+              </div>
+
+              <!-- Morning Brief section (mobile, M6.9-S2) -->
+              <div id="mobile-settings-morning-brief" class="glass-strong rounded-xl p-4">
+                <h3
+                  class="text-sm font-semibold text-tokyo-text mb-3 flex items-center gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class="w-4 h-4 text-tokyo-blue"
+                  >
+                    <path
+                      d="M10 2a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 2ZM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM15.657 5.404a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM6.464 14.596a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM18 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 18 10ZM5 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 5 10ZM14.596 15.657a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 1 0-1.06 1.06l1.06 1.061ZM5.404 6.464a.75.75 0 0 0 1.06-1.06L5.403 4.343a.75.75 0 0 0-1.06 1.06l1.06 1.061Z"
+                    />
+                  </svg>
+                  Morning Brief
+                </h3>
+                <div class="space-y-3">
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs text-tokyo-muted mb-1">Time</label>
+                      <input
+                        type="time"
+                        x-model="briefTime"
+                        class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-xs text-tokyo-muted mb-1">Timezone</label>
+                      <input
+                        type="text"
+                        x-model="briefTimezone"
+                        placeholder="UTC"
+                        class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors placeholder-tokyo-muted/50"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-tokyo-muted mb-1">Model</label>
+                    <select
+                      x-model="briefModel"
+                      class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                      style="background-color: rgba(30, 30, 46, 0.9); color: #e5e7eb;"
+                    >
+                      <option value="haiku" style="background-color: #1f2335; color: #e5e7eb;">Haiku</option>
+                      <option value="sonnet" style="background-color: #1f2335; color: #e5e7eb;">Sonnet</option>
+                      <option value="opus" style="background-color: #1f2335; color: #e5e7eb;">Opus</option>
+                    </select>
+                  </div>
+                  <div class="flex items-center justify-between pt-0.5">
+                    <span
+                      class="text-xs transition-opacity"
+                      :class="preferencesStatus === 'saved' ? 'text-green-400 opacity-100' : preferencesStatus === 'error' ? 'text-red-400 opacity-100' : 'opacity-0'"
+                      x-text="preferencesStatus === 'saved' ? 'Saved' : preferencesStatus === 'error' ? 'Error' : ''"
+                    ></span>
+                    <button
+                      @click="savePreferences()"
+                      :disabled="savingPreferences"
+                      class="px-4 py-1.5 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
+                    >
+                      <span x-show="!savingPreferences">Save</span>
+                      <span x-show="savingPreferences">Saving…</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <!-- AI Connection section (mobile) -->

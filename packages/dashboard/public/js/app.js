@@ -207,6 +207,14 @@ function chat() {
     memoryRebuildResult: null,
     localModelDeleting: false,
     localModelDeleteResult: null,
+
+    // Morning Brief preferences (M6.9-S2)
+    briefTime: "08:00",
+    briefTimezone: "UTC",
+    briefModel: "sonnet",
+    savingPreferences: false,
+    preferencesStatus: null, // null | "saved" | "error"
+
     notebookTree: [], // { path, name, type, children?, size?, modified? }
     notebookLoading: false,
     selectedNotebookFile: null, // { path, name, content, loading }
@@ -451,6 +459,7 @@ function chat() {
       // Load memory data (M6-S3)
       this.loadNotebookTree();
       this.loadMemoryStatus();
+      this.loadPreferences();
       this.loadNotebookWidgetContent();
 
       // Configure marked.js
@@ -1685,6 +1694,7 @@ function chat() {
       // Load memory status when switching to settings tab
       else if (id === "settings") {
         this.loadMemoryStatus();
+        this.loadPreferences();
       }
       // Load notebook tree when switching to notebook tab
       else if (id === "notebook") {
@@ -2558,6 +2568,54 @@ function chat() {
     /** Find a conversation by ID */
     findConversation(id) {
       return this.conversations.find((c) => c.id === id) || null;
+    },
+
+    // ─────────────────────────────────────────────────────────────────
+    // Morning Brief Preferences (M6.9-S2)
+    // ─────────────────────────────────────────────────────────────────
+
+    async loadPreferences() {
+      try {
+        const res = await fetch("/api/settings/preferences");
+        if (!res.ok) return;
+        const data = await res.json();
+        this.briefTime = data.morningBrief?.time ?? "08:00";
+        this.briefTimezone = data.timezone ?? "UTC";
+        this.briefModel = data.morningBrief?.model ?? "sonnet";
+      } catch (err) {
+        console.error("[App] Failed to load preferences:", err);
+      }
+    },
+
+    async savePreferences() {
+      this.savingPreferences = true;
+      this.preferencesStatus = null;
+      try {
+        const res = await fetch("/api/settings/preferences", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            morningBrief: {
+              time: this.briefTime,
+              model: this.briefModel,
+            },
+            timezone: this.briefTimezone,
+          }),
+        });
+        if (!res.ok) {
+          this.preferencesStatus = "error";
+          return;
+        }
+        this.preferencesStatus = "saved";
+        setTimeout(() => {
+          this.preferencesStatus = null;
+        }, 3000);
+      } catch (err) {
+        console.error("[App] Failed to save preferences:", err);
+        this.preferencesStatus = "error";
+      } finally {
+        this.savingPreferences = false;
+      }
     },
 
     // ─────────────────────────────────────────────────────────────────
