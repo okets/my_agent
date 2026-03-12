@@ -51,11 +51,25 @@ Every sprint plan must include a traceability matrix. This is a table that expli
 
 #### Where this is enforced
 
-The `superpowers:writing-plans` skill gets updated to require this table as a mandatory section. Plans without full traceability coverage are rejected during the review loop.
+The `superpowers:writing-plans` skill (an existing skill in the superpowers plugin at `.claude/plugins/cache/claude-plugins-official/superpowers/`) gets updated to require this table as a mandatory section. Plans without full traceability coverage are rejected during the review loop.
 
 ### 3.2 External Reviewer Agent
 
-After all tasks are implemented and automated tests pass, an independent Opus agent is dispatched to verify the output against the design spec.
+After all tasks are implemented and automated tests pass, an independent Opus agent is dispatched to verify the output against the design spec. This agent replaces the CTO's manual code review.
+
+#### Dispatch mechanism
+
+The external reviewer is spawned as a **standalone subagent** via the `Agent` tool — NOT as a team member. This ensures context isolation.
+
+```
+Agent tool parameters:
+  name: "external-reviewer"
+  subagent_type: "general-purpose"
+  model: "opus"
+  mode: "bypassPermissions"  (needs to run tests, start servers, use Playwright)
+```
+
+The reviewer is dispatched AFTER the implementation team has finished and been shut down. It runs in the same worktree so it has access to the built code and can start the server.
 
 #### Why independent
 
@@ -80,7 +94,11 @@ It does NOT receive:
 
 1. **Spec coverage check** — walks through every row in the traceability matrix, confirms the code and tests actually cover what they claim to cover
 2. **Runs the test suite** — executes tests independently to verify they pass (doesn't trust reported results alone)
-3. **Browser verification** (when applicable) — uses Playwright to navigate to affected pages, hit API endpoints, verify behavior matches the spec. Mandatory when the sprint touches UI or server routes. Skipped for pure library/utility work.
+3. **Browser verification** (when applicable):
+   - **Starts the server** with the new code (e.g., `npx tsx src/index.ts` or the appropriate start command)
+   - Uses Playwright to navigate to affected pages, hit API endpoints, verify behavior matches the spec
+   - Mandatory when the sprint touches UI or server routes. Skipped for pure library/utility work.
+   - If the server fails to start, marks browser verification as **BLOCKED** (not skipped) and includes the error in the report. A BLOCKED browser verification means the verdict cannot be PASS.
 4. **Gap analysis** — looks for spec requirements that were missed, plan tasks that weren't fully implemented, or implementation that diverged from the spec
 5. **Produces a structured report** (see below)
 
@@ -188,9 +206,11 @@ Decision needed?
            - What the spec says (1-2 sentences)
            - Why it doesn't work (1-2 sentences)
            - Options labeled A/B/C
-        -> Wait for CTO response
+        -> Wait for CTO response (timeout: see below)
         -> Continue with chosen option
 ```
+
+**Timeout policy:** If no CTO response within the current session (CTO closes terminal or session expires), log the deviation as BLOCKED in DEVIATIONS.md, skip the affected task, and continue with remaining unblocked tasks. All blocked items are presented during `/trip-review`.
 
 **What counts as a major design deviation:**
 - A spec requirement can't be implemented as written
@@ -205,13 +225,19 @@ Decision needed?
 - Adjusting test structure
 - Import reorganization or code organization choices
 
-### 4.4 Sprint artifacts
+### 4.4 Plan prerequisite
+
+The sprint plan must already exist before `/start-trip-sprint` is invoked. It is created beforehand using the normal brainstorming and writing-plans flow (which the CTO can do conversationally on mobile). The plan must have been reviewed by the spec-document-reviewer and include a complete traceability matrix.
+
+When the trip sprint starts, the CTO approves the existing plan conversationally — a brief summary is presented, CTO confirms, execution begins.
+
+### 4.5 Sprint artifacts
 
 All sprint artifacts are created and maintained during execution, not just at the end:
 
 | Artifact | Created when | Updated when |
 |----------|-------------|--------------|
-| `plan.md` | Before execution, CTO approves conversationally | Not modified during execution |
+| `plan.md` | Before execution (pre-existing) | Not modified during execution (unless critical fix, logged in DEVIATIONS.md) |
 | `DECISIONS.md` | First decision is made | Each subsequent decision |
 | `DEVIATIONS.md` | First deviation occurs | Each subsequent deviation |
 | `review.md` | External reviewer completes verification | Not modified after creation |
@@ -219,11 +245,13 @@ All sprint artifacts are created and maintained during execution, not just at th
 
 These artifacts are the source of truth that `/trip-review` reads from. They must be complete and current because the CTO will never read them directly — the conversational review is built from them.
 
-### 4.5 Skill file location
+**Note on roles:** Trip mode has TWO review roles. The in-team Reviewer (existing role in all sprint modes) does code quality review during execution — checking for bugs, security issues, style. The External Reviewer (new) does post-implementation spec verification — checking that what was built matches the design. Both are needed. The external reviewer does not replace the in-team reviewer.
+
+### 4.6 Skill file location
 
 `.claude/skills/start-trip-sprint/SKILL.md`
 
-### 4.6 Execution flow
+### 4.7 Execution flow
 
 1. Identify sprint (ask if not specified)
 2. Read the design spec and sprint plan
@@ -308,7 +336,7 @@ C. Roll back the branch"
 ```
 
 4. CTO responds: merge / fix / wait / elaborate
-5. If "merge": execute `git checkout master && git merge sprint/...`
+5. If "merge": the agent executes `git checkout master && git merge sprint/m{N}-s{N}-{name}` on the CTO's instruction
 6. If "fix": continue working, re-run reviewer, re-present
 7. If "elaborate": give more detail on whatever they ask about
 8. If "wait": leave branch as-is
@@ -316,7 +344,7 @@ C. Roll back the branch"
 ### 5.4 Conversation style
 
 - Short messages, one topic per message
-- No jargon, no file paths unless asked
+- No jargon, no file paths unless the CTO asks for specifics
 - Numbers over prose ("5 decisions, all minor" not "several decisions were made during the sprint, most of which were minor in nature")
 - Lead with the verdict, then details
 - Always end with a clear question or action
@@ -341,7 +369,15 @@ C. Roll back the branch"
 
 **Update:** Verification Requirements section to include spec coverage check and browser verification. Add external reviewer to the execution flow.
 
-### 6.5 New files
+### 6.5 `whats-next` skill
+
+**Update:** Sprint Mode Recommendation now includes a third option: "Trip." Add selection criteria:
+
+- **Trip** if: CTO is traveling/mobile-only, plan exists and is reviewed, scope is unambiguous, no heavy visual design work
+- Keep existing "Normal" and "Overnight" criteria unchanged
+- Output changes from `Normal | Overnight | Either` to `Normal | Overnight | Trip | Either`
+
+### 6.6 New files
 
 | File | Purpose |
 |------|---------|
