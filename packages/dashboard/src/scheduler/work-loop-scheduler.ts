@@ -415,19 +415,32 @@ export class WorkLoopScheduler {
   }
 
   /**
-   * Daily Summary — reads daily log + abbreviations, produces summary
+   * Daily Summary -- reads yesterday's raw log, writes summary to summaries/daily/
    */
   private async handleDailySummary(): Promise<string> {
     const notebookDir = join(this.agentDir, "notebook");
-    const context = await this.assembleDailySummaryContext(notebookDir);
+
+    // Read yesterday's raw daily log
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    const yesterdayFile = join(notebookDir, "daily", `${yesterdayStr}.md`);
+
+    let context: string;
+    if (existsSync(yesterdayFile)) {
+      context = await readFile(yesterdayFile, "utf-8");
+    } else {
+      context = "No daily log for yesterday.";
+    }
 
     const output = await runDailySummary(context);
 
-    // Append summary to today's daily log
-    await this.appendToDailyLog(
-      notebookDir,
-      `\n## End of Day Summary\n\n${output}`,
-    );
+    // Write to summaries/daily/
+    const summaryDir = join(notebookDir, "summaries", "daily");
+    if (!existsSync(summaryDir)) {
+      await mkdir(summaryDir, { recursive: true });
+    }
+    await writeFile(join(summaryDir, `${yesterdayStr}.md`), output, "utf-8");
 
     return output;
   }
