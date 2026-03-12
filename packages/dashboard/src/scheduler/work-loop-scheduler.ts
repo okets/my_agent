@@ -36,6 +36,8 @@ import {
   SYSTEM_PROMPT as REVIEW_SYSTEM,
   USER_PROMPT_TEMPLATE as REVIEW_USER,
 } from "./jobs/weekly-review.js";
+import { runWeeklySummary } from "./jobs/weekly-summary.js";
+import { runMonthlySummary } from "./jobs/monthly-summary.js";
 
 export interface WorkLoopSchedulerConfig {
   db: Database.Database;
@@ -296,6 +298,12 @@ export class WorkLoopScheduler {
         case "weekly-review":
           output = await this.handleWeeklyReview();
           break;
+        case "weekly-summary":
+          output = await this.handleWeeklySummary();
+          break;
+        case "monthly-summary":
+          output = await this.handleMonthlySummary();
+          break;
         default:
           throw new Error(`No handler for job: ${pattern.name}`);
       }
@@ -390,11 +398,174 @@ export class WorkLoopScheduler {
   }
 
   /**
-   * Morning Prep — reads notebook context, produces current-state briefing
+   * Weekly Summary -- reads last 7 daily summaries, writes compressed weekly rollup
+   */
+  private async handleWeeklySummary(): Promise<string> {
+    const notebookDir = join(this.agentDir, "notebook");
+    const summaryDir = join(notebookDir, "summaries", "daily");
+
+    const sections: string[] = [];
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      const filePath = join(summaryDir, `${dateStr}.md`);
+      if (existsSync(filePath)) {
+        const content = await readFile(filePath, "utf-8");
+        sections.push(`### ${dateStr}\n${content}`);
+      }
+    }
+
+    if (sections.length === 0) {
+      return "Quiet week -- no daily summaries found.";
+    }
+
+    const output = await runWeeklySummary(sections.join("\n\n"));
+
+    const weeklyDir = join(notebookDir, "summaries", "weekly");
+    if (!existsSync(weeklyDir)) {
+      await mkdir(weeklyDir, { recursive: true });
+    }
+
+    const now = new Date();
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const weekNum = Math.ceil(
+      ((now.getTime() - yearStart.getTime()) / 86400000 + yearStart.getDay() + 1) / 7,
+    );
+    const weekStr = `${now.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+    await writeFile(join(weeklyDir, `${weekStr}.md`), output, "utf-8");
+
+    return output;
+  }
+
+  /**
+   * Monthly Summary -- reads all weekly summaries, writes high-level monthly narrative
+   */
+  private async handleMonthlySummary(): Promise<string> {
+    const notebookDir = join(this.agentDir, "notebook");
+    const weeklyDir = join(notebookDir, "summaries", "weekly");
+
+    if (!existsSync(weeklyDir)) {
+      return "Quiet month -- no weekly summaries found.";
+    }
+
+    const files = await readdir(weeklyDir);
+    const sections: string[] = [];
+
+    for (const f of files.filter((f) => f.endsWith(".md")).sort()) {
+      const content = await readFile(join(weeklyDir, f), "utf-8");
+      sections.push(`### ${f.replace(".md", "")}\n${content}`);
+    }
+
+    if (sections.length === 0) {
+      return "Quiet month.";
+    }
+
+    const output = await runMonthlySummary(sections.join("\n\n"));
+
+    const monthlyDir = join(notebookDir, "summaries", "monthly");
+    if (!existsSync(monthlyDir)) {
+      await mkdir(monthlyDir, { recursive: true });
+    }
+
+    const monthStr = new Date().toISOString().slice(0, 7);
+    await writeFile(join(monthlyDir, `${monthStr}.md`), output, "utf-8");
+
+    return output;
+  }
+
+  /**
+   * Morning Prep — reads summary stack, produces current-state briefing
    */
   private async handleMorningPrep(): Promise<string> {
     const notebookDir = join(this.agentDir, "notebook");
-    const context = await this.assembleNotebookContext(notebookDir);
+    const sections: string[] = [];
+
+    // Yesterday's daily summary
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    const yesterdaySummary = join(notebookDir, "summaries", "daily", `${yesterdayStr}.md`);
+    if (existsSync(yesterdaySummary)) {
+      sections.push("# Yesterday's Summary\n" + await readFile(yesterdaySummary, "utf-8"));
+    }
+
+    // This week's summary (if exists)
+    const weeklyDir = join(notebookDir, "summaries", "weekly");
+    if (existsSync(weeklyDir)) {
+      const weekFiles = (await readdir(weeklyDir)).filter((f) => f.endsWith(".md")).sort();
+      if (weekFiles.length > 0) {
+        const latest = await readFile(join(weeklyDir, weekFiles[weekFiles.length - 1]), "utf-8");
+        sections.push("# This Week\n" + latest);
+      }
+    }
+
+    // This month's summary (if exists)
+    const monthlyDir = join(notebookDir, "summaries", "monthly");
+    if (existsSync(monthlyDir)) {
+      const monthFiles = (await readdir(monthlyDir)).filter((f) => f.endsWith(".md")).sort();
+      if (monthFiles.length > 0) {
+        const latest = await readFile(join(monthlyDir, monthFiles[monthFiles.length - 1]), "utf-8");
+        sections.push("# This Month\n" + latest);
+      }
+    }
+
+    // Today's daily log (anything logged so far today)
+    const today = new Date().toISOString().split("T")[0];
+    const todayLog = join(notebookDir, "daily", `${today}.md`);
+    if (existsSync(todayLog)) {
+      sections.push("# Today's Log So Far\n" + await readFile(todayLog, "utf-8"));
+    }
+
+    // Reference files (user-info, for context)
+    const userInfo = join(notebookDir, "reference", "user-info.md");
+    if (existsSync(userInfo)) {
+      sections.push("# User Info\n" + await readFile(userInfo, "utf-8"));
+    }
+
+    // Properties (location, timezone, availability)
+    const propsFile = join(notebookDir, "properties", "status.yaml");
+    if (existsSync(propsFile)) {
+      sections.push("# Current Properties\n" + await readFile(propsFile, "utf-8"));
+    }
+
+    // Staged permanent facts awaiting approval
+    const stagingDir = join(notebookDir, "knowledge", "extracted");
+    if (existsSync(stagingDir)) {
+      const stagingFiles = (await readdir(stagingDir)).filter((f) => f.endsWith(".md"));
+      if (stagingFiles.length > 0) {
+        const stagingContent: string[] = [];
+        for (const f of stagingFiles) {
+          stagingContent.push(await readFile(join(stagingDir, f), "utf-8"));
+        }
+        sections.push("# Pending Knowledge (for approval)\n" + stagingContent.join("\n\n"));
+      }
+    }
+
+    // Calendar context (from existing CalDAV integration, if available)
+    try {
+      const {
+        loadCalendarConfig,
+        loadCalendarCredentials,
+        createCalDAVClient,
+        assembleCalendarContext,
+      } = await import("@my-agent/core");
+      const calConfig = loadCalendarConfig(this.agentDir);
+      const calCreds = loadCalendarCredentials(this.agentDir);
+      if (calConfig && calCreds) {
+        const calClient = await createCalDAVClient(calConfig, calCreds);
+        const calContext = await assembleCalendarContext(calClient);
+        if (calContext) {
+          sections.push("# Calendar\n" + calContext);
+        }
+      }
+    } catch {
+      // Calendar unavailable -- continue without it
+    }
+
+    const context = sections.length > 0
+      ? sections.join("\n\n---\n\n")
+      : "No context available.";
 
     const output = await runMorningPrep(context);
 
