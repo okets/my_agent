@@ -13,14 +13,11 @@ You are starting a **trip sprint** — autonomous execution while CTO is on mobi
 
 Before starting, verify:
 
-- [ ] Sprint plan exists and is complete (created beforehand via normal brainstorming + writing-plans flow)
-- [ ] Plan has been reviewed by spec-document-reviewer
-- [ ] Plan includes a complete traceability matrix (spec requirement → task → verification)
+- [ ] Design spec exists for the milestone/sprint scope
 - [ ] Scope is clear and unambiguous
 - [ ] No heavy visual design work requiring CTO visual feedback
-- [ ] Branch will be created
 
-If any pre-flight item fails, **stop and tell the CTO** — trip sprints cannot proceed without a reviewed plan.
+If the design spec doesn't exist, **stop and tell the CTO** — trip sprints need at least a design spec to plan from.
 
 ## How Trip Mode Differs
 
@@ -128,31 +125,39 @@ These artifacts are the source of truth for `/trip-review`. They must be complet
 
 ## Execution Flow
 
+### Phase 1: Planning
+
 1. **Identify sprint** — ask if not specified
-2. **Read the design spec and sprint plan**
-3. **Present briefing conversationally:**
+2. **Read the design spec** and any prior sprint reviews for context
+3. **Plan the sprint** — use brainstorming + writing-plans skills to create `plan.md`
+4. **Present briefing conversationally:**
    - Goal in 1-2 sentences
    - Task count and estimated complexity
    - Any risks or ambiguities to resolve now
    - Ask CTO to confirm
-4. **On confirmation** — create branch and begin execution
-5. **Run autonomously** — minor/medium decisions handled like overnight
-6. **Stop on major design deviations** — present options, wait for response
-7. **After all tasks complete** — shut down implementation team
-8. **Dispatch external reviewer** (see `docs/procedures/external-reviewer.md`):
-   - Gather input package: spec, plan, `git diff master...HEAD`, test results, file list
-   - Spawn external reviewer agent with `Agent` tool
-   - External reviewer runs tests, browser checks, spec gap analysis
-   - External reviewer writes `review.md` and `test-report.md`
-9. **Notify CTO:** "Sprint complete. Run `/trip-review` when ready."
+5. **On confirmation** — proceed to Phase 2
+
+### Phase 2: Implementation
+
+6. **Create branch** and begin execution
+7. **Run autonomously** — minor/medium decisions handled like overnight
+8. **Stop on major design deviations** — present options, wait for response
+9. **After all tasks complete** — shut down implementation team
+10. **Dispatch external reviewer** (see `docs/procedures/external-reviewer.md`):
+    - Gather input package: spec, plan, `git diff master...HEAD`, test results, file list
+    - Spawn external reviewer agent with `Agent` tool
+    - External reviewer runs tests, browser checks, spec gap analysis
+    - External reviewer writes `review.md` and `test-report.md`
+11. **Notify CTO:** "Sprint complete. Run `/trip-review` when ready."
 
 ## Start
 
 1. Confirm which sprint (ask if not specified)
-2. Read the sprint plan thoroughly
-3. Present briefing and wait for confirmation:
+2. Read the design spec and prior sprint context
+3. Create sprint plan (brainstorming → writing-plans flow)
+4. Present briefing and wait for confirmation:
    - Goal, task count, complexity
    - Team composition
    - Any pre-flight concerns
    - **Ask CTO to confirm before proceeding**
-4. On confirmation → create branch, set up team, begin execution
+5. On confirmation → create branch, set up team, begin execution
