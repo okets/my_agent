@@ -1,8 +1,8 @@
 /**
- * M6.6-S4: Memory Lifecycle E2E Tests
+ * M6.9-S1: Memory Lifecycle E2E Tests
  *
- * Validates the full memory pipeline: conversation -> extraction ->
- * knowledge files -> morning prep -> current-state.md -> system prompt.
+ * Validates the full memory pipeline: conversation -> classified extraction ->
+ * staging files / daily log / properties -> morning prep -> current-state.md -> system prompt.
  *
  * Uses synthetic Thailand vacation data. No live LLM calls for extraction
  * (mocked). Morning prep and daily summary use mocked Haiku responses.
@@ -16,18 +16,17 @@ import {
   readFileSync,
   existsSync,
   rmSync,
+  readdirSync,
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import {
   THAILAND_CONVERSATIONS,
-  EXPECTED_FACTS,
 } from "../fixtures/thailand-vacation.js";
-import {
-  parseFacts,
-  persistFacts,
-} from "../../src/conversations/fact-extractor.js";
+import { parseClassifiedFacts } from "../../src/conversations/knowledge-extractor.js";
+import { writeStagingFile } from "../../src/conversations/knowledge-staging.js";
+import { updateProperty } from "../../src/conversations/properties.js";
 
 let tmpDir: string;
 let db: Database.Database;
@@ -121,20 +120,40 @@ describe("M6.6 Memory Lifecycle E2E", () => {
       expect(row).toBeDefined();
     });
 
-    it("0b: triggers fact extraction on the conversation", async () => {
-      // Simulate extraction (using parseFacts with synthetic Haiku output)
-      const syntheticHaikuOutput = [
-        "[FACT] User is currently in Chiang Mai, Thailand",
-        "[FACT] Found amazing pad krapao near Tha Phae Gate",
-        "[FACT] Flying to Krabi, back to Tel Aviv",
-        "[PERSON] Kai - local guide in Chiang Mai, doing temple tour",
-        "[PREFERENCE] Loves pad krapao",
+    it("0b: triggers classified fact extraction on the conversation", async () => {
+      const syntheticOutput = [
+        "[PERMANENT:user-info] Has two daughters, loves Thailand",
+        "[PERMANENT:preference:personal] Loves pad krapao",
+        "[PERMANENT:contact] Kai - local guide in Chiang Mai, doing temple tour",
+        "[TEMPORAL] Flying to Krabi, back to Tel Aviv",
+        "[TEMPORAL] Found amazing pad krapao near Tha Phae Gate",
+        "[PROPERTY:location:high] Currently in Chiang Mai, Thailand",
       ].join("\n");
 
-      const facts = parseFacts(syntheticHaikuOutput);
-      const newCount = await persistFacts(tmpDir, facts);
+      const classified = parseClassifiedFacts(syntheticOutput);
 
-      expect(newCount).toBeGreaterThanOrEqual(4);
+      // Permanent facts go to staging
+      expect(classified.permanent).toHaveLength(3);
+      await writeStagingFile(tmpDir, "conv-thailand", "Thailand Trip", classified.permanent);
+
+      // Temporal facts go to daily log
+      const dailyDir = join(tmpDir, "notebook", "daily");
+      if (!existsSync(dailyDir)) mkdirSync(dailyDir, { recursive: true });
+      const today = new Date().toISOString().split("T")[0];
+      writeFileSync(
+        join(dailyDir, `${today}.md`),
+        `# Daily Log -- ${today}\n\n` +
+        classified.temporal.map((f) => `- ${f.text}`).join("\n") + "\n",
+      );
+
+      // Properties go to status.yaml
+      for (const prop of classified.properties) {
+        await updateProperty(tmpDir, prop.key, {
+          value: prop.value,
+          confidence: prop.confidence,
+          source: "test extraction",
+        });
+      }
     });
 
     it("0c: writes current-state.md (simulating morning prep output)", () => {
@@ -161,38 +180,43 @@ describe("M6.6 Memory Lifecycle E2E", () => {
   // ===========================================
 
   describe("Phase 2: Verify extraction", () => {
-    it("1: facts exist in knowledge/", () => {
-      const factsPath = join(tmpDir, "notebook", "knowledge", "facts.md");
-      expect(existsSync(factsPath)).toBe(true);
+    it("1: permanent facts are in staging", () => {
+      const extractedDir = join(tmpDir, "notebook", "knowledge", "extracted");
+      expect(existsSync(extractedDir)).toBe(true);
 
-      const content = readFileSync(factsPath, "utf-8");
-      expect(content).toContain("Chiang Mai");
-      expect(content).toContain("Krabi");
+      const files = readdirSync(extractedDir).filter((f) => f.endsWith(".md"));
+      expect(files.length).toBeGreaterThanOrEqual(1);
+
+      const content = readFileSync(join(extractedDir, files[0]), "utf-8");
+      expect(content).toContain("pad krapao");
+      expect(content).toContain("Kai");
     });
 
-    it("2: current-state.md is written and under 1000 chars", () => {
+    it("2: temporal facts are in daily log", () => {
+      const today = new Date().toISOString().split("T")[0];
+      const logPath = join(tmpDir, "notebook", "daily", `${today}.md`);
+      expect(existsSync(logPath)).toBe(true);
+
+      const content = readFileSync(logPath, "utf-8");
+      expect(content).toContain("Krabi");
+      expect(content).toContain("Tel Aviv");
+    });
+
+    it("3: properties are in status.yaml", () => {
+      const propsPath = join(tmpDir, "notebook", "properties", "status.yaml");
+      expect(existsSync(propsPath)).toBe(true);
+
+      const content = readFileSync(propsPath, "utf-8");
+      expect(content).toContain("Chiang Mai");
+      expect(content).toContain("high");
+    });
+
+    it("4: current-state.md is written and under 1000 chars", () => {
       const csPath = join(tmpDir, "notebook", "operations", "current-state.md");
       expect(existsSync(csPath)).toBe(true);
 
       const content = readFileSync(csPath, "utf-8");
       expect(content.length).toBeLessThan(1000);
-      expect(content).toContain("Chiang Mai");
-    });
-
-    it("3: people are extracted", () => {
-      const peoplePath = join(tmpDir, "notebook", "knowledge", "people.md");
-      expect(existsSync(peoplePath)).toBe(true);
-
-      const content = readFileSync(peoplePath, "utf-8");
-      expect(content).toContain("Kai");
-    });
-
-    it("4: preferences are extracted", () => {
-      const prefsPath = join(tmpDir, "notebook", "knowledge", "preferences.md");
-      expect(existsSync(prefsPath)).toBe(true);
-
-      const content = readFileSync(prefsPath, "utf-8");
-      expect(content).toContain("pad krapao");
     });
   });
 
@@ -218,29 +242,26 @@ describe("M6.6 Memory Lifecycle E2E", () => {
       expect(csContent).toContain("Chiang Mai");
     });
 
-    it("7: 'What should I eat?' answerable from knowledge/preferences", () => {
-      const prefsContent = readFileSync(
-        join(tmpDir, "notebook", "knowledge", "preferences.md"),
-        "utf-8",
-      );
-      expect(prefsContent).toContain("pad krapao");
+    it("7: 'What should I eat?' answerable from staging/permanent facts", () => {
+      const extractedDir = join(tmpDir, "notebook", "knowledge", "extracted");
+      const files = readdirSync(extractedDir).filter((f) => f.endsWith(".md"));
+      const content = readFileSync(join(extractedDir, files[0]), "utf-8");
+      expect(content).toContain("pad krapao");
     });
 
-    it("8: 'Who is Kai?' answerable from knowledge/people", () => {
-      const peopleContent = readFileSync(
-        join(tmpDir, "notebook", "knowledge", "people.md"),
-        "utf-8",
-      );
-      expect(peopleContent).toContain("Kai");
-      expect(peopleContent.toLowerCase()).toContain("guide");
+    it("8: 'Who is Kai?' answerable from staging/permanent facts", () => {
+      const extractedDir = join(tmpDir, "notebook", "knowledge", "extracted");
+      const files = readdirSync(extractedDir).filter((f) => f.endsWith(".md"));
+      const content = readFileSync(join(extractedDir, files[0]), "utf-8");
+      expect(content).toContain("Kai");
+      expect(content.toLowerCase()).toContain("guide");
     });
 
-    it("9: 'When do I fly home?' answerable from knowledge/facts", () => {
-      const factsContent = readFileSync(
-        join(tmpDir, "notebook", "knowledge", "facts.md"),
-        "utf-8",
-      );
-      expect(factsContent).toContain("Tel Aviv");
+    it("9: 'When do I fly home?' answerable from daily log", () => {
+      const today = new Date().toISOString().split("T")[0];
+      const logPath = join(tmpDir, "notebook", "daily", `${today}.md`);
+      const content = readFileSync(logPath, "utf-8");
+      expect(content).toContain("Tel Aviv");
     });
 
     it("10: SystemPromptBuilder includes current-state in assembled prompt", async () => {
@@ -286,71 +307,37 @@ describe("M6.6 Memory Lifecycle E2E", () => {
   // ===========================================
 
   describe("Phase 4: Lifecycle over time", () => {
-    it("10: new conversation still has access to facts via current-state.md", () => {
-      const csPath = join(tmpDir, "notebook", "operations", "current-state.md");
-      expect(existsSync(csPath)).toBe(true);
-
-      const content = readFileSync(csPath, "utf-8");
-      expect(content).toContain("Chiang Mai");
+    it("10: new temporal facts append to daily log", () => {
+      const today = new Date().toISOString().split("T")[0];
+      const logPath = join(tmpDir, "notebook", "daily", `${today}.md`);
+      const content = readFileSync(logPath, "utf-8");
+      expect(content).toContain("Krabi");
     });
 
-    it("11: fact update propagates to knowledge/", async () => {
-      const updatedFacts = parseFacts(
-        "[FACT] Changed plans, going to Krabi tomorrow",
+    it("11: staging files accumulate from multiple conversations", async () => {
+      await writeStagingFile(tmpDir, "conv-2", "Second Conv", [
+        { subcategory: "user-info", text: "Works at a startup" },
+      ]);
+
+      const { readStagingFiles } = await import(
+        "../../src/conversations/knowledge-staging.js"
       );
-      const count = await persistFacts(tmpDir, updatedFacts);
-      expect(count).toBe(1);
+      const files = await readStagingFiles(tmpDir);
+      expect(files.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("12: property updates overwrite previous values", async () => {
+      await updateProperty(tmpDir, "location", {
+        value: "Krabi, Thailand",
+        confidence: "high",
+        source: "test update",
+      });
 
       const content = readFileSync(
-        join(tmpDir, "notebook", "knowledge", "facts.md"),
+        join(tmpDir, "notebook", "properties", "status.yaml"),
         "utf-8",
       );
-      expect(content).toContain("Krabi tomorrow");
-    });
-
-    it("12: weekly review promotes facts seen 3+ times", async () => {
-      const factsPath = join(tmpDir, "notebook", "knowledge", "facts.md");
-      const existingContent = readFileSync(factsPath, "utf-8");
-
-      // Add more "Chiang Mai" entries to reach 3+
-      writeFileSync(
-        factsPath,
-        existingContent +
-          "\n- User is currently in Chiang Mai, Thailand _(2026-03-09)_\n" +
-          "- User is currently in Chiang Mai, Thailand _(2026-03-10)_\n",
-      );
-
-      const { analyzeKnowledge, applyPromotions } =
-        await import("../../src/scheduler/jobs/weekly-review.js");
-
-      const actions = analyzeKnowledge(tmpDir);
-      const promotions = actions.filter(
-        (a: { action: string }) => a.action === "promote",
-      );
-      expect(promotions.length).toBeGreaterThanOrEqual(1);
-
-      const applied = applyPromotions(tmpDir, actions);
-      expect(applied.length).toBeGreaterThanOrEqual(1);
-
-      const promotedPath = join(
-        tmpDir,
-        "notebook",
-        "reference",
-        "promoted-facts.md",
-      );
-      expect(existsSync(promotedPath)).toBe(true);
-
-      const promotedContent = readFileSync(promotedPath, "utf-8");
-      expect(promotedContent).toContain("Chiang Mai");
-    });
-
-    it("13: post-promotion, morning prep sources from reference/", () => {
-      const refDir = join(tmpDir, "notebook", "reference");
-      const promotedPath = join(refDir, "promoted-facts.md");
-
-      expect(existsSync(promotedPath)).toBe(true);
-      const content = readFileSync(promotedPath, "utf-8");
-      expect(content).toContain("Chiang Mai");
+      expect(content).toContain("Krabi");
     });
   });
 
@@ -363,9 +350,15 @@ describe("M6.6 Memory Lifecycle E2E", () => {
       const coldDir = mkdtempSync(join(tmpdir(), "cold-start-"));
       mkdirSync(join(coldDir, "notebook"), { recursive: true });
 
-      const facts = { facts: ["test fact"], people: [], preferences: [] };
-      const count = await persistFacts(coldDir, facts);
-      expect(count).toBe(1);
+      await writeStagingFile(coldDir, "conv-cold", "Cold Start", [
+        { subcategory: "user-info", text: "test fact" },
+      ]);
+
+      const { readStagingFiles } = await import(
+        "../../src/conversations/knowledge-staging.js"
+      );
+      const files = await readStagingFiles(coldDir);
+      expect(files.length).toBe(1);
 
       rmSync(coldDir, { recursive: true, force: true });
     });
@@ -377,45 +370,41 @@ describe("M6.6 Memory Lifecycle E2E", () => {
       const coldDir = mkdtempSync(join(tmpdir(), "no-patterns-"));
       mkdirSync(join(coldDir, "notebook", "config"), { recursive: true });
 
-      // loadWorkPatterns creates defaults if missing -- should not crash
       const patterns = await loadWorkPatterns(coldDir);
       expect(Array.isArray(patterns)).toBe(true);
 
       rmSync(coldDir, { recursive: true, force: true });
     });
 
-    it("16: concurrent extraction does not corrupt files", async () => {
+    it("16: concurrent staging writes do not corrupt files", async () => {
       const concurrentDir = mkdtempSync(join(tmpdir(), "concurrent-"));
 
-      const facts1 = parseFacts("[FACT] Fact from conversation A");
-      const facts2 = parseFacts("[FACT] Fact from conversation B");
-
       const [r1, r2] = await Promise.allSettled([
-        persistFacts(concurrentDir, facts1),
-        persistFacts(concurrentDir, facts2),
+        writeStagingFile(concurrentDir, "conv-a", "Conv A", [
+          { subcategory: "user-info", text: "Fact from conversation A" },
+        ]),
+        writeStagingFile(concurrentDir, "conv-b", "Conv B", [
+          { subcategory: "contact", text: "Fact from conversation B" },
+        ]),
       ]);
 
       expect(r1.status).toBe("fulfilled");
       expect(r2.status).toBe("fulfilled");
 
-      const content = readFileSync(
-        join(concurrentDir, "notebook", "knowledge", "facts.md"),
-        "utf-8",
+      const { readStagingFiles } = await import(
+        "../../src/conversations/knowledge-staging.js"
       );
-      expect(content).toContain("conversation A");
-      expect(content).toContain("conversation B");
+      const files = await readStagingFiles(concurrentDir);
+      expect(files.length).toBe(2);
 
       rmSync(concurrentDir, { recursive: true, force: true });
     });
 
     it("17: extraction failure does not crash abbreviation", () => {
-      // Verified by the Promise.allSettled design in AbbreviationQueue.
-      // If extractFacts throws, abbreviation still succeeds.
       const results = [
         { status: "fulfilled" as const, value: "abbreviation text" },
         { status: "rejected" as const, reason: new Error("Haiku API down") },
       ];
-
       expect(results[0].status).toBe("fulfilled");
       expect(results[1].status).toBe("rejected");
     });
