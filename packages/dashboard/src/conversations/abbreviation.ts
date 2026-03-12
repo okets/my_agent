@@ -9,7 +9,15 @@ import { ConversationManager } from "./manager.js";
 import { NamingService } from "./naming.js";
 import { createBrainQuery } from "@my-agent/core";
 import type { Query } from "@my-agent/core";
-import { extractFacts, persistFacts } from "./fact-extractor.js";
+import {
+  extractClassifiedFacts,
+  routeFacts,
+} from "./knowledge-extractor.js";
+import { writeStagingFile } from "./knowledge-staging.js";
+import { updateProperty } from "./properties.js";
+import { existsSync } from "node:fs";
+import { appendFile, writeFile, mkdir } from "node:fs/promises";
+import { join } from "node:path";
 
 const ABBREVIATION_PROMPT = `Abbreviate this conversation into a concise meeting-notes style summary (~100-200 words).
 
@@ -306,7 +314,7 @@ export class AbbreviationQueue {
   }
 
   /**
-   * Extract facts from transcript and persist to knowledge/ files
+   * Extract facts from transcript and persist via classified pipeline
    */
   private async extractAndPersistFacts(
     conversationId: string,
@@ -315,8 +323,62 @@ export class AbbreviationQueue {
   ): Promise<number> {
     const startTime = Date.now();
     try {
-      const facts = await extractFacts(transcriptText);
-      const newCount = await persistFacts(this.agentDir, facts);
+      const classified = await extractClassifiedFacts(transcriptText);
+      const routed = routeFacts(classified);
+      let newCount = 0;
+
+      // Ensure daily dir exists
+      const dailyDir = join(this.agentDir, "notebook", "daily");
+      if (!existsSync(dailyDir)) {
+        await mkdir(dailyDir, { recursive: true });
+      }
+      const today = new Date().toISOString().split("T")[0];
+      const logPath = join(dailyDir, `${today}.md`);
+
+      // Route permanent facts to staging
+      if (routed.staging.length > 0) {
+        const title = this.getConversationTitle(conversationId);
+        await writeStagingFile(this.agentDir, conversationId, title, routed.staging);
+        newCount += routed.staging.length;
+      }
+
+      // Route temporal facts to daily log
+      if (routed.dailyLog.length > 0) {
+        const lines = routed.dailyLog.map((f) => `- ${f.text}`);
+        const block = "\n" + lines.join("\n") + "\n";
+
+        if (!existsSync(logPath)) {
+          await writeFile(logPath, `# Daily Log -- ${today}\n${block}`, "utf-8");
+        } else {
+          await appendFile(logPath, block, "utf-8");
+        }
+        newCount += routed.dailyLog.length;
+      }
+
+      // Route properties to status.yaml
+      for (const prop of routed.properties) {
+        await updateProperty(this.agentDir, prop.key, {
+          value: prop.value,
+          confidence: prop.confidence,
+          source: `extraction from ${conversationId}`,
+        });
+      }
+      newCount += routed.properties.length;
+
+      // Append [conv] summary to daily log
+      const time = new Date().toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const title = this.getConversationTitle(conversationId);
+      const convLine = `\n- [conv] ${title} (${time})\n`;
+
+      if (!existsSync(logPath)) {
+        await writeFile(logPath, `# Daily Log -- ${today}\n${convLine}`, "utf-8");
+      } else {
+        await appendFile(logPath, convLine, "utf-8");
+      }
 
       // Update lastExtractedAtTurn
       await this.manager.update(conversationId, {
@@ -340,6 +402,18 @@ export class AbbreviationQueue {
         error: err instanceof Error ? err.message : String(err),
       });
       throw err;
+    }
+  }
+
+  /**
+   * Get conversation title (falls back to id on error)
+   */
+  private getConversationTitle(conversationId: string): string {
+    try {
+      const conv = this.manager.get(conversationId);
+      return (conv as unknown as { title?: string })?.title ?? conversationId;
+    } catch {
+      return conversationId;
     }
   }
 
