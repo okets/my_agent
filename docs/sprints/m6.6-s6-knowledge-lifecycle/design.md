@@ -363,6 +363,8 @@ availability:
 
 Both paths write to the same file. Last write wins — always correct because the most recent information is the most accurate.
 
+**Timezone has a dual role:** Beyond prompt injection, `status.yaml` `timezone` is used by the morning brief scheduler to determine the user's current local time. When the user travels and the timezone property updates, the morning brief automatically shifts to fire at 08:00 (or configured time) in their current timezone. The static `config.yaml` `preferences.timezone` serves as fallback when no dynamic timezone exists.
+
 ### 6.5 Properties and the Morning Brief
 
 Properties with `low` confidence or older than a staleness threshold are surfaced in the morning brief as questions:
@@ -403,7 +405,8 @@ The centerpiece of the lifecycle. A two-step sequential process triggered once d
 
 ### 7.1 Schedule
 
-- **Start time:** configurable (default 08:00)
+- **Start time:** configurable via `config.yaml` `preferences.morningBrief.time` (default 08:00)
+- **Timezone:** Resolved dynamically — prefers `properties/status.yaml` `timezone` (updated by extraction when user travels), falls back to `config.yaml` `preferences.timezone` (static, set during hatching). This ensures the morning brief fires at 08:00 local time wherever the user currently is.
 - **Trigger:** Work loop scheduler triggers step 1, waits for completion, triggers step 2
 
 ### 7.2 Step 1: Daily Summary (Haiku)
@@ -547,7 +550,7 @@ When you encounter important new information during a conversation:
 
 ### Tech Debt Notes
 
-- The knowledge enrichment standing order should migrate to a proper skill when M6.8 (Skills Architecture) ships. Account for this in M6.8 planning.
+- **Knowledge enrichment standing order** — skipped in S2. Will be implemented as a "knowledge curation" skill in M6.8, wrapping the `manage_staged_knowledge` MCP tool built in S2. Decision rationale: tools handle safe mechanics (approve/reject/skip), skills handle behavioral judgment (when to propose, how to phrase, enrichment questions). See M6.8 roadmap section for migration details.
 - The morning sequence and summary rollup jobs are hardcoded patterns. When the general responsibility framework ships (M7/M9), these become the first jobs migrated. They serve as good test cases for the framework design.
 
 ---

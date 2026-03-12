@@ -491,6 +491,11 @@ Adopt the Agent Skills Standard and SDK native skill discovery. Skills become th
 | BMAD menu system | DO NOT adopt — numbered menus don't fit conversational style | Rejected |
 | BMAD config system | DO NOT adopt — duplicates hatching | Rejected |
 
+**M6.9 migration items:**
+
+- **Knowledge curation skill** — wraps `manage_staged_knowledge` MCP tool from M6.9-S2. Tool handles approve/reject/skip mechanics. Skill adds behavioral layer: when to propose facts, how to phrase proposals, enrichment questions, conversation awareness. This replaces the knowledge enrichment standing order that was originally planned for S2 but deferred to M6.8.
+- **Morning sequence skill** — may absorb morning brief behavioral guidance currently embedded in the morning-prep prompt template.
+
 **Conversation vs Worker skills:**
 
 | Skill Category | Conversation Nina | Working Agent |
@@ -616,7 +621,8 @@ The knowledge system gets a lifecycle. Facts are classified at extraction (perma
 - SyncService path-pattern exclusion support
 
 **Tech debt notes:**
-- Knowledge enrichment standing order → migrate to skill in M6.8
+- Knowledge enrichment standing order → skip in S2, implement as skill in M6.8 (decision: tools for mechanics, skills for behavior)
+- `manage_staged_knowledge` MCP tool (S2) → wrap in a "knowledge curation" skill in M6.8 (skill adds judgment: when to propose, how to phrase, enrichment questions; tool provides safe approve/reject/skip mechanics)
 - Hardcoded morning sequence jobs → migrate to responsibility framework in M7/M9
 
 ---
