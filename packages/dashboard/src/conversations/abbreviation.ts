@@ -9,6 +9,7 @@ import { ConversationManager } from "./manager.js";
 import { NamingService } from "./naming.js";
 import { createBrainQuery } from "@my-agent/core";
 import type { Query } from "@my-agent/core";
+import { extractFacts, persistFacts } from "./fact-extractor.js";
 
 const ABBREVIATION_PROMPT = `Abbreviate this conversation into a concise meeting-notes style summary (~100-200 words).
 
@@ -41,6 +42,7 @@ interface AbbreviationTask {
 export class AbbreviationQueue {
   private manager: ConversationManager;
   private apiKey: string;
+  private agentDir: string;
   private namingService: NamingService;
   private queue: AbbreviationTask[] = [];
   private processing = false;
@@ -53,9 +55,18 @@ export class AbbreviationQueue {
   /** Callback invoked when a conversation is auto-renamed after abbreviation */
   onRenamed?: (conversationId: string, title: string) => void;
 
-  constructor(manager: ConversationManager, apiKey: string) {
+  /** Callback invoked when fact extraction completes (for calendar visibility) */
+  onExtractionComplete?: (result: {
+    conversationId: string;
+    newFactCount: number;
+    durationMs: number;
+    error?: string;
+  }) => void;
+
+  constructor(manager: ConversationManager, apiKey: string, agentDir: string) {
     this.manager = manager;
     this.apiKey = apiKey;
+    this.agentDir = agentDir;
     this.namingService = new NamingService();
   }
 
@@ -142,72 +153,73 @@ export class AbbreviationQueue {
       })
       .join("\n\n");
 
-    // Generate abbreviation using Haiku
-    const fullPrompt = `${ABBREVIATION_PROMPT}\n\n---\n\nConversation transcript:\n\n${transcriptText}`;
-
     try {
-      const query = createBrainQuery(fullPrompt, {
-        model: "claude-haiku-4-5-20251001", // Use Haiku for fast, cheap abbreviations
-        systemPrompt: "You are a conversation summarizer.",
-        continue: false,
-        includePartialMessages: false,
-      });
+      // Check if extraction is needed (new turns since last extraction)
+      const needsExtraction =
+        conversation.lastExtractedAtTurn === null ||
+        conversation.turnCount > conversation.lastExtractedAtTurn;
 
-      this.currentQuery = query;
-
-      let abbreviationText = "";
-
-      // With includePartialMessages: false, the SDK returns complete
-      // "assistant" messages (not streaming "stream_event" deltas).
-      for await (const msg of query) {
-        if (msg.type === "assistant") {
-          const message = (
-            msg as {
-              message?: {
-                content?: Array<{ type: string; text?: string }>;
-              };
-            }
-          ).message;
-          if (message?.content) {
-            for (const block of message.content) {
-              if (block.type === "text" && block.text) {
-                abbreviationText += block.text;
-              }
-            }
-          }
-        } else if (msg.type === "result") {
-          const result = msg as { result?: string };
-          if (!abbreviationText && result.result) {
-            abbreviationText = result.result;
-          }
-          break;
-        }
-      }
+      // Run abbreviation and fact extraction in parallel
+      // Both operate on the ORIGINAL transcript, not chained
+      const [abbreviationResult, extractionResult] = await Promise.allSettled([
+        this.generateAbbreviation(transcriptText),
+        needsExtraction
+          ? this.extractAndPersistFacts(
+              conversationId,
+              transcriptText,
+              conversation.turnCount,
+            )
+          : Promise.resolve(null),
+      ]);
 
       this.currentQuery = null;
 
-      if (!abbreviationText.trim()) {
-        throw new Error("Generated empty abbreviation");
-      }
-
-      // Check if turn count changed during processing
-      const conversationAfter = await this.manager.get(conversationId);
+      // Handle abbreviation result
       if (
-        conversationAfter &&
-        conversationAfter.turnCount !== turnCountBefore
+        abbreviationResult.status === "fulfilled" &&
+        abbreviationResult.value
       ) {
-        // Conversation was updated during abbreviation - re-queue
-        console.warn(
-          `Conversation ${conversationId} was updated during abbreviation, re-queuing`,
+        const abbreviationText = abbreviationResult.value;
+
+        // Check if turn count changed during processing
+        const conversationAfter = await this.manager.get(conversationId);
+        if (
+          conversationAfter &&
+          conversationAfter.turnCount !== turnCountBefore
+        ) {
+          console.warn(
+            `Conversation ${conversationId} was updated during abbreviation, re-queuing`,
+          );
+          this.enqueue(conversationId);
+          return;
+        }
+
+        await this.manager.setAbbreviation(conversationId, abbreviationText);
+        console.log(
+          `Generated abbreviation for conversation ${conversationId}`,
         );
-        this.enqueue(conversationId);
-        return;
+      } else if (abbreviationResult.status === "rejected") {
+        console.error(
+          `Abbreviation failed for ${conversationId}:`,
+          abbreviationResult.reason,
+        );
+        throw abbreviationResult.reason;
       }
 
-      // Save abbreviation
-      await this.manager.setAbbreviation(conversationId, abbreviationText);
-
-      console.log(`Generated abbreviation for conversation ${conversationId}`);
+      // Log extraction result (non-fatal)
+      if (extractionResult.status === "rejected") {
+        console.error(
+          `Fact extraction failed for ${conversationId}:`,
+          extractionResult.reason,
+        );
+      } else if (
+        extractionResult.status === "fulfilled" &&
+        extractionResult.value !== null
+      ) {
+        console.log(
+          `Extracted facts for conversation ${conversationId}: ${extractionResult.value} new facts`,
+        );
+      }
 
       // Re-generate name if not manually named and enough turns since last rename
       const shouldRename =
@@ -240,6 +252,93 @@ export class AbbreviationQueue {
       }
     } catch (err) {
       console.error(`Error generating abbreviation:`, err);
+      throw err;
+    }
+  }
+
+  /**
+   * Generate abbreviation text via Haiku (extracted from abbreviateConversation)
+   */
+  private async generateAbbreviation(transcriptText: string): Promise<string> {
+    const fullPrompt = `${ABBREVIATION_PROMPT}\n\n---\n\nConversation transcript:\n\n${transcriptText}`;
+
+    const query = createBrainQuery(fullPrompt, {
+      model: "claude-haiku-4-5-20251001",
+      systemPrompt: "You are a conversation summarizer.",
+      continue: false,
+      includePartialMessages: false,
+    });
+
+    this.currentQuery = query;
+
+    let abbreviationText = "";
+
+    for await (const msg of query) {
+      if (msg.type === "assistant") {
+        const message = (
+          msg as {
+            message?: {
+              content?: Array<{ type: string; text?: string }>;
+            };
+          }
+        ).message;
+        if (message?.content) {
+          for (const block of message.content) {
+            if (block.type === "text" && block.text) {
+              abbreviationText += block.text;
+            }
+          }
+        }
+      } else if (msg.type === "result") {
+        const result = msg as { result?: string };
+        if (!abbreviationText && result.result) {
+          abbreviationText = result.result;
+        }
+        break;
+      }
+    }
+
+    if (!abbreviationText.trim()) {
+      throw new Error("Generated empty abbreviation");
+    }
+
+    return abbreviationText;
+  }
+
+  /**
+   * Extract facts from transcript and persist to knowledge/ files
+   */
+  private async extractAndPersistFacts(
+    conversationId: string,
+    transcriptText: string,
+    turnCount: number,
+  ): Promise<number> {
+    const startTime = Date.now();
+    try {
+      const facts = await extractFacts(transcriptText);
+      const newCount = await persistFacts(this.agentDir, facts);
+
+      // Update lastExtractedAtTurn
+      await this.manager.update(conversationId, {
+        lastExtractedAtTurn: turnCount,
+      });
+
+      const durationMs = Date.now() - startTime;
+      this.onExtractionComplete?.({
+        conversationId,
+        newFactCount: newCount,
+        durationMs,
+      });
+
+      return newCount;
+    } catch (err) {
+      const durationMs = Date.now() - startTime;
+      this.onExtractionComplete?.({
+        conversationId,
+        newFactCount: 0,
+        durationMs,
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw err;
     }
   }

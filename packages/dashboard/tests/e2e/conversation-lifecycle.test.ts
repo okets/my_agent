@@ -96,7 +96,7 @@ describe("M6.7 Conversation Lifecycle E2E", () => {
 
       // Block 1: dynamic layers (3-6: state, memory, metadata, session)
       const dynamic = result[1].text;
-      expect(dynamic).toContain("[Current State]");
+      expect(dynamic).toContain("[Temporal Context]");
       expect(dynamic).toContain("[Inbound Metadata]");
       expect(dynamic).toContain("[Session Context]");
       expect(dynamic).toContain("conv-TEST123");

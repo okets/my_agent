@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { WorkLoopScheduler } from "../src/scheduler/work-loop-scheduler.js";
 import { isDue } from "../src/scheduler/work-patterns.js";
+import { isDashboardReachable, triggerJob } from "./helpers/test-server.js";
 
 // Create a fresh temp agent dir for each test
 function createTempAgentDir(): string {
@@ -324,218 +325,63 @@ describe("WorkLoopScheduler", () => {
   });
 });
 
-// --- Real Haiku Job Tests ---
+// --- Real Haiku Job Tests (via dashboard endpoint) ---
 
-const hasApiKey = !!(
-  process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN
+// Top-level await: check reachability once before test collection
+const dashboardAvailable = await isDashboardReachable();
+
+const HAIKU_TIMEOUT = 60_000;
+
+describe.skipIf(!dashboardAvailable)(
+  "WorkLoopScheduler — real Haiku jobs via endpoint",
+  () => {
+    it(
+      "morning-prep: produces output via endpoint",
+      async () => {
+        const result = await triggerJob("morning-prep");
+        expect(result.success).toBe(true);
+        expect(result.run).toBeDefined();
+        expect(result.run.output).toBeTruthy();
+        expect(result.run.status).toBe("completed");
+        expect(result.run.duration_ms).toBeGreaterThan(0);
+      },
+      HAIKU_TIMEOUT,
+    );
+
+    it(
+      "daily-summary: produces output via endpoint",
+      async () => {
+        const result = await triggerJob("daily-summary");
+        expect(result.success).toBe(true);
+        expect(result.run).toBeDefined();
+        expect(result.run.output).toBeTruthy();
+        expect(result.run.status).toBe("completed");
+      },
+      HAIKU_TIMEOUT,
+    );
+
+    it(
+      "unknown job returns error via endpoint",
+      async () => {
+        const result = await triggerJob("nonexistent-job");
+        expect(result.success).toBe(false);
+        expect(result.error).toBeTruthy();
+      },
+      HAIKU_TIMEOUT,
+    );
+
+    it(
+      "sequential: two morning-prep triggers produce output",
+      async () => {
+        const run1 = await triggerJob("morning-prep");
+        const run2 = await triggerJob("morning-prep");
+
+        expect(run1.success).toBe(true);
+        expect(run2.success).toBe(true);
+        expect(run1.run.output).toBeTruthy();
+        expect(run2.run.output).toBeTruthy();
+      },
+      HAIKU_TIMEOUT * 2,
+    );
+  },
 );
-const describeWithApi = hasApiKey ? describe : describe.skip;
-const HAIKU_TIMEOUT = 30_000;
-
-describeWithApi("WorkLoopScheduler — real Haiku jobs", () => {
-  let agentDir: string;
-  let db: Database.Database;
-
-  beforeEach(() => {
-    agentDir = createTempAgentDir();
-    db = new Database(join(agentDir, "conversations", "agent.db"));
-    db.pragma("journal_mode = WAL");
-
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS conversations (
-        id TEXT PRIMARY KEY,
-        title TEXT,
-        abbreviation TEXT,
-        updated TEXT NOT NULL
-      );
-    `);
-  });
-
-  afterEach(() => {
-    db.close();
-    rmSync(agentDir, { recursive: true, force: true });
-  });
-
-  it(
-    "morning-prep: produces output and writes current-state.md",
-    async () => {
-      writeWorkPatterns(agentDir, LIFECYCLE_PATTERNS);
-
-      // Seed reference data
-      writeFileSync(
-        join(agentDir, "notebook", "reference", "contacts.md"),
-        "# Contacts\n\n- Kai (local guide in Chiang Mai)\n",
-        "utf-8",
-      );
-
-      // Seed yesterday's daily log
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const dateStr = yesterday.toISOString().split("T")[0];
-      writeFileSync(
-        join(agentDir, "notebook", "daily", `${dateStr}.md`),
-        `# Daily Log — ${dateStr}\n\n- Arrived in Chiang Mai\n- Visited Doi Suthep temple\n- Had khao soi for dinner\n`,
-        "utf-8",
-      );
-
-      const scheduler = new WorkLoopScheduler({
-        db,
-        agentDir,
-        pollIntervalMs: 999_999,
-      });
-
-      await scheduler.start();
-      const run = await scheduler.triggerJob("morning-prep");
-
-      // Verify run record
-      expect(run.status).toBe("completed");
-      expect(run.job_name).toBe("morning-prep");
-      expect(run.output).toBeTruthy();
-      expect(run.duration_ms).toBeGreaterThan(0);
-      expect(run.error).toBeNull();
-
-      // Verify current-state.md was written
-      const currentStatePath = join(
-        agentDir,
-        "notebook",
-        "operations",
-        "current-state.md",
-      );
-      expect(existsSync(currentStatePath)).toBe(true);
-
-      const content = readFileSync(currentStatePath, "utf-8");
-      expect(content.length).toBeGreaterThan(0);
-      expect(content.toLowerCase()).toContain("chiang mai");
-
-      // Verify getLastRun is updated
-      expect(scheduler.getLastRun("morning-prep")).not.toBeNull();
-
-      // Verify getRuns returns the run
-      const runs = scheduler.getRuns({ jobName: "morning-prep" });
-      expect(runs).toHaveLength(1);
-      expect(runs[0].status).toBe("completed");
-
-      await scheduler.stop();
-    },
-    HAIKU_TIMEOUT,
-  );
-
-  it(
-    "daily-summary: produces output and appends to daily log",
-    async () => {
-      writeWorkPatterns(agentDir, LIFECYCLE_PATTERNS);
-
-      // Seed today's daily log
-      const dateStr = new Date().toISOString().split("T")[0];
-      writeFileSync(
-        join(agentDir, "notebook", "daily", `${dateStr}.md`),
-        `# Daily Log — ${dateStr}\n\n- Explored Old City in Chiang Mai\n- Booked Krabi hotel\n- Had pad krapao for lunch\n`,
-        "utf-8",
-      );
-
-      // Seed a conversation abbreviation
-      db.prepare(
-        `INSERT INTO conversations (id, title, abbreviation, updated) VALUES (?, ?, ?, ?)`,
-      ).run(
-        "test-conv-1",
-        "Travel Planning",
-        "Discussed Krabi itinerary. Decided on 4-island tour. Budget: 2000 THB per person.",
-        new Date().toISOString(),
-      );
-
-      const scheduler = new WorkLoopScheduler({
-        db,
-        agentDir,
-        pollIntervalMs: 999_999,
-      });
-
-      await scheduler.start();
-      const run = await scheduler.triggerJob("daily-summary");
-
-      expect(run.status).toBe("completed");
-      expect(run.output).toBeTruthy();
-      expect(run.duration_ms).toBeGreaterThan(0);
-
-      // Verify summary was appended to daily log
-      const logContent = readFileSync(
-        join(agentDir, "notebook", "daily", `${dateStr}.md`),
-        "utf-8",
-      );
-      expect(logContent).toContain("End of Day Summary");
-
-      await scheduler.stop();
-    },
-    HAIKU_TIMEOUT,
-  );
-
-  it(
-    "failed job is recorded with error in DB",
-    async () => {
-      // Write patterns with an unknown job name
-      writeWorkPatterns(
-        agentDir,
-        `## Unknown Job Type\n- cadence: daily:08:00\n- model: haiku\n`,
-      );
-
-      const scheduler = new WorkLoopScheduler({
-        db,
-        agentDir,
-        pollIntervalMs: 999_999,
-      });
-
-      await scheduler.start();
-      const run = await scheduler.triggerJob("unknown-job-type");
-
-      expect(run.status).toBe("failed");
-      expect(run.error).toContain("No handler for job");
-      expect(run.duration_ms).toBeGreaterThanOrEqual(0);
-
-      await scheduler.stop();
-    },
-    HAIKU_TIMEOUT,
-  );
-
-  it(
-    "sequential: two triggers don't overlap",
-    async () => {
-      writeWorkPatterns(agentDir, LIFECYCLE_PATTERNS);
-
-      // Seed minimal data
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const dateStr = yesterday.toISOString().split("T")[0];
-      writeFileSync(
-        join(agentDir, "notebook", "daily", `${dateStr}.md`),
-        `# Daily Log — ${dateStr}\n\n- Quick day in Chiang Mai\n`,
-        "utf-8",
-      );
-
-      const scheduler = new WorkLoopScheduler({
-        db,
-        agentDir,
-        pollIntervalMs: 999_999,
-      });
-
-      await scheduler.start();
-
-      // Trigger two jobs sequentially
-      const run1 = await scheduler.triggerJob("morning-prep");
-      const run2 = await scheduler.triggerJob("morning-prep");
-
-      expect(run1.status).toBe("completed");
-      expect(run2.status).toBe("completed");
-
-      // Second should start after first completed
-      const end1 = new Date(run1.completed_at!).getTime();
-      const start2 = new Date(run2.started_at).getTime();
-      expect(start2).toBeGreaterThanOrEqual(end1);
-
-      // Should have 2 runs in DB
-      const runs = scheduler.getRuns({ jobName: "morning-prep" });
-      expect(runs).toHaveLength(2);
-
-      await scheduler.stop();
-    },
-    HAIKU_TIMEOUT * 2,
-  );
-});

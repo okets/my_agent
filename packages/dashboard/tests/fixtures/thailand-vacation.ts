@@ -341,6 +341,92 @@ export const HEBREW_CONVERSATION_ABBREVIATIONS = [
   },
 ];
 
+// --- Structured conversation data for E2E memory lifecycle tests (M6.6-S4) ---
+
+export const THAILAND_CONVERSATIONS = [
+  {
+    id: "conv-thailand-001",
+    title: "Chiang Mai Arrival",
+    turns: [
+      {
+        role: "user" as const,
+        content: "I just landed in Chiang Mai!",
+        timestamp: isoDate(-2),
+        turnNumber: 1,
+      },
+      {
+        role: "assistant" as const,
+        content:
+          "Welcome to Chiang Mai! The old city area is beautiful. How was your flight?",
+        timestamp: isoDate(-2),
+        turnNumber: 1,
+      },
+      {
+        role: "user" as const,
+        content: "Found an amazing pad krapao place near Tha Phae Gate",
+        timestamp: isoDate(-2),
+        turnNumber: 2,
+      },
+      {
+        role: "assistant" as const,
+        content:
+          "Tha Phae Gate area has incredible street food. Pad krapao is such a classic!",
+        timestamp: isoDate(-2),
+        turnNumber: 2,
+      },
+      {
+        role: "user" as const,
+        content: "Meeting a local guide named Kai tomorrow for a temple tour",
+        timestamp: isoDate(-1),
+        turnNumber: 3,
+      },
+      {
+        role: "assistant" as const,
+        content:
+          "Temple tours are the best way to experience Chiang Mai. Enjoy it!",
+        timestamp: isoDate(-1),
+        turnNumber: 3,
+      },
+      {
+        role: "user" as const,
+        content: `Flying to Krabi on ${formatDate(4)}, back to Tel Aviv on ${formatDate(9)}`,
+        timestamp: isoDate(-1),
+        turnNumber: 4,
+      },
+      {
+        role: "assistant" as const,
+        content: "Great itinerary! Krabi has amazing beaches. Safe travels!",
+        timestamp: isoDate(-1),
+        turnNumber: 4,
+      },
+    ],
+  },
+];
+
+/**
+ * Build transcript text from turns (same format as AbbreviationQueue)
+ */
+export function buildTranscript(
+  turns: (typeof THAILAND_CONVERSATIONS)[0]["turns"],
+): string {
+  return turns
+    .map((turn) => {
+      const role = turn.role === "user" ? "User" : "Assistant";
+      return `${role}: ${turn.content}`;
+    })
+    .join("\n\n");
+}
+
+/**
+ * Expected facts that should be extracted from the Thailand conversations
+ */
+export const EXPECTED_FACTS = {
+  locations: ["Chiang Mai", "Krabi", "Tel Aviv"],
+  people: ["Kai"],
+  preferences: ["pad krapao"],
+  schedule: ["Tha Phae Gate", "temple tour"],
+};
+
 // --- Conversation transcripts for daily summary testing ---
 
 export const RICH_CONVERSATION_ABBREVIATIONS = [

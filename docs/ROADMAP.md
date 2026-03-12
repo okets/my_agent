@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-11
+> **Updated:** 2026-03-12 (M6.6 complete)
 
 ---
 
@@ -19,7 +19,8 @@
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
-| **M6.6: Agentic Lifecycle**  | Active   | S1-S2.5 complete, 2 sprints remaining |
+| **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
+| **M6.9: Knowledge Lifecycle**| Design   | Spec approved, 3 sprints planned (S1-S3) |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -391,7 +392,7 @@ Retrofit the codebase to properly use Agent SDK features. Replaces prompt-inject
 
 ---
 
-### M6.7: Two-Agent Refactor — IN PROGRESS
+### M6.7: Two-Agent Refactor — COMPLETE
 
 Conversation Nina becomes a resumable long-lived session with a system prompt rebuilt on every query. This eliminates context staleness, removes cold-start injection, and enables seamless channel switching. Working Agents retain the folder-as-context model.
 
@@ -529,7 +530,7 @@ Skills come from:
 
 ---
 
-### M6.6: Agentic Lifecycle — NEXT
+### M6.6: Agentic Lifecycle — COMPLETE
 
 The agent gets a life outside of conversations. Background work loop maintains context, learns from conversations passively. Perfect memory: pre-loaded context eliminates most `recall()` needs, passive fact extraction catches what the agent misses, weekly review promotes recurring facts.
 
@@ -541,8 +542,9 @@ The agent gets a life outside of conversations. Background work loop maintains c
 | S1 | Context Foundation | Complete | [plan](sprints/m6.6-s1-context-foundation/plan.md) | [review](sprints/m6.6-s1-context-foundation/review.md) |
 | S2 | Work Loop Scheduler + System Calendar | Complete | [plan](sprints/m6.6-s2-work-loop-scheduler/plan.md) | [review](sprints/m6.6-s2-work-loop-scheduler/review.md) |
 | S2.5 | Work Loop UX Polish | Complete | [plan](sprints/m6.6-s2.5-work-loop-ux/plan.md) | [review](sprints/m6.6-s2.5-work-loop-ux/review.md) |
-| S3 | Passive Learning | Planned | — | — |
-| S4 | E2E Validation | Planned | — | — |
+| S3 | Passive Learning | Complete | [plan](sprints/m6.6-s3-passive-learning/plan.md) | [review](sprints/m6.6-s3-passive-learning/review.md) |
+| S4 | E2E Validation | Complete | [plan](sprints/m6.6-s4-e2e-validation/plan.md) | [review](sprints/m6.6-s4-e2e-validation/review.md) |
+| S5 | Corrections | Complete | [plan](sprints/m6.6-s5-corrections/plan.md) | [review](sprints/m6.6-s5-corrections/review.md) |
 
 **Core principle:** Markdown is source of truth. SQLite is derived — deletable, rebuildable.
 
@@ -578,6 +580,44 @@ DAILY CYCLE (repeats)
 - `Promise.allSettled` isolates extraction from abbreviation failures
 - Dedup falls back to substring matching when embeddings unavailable
 - File lock prevents concurrent writes between extraction and weekly review
+
+---
+
+### M6.9: Knowledge Lifecycle — DESIGN COMPLETE
+
+The knowledge system gets a lifecycle. Facts are classified at extraction (permanent vs temporal), routed to appropriate stores, and curated through a daily morning brief. Permanent knowledge is user-approved. Temporal context lives in summaries that age out naturally. Dynamic properties (location, availability) are updated in real-time by Nina during conversation.
+
+**Design spec:** [knowledge-lifecycle-design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md)
+**Depends on:** M6.6 (complete — green test suite verified, 265 tests passing)
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Data Model + Pipeline | Planned | Classification prompt, routing, staging, summaries, properties, `queryModel()`, migration |
+| S2 | Behavioral Layer | Planned | Morning brief upgrade (Sonnet/Opus), approval flow, standing orders, property staleness |
+| S3 | Conversation Initiation | Planned | Scheduler → conversation manager → channel plugin (reusable primitive) |
+
+**Key design decisions:**
+
+- **Permanent vs temporal separation.** Permanent facts (family, contacts, preferences) route to `reference/` with user approval. Temporal facts (events, travel, meetings) flow to daily logs and age out through the summary rollup chain.
+- **Summaries are the decay mechanism.** No per-fact confidence scores. Daily → weekly → monthly summaries compress naturally. Older context is searchable but not injected.
+- **Morning sequence replaces morning prep.** Daily summary (Haiku) runs first, then morning brief (Sonnet/Opus) synthesizes past + future temporal context, proposes permanent knowledge, and (S3) starts a conversation.
+- **Properties in YAML.** `properties/status.yaml` — machine-writable, real-time updates by Nina during conversation. Haiku extraction as backup. Future-proofed for mobile app, calendar sync.
+- **Nina is the intelligence layer.** No per-turn extraction or heuristic classifiers. Nina asks for clarification naturally during conversation, enriching transcripts for downstream extraction.
+- **Contacts are searchable, never injected.** Looked up on demand via `recall()`, not carried in the system prompt.
+- **Extraction replaces S3 pipeline.** New classification categories and routing supersede `parseFacts`/`persistFacts`. Equivalent test coverage required (extraction failure resilience, concurrent write safety).
+- **Staging is a work queue.** `knowledge/extracted/` is excluded from search/embeddings. Deleted after processing.
+
+**Prerequisites:**
+- Green test suite via M6.6-S5 (D1, D4, D5, D6)
+
+**M6.9-S1 internal prerequisites (first tasks in S1):**
+- `loadNotebookReference()` recursive subdirectory support
+- `loadProperties()` YAML injection function
+- SyncService path-pattern exclusion support
+
+**Tech debt notes:**
+- Knowledge enrichment standing order → migrate to skill in M6.8
+- Hardcoded morning sequence jobs → migrate to responsibility framework in M7/M9
 
 ---
 
@@ -672,6 +712,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Two-Agent Refactor   | Approved | M6.7        | [plans/2026-03-04-conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Skills Architecture  | Idea     | M6.8        | TBD at [design/skills-architecture.md](design/skills-architecture.md) |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
+| Knowledge Lifecycle  | Approved | M6.9        | [sprints/m6.6-s6-knowledge-lifecycle/design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md) |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Absorbed | ~~M8~~ → M6.6 | [design/operations-dashboard.md](design/operations-dashboard.md) |
 

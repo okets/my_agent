@@ -142,8 +142,19 @@ async function main() {
         "";
 
       if (apiKey) {
-        abbreviationQueue = new AbbreviationQueue(conversationManager, apiKey);
+        abbreviationQueue = new AbbreviationQueue(
+          conversationManager,
+          apiKey,
+          agentDir,
+        );
         await abbreviationQueue.retryPending();
+
+        // Wire inactive trigger: programmatic callers (not just chat-handler)
+        // trigger extraction when a conversation goes inactive
+        const queue = abbreviationQueue;
+        conversationManager.onConversationInactive = (oldConvId) => {
+          queue.enqueue(oldConvId);
+        };
       } else {
         console.warn(
           "No API key available - abbreviation queue will not start",
@@ -402,6 +413,19 @@ async function main() {
   }
 
   server.workLoopScheduler = workLoopScheduler;
+
+  // Wire fact extraction calendar logging (M6.6-S3)
+  if (abbreviationQueue && workLoopScheduler) {
+    const scheduler = workLoopScheduler;
+    abbreviationQueue.onExtractionComplete = (result) => {
+      scheduler.logExternalRun(
+        "fact-extraction",
+        result.durationMs,
+        `Extracted ${result.newFactCount} new facts from conversation ${result.conversationId}`,
+        result.error,
+      );
+    };
+  }
 
   // Initialize StatePublisher — live state sync to all connected dashboard clients
   if (hatched) {

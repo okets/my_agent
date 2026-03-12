@@ -23,6 +23,9 @@ export class ConversationManager {
   private transcripts: TranscriptManager;
   private db: ConversationDatabase;
 
+  /** Callback invoked when a conversation transitions to inactive (for extraction trigger) */
+  onConversationInactive?: (conversationId: string) => void;
+
   constructor(agentDir: string) {
     this.transcripts = new TranscriptManager(agentDir);
     this.db = new ConversationDatabase(agentDir);
@@ -51,6 +54,7 @@ export class ConversationManager {
       needsAbbreviation: false,
       manuallyNamed: false,
       lastRenamedAtTurn: null,
+      lastExtractedAtTurn: null,
       model: options?.model ?? null,
       externalParty: options?.externalParty ?? null,
       isPinned: true,
@@ -61,6 +65,7 @@ export class ConversationManager {
     const currentConv = this.db.getCurrent();
     if (currentConv) {
       this.db.updateConversation(currentConv.id, { status: "inactive" });
+      this.onConversationInactive?.(currentConv.id);
     }
 
     // Create transcript file with metadata header
