@@ -87,7 +87,8 @@ Decision needed?
 5. Reviewer checks each major piece (DMs findings to implementers)
 6. Integration + verification
 7. **Design–implementation gap analysis** — compare what was built against the design spec; flag any mismatches, missing features, or deviations
-8. Shut down teammates, present user stories for CTO testing
+8. **External reviewer** — dispatch independent Opus agent to verify spec coverage (see `docs/procedures/external-reviewer.md`). In normal mode, this is additive — CTO still does their own review, but the external reviewer provides an independent second opinion.
+9. Shut down teammates, present user stories for CTO testing
 
 ## Verification Checklist
 
@@ -97,6 +98,9 @@ Before declaring done:
 - [ ] All planned tasks complete
 - [ ] User stories documented
 - [ ] No console/server errors
+- [ ] External reviewer dispatched and report saved to `review.md`
+- [ ] External reviewer verdict is PASS or PASS WITH CONCERNS
+- [ ] Browser verification passed (when sprint touches UI/server)
 
 ## Start
 
