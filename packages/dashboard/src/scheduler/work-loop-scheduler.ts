@@ -29,8 +29,8 @@ import {
   USER_PROMPT_TEMPLATE as MORNING_USER,
 } from "./jobs/morning-prep.js";
 import type { ModelAlias } from "./query-model.js";
-import { loadPreferences } from "@my-agent/core";
-import { readProperties, detectStaleProperties } from "../conversations/properties.js";
+import { loadPreferences, type UserPreferences } from "@my-agent/core";
+import { readProperties, detectStaleProperties, type PropertiesMap } from "../conversations/properties.js";
 import {
   readStagingFiles,
   cleanExpiredFacts,
@@ -48,6 +48,44 @@ import {
 } from "./jobs/weekly-review.js";
 import { runWeeklySummary } from "./jobs/weekly-summary.js";
 import { runMonthlySummary } from "./jobs/monthly-summary.js";
+
+/**
+ * Timezone-aware morning brief scheduling.
+ * Prefers dynamic timezone from properties (updated by extraction when user travels),
+ * falls back to static preference from config.yaml.
+ */
+export function isMorningPrepDue(
+  preferences: UserPreferences,
+  properties: PropertiesMap,
+  lastRun: Date | null,
+  now: Date,
+): boolean {
+  const timezone = properties.timezone?.value ?? preferences.timezone;
+
+  // Get current time in user's timezone
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const hour = parts.find((p) => p.type === "hour")!.value;
+  const minute = parts.find((p) => p.type === "minute")!.value;
+  const localTime = `${hour}:${minute}`;
+  const targetTime = preferences.morningBrief.time;
+
+  if (localTime < targetTime) return false;
+
+  if (!lastRun) return true;
+
+  // Check if last run was before today in user's timezone
+  const dateFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: timezone });
+  const todayStr = dateFormatter.format(now);
+  const lastRunDayStr = dateFormatter.format(lastRun);
+
+  return lastRunDayStr < todayStr;
+}
 
 export interface WorkLoopSchedulerConfig {
   db: Database.Database;
@@ -263,7 +301,23 @@ export class WorkLoopScheduler {
     for (const pattern of this.patterns) {
       if (!this.isRunning) return; // Stop was called mid-loop
       const lastRun = this.getLastRun(pattern.name);
-      if (isDue(pattern.cadence, lastRun, now)) {
+
+      // Morning prep uses timezone-aware scheduling from user preferences
+      let due = false;
+      if (pattern.name === "morning-prep") {
+        try {
+          const prefs = loadPreferences(this.agentDir);
+          const props = await readProperties(this.agentDir);
+          due = isMorningPrepDue(prefs, props, lastRun, now);
+        } catch {
+          // Fallback to standard isDue if preferences can't be loaded
+          due = isDue(pattern.cadence, lastRun, now);
+        }
+      } else {
+        due = isDue(pattern.cadence, lastRun, now);
+      }
+
+      if (due) {
         try {
           await this.runJob(pattern);
         } catch (err) {
