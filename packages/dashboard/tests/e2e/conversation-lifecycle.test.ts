@@ -75,6 +75,7 @@ describe("M6.7 Conversation Lifecycle E2E", () => {
         loadCalendarCredentials: vi.fn().mockReturnValue(null),
         createCalDAVClient: vi.fn().mockResolvedValue({}),
         assembleCalendarContext: vi.fn().mockResolvedValue(undefined),
+        loadProperties: vi.fn().mockResolvedValue(null),
       }));
 
       const builder = new SystemPromptBuilder({

@@ -10,6 +10,7 @@ vi.mock("@my-agent/core", () => ({
   assembleCalendarContext: vi
     .fn()
     .mockResolvedValue("[Calendar: no events today]"),
+  loadProperties: vi.fn().mockResolvedValue(null),
 }));
 
 describe("SystemPromptBuilder", () => {

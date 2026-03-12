@@ -14,6 +14,7 @@ import {
   loadCalendarCredentials,
   createCalDAVClient,
   assembleCalendarContext,
+  loadProperties,
 } from "@my-agent/core";
 
 export interface BuilderConfig {
@@ -90,6 +91,12 @@ export class SystemPromptBuilder {
     // Layer 4: Memory context
     // Daily summary is included in stable prompt via assembleSystemPrompt.
     // MCP memory server handles runtime retrievals — no extra injection needed.
+
+    // Layer 4b: Dynamic properties (location, timezone, availability)
+    const propertiesBlock = await loadProperties(this.config.agentDir);
+    if (propertiesBlock) {
+      dynamicParts.push(propertiesBlock);
+    }
 
     // Layer 5: Inbound metadata (JSON, system-role, trusted)
     const metadata = {

@@ -255,6 +255,7 @@ describe("M6.6 Memory Lifecycle E2E", () => {
         loadCalendarCredentials: vi.fn().mockReturnValue(null),
         createCalDAVClient: vi.fn().mockResolvedValue({}),
         assembleCalendarContext: vi.fn().mockResolvedValue(undefined),
+        loadProperties: vi.fn().mockResolvedValue(null),
       }));
 
       const { SystemPromptBuilder } = await import(

@@ -15,6 +15,7 @@ vi.mock("@my-agent/core", () => ({
   loadCalendarCredentials: vi.fn().mockReturnValue(null),
   createCalDAVClient: vi.fn(),
   assembleCalendarContext: vi.fn(),
+  loadProperties: vi.fn().mockResolvedValue(null),
 }));
 
 const buildContext = {
