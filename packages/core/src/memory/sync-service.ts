@@ -19,6 +19,7 @@ export interface SyncServiceOptions {
   db: MemoryDb
   getPlugin: () => EmbeddingsPlugin | null
   debounceMs?: number
+  excludePatterns?: string[]
 }
 
 export class SyncService extends EventEmitter {
@@ -26,6 +27,7 @@ export class SyncService extends EventEmitter {
   private db: MemoryDb
   private getPlugin: () => EmbeddingsPlugin | null
   private debounceMs: number
+  private excludePatterns: string[]
   private watcher: FSWatcher | null = null
   private pendingSync = new Map<string, NodeJS.Timeout>()
   private syncing = false
@@ -36,6 +38,7 @@ export class SyncService extends EventEmitter {
     this.db = options.db
     this.getPlugin = options.getPlugin
     this.debounceMs = options.debounceMs ?? 1500
+    this.excludePatterns = options.excludePatterns ?? []
   }
 
   /**
@@ -46,8 +49,17 @@ export class SyncService extends EventEmitter {
 
     this.watcher = watch(this.notebookDir, {
       // Ignore dotfiles by checking basename only (not full path)
-      // This prevents .my_agent in parent path from being matched
-      ignored: (path: string) => basename(path).startsWith('.'),
+      // This prevents .my_agent in parent path from being matched.
+      // Also ignore files matching any excludePatterns.
+      ignored: (path: string) => {
+        if (basename(path).startsWith('.')) return true
+        const rel = relative(this.notebookDir, path)
+        return this.excludePatterns.some((pattern) => {
+          // Convert glob prefix pattern like "knowledge/extracted/**" to a prefix check
+          const prefix = pattern.endsWith('/**') ? pattern.slice(0, -3) : pattern
+          return rel === prefix || rel.startsWith(prefix + '/')
+        })
+      },
       persistent: true,
       ignoreInitial: true,
       usePolling: true, // Use polling for WSL2 compatibility
@@ -95,6 +107,14 @@ export class SyncService extends EventEmitter {
   private scheduleSync(filePath: string): void {
     // Only sync markdown files
     if (!filePath.endsWith('.md')) return
+
+    // Skip files matching exclude patterns
+    const rel = relative(this.notebookDir, filePath)
+    const excluded = this.excludePatterns.some((pattern) => {
+      const prefix = pattern.endsWith('/**') ? pattern.slice(0, -3) : pattern
+      return rel === prefix || rel.startsWith(prefix + '/')
+    })
+    if (excluded) return
 
     // Clear existing timeout for this file
     const existing = this.pendingSync.get(filePath)
@@ -224,7 +244,10 @@ export class SyncService extends EventEmitter {
 
     try {
       const { globby } = await import('globby')
-      const files = await globby('**/*.md', { cwd: this.notebookDir })
+      const files = await globby('**/*.md', {
+        cwd: this.notebookDir,
+        ignore: this.excludePatterns,
+      })
 
       // Get currently indexed files
       const indexedFiles = new Set(this.db.listFiles().map((f) => f.path))
