@@ -26,6 +26,7 @@ Before kicking off an overnight sprint:
 | Branch created | Yes | `git checkout -b sprint/m{N}-s{N}-{name}` |
 | Scope clear | Yes | Ambiguous requirements → ask NOW, not overnight |
 | Test criteria defined | Yes | How do we know it works? |
+| Traceability matrix | Yes | Plan must map spec requirements → tasks → verification |
 
 ---
 
@@ -73,7 +74,15 @@ Tech Lead runs the sprint. Reviewer operates independently (doesn't just approve
    ├─ review.md — Opus review with verdict
    └─ test-report.md — QA findings
 
-7. Final Commit
+7. External Reviewer (independent verification)
+   ├─ Gather: spec, plan, git diff, test results, file list
+   ├─ Dispatch: standalone Opus agent (see docs/procedures/external-reviewer.md)
+   ├─ Reviewer runs tests independently
+   ├─ Reviewer runs browser checks (if sprint touches UI/server)
+   ├─ Reviewer checks spec coverage against traceability matrix
+   └─ Reviewer writes review.md and test-report.md
+
+8. Final Commit
    └─ Squash or structured commits on branch
    └─ DO NOT merge to master
 ```
@@ -155,12 +164,15 @@ Sprint is "verified working" when:
 - [ ] All user stories from plan — manually tested
 - [ ] No console errors in browser
 - [ ] No unhandled promise rejections in server logs
+- [ ] External reviewer spec coverage — all traceability matrix rows verified
+- [ ] External reviewer verdict — PASS or PASS WITH CONCERNS (not FAIL)
 
 ### Should Pass
 - [ ] Works after server restart
 - [ ] Works after page refresh
 - [ ] Error states handled gracefully
 - [ ] No obvious security issues (XSS, injection)
+- [ ] Browser verification passes (when sprint touches UI/server routes)
 
 ### Nice to Have
 - [ ] Works on mobile viewport
