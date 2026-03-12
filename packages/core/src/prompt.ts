@@ -2,6 +2,7 @@ import * as path from 'node:path'
 import { readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { globby } from 'globby'
+import { parse as parseYaml } from 'yaml'
 
 const DEFAULT_PERSONALITY_PATH = path.resolve(
   import.meta.dirname,
@@ -251,6 +252,56 @@ async function loadNotebookOperations(agentDir: string): Promise<string | null> 
   }
 
   return `## Operating Rules\n\n${sections.join('\n\n')}`
+}
+
+/**
+ * Load notebook/properties/status.yaml and format it as a dynamic status block.
+ * Returns null if the file does not exist or cannot be parsed.
+ */
+export async function loadProperties(agentDir: string): Promise<string | null> {
+  const propsFile = path.join(agentDir, 'notebook', 'properties', 'status.yaml')
+
+  const content = await readOptionalFile(propsFile)
+  if (!content || content.trim() === '') {
+    return null
+  }
+
+  let data: Record<string, { value: string; confidence?: string; updated?: string }>
+  try {
+    data = parseYaml(content)
+  } catch {
+    console.warn('[Prompt] Failed to parse status.yaml')
+    return null
+  }
+
+  if (!data || typeof data !== 'object') {
+    return null
+  }
+
+  const lines: string[] = ['[Dynamic Status]']
+
+  for (const [key, entry] of Object.entries(data)) {
+    if (!entry || typeof entry !== 'object' || !entry.value) continue
+
+    const label = key.charAt(0).toUpperCase() + key.slice(1)
+    const parts = [entry.value]
+    if (entry.confidence) {
+      parts.push(`${entry.confidence} confidence`)
+    }
+    if (entry.updated) {
+      parts.push(`updated ${entry.updated}`)
+    }
+
+    lines.push(`${label}: ${parts[0]} (${parts.slice(1).join(', ')})`)
+  }
+
+  lines.push('[End Dynamic Status]')
+
+  if (lines.length <= 2) {
+    return null
+  }
+
+  return lines.join('\n')
 }
 
 /**
