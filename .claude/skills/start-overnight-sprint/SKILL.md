@@ -161,6 +161,7 @@ If sprint cannot complete:
    - Executive summary: goal, task count, key risks/pitfalls, scope boundaries
    - Parallel vs sequential task breakdown
    - Any pre-flight concerns or ambiguities that should be resolved now
+   - **Validation strategy** — explain how you will verify each task's correctness (which tests, which commands, what manual checks)
    - **Ask CTO to confirm before proceeding** — do NOT create branch or begin work until confirmed
 4. On confirmation → create the branch
 5. Copy artifact templates
@@ -169,4 +170,5 @@ If sprint cannot complete:
 8. Orchestrate: relay context, unblock agents, log decisions
 9. Reviewer operates independently (DMs findings to implementers)
 10. QA tests at end (spawned after implementation tasks complete)
-11. Shut down teammates, commit final state to branch
+11. **Design–implementation gap analysis** — compare what was built against the design spec; flag any mismatches, missing features, or deviations (record findings in `DEVIATIONS.md`)
+12. Shut down teammates, commit final state to branch

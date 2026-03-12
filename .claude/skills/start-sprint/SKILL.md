@@ -86,7 +86,8 @@ Decision needed?
 4. Orchestrate: relay context, escalate decisions to CTO, unblock agents
 5. Reviewer checks each major piece (DMs findings to implementers)
 6. Integration + verification
-7. Shut down teammates, present user stories for CTO testing
+7. **Design–implementation gap analysis** — compare what was built against the design spec; flag any mismatches, missing features, or deviations
+8. Shut down teammates, present user stories for CTO testing
 
 ## Verification Checklist
 
@@ -105,5 +106,6 @@ Before declaring done:
    - Team composition (which roles are needed and why)
    - Executive summary: goal, task count, key risks, estimated complexity
    - Parallel vs sequential task breakdown
+   - **Validation strategy** — explain how you will verify each task's correctness (which tests, which commands, what manual checks)
    - **Ask CTO to confirm before proceeding** — do NOT begin implementation until confirmed
 4. On confirmation → begin execution
