@@ -100,15 +100,90 @@ export async function readStagingFiles(
   return files;
 }
 
+/** @deprecated Use incrementAllAttempts instead */
 export async function incrementAttempts(filePath: string): Promise<void> {
-  const content = await readFile(filePath, "utf-8");
-  const updated = content.replace(
-    /attempts: (\d+)/g,
-    (_match, count) => `attempts: ${parseInt(count, 10) + 1}`,
-  );
-  await writeFile(filePath, updated, "utf-8");
+  return incrementAllAttempts(filePath);
 }
 
 export async function deleteStagingFile(filePath: string): Promise<void> {
   await unlink(filePath);
+}
+
+export function findStagedFact(facts: StagedFact[], factText: string): number {
+  return facts.findIndex((f) => f.text.includes(factText));
+}
+
+export async function incrementFactAttempts(
+  filePath: string,
+  factText: string,
+): Promise<number> {
+  const content = await readFile(filePath, "utf-8");
+  const lines = content.split("\n");
+  let newCount = -1;
+
+  const updated = lines.map((line) => {
+    const match = line.match(/^- \[([^,]+), attempts: (\d+)\] (.+)$/);
+    if (match && match[3].includes(factText)) {
+      newCount = parseInt(match[2], 10) + 1;
+      return `- [${match[1]}, attempts: ${newCount}] ${match[3]}`;
+    }
+    return line;
+  });
+
+  if (newCount === -1) throw new Error(`Fact not found: "${factText}"`);
+  await writeFile(filePath, updated.join("\n"), "utf-8");
+  return newCount;
+}
+
+export async function incrementAllAttempts(filePath: string): Promise<void> {
+  const content = await readFile(filePath, "utf-8");
+  const lines = content.split("\n");
+
+  const updated = lines.map((line) => {
+    const match = line.match(/^- \[([^,]+), attempts: (\d+)\] (.+)$/);
+    if (match) {
+      const newCount = parseInt(match[2], 10) + 1;
+      return `- [${match[1]}, attempts: ${newCount}] ${match[3]}`;
+    }
+    return line;
+  });
+
+  await writeFile(filePath, updated.join("\n"), "utf-8");
+}
+
+export async function deleteStagedFact(
+  filePath: string,
+  factText: string,
+): Promise<void> {
+  const content = await readFile(filePath, "utf-8");
+  const lines = content.split("\n");
+  const filtered = lines.filter((line) => {
+    const match = line.match(/^- \[([^,]+), attempts: (\d+)\] (.+)$/);
+    return !(match && match[3].includes(factText));
+  });
+
+  const hasFacts = filtered.some((l) => l.match(/^- \[/));
+  if (!hasFacts) {
+    await unlink(filePath);
+  } else {
+    await writeFile(filePath, filtered.join("\n"), "utf-8");
+  }
+}
+
+export async function cleanExpiredFacts(
+  agentDir: string,
+  maxAttempts: number,
+): Promise<number> {
+  const files = await readStagingFiles(agentDir);
+  let deletedCount = 0;
+
+  for (const file of files) {
+    const expired = file.facts.filter((f) => f.attempts >= maxAttempts);
+    for (const fact of expired) {
+      await deleteStagedFact(file.filePath, fact.text);
+      deletedCount++;
+    }
+  }
+
+  return deletedCount;
 }
