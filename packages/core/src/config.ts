@@ -67,6 +67,14 @@ interface YamlConfig {
     plugins?: Record<string, { intervalMs?: number }>
   }
   embeddings?: YamlEmbeddingsConfig
+  preferences?: {
+    morningBrief?: {
+      time?: string
+      model?: string
+      channel?: string
+    }
+    timezone?: string
+  }
 }
 
 /**
@@ -308,6 +316,44 @@ export function saveChannelToConfig(
   channels[channelId] = { ...existing, ...channelData }
 
   writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
+}
+
+export interface MorningBriefPreferences {
+  time: string
+  model: string
+  channel: string
+}
+
+export interface UserPreferences {
+  morningBrief: MorningBriefPreferences
+  timezone: string
+}
+
+const DEFAULT_PREFERENCES: UserPreferences = {
+  morningBrief: { time: '08:00', model: 'sonnet', channel: 'default' },
+  timezone: 'UTC',
+}
+
+/**
+ * Load user preferences from config.yaml.
+ * Returns defaults for any missing fields.
+ */
+export function loadPreferences(agentDir?: string): UserPreferences {
+  const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
+  const yaml = loadYamlConfig(dir)
+  if (!yaml?.preferences) return { ...DEFAULT_PREFERENCES, morningBrief: { ...DEFAULT_PREFERENCES.morningBrief } }
+
+  const p = yaml.preferences
+  const mb = p.morningBrief ?? {}
+
+  return {
+    morningBrief: {
+      time: mb.time ?? DEFAULT_PREFERENCES.morningBrief.time,
+      model: mb.model ?? DEFAULT_PREFERENCES.morningBrief.model,
+      channel: mb.channel ?? DEFAULT_PREFERENCES.morningBrief.channel,
+    },
+    timezone: p.timezone ?? DEFAULT_PREFERENCES.timezone,
+  }
 }
 
 /**

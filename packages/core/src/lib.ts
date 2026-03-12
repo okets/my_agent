@@ -47,8 +47,9 @@ export {
   removeChannelFromConfig,
   loadEmbeddingsConfig,
   saveEmbeddingsConfig,
+  loadPreferences,
 } from './config.js'
-export type { YamlEmbeddingsConfig } from './config.js'
+export type { YamlEmbeddingsConfig, UserPreferences, MorningBriefPreferences } from './config.js'
 export type { BrainConfig, HealthConfig } from './types.js'
 
 export { assembleSystemPrompt, loadProperties } from './prompt.js'
