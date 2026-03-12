@@ -71,6 +71,40 @@ More random text`;
     expect(result.temporal).toHaveLength(1);
     expect(result.permanent).toHaveLength(0);
   });
+
+  it("parses timezone property with medium confidence", async () => {
+    const { parseClassifiedFacts } = await import(
+      "../src/conversations/knowledge-extractor.js"
+    );
+
+    const raw = `[PROPERTY:timezone:medium] Asia/Bangkok (inferred from Chiang Mai location)`;
+
+    const result = parseClassifiedFacts(raw);
+    expect(result.properties).toHaveLength(1);
+    const tz = result.properties[0];
+    expect(tz.key).toBe("timezone");
+    expect(tz.confidence).toBe("medium");
+    expect(tz.value).toContain("Asia/Bangkok");
+  });
+
+  it("parses timezone alongside location in same response", async () => {
+    const { parseClassifiedFacts } = await import(
+      "../src/conversations/knowledge-extractor.js"
+    );
+
+    const raw = `[PROPERTY:location:high] Currently in Chiang Mai, Thailand
+[PROPERTY:timezone:medium] Asia/Bangkok (inferred from Chiang Mai location)`;
+
+    const result = parseClassifiedFacts(raw);
+    expect(result.properties).toHaveLength(2);
+
+    const location = result.properties.find((p) => p.key === "location");
+    expect(location?.confidence).toBe("high");
+
+    const tz = result.properties.find((p) => p.key === "timezone");
+    expect(tz?.confidence).toBe("medium");
+    expect(tz?.value).toContain("Asia/Bangkok");
+  });
 });
 
 describe("routeFacts", () => {
