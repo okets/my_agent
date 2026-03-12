@@ -87,24 +87,34 @@ For each criterion:
 [Single clear next step]
 
 ### Recommended Sprint Mode
-[Normal | Overnight | Either] — [reason]
+[Normal | Overnight | Trip | Either] — [reason]
 ```
 
 ### 7. Sprint Mode Recommendation
 
 ```
-Assess the next action for overnight suitability:
-  Suitable for overnight if ALL:
+Assess the next action for sprint mode suitability:
+
+  Trip mode if ALL:
+    └─ CTO is traveling/mobile-only
+    └─ Sprint plan exists and is reviewed
+    └─ Plan includes traceability matrix
+    └─ Scope is unambiguous (no open design questions)
+    └─ No heavy visual design work requiring CTO visual feedback
+
+  Overnight mode if ALL:
     └─ Sprint plan exists and is complete
     └─ Scope is unambiguous (no open design questions)
     └─ No UI-heavy work requiring visual review cycles
     └─ No dependencies on external services being configured
-  NOT suitable for overnight if ANY:
+
+  NOT suitable for autonomous (overnight or trip) if ANY:
     └─ Plan has open questions or ambiguous requirements
     └─ Heavy UI/UX work needing CTO visual feedback
     └─ Requires access or credentials not yet set up
     └─ First sprint in a new milestone (architectural decisions likely)
-  Report: "Overnight" | "Normal" | "Either" with brief reason
+
+  Report: "Normal" | "Overnight" | "Trip" | "Either" with brief reason
 ```
 
 ## When to Run
