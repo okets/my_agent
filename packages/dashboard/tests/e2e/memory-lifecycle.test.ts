@@ -8,7 +8,7 @@
  * (mocked). Morning prep and daily summary use mocked Haiku responses.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import {
   mkdtempSync,
   mkdirSync,
@@ -241,6 +241,42 @@ describe("M6.6 Memory Lifecycle E2E", () => {
         "utf-8",
       );
       expect(factsContent).toContain("Tel Aviv");
+    });
+
+    it("10: SystemPromptBuilder includes current-state in assembled prompt", async () => {
+      // Mock @my-agent/core for SystemPromptBuilder
+      vi.mock("@my-agent/core", () => ({
+        assembleSystemPrompt: vi
+          .fn()
+          .mockResolvedValue(
+            "## Identity\nYou are a test agent.\n\n## Current State\n- Location: Chiang Mai\n- Guide: Kai\n- Preference: pad krapao",
+          ),
+        loadCalendarConfig: vi.fn().mockReturnValue(null),
+        loadCalendarCredentials: vi.fn().mockReturnValue(null),
+        createCalDAVClient: vi.fn().mockResolvedValue({}),
+        assembleCalendarContext: vi.fn().mockResolvedValue(undefined),
+      }));
+
+      const { SystemPromptBuilder } = await import(
+        "../../src/agent/system-prompt-builder.js"
+      );
+
+      const builder = new SystemPromptBuilder({
+        brainDir: join(tmpDir, "brain"),
+        agentDir: tmpDir,
+      });
+
+      const result = await builder.build({
+        channel: "web",
+        conversationId: "conv-lifecycle",
+        messageIndex: 1,
+      });
+
+      // Stable block (Block 0) should include knowledge-derived content
+      const stableText = result[0].text;
+      expect(stableText).toContain("Chiang Mai");
+      expect(stableText).toContain("Kai");
+      expect(stableText).toContain("pad krapao");
     });
   });
 
