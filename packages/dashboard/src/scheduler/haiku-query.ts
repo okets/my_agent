@@ -1,61 +1,18 @@
 /**
- * Background Haiku query utility
+ * Background Haiku query utility -- backward compatibility wrapper.
  *
- * Lightweight wrapper around createBrainQuery for background work loop jobs.
- * No MCP tools — all context is pre-assembled into the prompt.
+ * Delegates to queryModel("haiku"). Existing callers continue working.
+ * New code should import queryModel directly.
  */
 
-import { createBrainQuery } from "@my-agent/core";
-
-const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+import { queryModel } from "./query-model.js";
 
 /**
- * Send a single prompt to Haiku with a system prompt, return the text response.
- *
- * Used by morning prep, daily summary, and weekly review jobs.
- * No MCP tools, no agents, no hooks — simple prompt → response.
+ * @deprecated Use queryModel(prompt, systemPrompt, "haiku") instead.
  */
 export async function queryHaiku(
   prompt: string,
   systemPrompt: string,
 ): Promise<string> {
-  const query = createBrainQuery(prompt, {
-    model: HAIKU_MODEL,
-    systemPrompt,
-    continue: false,
-    includePartialMessages: false,
-  });
-
-  let responseText = "";
-
-  for await (const msg of query) {
-    if (msg.type === "assistant") {
-      const message = (
-        msg as {
-          message?: {
-            content?: Array<{ type: string; text?: string }>;
-          };
-        }
-      ).message;
-      if (message?.content) {
-        for (const block of message.content) {
-          if (block.type === "text" && block.text) {
-            responseText += block.text;
-          }
-        }
-      }
-    } else if (msg.type === "result") {
-      const result = msg as { result?: string };
-      if (!responseText && result.result) {
-        responseText = result.result;
-      }
-      break;
-    }
-  }
-
-  if (!responseText.trim()) {
-    throw new Error("Haiku returned empty response");
-  }
-
-  return responseText.trim();
+  return queryModel(prompt, systemPrompt, "haiku");
 }
