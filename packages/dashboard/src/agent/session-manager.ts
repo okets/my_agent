@@ -18,6 +18,7 @@ import { processStream, type StreamEvent } from "./stream-processor.js";
 import { SystemPromptBuilder } from "./system-prompt-builder.js";
 import type { BuildContext } from "./system-prompt-builder.js";
 import { createConversationServer } from "../mcp/conversation-server.js";
+import { createKnowledgeServer } from "../mcp/knowledge-server.js";
 import type { ConversationSearchService } from "../conversations/search-service.js";
 import type { ConversationManager } from "../conversations/manager.js";
 
@@ -63,6 +64,9 @@ export function initMcpServers(
   conversationSearchService?: ConversationSearchService,
   conversationManager?: ConversationManager,
 ): void {
+  // Derive agentDir from notebookDir (parent directory)
+  const agentDir = notebookDir.replace(/\/notebook$/, "");
+
   const memoryServer = createMemoryServer({ notebookDir, searchService });
   const servers: NonNullable<Options["mcpServers"]> = {
     memory: memoryServer,
@@ -73,12 +77,14 @@ export function initMcpServers(
       conversationSearchService,
       conversationManager,
     });
+    servers.knowledge = createKnowledgeServer({ agentDir });
     console.log(
-      `[SessionManager] MCP servers initialized (memory → ${notebookDir}, conversations)`,
+      `[SessionManager] MCP servers initialized (memory → ${notebookDir}, conversations, knowledge)`,
     );
   } else {
+    servers.knowledge = createKnowledgeServer({ agentDir });
     console.log(
-      `[SessionManager] MCP servers initialized (memory → ${notebookDir})`,
+      `[SessionManager] MCP servers initialized (memory → ${notebookDir}, knowledge)`,
     );
   }
 
