@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-12 (M6.6 complete)
+> **Updated:** 2026-03-12 (M6.9-S1 complete, trip mode + verification pipeline shipped)
 
 ---
 
@@ -20,7 +20,7 @@
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
-| **M6.9: Knowledge Lifecycle**| Design   | Spec approved, 3 sprints planned (S1-S3) |
+| **M6.9: Knowledge Lifecycle**| Active   | S1 complete, S2-S3 planned |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -38,15 +38,15 @@
 M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory        M6.5 SDK
 [████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
    COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
-                                                                                                    M6.7 Two-Agent   M6.6 Lifecycle   M6.8 Skills
-                                                                                                    [████████████]   [░░░░░░░░░░░░]  [░░░░░░░░░░]
-                                                                                                       COMPLETE         NEXT            PLANNED
-                                                                                                                          │
-                                                                                                                    ┌─────┴─────┐
-                                                                                                                    ▼           ▼
-                                                                                                              M7 (redesign)  M9 (redesign)
-                                                                                                                                │
-                                                                                                                             M10 (redesign)
+                                                                                                    M6.7 Two-Agent   M6.6 Lifecycle   M6.9 Knowledge   M6.8 Skills
+                                                                                                    [████████████]   [████████████]   [████░░░░░░░░]   [░░░░░░░░░░]
+                                                                                                       COMPLETE         COMPLETE      ACTIVE (S1/3)     PLANNED
+                                                                                                                                            │
+                                                                                                                                      ┌─────┴─────┐
+                                                                                                                                      ▼           ▼
+                                                                                                                                M7 (redesign)  M9 (redesign)
+                                                                                                                                                  │
+                                                                                                                                               M10 (redesign)
 ```
 
 ---
@@ -226,7 +226,7 @@ Tasks as first-class entities with execution logs, autonomous work alongside int
 | S5     | Task-Conversation Linking | Complete | [plan](sprints/m5-s5-task-conversation-linking/plan.md) | [review](sprints/m5-s5-task-conversation-linking/review.md) |
 | S6     | Task UI                   | Complete | [plan](sprints/m5-s6-task-ui/plan.md)                   | [review](sprints/m5-s6-task-ui/review.md)                   |
 | S7     | Request/Input Blocking    | Deferred | [plan](sprints/m5-s7-request-blocking/plan.md)          | —                                                           |
-| S8     | E2E Task Flow             | Complete | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | —                                                           |
+| S8     | E2E Task Flow             | Complete | [plan](sprints/m5-s8-e2e-task-flow/plan.md)             | [review](sprints/m5-s8-e2e-task-flow/review.md)             |
 | S9     | Work + Deliverable        | Complete | [plan](sprints/m5-s9-task-steps/plan.md)                | [review](sprints/m5-s9-task-steps/review.md)                |
 | S10    | Live Dashboard            | Complete | [plan](sprints/m5-s10-live-dashboard/plan.md)           | [review](sprints/m5-s10-live-dashboard/review.md)           |
 
@@ -282,7 +282,7 @@ Markdown-first notebook memory: files are the source of truth, SQLite is a deriv
 | S6     | Embeddings Degraded Mode           | Complete | [plan](sprints/m6-s6-embeddings-degraded-mode/plan.md) | [review](sprints/m6-s6-embeddings-degraded-mode/review.md) |
 | S7     | Unified Plugin Interface           | Complete | [plan](sprints/m6-s7-unified-plugin-interface/plan.md) | [review](sprints/m6-s7-unified-plugin-interface/review.md) |
 | S8     | Configurable Health Monitor        | Complete | [plan](sprints/m6-s8-health-monitor/plan.md) | [review](sprints/m6-s8-health-monitor/review.md) |
-| S9     | Ollama Settings & Health UX        | Complete | [plan](sprints/m6-s9-ollama-settings-ux/plan.md) | [review](sprints/m6-s9-ollama-settings-ux/review.md) |
+| S9     | Ollama Settings & Health UX        | Complete | — | [review](sprints/m6-s9-ollama-settings-ux/review.md) |
 
 **Architecture:**
 
@@ -583,16 +583,16 @@ DAILY CYCLE (repeats)
 
 ---
 
-### M6.9: Knowledge Lifecycle — DESIGN COMPLETE
+### M6.9: Knowledge Lifecycle — S1 COMPLETE
 
 The knowledge system gets a lifecycle. Facts are classified at extraction (permanent vs temporal), routed to appropriate stores, and curated through a daily morning brief. Permanent knowledge is user-approved. Temporal context lives in summaries that age out naturally. Dynamic properties (location, availability) are updated in real-time by Nina during conversation.
 
 **Design spec:** [knowledge-lifecycle-design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md)
-**Depends on:** M6.6 (complete — green test suite verified, 265 tests passing)
+**Depends on:** M6.6 (complete)
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | Data Model + Pipeline | Planned | Classification prompt, routing, staging, summaries, properties, `queryModel()`, migration |
+| S1 | Data Model + Pipeline | Complete | Classification prompt, routing, staging, summaries, properties, `queryModel()`, migration — [plan](sprints/m6.9-s1-data-model-pipeline/plan.md) · [review](sprints/m6.9-s1-data-model-pipeline/review.md) |
 | S2 | Behavioral Layer | Planned | Morning brief upgrade (Sonnet/Opus), approval flow, standing orders, property staleness |
 | S3 | Conversation Initiation | Planned | Scheduler → conversation manager → channel plugin (reusable primitive) |
 
@@ -707,12 +707,13 @@ Design specs define architecture before implementation. Each spec should be comp
 | Navigable Timeline   | Deferred | Post-M5     | [design/navigable-timeline.md](design/navigable-timeline.md)     |
 | Memory               | Complete | M6          | [design/memory-system.md](design/memory-system.md)               |
 | Embeddings Plugin    | Complete | M6          | [design/embeddings-plugin.md](design/embeddings-plugin.md)       |
-| SDK Alignment        | Planned  | M6.5        | Sprint plans in `sprints/m6.5-s*/plan.md`                        |
+| SDK Alignment        | Complete | M6.5        | Sprint plans in `sprints/m6.5-s*/plan.md`                        |
 | settingSources       | Revised  | M6.5, M6.8  | [design/settings-sources-evaluation.md](design/settings-sources-evaluation.md) |
 | Two-Agent Refactor   | Approved | M6.7        | [plans/2026-03-04-conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Skills Architecture  | Idea     | M6.8        | TBD at [design/skills-architecture.md](design/skills-architecture.md) |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
 | Knowledge Lifecycle  | Approved | M6.9        | [sprints/m6.6-s6-knowledge-lifecycle/design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md) |
+| Trip Mode & Verification Pipeline | Complete | Process | [superpowers/specs/2026-03-12-trip-mode-verification-pipeline-design.md](superpowers/specs/2026-03-12-trip-mode-verification-pipeline-design.md) |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Absorbed | ~~M8~~ → M6.6 | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
@@ -742,6 +743,9 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                       ▼                                 │
                                                           M6.6 Agentic Lifecycle (+ M8 absorbed)        │
                                                                       │                                 │
+                                                                      ▼                                 │
+                                                           M6.9 Knowledge Lifecycle ◄── ACTIVE          │
+                                                                      │                                 │
                                                                ┌──────┴──────┐                          │
                                                                ▼             ▼                          │
                                                      M7 Coding Projects   M9 Email ◄───────────────────┘
@@ -752,13 +756,13 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                               (independent)   (needs redesign)
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6. All complete through M6.7. M6.6 is next.
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9. All complete through M6.6. M6.9 is active (S1 complete).
 
 **M6.7 delivers conversation architecture.** Unified resume+systemPrompt path, 6-layer system prompt with caching, conversation lifecycle (current/inactive), channel routing (owner → Nina, external → Working Agents), asymmetric channel switching. Removes context-builder.ts and the two-branch buildQuery bug. This is the foundation for all subsequent milestones.
 
-**M6.6 builds on M6.7 only.** `current-state.md` is injected via existing `loadNotebookOperations()`. `work-patterns.md` lives in `notebook/config/` (not prompt-injected). No M6.8 dependency — the responsibility framework is deferred to post-M6.6.
+**M6.6 built on M6.7 only.** `current-state.md` injected via `loadNotebookOperations()`. `work-patterns.md` lives in `notebook/config/` (not prompt-injected). No M6.8 dependency.
 
-**M6.8 is independent.** Skills architecture can happen before or after M6.6. It provides the general-purpose responsibility loading that M7 and M9 will eventually need.
+**M6.8 is independent.** Skills architecture can happen before or after M6.9. It provides the general-purpose responsibility loading that M7 and M9 will eventually need.
 
 **M9 builds on M6.7 + M6.6.** Email integration uses M6.7's external contact routing and M6.6's work loop for email monitoring responsibilities.
 
