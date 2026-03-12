@@ -41,6 +41,47 @@ export async function readProperties(agentDir: string): Promise<PropertiesMap> {
   }
 }
 
+const STALENESS_THRESHOLDS: Record<string, number> = {
+  location: 7,
+  timezone: 30,
+  availability: 3,
+};
+const DEFAULT_STALENESS_THRESHOLD = 30;
+
+export interface StaleProperty {
+  key: string;
+  value: string;
+  confidence: string;
+  daysSinceUpdate: number;
+  threshold: number;
+}
+
+export function detectStaleProperties(
+  properties: PropertiesMap,
+  today: string, // "YYYY-MM-DD"
+): StaleProperty[] {
+  const todayMs = new Date(today).getTime();
+  const stale: StaleProperty[] = [];
+
+  for (const [key, entry] of Object.entries(properties)) {
+    const updatedMs = new Date(entry.updated).getTime();
+    const daysSinceUpdate = Math.floor((todayMs - updatedMs) / (1000 * 60 * 60 * 24));
+    const threshold = STALENESS_THRESHOLDS[key] ?? DEFAULT_STALENESS_THRESHOLD;
+
+    if (daysSinceUpdate > threshold) {
+      stale.push({
+        key,
+        value: entry.value,
+        confidence: entry.confidence,
+        daysSinceUpdate,
+        threshold,
+      });
+    }
+  }
+
+  return stale;
+}
+
 export async function updateProperty(
   agentDir: string,
   key: string,
