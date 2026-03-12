@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-12
+> **Updated:** 2026-03-12 (M6.6 complete)
 
 ---
 
@@ -19,7 +19,7 @@
 | **M6: Memory**               | Complete | 9/9 sprints                |
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
-| **M6.6: Agentic Lifecycle**  | Complete | S1-S4 complete (253 tests), S5 corrections planned |
+| **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
 | **M6.9: Knowledge Lifecycle**| Design   | Spec approved, 3 sprints planned (S1-S3) |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
@@ -544,7 +544,7 @@ The agent gets a life outside of conversations. Background work loop maintains c
 | S2.5 | Work Loop UX Polish | Complete | [plan](sprints/m6.6-s2.5-work-loop-ux/plan.md) | [review](sprints/m6.6-s2.5-work-loop-ux/review.md) |
 | S3 | Passive Learning | Complete | [plan](sprints/m6.6-s3-passive-learning/plan.md) | [review](sprints/m6.6-s3-passive-learning/review.md) |
 | S4 | E2E Validation | Complete | [plan](sprints/m6.6-s4-e2e-validation/plan.md) | [review](sprints/m6.6-s4-e2e-validation/review.md) |
-| S5 | Corrections | Planned | [plan](sprints/m6.6-s5-corrections/plan.md) | — |
+| S5 | Corrections | Complete | [plan](sprints/m6.6-s5-corrections/plan.md) | [review](sprints/m6.6-s5-corrections/review.md) |
 
 **Core principle:** Markdown is source of truth. SQLite is derived — deletable, rebuildable.
 
@@ -588,7 +588,7 @@ DAILY CYCLE (repeats)
 The knowledge system gets a lifecycle. Facts are classified at extraction (permanent vs temporal), routed to appropriate stores, and curated through a daily morning brief. Permanent knowledge is user-approved. Temporal context lives in summaries that age out naturally. Dynamic properties (location, availability) are updated in real-time by Nina during conversation.
 
 **Design spec:** [knowledge-lifecycle-design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md)
-**Depends on:** M6.6 S5 (corrections — green test suite prerequisite)
+**Depends on:** M6.6 (complete — green test suite verified, 265 tests passing)
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|

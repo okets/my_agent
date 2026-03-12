@@ -21,7 +21,7 @@ The test expects `[Current State]` as first content in the dynamic block, but th
 **Files:**
 - Modify: `packages/dashboard/tests/e2e/conversation-lifecycle.test.ts:97-103`
 
-- [ ] **Step 1: Read current test and understand the failure**
+- [x] **Step 1: Read current test and understand the failure**
 
 The dynamic block (Block 1) now contains in order:
 1. `[Temporal Context]` ... `[End Temporal Context]`
@@ -30,7 +30,7 @@ The dynamic block (Block 1) now contains in order:
 
 The test asserts `[Current State]` which no longer exists in the dynamic block. Current state comes from `assembleSystemPrompt` (stable block), not the dynamic block.
 
-- [ ] **Step 2: Fix the assertion**
+- [x] **Step 2: Fix the assertion**
 
 Replace line 99:
 ```typescript
@@ -41,17 +41,17 @@ expect(dynamic).toContain("[Current State]");
 expect(dynamic).toContain("[Temporal Context]");
 ```
 
-- [ ] **Step 3: Run the test in isolation**
+- [x] **Step 3: Run the test in isolation**
 
 Run: `cd packages/dashboard && npx vitest run tests/e2e/conversation-lifecycle.test.ts`
 Expected: PASS — all tests in file pass
 
-- [ ] **Step 4: Run full suite to confirm no regression**
+- [x] **Step 4: Run full suite to confirm no regression**
 
 Run: `cd packages/dashboard && npx vitest run`
 Expected: 0 failures (the previously-failing test now passes)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/dashboard/tests/e2e/conversation-lifecycle.test.ts
@@ -67,7 +67,7 @@ Phase 3 tests ("memory reaches Nina") re-read knowledge files. Add one test that
 **Files:**
 - Modify: `packages/dashboard/tests/e2e/memory-lifecycle.test.ts` (add test after test 9, in Phase 3)
 
-- [ ] **Step 1: Understand the data flow**
+- [x] **Step 1: Understand the data flow**
 
 `SystemPromptBuilder.build()` calls `assembleSystemPrompt(brainDir)` for the stable block. `assembleSystemPrompt` reads `current-state.md` from the agent's notebook. The extracted facts live in `knowledge/facts.md`, `knowledge/people.md`, `knowledge/preferences.md` — these are read by the morning prep job and written into `current-state.md`.
 
@@ -75,7 +75,7 @@ So the true last-mile test is: given facts already in knowledge files, run morni
 
 However, this is an E2E test and morning prep requires Haiku. A simpler approach: manually write a `current-state.md` with the expected facts, then assert `SystemPromptBuilder.build()` output includes them.
 
-- [ ] **Step 2: Write the test**
+- [x] **Step 2: Write the test**
 
 Add after the existing Phase 3 tests:
 
@@ -121,12 +121,12 @@ it("10: SystemPromptBuilder includes current-state in assembled prompt", async (
 
 Note: Align mock setup with the file's existing `vi.mock` declarations. The mock for `assembleSystemPrompt` may already be declared — use `mockResolvedValueOnce` to override for this one test.
 
-- [ ] **Step 3: Run the test**
+- [x] **Step 3: Run the test**
 
 Run: `cd packages/dashboard && npx vitest run tests/e2e/memory-lifecycle.test.ts -t "10: SystemPromptBuilder"`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/dashboard/tests/e2e/memory-lifecycle.test.ts
@@ -145,19 +145,19 @@ Check the 6 non-haiku skipped tests (4 in `work-loop-scheduler.test.ts`, 2 in `c
 - Read: `packages/dashboard/tests/work-loop-scheduler.test.ts:335-540`
 - Read: `packages/dashboard/tests/e2e/conversation-lifecycle.test.ts` (find skipped tests)
 
-- [ ] **Step 1: Read the 4 work-loop-scheduler skipped tests**
+- [x] **Step 1: Read the 4 work-loop-scheduler skipped tests**
 
 These are in the `describeWithApi` block (line 335). They all require a live Haiku API — they are intentionally gated by `hasApiKey`, same pattern as `haiku-jobs.test.ts`. These will be addressed by Task 4 (refactoring to use the endpoint).
 
-- [ ] **Step 2: Find and read the 2 conversation-lifecycle skipped tests**
+- [x] **Step 2: Find and read the 2 conversation-lifecycle skipped tests**
 
 Search for `it.skip` or `describe.skip` or conditional skips in `conversation-lifecycle.test.ts`.
 
-- [ ] **Step 3: For each skipped test, decide: unskip, document reason, or defer to D6**
+- [x] **Step 3: For each skipped test, decide: unskip, document reason, or defer to D6**
 
 Document findings in a comment at the top of this task's commit message.
 
-- [ ] **Step 4: Commit any changes**
+- [x] **Step 4: Commit any changes**
 
 ```bash
 git add <files>
@@ -179,7 +179,7 @@ Refactor to use `POST /api/work-loop/trigger/:jobName` which goes through the Fa
 - Modify: `packages/dashboard/tests/haiku-jobs.test.ts`
 - Modify: `packages/dashboard/tests/work-loop-scheduler.test.ts:335-540` (same treatment for 4 skipped tests)
 
-- [ ] **Step 1: Determine if dashboard is running**
+- [x] **Step 1: Determine if dashboard is running**
 
 The tests need a running dashboard with an API key. Two approaches:
   - **A) `fastify.inject()`** — boot a test Fastify instance in-process. Requires the server's env to have `ANTHROPIC_API_KEY`. Same skip behavior, but now tests go through the endpoint.
@@ -187,7 +187,7 @@ The tests need a running dashboard with an API key. Two approaches:
 
 **Decision: Use approach B** — the dashboard service is always running on this machine (systemd). Tests call the real endpoint. Skip logic changes from "has API key in test env" to "is dashboard reachable".
 
-- [ ] **Step 2: Create test helper**
+- [x] **Step 2: Create test helper**
 
 ```typescript
 // packages/dashboard/tests/helpers/test-server.ts
@@ -220,7 +220,7 @@ export function getDashboardUrl(): string {
 }
 ```
 
-- [ ] **Step 3: Refactor haiku-jobs.test.ts**
+- [x] **Step 3: Refactor haiku-jobs.test.ts**
 
 Replace `describeWithApi` gate:
 
@@ -266,11 +266,11 @@ Group the refactored tests:
 - **Daily summary:** `triggerJob("daily-summary")` → verify `success: true`, output non-empty
 - **Budget/length checks:** Assert `result.run.output.length < threshold`
 
-- [ ] **Step 4: Apply same treatment to work-loop-scheduler.test.ts skipped tests**
+- [x] **Step 4: Apply same treatment to work-loop-scheduler.test.ts skipped tests**
 
 The 4 skipped tests in the `describeWithApi` block also test Haiku job execution. Refactor to use the dashboard endpoint with the same `isDashboardReachable` gate.
 
-- [ ] **Step 5: Run refactored tests (dashboard must be running)**
+- [x] **Step 5: Run refactored tests (dashboard must be running)**
 
 Run: `cd packages/dashboard && npx vitest run tests/haiku-jobs.test.ts`
 Expected: Tests run if dashboard service is up, skip gracefully if not.
@@ -278,12 +278,12 @@ Expected: Tests run if dashboard service is up, skip gracefully if not.
 Run: `cd packages/dashboard && npx vitest run tests/work-loop-scheduler.test.ts`
 Expected: Previously-skipped tests now run via endpoint.
 
-- [ ] **Step 6: Run full suite**
+- [x] **Step 6: Run full suite**
 
 Run: `cd packages/dashboard && npx vitest run`
 Expected: All pass. Skipped count reduced by 18 (14 haiku-jobs + 4 work-loop-scheduler) when dashboard is running.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/dashboard/tests/helpers/test-server.ts \
