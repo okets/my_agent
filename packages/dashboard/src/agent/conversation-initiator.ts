@@ -38,13 +38,13 @@ export interface ChannelManagerLike {
     message: { content: string },
   ): Promise<void>;
 
-  /** Check if a channel is currently connected */
+  /** Get channel config to look up ownerJid */
   getChannelConfig(id: string): { ownerJid?: string } | undefined;
 
   /** Get channel info to check connection status */
   getChannelInfos(): Array<{
     id: string;
-    status: { connected: boolean };
+    statusDetail?: { connected: boolean };
   }>;
 }
 
@@ -169,7 +169,7 @@ export class ConversationInitiator {
       // Check if channel is connected
       const channels = this.channelManager.getChannelInfos();
       const channel = channels.find((c) => c.id === channelId);
-      if (!channel?.status?.connected) {
+      if (!channel?.statusDetail?.connected) {
         console.warn(
           `[ConversationInitiator] Channel ${channelId} not connected, falling back to web`,
         );

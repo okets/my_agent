@@ -193,8 +193,8 @@ function createMockChannelManager(
     },
     getChannelInfos() {
       return connected
-        ? [{ id: "whatsapp", status: { connected: true } }]
-        : [{ id: "whatsapp", status: { connected: false } }];
+        ? [{ id: "whatsapp", statusDetail: { connected: true } }]
+        : [{ id: "whatsapp", statusDetail: { connected: false } }];
     },
   };
 }
