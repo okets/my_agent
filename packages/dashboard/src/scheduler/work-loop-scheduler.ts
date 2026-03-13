@@ -20,7 +20,7 @@ import {
 } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import type Database from "better-sqlite3";
-import { loadWorkPatterns, isDue, type WorkPattern } from "./work-patterns.js";
+import { loadWorkPatterns, isDue, isValidTimezone, type WorkPattern } from "./work-patterns.js";
 import { validateAndNotify } from "../metadata/validator.js";
 import {
   runMorningPrep,
@@ -319,7 +319,12 @@ export class WorkLoopScheduler {
   private async resolveTimezone(): Promise<string> {
     try {
       const props = await readProperties(this.agentDir);
-      if (props.timezone?.value) return props.timezone.value;
+      if (props.timezone?.value) {
+        // Safety: strip any parenthetical commentary from extracted value
+        // e.g. "Asia/Bangkok (inferred from location)" → "Asia/Bangkok"
+        const raw = props.timezone.value.split(/\s*\(/)[0].trim();
+        if (isValidTimezone(raw)) return raw;
+      }
     } catch {
       // Properties unavailable — continue to preferences
     }

@@ -20,7 +20,7 @@ STRICT RULES:
 4. If no facts to extract, respond with EXACTLY: "NO_FACTS"
 5. Write in English regardless of transcript language
 6. Do NOT attempt to read files, search, or use tools
-7. When a location is mentioned, also extract the timezone inferred from that location with medium confidence
+7. When a location is mentioned, also extract the IANA timezone inferred from that location with medium confidence. PROPERTY values must be machine-readable — no parenthetical commentary.
 
 Categories:
 [PERMANENT:user-info] - biographical: family, identity, birthdays, personal milestones
@@ -40,7 +40,7 @@ Examples:
 [TEMPORAL] Series A deal signing Tuesday March 18
 [TEMPORAL] Flight to Krabi on March 20, returning to Tel Aviv March 25
 [PROPERTY:location:high] Currently in Chiang Mai, Thailand
-[PROPERTY:timezone:medium] Asia/Bangkok (inferred from Chiang Mai location)
+[PROPERTY:timezone:medium] Asia/Bangkok
 [PROPERTY:availability:medium] On vacation until late March`;
 
 export const CLASSIFICATION_USER_PROMPT = `Extract all facts from this conversation transcript.
