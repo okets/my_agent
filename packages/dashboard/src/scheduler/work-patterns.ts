@@ -1,21 +1,28 @@
 /**
  * Work Patterns Parser
  *
- * Parses `notebook/config/work-patterns.md` into job definitions.
- * Markdown H2 headings are job names, `- key: value` lines are config.
+ * Reads job definitions from `notebook/config/work-patterns.md` YAML frontmatter.
+ * The markdown body is for humans/LLMs — only the frontmatter is machine-parsed.
  *
  * Malformed entries are logged and skipped (no crash).
  */
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
+import { readFrontmatter, writeFrontmatter } from "../metadata/frontmatter.js";
 
-const DEFAULT_WORK_PATTERNS = `# Work Patterns
+const DEFAULT_WORK_PATTERNS_DATA = {
+  jobs: {
+    "morning-prep": { cadence: "daily:08:00", model: "haiku" },
+    "daily-summary": { cadence: "daily:23:00", model: "haiku" },
+  },
+};
 
-## Daily Summary
-- cadence: daily:23:00
-- model: haiku
+const DEFAULT_WORK_PATTERNS_BODY = `# Work Patterns
+
+Morning prep runs at 08:00 in the user's local timezone.
+Daily summary compresses the day's log at 23:00.
 `;
 
 export interface WorkPattern {
@@ -242,62 +249,47 @@ export function getNextScheduledTime(
 }
 
 /**
- * Convert display name to kebab-case job name.
- * "Morning Prep" → "morning-prep"
+ * Format job name for display: "morning-prep" → "Morning Prep"
  */
-function toKebabCase(name: string): string {
+function toDisplayName(name: string): string {
   return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/** Shape of the YAML frontmatter in work-patterns.md */
+export interface WorkPatternsFrontmatter {
+  jobs: Record<string, { cadence: string; model?: string }>;
 }
 
 /**
- * Parse work-patterns.md content into job definitions.
+ * Parse work-patterns.md YAML frontmatter into job definitions.
+ *
+ * @param filePath - Absolute path to work-patterns.md
+ * @returns Parsed work patterns
  */
-export function parseWorkPatterns(content: string): WorkPattern[] {
+export function parseWorkPatterns(filePath: string): WorkPattern[] {
+  const { data } = readFrontmatter<WorkPatternsFrontmatter>(filePath);
+
+  if (!data.jobs || typeof data.jobs !== "object") {
+    console.warn("[WorkPatterns] No 'jobs' key in frontmatter");
+    return [];
+  }
+
   const patterns: WorkPattern[] = [];
-  const lines = content.split("\n");
 
-  let currentJob: {
-    displayName: string;
-    config: Record<string, string>;
-  } | null = null;
-
-  for (const line of lines) {
-    // H2 heading = new job
-    const headingMatch = line.match(/^## (.+)/);
-    if (headingMatch) {
-      // Save previous job if valid
-      if (currentJob && currentJob.config.cadence) {
-        patterns.push({
-          name: toKebabCase(currentJob.displayName),
-          displayName: currentJob.displayName,
-          cadence: currentJob.config.cadence,
-          model: currentJob.config.model ?? "haiku",
-        });
-      }
-      currentJob = { displayName: headingMatch[1].trim(), config: {} };
+  for (const [name, config] of Object.entries(data.jobs)) {
+    if (!config || !config.cadence) {
+      console.warn(`[WorkPatterns] Skipping job '${name}': missing cadence`);
       continue;
     }
 
-    // Config line: `- key: value`
-    if (currentJob) {
-      const configMatch = line.match(/^- (\w+):\s*(.+)/);
-      if (configMatch) {
-        currentJob.config[configMatch[1].trim()] = configMatch[2].trim();
-      }
-    }
-  }
-
-  // Don't forget the last job
-  if (currentJob && currentJob.config.cadence) {
     patterns.push({
-      name: toKebabCase(currentJob.displayName),
-      displayName: currentJob.displayName,
-      cadence: currentJob.config.cadence,
-      model: currentJob.config.model ?? "haiku",
+      name,
+      displayName: toDisplayName(name),
+      cadence: config.cadence,
+      model: config.model ?? "haiku",
     });
   }
 
@@ -316,18 +308,17 @@ export async function loadWorkPatterns(
   const filePath = `${agentDir}/notebook/config/work-patterns.md`;
 
   if (!existsSync(filePath)) {
-    // Create default work patterns file
+    // Create default work patterns file with YAML frontmatter
     const dir = dirname(filePath);
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true });
     }
-    await writeFile(filePath, DEFAULT_WORK_PATTERNS, "utf-8");
+    writeFrontmatter(filePath, DEFAULT_WORK_PATTERNS_DATA, DEFAULT_WORK_PATTERNS_BODY);
     console.log("[WorkPatterns] Created default work-patterns.md");
   }
 
   try {
-    const content = await readFile(filePath, "utf-8");
-    const patterns = parseWorkPatterns(content);
+    const patterns = parseWorkPatterns(filePath);
     console.log(
       `[WorkPatterns] Loaded ${patterns.length} job(s): ${patterns.map((p) => p.name).join(", ")}`,
     );

@@ -1,10 +1,14 @@
 /**
  * Unit tests for work-patterns parser and scheduling logic.
  *
- * Pure functions — no API key, no DB, no I/O needed.
+ * Parser tests use temp files with YAML frontmatter.
+ * Scheduling tests are pure functions — no I/O.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   parseWorkPatterns,
   isDue,
@@ -12,22 +16,40 @@ import {
   isValidTimezone,
 } from "../src/scheduler/work-patterns.js";
 
-// --- parseWorkPatterns ---
+// --- parseWorkPatterns (YAML frontmatter) ---
 
 describe("parseWorkPatterns", () => {
-  it("parses a standard work-patterns.md with two jobs", () => {
-    const content = `# Work Patterns
+  let tmpDir: string;
 
-## Morning Prep
-- cadence: daily:08:00
-- model: haiku
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "wp-test-"));
+  });
 
-## Daily Summary
-- cadence: daily:23:00
-- model: haiku
-`;
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
 
-    const patterns = parseWorkPatterns(content);
+  function writeWP(content: string): string {
+    const file = join(tmpDir, "work-patterns.md");
+    writeFileSync(file, content, "utf-8");
+    return file;
+  }
+
+  it("parses YAML frontmatter with two jobs", () => {
+    const file = writeWP(`---
+jobs:
+  morning-prep:
+    cadence: "daily:08:00"
+    model: haiku
+  daily-summary:
+    cadence: "daily:23:00"
+    model: haiku
+---
+
+# Work Patterns
+`);
+
+    const patterns = parseWorkPatterns(file);
 
     expect(patterns).toHaveLength(2);
 
@@ -43,12 +65,15 @@ describe("parseWorkPatterns", () => {
   });
 
   it("parses weekly cadence", () => {
-    const content = `## Weekly Review
-- cadence: weekly:sunday:09:00
-- model: haiku
-`;
+    const file = writeWP(`---
+jobs:
+  weekly-review:
+    cadence: "weekly:sunday:09:00"
+    model: haiku
+---
+`);
 
-    const patterns = parseWorkPatterns(content);
+    const patterns = parseWorkPatterns(file);
 
     expect(patterns).toHaveLength(1);
     expect(patterns[0].name).toBe("weekly-review");
@@ -56,66 +81,57 @@ describe("parseWorkPatterns", () => {
   });
 
   it("defaults model to haiku when not specified", () => {
-    const content = `## Simple Job
-- cadence: daily:12:00
-`;
+    const file = writeWP(`---
+jobs:
+  simple-job:
+    cadence: "daily:12:00"
+---
+`);
 
-    const patterns = parseWorkPatterns(content);
+    const patterns = parseWorkPatterns(file);
 
     expect(patterns).toHaveLength(1);
     expect(patterns[0].model).toBe("haiku");
   });
 
   it("skips jobs without cadence", () => {
-    const content = `## No Cadence
-- model: haiku
+    const file = writeWP(`---
+jobs:
+  no-cadence:
+    model: haiku
+  has-cadence:
+    cadence: "daily:10:00"
+---
+`);
 
-## Has Cadence
-- cadence: daily:10:00
-`;
-
-    const patterns = parseWorkPatterns(content);
+    const patterns = parseWorkPatterns(file);
 
     expect(patterns).toHaveLength(1);
     expect(patterns[0].name).toBe("has-cadence");
   });
 
-  it("returns empty array for empty content", () => {
-    expect(parseWorkPatterns("")).toHaveLength(0);
+  it("returns empty array for file with no frontmatter", () => {
+    const file = writeWP("# Just a title\nSome text here.");
+    expect(parseWorkPatterns(file)).toHaveLength(0);
   });
 
-  it("returns empty array for content with no H2 headings", () => {
-    const content = `# Just a title
-Some text here
-- cadence: daily:08:00
-`;
-
-    expect(parseWorkPatterns(content)).toHaveLength(0);
+  it("returns empty array for file with no jobs key", () => {
+    const file = writeWP("---\ntitle: Test\n---\n");
+    expect(parseWorkPatterns(file)).toHaveLength(0);
   });
 
-  it("handles names with special characters", () => {
-    const content = `## My Special Job (v2)
-- cadence: daily:06:00
-`;
+  it("display name is derived from kebab-case job key", () => {
+    const file = writeWP(`---
+jobs:
+  my-special-job:
+    cadence: "daily:06:00"
+---
+`);
 
-    const patterns = parseWorkPatterns(content);
+    const patterns = parseWorkPatterns(file);
 
-    expect(patterns[0].name).toBe("my-special-job-v2");
-    expect(patterns[0].displayName).toBe("My Special Job (v2)");
-  });
-
-  it("ignores non-config lines under a heading", () => {
-    const content = `## Morning Prep
-This is a description paragraph.
-- cadence: daily:08:00
-- model: haiku
-Some other text.
-`;
-
-    const patterns = parseWorkPatterns(content);
-
-    expect(patterns).toHaveLength(1);
-    expect(patterns[0].cadence).toBe("daily:08:00");
+    expect(patterns[0].name).toBe("my-special-job");
+    expect(patterns[0].displayName).toBe("My Special Job");
   });
 });
 
