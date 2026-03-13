@@ -130,12 +130,13 @@ These artifacts are the source of truth for `/trip-review`. They must be complet
 1. **Identify sprint** — ask if not specified
 2. **Read the design spec** and any prior sprint reviews for context
 3. **Plan the sprint** — use brainstorming + writing-plans skills to create `plan.md`
-4. **Present briefing conversationally:**
+4. **Present sprint brief** — CTO is on mobile and can't read plan.md, so summarize:
    - Goal in 1-2 sentences
-   - Task count and estimated complexity
-   - Any risks or ambiguities to resolve now
-   - Ask CTO to confirm
-5. **On confirmation** — proceed to Phase 2
+   - Task list (numbered, with one-line descriptions)
+   - Key risks or ambiguities
+   - Keep it scannable — no walls of text
+5. **Ask questions with progress numbering** — if you need CTO input before starting, number every question: "Question 1/3: ..." so CTO knows the time commitment
+6. **On confirmation** — proceed to Phase 2
 
 ### Phase 2: Implementation
 
@@ -150,14 +151,17 @@ These artifacts are the source of truth for `/trip-review`. They must be complet
     - External reviewer writes `review.md` and `test-report.md`
 11. **Notify CTO:** "Sprint complete. Run `/trip-review` when ready."
 
+## Communication Rules (Trip Mode)
+
+- **Be concise.** CTO is reading on a tiny screen. Short paragraphs, bullets, no prose.
+- **Number all questions with progress:** "Question 2/4: ..." — CTO needs to know if this is 5 minutes or 20.
+- **Sprint brief at start:** Since CTO can't see plan.md, always open with a short summary (3-5 bullets: scope, goals, key decisions needed).
+
 ## Start
 
 1. Confirm which sprint (ask if not specified)
 2. Read the design spec and prior sprint context
 3. Create sprint plan (brainstorming → writing-plans flow)
-4. Present briefing and wait for confirmation:
-   - Goal, task count, complexity
-   - Team composition
-   - Any pre-flight concerns
-   - **Ask CTO to confirm before proceeding**
-5. On confirmation → create branch, set up team, begin execution
+4. Present sprint brief (concise, scannable — see Communication Rules)
+5. Ask any pre-execution questions with progress numbering
+6. On confirmation → create branch, set up team, begin execution
