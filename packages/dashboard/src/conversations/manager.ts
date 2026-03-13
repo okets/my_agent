@@ -147,6 +147,9 @@ export class ConversationManager {
     // Update metadata (only increment on user messages to avoid double-counting)
     if (turn.role === "user") {
       this.db.incrementTurnCount(id);
+      this.db.updateConversation(id, {
+        lastUserMessageAt: new Date(turn.timestamp),
+      });
     } else {
       // Just update the timestamp for assistant messages
       this.db.updateConversation(id, { updated: new Date(turn.timestamp) });
