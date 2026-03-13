@@ -3,6 +3,7 @@ import {
   resolveAuth,
   isHatched,
   loadConfig,
+  loadPreferences,
   loadEmbeddingsConfig,
   toDisplayStatus,
   CalendarScheduler,
@@ -46,6 +47,7 @@ import {
   TaskScheduler,
 } from "./tasks/index.js";
 import { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
+import { ConversationInitiator } from "./agent/conversation-initiator.js";
 import { connectionRegistry, sessionRegistry } from "./ws/chat-handler.js";
 import { StatePublisher } from "./state/state-publisher.js";
 import {
@@ -391,6 +393,45 @@ async function main() {
   server.taskProcessor = taskProcessor;
   server.taskScheduler = taskScheduler;
 
+  // Initialize ConversationInitiator (M6.9-S3)
+  // Bridge: Working Agent produces artifacts → Conversation Agent presents them
+  let conversationInitiator: ConversationInitiator | null = null;
+
+  if (hatched && channelManager) {
+    const convDb = conversationManager.getConversationDb();
+    conversationInitiator = new ConversationInitiator({
+      conversationManager,
+      sessionFactory: {
+        async *injectSystemTurn(conversationId, prompt) {
+          const sdkSessionId = convDb.getSdkSessionId(conversationId);
+          const sm = await sessionRegistry.getOrCreate(
+            conversationId,
+            sdkSessionId,
+          );
+          yield* sm.injectSystemTurn(prompt);
+        },
+        async *streamNewConversation(conversationId) {
+          const sm = await sessionRegistry.getOrCreate(conversationId);
+          // Empty string content — brain speaks first via system prompt
+          yield* sm.streamMessage("");
+        },
+      },
+      channelManager: {
+        async send(channelId, to, message) {
+          await channelManager!.send(channelId, to, message);
+        },
+        getChannelConfig(id) {
+          return channelManager!.getChannelConfig(id);
+        },
+        getChannelInfos() {
+          return channelManager!.getChannelInfos();
+        },
+      },
+      getOutboundChannel: () => loadPreferences(agentDir).outboundChannel,
+    });
+    console.log("[ConversationInitiator] Initialized");
+  }
+
   // Initialize work loop scheduler (M6.6-S2)
   let workLoopScheduler: WorkLoopScheduler | null = null;
 
@@ -402,6 +443,7 @@ async function main() {
         agentDir,
         pollIntervalMs: 60_000,
         notificationService: notificationService ?? undefined,
+        conversationInitiator: conversationInitiator ?? undefined,
       });
       await workLoopScheduler.start();
       console.log("Work loop scheduler started");
