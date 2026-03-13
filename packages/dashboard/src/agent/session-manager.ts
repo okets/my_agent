@@ -270,6 +270,19 @@ export class SessionManager {
     return createBrainQuery(content, opts);
   }
 
+  /**
+   * Inject a synthetic system turn into the active session.
+   * Used by ConversationInitiator to alert in active conversations.
+   *
+   * Wraps the prompt in [SYSTEM: ] format so the brain can distinguish
+   * system injections from user messages. The caller is responsible for
+   * NOT appending this synthetic turn to the transcript — only the
+   * brain's response should be recorded.
+   */
+  async *injectSystemTurn(prompt: string): AsyncGenerator<StreamEvent> {
+    yield* this.streamMessage(`[SYSTEM: ${prompt}]`);
+  }
+
   async abort(): Promise<void> {
     if (this.activeQuery) {
       await this.activeQuery.interrupt();
