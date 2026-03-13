@@ -297,6 +297,7 @@ async function main() {
 
     // Initialize task processor (handles immediate task execution)
     // onTaskMutated is a lazy callback — server.statePublisher is set after this block
+    // conversationInitiator is a lazy reference — set after CI is initialized below
     taskProcessor = new TaskProcessor({
       taskManager,
       executor: taskExecutor,
@@ -305,6 +306,9 @@ async function main() {
       channelManager,
       notificationService,
       onTaskMutated: () => server.statePublisher?.publishTasks(),
+      get conversationInitiator() {
+        return server.conversationInitiator ?? null;
+      },
     });
 
     // Initialize task scheduler (polls for due scheduled tasks)

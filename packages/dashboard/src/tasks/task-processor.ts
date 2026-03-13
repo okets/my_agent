@@ -24,6 +24,11 @@ export interface TaskProcessorConfig {
   notificationService?: NotificationService | null;
   /** Optional callback fired after any task status mutation (for state publishing) */
   onTaskMutated?: () => void;
+  /** Optional ConversationInitiator for proactive task completion notifications */
+  conversationInitiator?: {
+    alert(prompt: string): Promise<boolean>;
+    initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
+  } | null;
 }
 
 /**
@@ -37,6 +42,7 @@ export class TaskProcessor {
   private deliveryExecutor: DeliveryExecutor;
   private notificationService: NotificationService | null;
   private onTaskMutated: (() => void) | null;
+  private conversationInitiator: TaskProcessorConfig['conversationInitiator'];
 
   constructor(config: TaskProcessorConfig) {
     this.taskManager = config.taskManager;
@@ -49,6 +55,7 @@ export class TaskProcessor {
     );
     this.notificationService = config.notificationService ?? null;
     this.onTaskMutated = config.onTaskMutated ?? null;
+    this.conversationInitiator = config.conversationInitiator ?? null;
   }
 
   /**
@@ -177,47 +184,45 @@ export class TaskProcessor {
     task: Task,
     result: ExecutionResult,
   ): Promise<void> {
-    // Find linked conversation (source)
+    // --- Deliver to linked source conversation ---
     const links = this.taskManager.getConversationsForTask(task.id);
     if (links.length === 0) {
       console.log(
         `[TaskProcessor] Task ${task.id} has no linked conversation, skipping result delivery`,
       );
-      return;
+    } else {
+      const conversationId = links[0].conversationId;
+
+      // Format the result message (work output, not deliverable)
+      const messageContent = this.formatResult(task, result);
+
+      // Append to conversation transcript
+      const conversation = await this.conversationManager.get(conversationId);
+      if (!conversation) {
+        console.warn(
+          `[TaskProcessor] Conversation ${conversationId} not found for result delivery`,
+        );
+      } else {
+        const turnNumber = conversation.turnCount + 1;
+        const timestamp = new Date().toISOString();
+
+        const turn: TranscriptTurn = {
+          type: "turn",
+          role: "assistant",
+          content: messageContent,
+          timestamp,
+          turnNumber,
+        };
+
+        await this.conversationManager.appendTurn(conversationId, turn);
+        console.log(
+          `[TaskProcessor] Result delivered to conversation ${conversationId}`,
+        );
+
+        // Broadcast via WebSocket
+        this.broadcastResult(conversationId, task, result);
+      }
     }
-
-    const conversationId = links[0].conversationId;
-
-    // Format the result message (work output, not deliverable)
-    const messageContent = this.formatResult(task, result);
-
-    // Append to conversation transcript
-    const conversation = await this.conversationManager.get(conversationId);
-    if (!conversation) {
-      console.warn(
-        `[TaskProcessor] Conversation ${conversationId} not found for result delivery`,
-      );
-      return;
-    }
-
-    const turnNumber = conversation.turnCount + 1;
-    const timestamp = new Date().toISOString();
-
-    const turn: TranscriptTurn = {
-      type: "turn",
-      role: "assistant",
-      content: messageContent,
-      timestamp,
-      turnNumber,
-    };
-
-    await this.conversationManager.appendTurn(conversationId, turn);
-    console.log(
-      `[TaskProcessor] Result delivered to conversation ${conversationId}`,
-    );
-
-    // Broadcast via WebSocket
-    this.broadcastResult(conversationId, task, result);
 
     // Trigger notification
     if (this.notificationService) {
@@ -228,6 +233,27 @@ export class TaskProcessor {
         importance: result.success ? "info" : "warning",
         taskId: task.id,
       });
+    }
+
+    // Proactive notification via ConversationInitiator
+    const effectiveNotify = task.notifyOnCompletion ??
+      (task.type === "immediate" ? "immediate" : "debrief");
+
+    if (effectiveNotify === "immediate" && this.conversationInitiator) {
+      try {
+        const prompt = result.success
+          ? `A task has been completed: "${task.title}". Result summary: ${result.work?.slice(0, 500)}. Let the user know naturally.`
+          : `A task has failed: "${task.title}". Error: ${result.error || "Unknown error"}. Let the user know.`;
+
+        const alerted = await this.conversationInitiator.alert(prompt);
+        if (!alerted) {
+          await this.conversationInitiator.initiate({
+            firstTurnPrompt: `[SYSTEM: ${prompt}]`,
+          });
+        }
+      } catch (err) {
+        console.error("[TaskProcessor] CI notification failed:", err);
+      }
     }
   }
 
