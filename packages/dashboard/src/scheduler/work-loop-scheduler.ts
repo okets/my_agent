@@ -53,6 +53,10 @@ export interface WorkLoopSchedulerConfig {
   db: Database.Database;
   agentDir: string;
   pollIntervalMs?: number;
+  /** Optional notification service for morning brief context (spec §5) */
+  notificationService?: {
+    getPending: () => Array<{ type: string; message?: string; question?: string; problem?: string }>;
+  };
 }
 
 interface WorkLoopRun {
@@ -78,11 +82,13 @@ export class WorkLoopScheduler {
   private isExecuting = false;
   private activeCheck: Promise<void> | null = null;
   private patterns: WorkPattern[] = [];
+  private notificationService: WorkLoopSchedulerConfig["notificationService"];
 
   constructor(config: WorkLoopSchedulerConfig) {
     this.db = config.db;
     this.agentDir = config.agentDir;
     this.pollIntervalMs = config.pollIntervalMs ?? 60_000;
+    this.notificationService = config.notificationService;
 
     this.initDb();
   }
@@ -607,6 +613,18 @@ export class WorkLoopScheduler {
       }
     } catch {
       // Calendar unavailable -- continue without it
+    }
+
+    // Pending notifications (spec §5.1)
+    if (this.notificationService) {
+      const pending = this.notificationService.getPending();
+      if (pending.length > 0) {
+        const lines = pending.map((n) => {
+          const msg = n.message ?? n.question ?? n.problem ?? "(no details)";
+          return `- [${n.type}] ${msg}`;
+        });
+        sections.push("# Pending Notifications\n\n" + lines.join("\n"));
+      }
     }
 
     const context = sections.length > 0

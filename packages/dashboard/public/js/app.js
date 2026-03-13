@@ -3453,9 +3453,13 @@ function chat() {
         );
         if (res.ok) {
           this.workLoopJobDetail = await res.json();
+        } else {
+          // Clear stale data on non-OK response (fixes calendar showing wrong job data)
+          this.workLoopJobDetail = null;
         }
       } catch (err) {
         console.error("[App] Failed to load work loop job detail:", err);
+        this.workLoopJobDetail = null;
       }
     },
 
