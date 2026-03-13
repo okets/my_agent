@@ -110,6 +110,7 @@ export type ClientMessage =
 // Server → Client messages
 export type ServerMessage =
   | { type: "start" }
+  | { type: "interim_status"; message: string }
   | { type: "text_delta"; content: string }
   | { type: "thinking_delta"; content: string }
   | { type: "thinking_end" }

@@ -24,6 +24,7 @@ import {
   AttachmentService,
   type AttachmentMeta,
 } from "../conversations/attachments.js";
+import { ResponseTimer } from "./response-timer.js";
 
 /** Content block types for Agent SDK (images + text) */
 type ContentBlock =
@@ -519,6 +520,21 @@ export class ChannelMessageHandler {
     // Send typing indicator on WhatsApp while brain processes
     await this.deps.sendTypingIndicator(channelId, replyTo);
 
+    // Start response timer: refreshes typing indicator + sends interim messages
+    const responseTimer = new ResponseTimer({
+      sendTyping: () => this.deps.sendTypingIndicator(channelId, replyTo),
+      sendInterim: async (message) => {
+        // Send as real WhatsApp message (ephemeral, not saved to transcript)
+        await this.deps.sendViaChannel(channelId, replyTo, { content: message });
+        // Also broadcast to web dashboard
+        this.deps.connectionRegistry.broadcastToConversation(conversation.id, {
+          type: "interim_status",
+          message,
+        });
+      },
+    });
+    responseTimer.start();
+
     // Get or create session for this conversation
     const sessionManager = await this.deps.sessionRegistry.getOrCreate(
       conversation.id,
@@ -527,9 +543,14 @@ export class ChannelMessageHandler {
 
     // Stream brain response
     let assistantContent = "";
+    let firstToken = true;
     try {
       for await (const event of sessionManager.streamMessage(messageContent)) {
         if (event.type === "text_delta") {
+          if (firstToken) {
+            responseTimer.cancel();
+            firstToken = false;
+          }
           assistantContent += event.text;
           // Broadcast streaming to WS clients
           this.deps.connectionRegistry.broadcastToConversation(
@@ -542,11 +563,14 @@ export class ChannelMessageHandler {
         }
       }
     } catch (err) {
+      responseTimer.cancel();
       console.error(
         `Brain error for channel message in ${conversation.id}:`,
         err,
       );
       assistantContent = "I encountered an error processing your message.";
+    } finally {
+      responseTimer.cancel();
     }
 
     if (assistantContent) {

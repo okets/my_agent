@@ -13,6 +13,7 @@ function chat() {
     ws: null,
     messageIdCounter: 0,
     currentAssistantMessage: null, // Track the message being streamed
+    interimMessage: null, // Ephemeral status message shown while brain is thinking
     currentThinkingText: "", // Accumulates thinking deltas for current message
     isThinking: false, // True while thinking block is active
     agentName: "Agent", // Full name, loaded from server in init()
@@ -765,12 +766,23 @@ function chat() {
           this.currentThinkingText = "";
           this.isThinking = false;
           this.currentAssistantMessage = null;
+          this.interimMessage = null;
+          this.$nextTick(() => {
+            this.scrollToBottom();
+          });
+          break;
+
+        case "interim_status":
+          // Ephemeral status message while brain is still thinking
+          this.interimMessage = data.message;
           this.$nextTick(() => {
             this.scrollToBottom();
           });
           break;
 
         case "text_delta":
+          // First token arrived — clear interim message
+          this.interimMessage = null;
           // Create assistant bubble on first text delta (replaces typing dots)
           if (!this.currentAssistantMessage) {
             this.currentAssistantMessage = {
@@ -950,6 +962,7 @@ function chat() {
           this.isThinking = false;
           this.currentAssistantMessage = null;
           this.currentThinkingText = "";
+          this.interimMessage = null;
           this.touchCurrentConversation();
           if (data.usage && this.messages.length > 0) {
             // Store usage on the last message

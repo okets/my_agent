@@ -11,6 +11,7 @@ import type { ConversationManager } from "../conversations/index.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
 import { ConnectionRegistry } from "./connection-registry.js";
 import { AttachmentService } from "../conversations/attachments.js";
+import { ResponseTimer } from "../channels/response-timer.js";
 import type {
   Attachment,
   ClientMessage,
@@ -1165,6 +1166,15 @@ export async function registerChatWebSocket(
         await conversationManager.setModel(currentConversationId, model);
       }
 
+      // Start response timer: sends interim status messages to web client
+      const responseTimer = new ResponseTimer({
+        sendTyping: async () => {}, // Web uses text_delta streaming, no typing needed
+        sendInterim: async (message) => {
+          send({ type: "interim_status", message });
+        },
+      });
+      responseTimer.start();
+
       try {
         // Use content blocks if we have attachments, otherwise plain text
         // For brain: use expandedContent (with skill instructions)
@@ -1177,7 +1187,9 @@ export async function registerChatWebSocket(
             `Content block types: ${messageContent.map((b) => b.type).join(", ")}`,
           );
         }
+
         fastify.log.info("Starting stream iteration...");
+        let firstToken = true;
         for await (const event of sessionManager.streamMessage(messageContent, {
           model: modelOverride,
           reasoning,
@@ -1185,6 +1197,10 @@ export async function registerChatWebSocket(
           fastify.log.info(`Stream event: ${event.type}`);
           switch (event.type) {
             case "text_delta":
+              if (firstToken) {
+                responseTimer.cancel();
+                firstToken = false;
+              }
               assistantContent += event.text;
               send({ type: "text_delta", content: event.text });
               break;
@@ -1325,12 +1341,14 @@ export async function registerChatWebSocket(
           socket,
         );
       } catch (err) {
+        responseTimer.cancel();
         fastify.log.error(err, "Error in streamMessage");
         send({
           type: "error",
           message: err instanceof Error ? err.message : "Unknown error",
         });
       } finally {
+        responseTimer.cancel();
         isStreaming = false;
       }
     }

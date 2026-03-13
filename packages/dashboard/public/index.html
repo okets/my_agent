@@ -4635,6 +4635,13 @@
               </div>
             </div>
           </div>
+
+          <!-- Interim status message (ephemeral, disappears on first token) -->
+          <template x-if="interimMessage">
+            <div class="flex justify-start px-4 py-1">
+              <div class="text-sm text-gray-400 italic" x-text="interimMessage"></div>
+            </div>
+          </template>
         </main>
 
         <!-- Compose area -->
@@ -7663,6 +7670,13 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Interim status message (ephemeral, disappears on first token) -->
+              <template x-if="interimMessage">
+                <div class="flex justify-start px-4 py-1">
+                  <div class="text-sm text-gray-400 italic" x-text="interimMessage"></div>
+                </div>
+              </template>
             </div>
 
             <!-- Compose bar -->
