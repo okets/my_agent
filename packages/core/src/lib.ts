@@ -51,7 +51,7 @@ export {
   loadModels,
   DEFAULT_MODELS,
 } from './config.js'
-export type { YamlEmbeddingsConfig, UserPreferences, MorningBriefPreferences, ModelDefaults } from './config.js'
+export type { YamlEmbeddingsConfig, UserPreferences, DebriefPreferences, ModelDefaults } from './config.js'
 export type { BrainConfig, HealthConfig } from './types.js'
 
 export { assembleSystemPrompt, loadProperties } from './prompt.js'

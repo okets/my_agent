@@ -24,15 +24,16 @@ import { loadPreferences, type UserPreferences } from "@my-agent/core";
 
 // Default preferences: 08:00 UTC
 const DEFAULT_PREFS: UserPreferences = {
-  morningBrief: { time: "08:00", model: "sonnet", channel: "default" },
+  debrief: { time: "08:00", model: "sonnet" },
   timezone: "UTC",
+  outboundChannel: "web",
 };
 
 describe("Timezone-Location E2E Pipeline", () => {
   let agentDir: string;
 
   // Cadence derived from DEFAULT_PREFS
-  const CADENCE = `daily:${DEFAULT_PREFS.morningBrief.time}`;
+  const CADENCE = `daily:${DEFAULT_PREFS.debrief.time}`;
 
   beforeEach(() => {
     agentDir = mkdtempSync(join(tmpdir(), "tz-e2e-"));
@@ -196,10 +197,11 @@ describe("Timezone-Location E2E Pipeline", () => {
 
   it("custom brief time (10:30) works with timezone override", () => {
     const customPrefs: UserPreferences = {
-      morningBrief: { time: "10:30", model: "sonnet", channel: "default" },
+      debrief: { time: "10:30", model: "sonnet" },
       timezone: "UTC",
+      outboundChannel: "web",
     };
-    const customCadence = `daily:${customPrefs.morningBrief.time}`;
+    const customCadence = `daily:${customPrefs.debrief.time}`;
 
     const propsJapan: PropertiesMap = {
       timezone: {
@@ -248,8 +250,8 @@ describe("Timezone-Location E2E Pipeline", () => {
   it("loadPreferences returns safe defaults for missing config", () => {
     // agentDir has no config.yaml
     const prefs = loadPreferences(agentDir);
-    expect(prefs.morningBrief.time).toBe("08:00");
-    expect(prefs.morningBrief.model).toBe("sonnet");
+    expect(prefs.debrief.time).toBe("08:00");
+    expect(prefs.debrief.model).toBe("sonnet");
     expect(prefs.timezone).toBe("UTC");
   });
 });

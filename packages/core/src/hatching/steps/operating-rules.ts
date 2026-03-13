@@ -83,11 +83,11 @@ export const operatingRulesStep: HatchingStep = {
     await writeFile(standingOrdersPath, `# Standing Orders\n${rulesSection}`, 'utf-8')
     console.log('\nOperating rules saved to standing-orders.md.')
 
-    // ── Morning brief preferences ──
-    console.log('\n--- Morning Brief ---\n')
+    // ── Debrief preferences ──
+    console.log('\n--- Debrief ---\n')
 
     const briefTimeRaw = await rl.question(
-      'What time should your morning brief be delivered? (HH:MM, default 08:00): ',
+      'What time should your debrief be delivered? (HH:MM, default 08:00): ',
     )
     const briefTime = briefTimeRaw.trim() || '08:00'
 
@@ -110,15 +110,14 @@ export const operatingRulesStep: HatchingStep = {
     }
 
     yaml.preferences = {
-      morningBrief: {
+      debrief: {
         time: briefTime,
         model: briefModel,
-        channel: 'default',
       },
       timezone,
     }
 
     writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
-    console.log(`\nMorning brief preferences saved (${briefTime} ${timezone}, model: ${briefModel}).`)
+    console.log(`\nDebrief preferences saved (${briefTime} ${timezone}, model: ${briefModel}).`)
   },
 }

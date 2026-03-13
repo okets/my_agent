@@ -18,15 +18,14 @@ describe("loadPreferences", () => {
   it("should return defaults when config.yaml has no preferences section", () => {
     writeFileSync(join(tmpDir, "config.yaml"), stringify({ agent: { nickname: "Test" } }));
     const prefs = loadPreferences(tmpDir);
-    expect(prefs.morningBrief.time).toBe("08:00");
-    expect(prefs.morningBrief.model).toBe("sonnet");
-    expect(prefs.morningBrief.channel).toBe("default");
+    expect(prefs.debrief.time).toBe("08:00");
+    expect(prefs.debrief.model).toBe("sonnet");
     expect(prefs.timezone).toBe("UTC");
   });
 
   it("should return defaults when config.yaml does not exist", () => {
     const prefs = loadPreferences(join(tmpDir, "nonexistent"));
-    expect(prefs.morningBrief.time).toBe("08:00");
+    expect(prefs.debrief.time).toBe("08:00");
     expect(prefs.timezone).toBe("UTC");
   });
 
@@ -34,15 +33,14 @@ describe("loadPreferences", () => {
     const yaml = {
       agent: { nickname: "Test" },
       preferences: {
-        morningBrief: { time: "09:30", model: "opus" },
+        debrief: { time: "09:30", model: "opus" },
         timezone: "Asia/Bangkok",
       },
     };
     writeFileSync(join(tmpDir, "config.yaml"), stringify(yaml));
     const prefs = loadPreferences(tmpDir);
-    expect(prefs.morningBrief.time).toBe("09:30");
-    expect(prefs.morningBrief.model).toBe("opus");
-    expect(prefs.morningBrief.channel).toBe("default"); // not in yaml, uses default
+    expect(prefs.debrief.time).toBe("09:30");
+    expect(prefs.debrief.model).toBe("opus");
     expect(prefs.timezone).toBe("Asia/Bangkok");
   });
 });

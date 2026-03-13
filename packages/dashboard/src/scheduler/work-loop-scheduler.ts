@@ -674,7 +674,7 @@ export class WorkLoopScheduler {
 
     // Get model preference
     const preferences = loadPreferences(this.agentDir);
-    const model = preferences.morningBrief.model as ModelAlias;
+    const model = preferences.debrief.model as ModelAlias;
 
     const output = await runMorningPrep(
       context,

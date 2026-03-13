@@ -84,10 +84,9 @@ interface YamlConfig {
   }
   embeddings?: YamlEmbeddingsConfig
   preferences?: {
-    morningBrief?: {
+    debrief?: {
       time?: string
       model?: string
-      channel?: string
     }
     timezone?: string
     models?: Partial<ModelDefaults>
@@ -336,20 +335,19 @@ export function saveChannelToConfig(
   writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
 }
 
-export interface MorningBriefPreferences {
+export interface DebriefPreferences {
   time: string
   model: string
-  channel: string
 }
 
 export interface UserPreferences {
-  morningBrief: MorningBriefPreferences
+  debrief: DebriefPreferences
   timezone: string
   outboundChannel: string
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-  morningBrief: { time: '08:00', model: 'sonnet', channel: 'default' },
+  debrief: { time: '08:00', model: 'sonnet' },
   timezone: 'UTC',
   outboundChannel: 'web',
 }
@@ -361,21 +359,18 @@ const DEFAULT_PREFERENCES: UserPreferences = {
 export function loadPreferences(agentDir?: string): UserPreferences {
   const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
   const yaml = loadYamlConfig(dir)
-  if (!yaml?.preferences) return { ...DEFAULT_PREFERENCES, morningBrief: { ...DEFAULT_PREFERENCES.morningBrief } }
+  if (!yaml?.preferences) return { ...DEFAULT_PREFERENCES, debrief: { ...DEFAULT_PREFERENCES.debrief } }
 
   const p = yaml.preferences
-  const mb = p.morningBrief ?? {}
+  const db = p.debrief ?? {}
 
   return {
-    morningBrief: {
-      time: mb.time ?? DEFAULT_PREFERENCES.morningBrief.time,
-      model: mb.model ?? DEFAULT_PREFERENCES.morningBrief.model,
-      channel: mb.channel ?? DEFAULT_PREFERENCES.morningBrief.channel,
+    debrief: {
+      time: db.time ?? DEFAULT_PREFERENCES.debrief.time,
+      model: db.model ?? DEFAULT_PREFERENCES.debrief.model,
     },
     timezone: p.timezone ?? DEFAULT_PREFERENCES.timezone,
-    // outboundChannel supersedes morningBrief.channel; falls back to web
-    outboundChannel:
-      p.outboundChannel ?? mb.channel ?? DEFAULT_PREFERENCES.outboundChannel,
+    outboundChannel: p.outboundChannel ?? DEFAULT_PREFERENCES.outboundChannel,
   }
 }
 

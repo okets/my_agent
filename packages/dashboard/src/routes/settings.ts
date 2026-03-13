@@ -28,7 +28,7 @@ export async function registerSettingsRoutes(
   /**
    * GET /api/settings/preferences
    *
-   * Returns current user preferences (morningBrief + timezone).
+   * Returns current user preferences (debrief + timezone).
    * Falls back to defaults when not configured.
    */
   fastify.get<{ Reply: UserPreferences }>(
@@ -80,20 +80,20 @@ export async function registerSettingsRoutes(
         }
       }
 
-      // Merge preferences — deep-merge morningBrief sub-object
+      // Merge preferences — deep-merge debrief sub-object
       const existingPrefs = (yaml.preferences as Record<string, unknown>) ?? {};
-      const existingBrief =
-        (existingPrefs.morningBrief as Record<string, unknown>) ?? {};
+      const existingDebrief =
+        (existingPrefs.debrief as Record<string, unknown>) ?? {};
 
-      const newBrief = body.morningBrief
-        ? { ...existingBrief, ...(body.morningBrief as unknown as Record<string, unknown>) }
-        : existingBrief;
+      const newDebrief = body.debrief
+        ? { ...existingDebrief, ...(body.debrief as unknown as Record<string, unknown>) }
+        : existingDebrief;
 
       yaml.preferences = {
         ...existingPrefs,
         ...(body.timezone !== undefined ? { timezone: body.timezone } : {}),
         ...(body.outboundChannel !== undefined ? { outboundChannel: body.outboundChannel } : {}),
-        morningBrief: newBrief,
+        debrief: newDebrief,
       };
 
       writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), "utf-8");
