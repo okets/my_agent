@@ -416,6 +416,11 @@ export class BaileysPlugin implements ChannelPlugin {
             for (const handler of this.handlers.message) {
               handler(incoming);
             }
+
+            // Mark as read on dedicated channels
+            if (this.config?.role === "dedicated" && this.sock && msg.key) {
+              this.sock.readMessages([msg.key]).catch(() => {});
+            }
             continue;
           }
 
@@ -481,6 +486,11 @@ export class BaileysPlugin implements ChannelPlugin {
 
           for (const handler of this.handlers.message) {
             handler(incoming);
+          }
+
+          // Mark as read on dedicated channels
+          if (this.config?.role === "dedicated" && this.sock && msg.key) {
+            this.sock.readMessages([msg.key]).catch(() => {});
           }
         }
       },
