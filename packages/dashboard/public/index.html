@@ -2360,7 +2360,7 @@
                           class="flex-1 bg-[#1e1e2e] border border-white/10 rounded px-2 py-1.5 text-sm text-tokyo-text focus:border-violet-500/50 focus:outline-none"
                         >
                           <option :value="configuredModels[role]" x-text="configuredModels[role]" selected></option>
-                          <template x-for="m in availableModels.filter(m => m !== configuredModels[role])" :key="m">
+                          <template x-for="m in modelsForRole(role)" :key="m">
                             <option :value="m" x-text="m"></option>
                           </template>
                         </select>
@@ -6656,7 +6656,7 @@
                           class="flex-1 bg-[#1e1e2e] border border-white/10 rounded px-2 py-1.5 text-sm text-tokyo-text focus:border-violet-500/50 focus:outline-none"
                         >
                           <option :value="configuredModels[role]" x-text="configuredModels[role]" selected></option>
-                          <template x-for="m in availableModels.filter(m => m !== configuredModels[role])" :key="m">
+                          <template x-for="m in modelsForRole(role)" :key="m">
                             <option :value="m" x-text="m"></option>
                           </template>
                         </select>

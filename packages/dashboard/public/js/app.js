@@ -2629,6 +2629,49 @@ function chat() {
       }
     },
 
+    /**
+     * Filter and sort available models for a role's dropdown.
+     * - Only shows models matching the role family (sonnet/haiku/opus)
+     * - Undated models first (sorted newest version to oldest)
+     * - Then dated models (sorted newest date to oldest)
+     */
+    modelsForRole(role) {
+      const keyword = role.toLowerCase();
+      const filtered = this.availableModels.filter(
+        (m) => m.includes(keyword) && m !== this.configuredModels[role],
+      );
+
+      const undated = [];
+      const dated = [];
+      for (const m of filtered) {
+        // Dated models end with -YYYYMMDD
+        if (/\d{8}$/.test(m)) {
+          dated.push(m);
+        } else {
+          undated.push(m);
+        }
+      }
+
+      // Sort undated: extract version numbers, higher first
+      // e.g. claude-sonnet-4-6 > claude-sonnet-4-5 > claude-sonnet-4-0
+      undated.sort((a, b) => {
+        const va = a.match(/(\d+(?:-\d+)*)/g) || [];
+        const vb = b.match(/(\d+(?:-\d+)*)/g) || [];
+        const na = va.map(Number).join(".");
+        const nb = vb.map(Number).join(".");
+        return nb.localeCompare(na, undefined, { numeric: true });
+      });
+
+      // Sort dated: newest date first
+      dated.sort((a, b) => {
+        const da = a.match(/(\d{8})$/)?.[1] || "0";
+        const db = b.match(/(\d{8})$/)?.[1] || "0";
+        return db.localeCompare(da);
+      });
+
+      return [...undated, ...dated];
+    },
+
     async saveModels() {
       this.savingModels = true;
       this.modelsStatus = null;
