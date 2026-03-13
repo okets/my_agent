@@ -91,6 +91,7 @@ interface YamlConfig {
     }
     timezone?: string
     models?: Partial<ModelDefaults>
+    outboundChannel?: string
   }
 }
 
@@ -344,11 +345,13 @@ export interface MorningBriefPreferences {
 export interface UserPreferences {
   morningBrief: MorningBriefPreferences
   timezone: string
+  outboundChannel: string
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   morningBrief: { time: '08:00', model: 'sonnet', channel: 'default' },
   timezone: 'UTC',
+  outboundChannel: 'web',
 }
 
 /**
@@ -370,6 +373,9 @@ export function loadPreferences(agentDir?: string): UserPreferences {
       channel: mb.channel ?? DEFAULT_PREFERENCES.morningBrief.channel,
     },
     timezone: p.timezone ?? DEFAULT_PREFERENCES.timezone,
+    // outboundChannel supersedes morningBrief.channel; falls back to web
+    outboundChannel:
+      p.outboundChannel ?? mb.channel ?? DEFAULT_PREFERENCES.outboundChannel,
   }
 }
 
