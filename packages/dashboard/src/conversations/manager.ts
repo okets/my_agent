@@ -59,6 +59,7 @@ export class ConversationManager {
       externalParty: options?.externalParty ?? null,
       isPinned: true,
       status: "current",
+      lastUserMessageAt: null,
     };
 
     // Demote current conversation before creating new one
