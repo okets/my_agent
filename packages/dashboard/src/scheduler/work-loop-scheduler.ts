@@ -29,8 +29,8 @@ import {
   USER_PROMPT_TEMPLATE as MORNING_USER,
 } from "./jobs/morning-prep.js";
 import type { ModelAlias } from "./query-model.js";
-import { loadPreferences, type UserPreferences } from "@my-agent/core";
-import { readProperties, detectStaleProperties, type PropertiesMap } from "../conversations/properties.js";
+import { loadPreferences } from "@my-agent/core";
+import { readProperties, detectStaleProperties } from "../conversations/properties.js";
 import {
   readStagingFiles,
   cleanExpiredFacts,
@@ -48,44 +48,6 @@ import {
 } from "./jobs/weekly-review.js";
 import { runWeeklySummary } from "./jobs/weekly-summary.js";
 import { runMonthlySummary } from "./jobs/monthly-summary.js";
-
-/**
- * Timezone-aware morning brief scheduling.
- * Prefers dynamic timezone from properties (updated by extraction when user travels),
- * falls back to static preference from config.yaml.
- */
-export function isMorningPrepDue(
-  preferences: UserPreferences,
-  properties: PropertiesMap,
-  lastRun: Date | null,
-  now: Date,
-): boolean {
-  const timezone = properties.timezone?.value ?? preferences.timezone;
-
-  // Get current time in user's timezone
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(now);
-  const hour = parts.find((p) => p.type === "hour")!.value;
-  const minute = parts.find((p) => p.type === "minute")!.value;
-  const localTime = `${hour}:${minute}`;
-  const targetTime = preferences.morningBrief.time;
-
-  if (localTime < targetTime) return false;
-
-  if (!lastRun) return true;
-
-  // Check if last run was before today in user's timezone
-  const dateFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: timezone });
-  const todayStr = dateFormatter.format(now);
-  const lastRunDayStr = dateFormatter.format(lastRun);
-
-  return lastRunDayStr < todayStr;
-}
 
 export interface WorkLoopSchedulerConfig {
   db: Database.Database;
@@ -298,24 +260,13 @@ export class WorkLoopScheduler {
 
     const now = new Date();
 
+    // Resolve timezone once per poll cycle (spec §2.2)
+    const resolvedTimezone = await this.resolveTimezone();
+
     for (const pattern of this.patterns) {
       if (!this.isRunning) return; // Stop was called mid-loop
       const lastRun = this.getLastRun(pattern.name);
-
-      // Morning prep uses timezone-aware scheduling from user preferences
-      let due = false;
-      if (pattern.name === "morning-prep") {
-        try {
-          const prefs = loadPreferences(this.agentDir);
-          const props = await readProperties(this.agentDir);
-          due = isMorningPrepDue(prefs, props, lastRun, now);
-        } catch {
-          // Fallback to standard isDue if preferences can't be loaded
-          due = isDue(pattern.cadence, lastRun, now);
-        }
-      } else {
-        due = isDue(pattern.cadence, lastRun, now);
-      }
+      const due = isDue(pattern.cadence, lastRun, now, resolvedTimezone);
 
       if (due) {
         try {
@@ -328,6 +279,37 @@ export class WorkLoopScheduler {
         }
       }
     }
+  }
+
+  /**
+   * Resolve timezone in priority order (spec §2.2):
+   * 1. properties.timezone?.value (inferred from conversation)
+   * 2. preferences.timezone (from config.yaml)
+   * 3. "UTC" (fallback)
+   */
+  private async resolveTimezone(): Promise<string> {
+    try {
+      const props = await readProperties(this.agentDir);
+      if (props.timezone?.value) return props.timezone.value;
+    } catch {
+      // Properties unavailable — continue to preferences
+    }
+
+    try {
+      const prefs = loadPreferences(this.agentDir);
+      if (prefs.timezone) return prefs.timezone;
+    } catch {
+      // Preferences unavailable — continue to fallback
+    }
+
+    return "UTC";
+  }
+
+  /**
+   * Get the currently resolved timezone (for API use)
+   */
+  async getResolvedTimezone(): Promise<string> {
+    return this.resolveTimezone();
   }
 
   /**

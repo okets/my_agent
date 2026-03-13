@@ -5,16 +5,15 @@
  * This verifies the M6.9-S2 behavioral layer integration across:
  *   - Knowledge extractor (timezone inference from location)
  *   - Properties (status.yaml timezone update)
- *   - Scheduler (isMorningPrepDue uses dynamic timezone)
+ *   - Scheduler (isDue with resolved timezone)
  *   - Staleness detection (location/timezone thresholds)
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { stringify as stringifyYaml } from "yaml";
-import { isMorningPrepDue } from "../../src/scheduler/work-loop-scheduler.js";
+import { isDue } from "../../src/scheduler/work-patterns.js";
 import {
   readProperties,
   updateProperty,
@@ -31,6 +30,9 @@ const DEFAULT_PREFS: UserPreferences = {
 
 describe("Timezone-Location E2E Pipeline", () => {
   let agentDir: string;
+
+  // Cadence derived from DEFAULT_PREFS
+  const CADENCE = `daily:${DEFAULT_PREFS.morningBrief.time}`;
 
   beforeEach(() => {
     agentDir = mkdtempSync(join(tmpdir(), "tz-e2e-"));
@@ -66,10 +68,11 @@ describe("Timezone-Location E2E Pipeline", () => {
     const now = new Date("2026-03-12T02:00:00Z"); // 02:00 UTC = 09:00 Bangkok
 
     // With Bangkok timezone from properties → should be due (09:00 > 08:00)
-    expect(isMorningPrepDue(DEFAULT_PREFS, props, null, now)).toBe(true);
+    const timezone = props.timezone?.value ?? DEFAULT_PREFS.timezone;
+    expect(isDue(CADENCE, null, now, timezone)).toBe(true);
 
     // Without properties (UTC only) → should NOT be due (02:00 < 08:00)
-    expect(isMorningPrepDue(DEFAULT_PREFS, {}, null, now)).toBe(false);
+    expect(isDue(CADENCE, null, now, DEFAULT_PREFS.timezone)).toBe(false);
   });
 
   // ── Scenario 2: User returns home to UTC ──
@@ -85,14 +88,16 @@ describe("Timezone-Location E2E Pipeline", () => {
       },
     };
 
+    const timezone = propsHome.timezone?.value ?? DEFAULT_PREFS.timezone;
+
     const morningUtc = new Date("2026-03-15T09:00:00Z");
 
     // 09:00 UTC > 08:00 → should fire
-    expect(isMorningPrepDue(DEFAULT_PREFS, propsHome, null, morningUtc)).toBe(true);
+    expect(isDue(CADENCE, null, morningUtc, timezone)).toBe(true);
 
     // 02:00 UTC < 08:00 → should NOT fire (no longer in Bangkok)
     const earlyUtc = new Date("2026-03-15T02:00:00Z");
-    expect(isMorningPrepDue(DEFAULT_PREFS, propsHome, null, earlyUtc)).toBe(false);
+    expect(isDue(CADENCE, null, earlyUtc, timezone)).toBe(false);
   });
 
   // ── Scenario 3: Westward travel (UTC → New York) ──
@@ -107,13 +112,15 @@ describe("Timezone-Location E2E Pipeline", () => {
       },
     };
 
+    const timezone = propsNY.timezone?.value ?? DEFAULT_PREFS.timezone;
+
     // 12:00 UTC = 08:00 EST → exactly at target time
     const noonUtc = new Date("2026-03-12T12:00:00Z");
-    expect(isMorningPrepDue(DEFAULT_PREFS, propsNY, null, noonUtc)).toBe(true);
+    expect(isDue(CADENCE, null, noonUtc, timezone)).toBe(true);
 
     // 11:00 UTC = 07:00 EST → before target
     const elevenUtc = new Date("2026-03-12T11:00:00Z");
-    expect(isMorningPrepDue(DEFAULT_PREFS, propsNY, null, elevenUtc)).toBe(false);
+    expect(isDue(CADENCE, null, elevenUtc, timezone)).toBe(false);
   });
 
   // ── Scenario 4: Properties persist through read/write cycle ──
@@ -138,7 +145,8 @@ describe("Timezone-Location E2E Pipeline", () => {
 
     // Use in scheduling
     const now = new Date("2026-03-12T02:00:00Z"); // 09:00 Bangkok
-    expect(isMorningPrepDue(DEFAULT_PREFS, props, null, now)).toBe(true);
+    const timezone = props.timezone?.value ?? DEFAULT_PREFS.timezone;
+    expect(isDue(CADENCE, null, now, timezone)).toBe(true);
   });
 
   // ── Scenario 5: Staleness detection flags old location ──
@@ -191,6 +199,7 @@ describe("Timezone-Location E2E Pipeline", () => {
       morningBrief: { time: "10:30", model: "sonnet", channel: "default" },
       timezone: "UTC",
     };
+    const customCadence = `daily:${customPrefs.morningBrief.time}`;
 
     const propsJapan: PropertiesMap = {
       timezone: {
@@ -201,13 +210,15 @@ describe("Timezone-Location E2E Pipeline", () => {
       },
     };
 
+    const timezone = propsJapan.timezone?.value ?? customPrefs.timezone;
+
     // 02:00 UTC = 11:00 JST → after 10:30 target
     const twoAmUtc = new Date("2026-03-12T02:00:00Z");
-    expect(isMorningPrepDue(customPrefs, propsJapan, null, twoAmUtc)).toBe(true);
+    expect(isDue(customCadence, null, twoAmUtc, timezone)).toBe(true);
 
     // 01:00 UTC = 10:00 JST → before 10:30 target
     const oneAmUtc = new Date("2026-03-12T01:00:00Z");
-    expect(isMorningPrepDue(customPrefs, propsJapan, null, oneAmUtc)).toBe(false);
+    expect(isDue(customCadence, null, oneAmUtc, timezone)).toBe(false);
   });
 
   // ── Scenario 7: Already ran today in new timezone ──
@@ -222,12 +233,14 @@ describe("Timezone-Location E2E Pipeline", () => {
       },
     };
 
+    const timezone = propsBangkok.timezone?.value ?? DEFAULT_PREFS.timezone;
+
     // Brief ran at 08:05 Bangkok time (01:05 UTC)
     const lastRun = new Date("2026-03-12T01:05:00Z");
     // Now it's 09:00 Bangkok (02:00 UTC)
     const now = new Date("2026-03-12T02:00:00Z");
 
-    expect(isMorningPrepDue(DEFAULT_PREFS, propsBangkok, lastRun, now)).toBe(false);
+    expect(isDue(CADENCE, lastRun, now, timezone)).toBe(false);
   });
 
   // ── Scenario 8: loadPreferences defaults ──
