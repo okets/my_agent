@@ -12,7 +12,7 @@ export type ModelAlias = "haiku" | "sonnet" | "opus";
 
 export const MODEL_MAP: Record<ModelAlias, string> = {
   haiku: "claude-haiku-4-5-20251001",
-  sonnet: "claude-sonnet-4-6-20250627",
+  sonnet: "claude-sonnet-4-5-20250929",
   opus: "claude-opus-4-6-20250627",
 };
 

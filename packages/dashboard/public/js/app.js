@@ -1680,6 +1680,11 @@ function chat() {
             file: tab.data?.file,
             conversationId: tab.data?.conversationId,
           };
+
+          // Reload job detail when switching to a workloop tab
+          if (tab.type === "workloop" && tab.data?.jobName) {
+            this.loadWorkLoopJobDetail(tab.data.jobName);
+          }
         }
       }
 
