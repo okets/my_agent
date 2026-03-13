@@ -19,6 +19,7 @@ import {
   CalDAVClient,
   isHatched,
   resolveAuth,
+  loadModels,
 } from "@my-agent/core";
 
 // Cache state tracking (module-level for introspection)
@@ -157,7 +158,7 @@ export async function registerDebugRoutes(
     }
 
     // Load model from config
-    let model = "claude-sonnet-4-5-20250929"; // default
+    let model = loadModels(agentDir).sonnet; // default
     try {
       const configPath = join(agentDir, "config.yaml");
       const configContent = await readFile(configPath, "utf-8");

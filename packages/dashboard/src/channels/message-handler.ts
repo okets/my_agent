@@ -14,7 +14,7 @@ import type {
   OutgoingMessage,
   ChannelInstanceConfig,
 } from "@my-agent/core";
-import { saveChannelToConfig } from "@my-agent/core";
+import { saveChannelToConfig, loadModels } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
 import { SessionRegistry } from "../agent/session-registry.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
@@ -328,7 +328,7 @@ export class ChannelMessageHandler {
       if (!modelArg) {
         // Show current model and options
         const currentModel =
-          existingConversation?.model || "claude-sonnet-4-5-20250929";
+          existingConversation?.model || loadModels().sonnet;
         const modelName = currentModel.includes("opus")
           ? "Opus"
           : currentModel.includes("haiku")
@@ -342,10 +342,11 @@ export class ChannelMessageHandler {
       }
 
       // Map shorthand to full model ID
+      const m = loadModels();
       const modelMap: Record<string, string> = {
-        opus: "claude-opus-4-6",
-        sonnet: "claude-sonnet-4-5-20250929",
-        haiku: "claude-haiku-4-5-20251001",
+        opus: m.opus,
+        sonnet: m.sonnet,
+        haiku: m.haiku,
       };
 
       const newModelId = modelMap[modelArg];

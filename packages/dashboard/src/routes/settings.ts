@@ -12,7 +12,7 @@ import type { FastifyInstance } from "fastify";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse, stringify } from "yaml";
-import { loadPreferences, type UserPreferences } from "@my-agent/core";
+import { loadPreferences, loadModels, type UserPreferences, type ModelDefaults } from "@my-agent/core";
 
 /**
  * Register settings API routes
@@ -104,6 +104,62 @@ export async function registerSettingsRoutes(
       return reply
         .code(500)
         .send({ error: "Failed to save preferences" } as unknown as UserPreferences);
+    }
+  });
+
+  /**
+   * GET /api/settings/models
+   *
+   * Returns configured model IDs (with defaults).
+   */
+  fastify.get<{ Reply: ModelDefaults }>(
+    "/api/settings/models",
+    async () => {
+      return loadModels(fastify.agentDir);
+    },
+  );
+
+  /**
+   * PUT /api/settings/models
+   *
+   * Updates model IDs. Merges into config.yaml preferences.models.
+   */
+  fastify.put<{
+    Body: Partial<ModelDefaults>;
+    Reply: ModelDefaults | { error: string };
+  }>("/api/settings/models", async (request, reply) => {
+    const agentDir = fastify.agentDir;
+    const configPath = join(agentDir, "config.yaml");
+    const body = request.body as Partial<ModelDefaults>;
+
+    try {
+      let yaml: Record<string, unknown> = {};
+      if (existsSync(configPath)) {
+        try {
+          yaml = (parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>) ?? {};
+        } catch {
+          yaml = {};
+        }
+      }
+
+      const prefs = (yaml.preferences as Record<string, unknown>) ?? {};
+      const existing = (prefs.models as Record<string, unknown>) ?? {};
+
+      prefs.models = { ...existing, ...body };
+      yaml.preferences = prefs;
+
+      writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), "utf-8");
+      fastify.log.info("[Settings] Model IDs updated");
+
+      return loadModels(agentDir);
+    } catch (err) {
+      fastify.log.error(
+        "[Settings] Failed to save models: %s",
+        err instanceof Error ? err.message : String(err),
+      );
+      return reply
+        .code(500)
+        .send({ error: "Failed to save models" } as unknown as ModelDefaults);
     }
   });
 }

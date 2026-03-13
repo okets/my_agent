@@ -6,6 +6,7 @@ import {
   type Query,
   type Options,
 } from "@anthropic-ai/claude-agent-sdk";
+import { loadModels } from "@my-agent/core";
 import {
   getPersonalities,
   writeIdentity,
@@ -255,7 +256,7 @@ export function createHatchingSession(
     const systemPrompt = buildHatchingPrompt();
 
     const queryOptions: Options = {
-      model: "claude-sonnet-4-5-20250929",
+      model: loadModels().sonnet,
       systemPrompt,
       includePartialMessages: true,
       mcpServers: { "hatching-tools": mcpServer },

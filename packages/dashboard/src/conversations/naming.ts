@@ -8,7 +8,7 @@
  * API keys and OAuth setup tokens.
  */
 
-import { createBrainQuery } from "@my-agent/core";
+import { createBrainQuery, loadModels } from "@my-agent/core";
 import type { TranscriptTurn } from "./types.js";
 
 export interface NamingResult {
@@ -61,7 +61,7 @@ export class NamingService {
 
       try {
         const q = createBrainQuery(fullPrompt, {
-          model: "claude-haiku-4-5-20251001",
+          model: loadModels().haiku,
           systemPrompt:
             "You are a conversation naming assistant. Generate short, descriptive titles. Return only valid JSON.",
           continue: false,

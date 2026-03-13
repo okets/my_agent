@@ -2,6 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@my-agent/core", () => ({
   createBrainQuery: vi.fn(),
+  loadModels: vi.fn(() => ({
+    sonnet: "claude-sonnet-4-5",
+    haiku: "claude-haiku-4-5",
+    opus: "claude-opus-4-6",
+  })),
 }));
 
 import { createBrainQuery } from "@my-agent/core";
@@ -23,7 +28,7 @@ describe("queryModel", () => {
     expect(createBrainQuery).toHaveBeenCalledWith(
       "test prompt",
       expect.objectContaining({
-        model: expect.stringContaining("haiku"),
+        model: "claude-haiku-4-5",
       })
     );
   });
@@ -40,7 +45,7 @@ describe("queryModel", () => {
     expect(createBrainQuery).toHaveBeenCalledWith(
       "test prompt",
       expect.objectContaining({
-        model: expect.stringContaining("sonnet"),
+        model: "claude-sonnet-4-5",
       })
     );
   });
@@ -57,7 +62,7 @@ describe("queryModel", () => {
     expect(createBrainQuery).toHaveBeenCalledWith(
       "test prompt",
       expect.objectContaining({
-        model: expect.stringContaining("haiku"),
+        model: "claude-haiku-4-5",
       })
     );
   });
@@ -75,11 +80,11 @@ describe("queryModel", () => {
   });
 });
 
-describe("MODEL_MAP", () => {
-  it("exports model map for configuration", async () => {
-    const { MODEL_MAP } = await import("../src/scheduler/query-model.js");
-    expect(MODEL_MAP.haiku).toBeDefined();
-    expect(MODEL_MAP.sonnet).toBeDefined();
-    expect(MODEL_MAP.opus).toBeDefined();
+describe("resolveModelId", () => {
+  it("resolves aliases to configured model IDs", async () => {
+    const { resolveModelId } = await import("../src/scheduler/query-model.js");
+    expect(resolveModelId("haiku")).toBe("claude-haiku-4-5");
+    expect(resolveModelId("sonnet")).toBe("claude-sonnet-4-5");
+    expect(resolveModelId("opus")).toBe("claude-opus-4-6");
   });
 });

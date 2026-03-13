@@ -5,7 +5,7 @@ import { SessionRegistry } from "../agent/session-registry.js";
 import type { SessionManager } from "../agent/session-manager.js";
 import { ScriptedHatchingEngine } from "../hatching/scripted-engine.js";
 import { createHatchingSession } from "../hatching/hatching-tools.js";
-import { resolveAuth, isAuthenticated } from "@my-agent/core";
+import { resolveAuth, isAuthenticated, loadModels } from "@my-agent/core";
 import { IdleTimerManager, NamingService } from "../conversations/index.js";
 import type { ConversationManager } from "../conversations/index.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
@@ -800,11 +800,8 @@ export async function registerChatWebSocket(
       }
 
       // Validate model (basic validation - allow known models)
-      const validModels = [
-        "claude-sonnet-4-5-20250929",
-        "claude-haiku-4-5-20251001",
-        "claude-opus-4-6",
-      ];
+      const models = loadModels();
+      const validModels = Object.values(models);
       if (!validModels.includes(model)) {
         send({ type: "error", message: "Invalid model" });
         return;
@@ -906,7 +903,7 @@ export async function registerChatWebSocket(
             ? await conversationManager.get(currentConversationId)
             : null;
           const currentModel =
-            conversation?.model || "claude-sonnet-4-5-20250929";
+            conversation?.model || loadModels().sonnet;
           const modelName = currentModel.includes("opus")
             ? "Opus"
             : currentModel.includes("haiku")
@@ -923,10 +920,11 @@ export async function registerChatWebSocket(
         }
 
         // Map shorthand to full model ID
+        const m = loadModels();
         const modelMap: Record<string, string> = {
-          opus: "claude-opus-4-6",
-          sonnet: "claude-sonnet-4-5-20250929",
-          haiku: "claude-haiku-4-5-20251001",
+          opus: m.opus,
+          sonnet: m.sonnet,
+          haiku: m.haiku,
         };
 
         const newModelId = modelMap[modelArg];

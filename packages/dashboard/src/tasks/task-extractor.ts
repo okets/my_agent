@@ -5,7 +5,7 @@
  * structured task data using a fast LLM call.
  */
 
-import { createBrainQuery } from "@my-agent/core";
+import { createBrainQuery, loadModels } from "@my-agent/core";
 import type { WorkItem, DeliveryAction } from "@my-agent/core";
 
 export interface ExtractedTask {
@@ -103,7 +103,7 @@ async function runExtraction(
 ): Promise<string> {
   const systemPrompt = buildExtractionPrompt(currentTime);
   const q = createBrainQuery(prompt, {
-    model: "claude-haiku-4-5-20251001",
+    model: loadModels().haiku,
     systemPrompt,
     continue: false,
     includePartialMessages: false,

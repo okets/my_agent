@@ -3,7 +3,7 @@ import * as path from 'node:path'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { stringify } from 'yaml'
-import { findAgentDir } from '../config.js'
+import { findAgentDir, DEFAULT_MODELS } from '../config.js'
 import { identityStep } from './steps/identity.js'
 import { personalityStep } from './steps/personality.js'
 import { authStep } from './steps/auth.js'
@@ -37,7 +37,7 @@ async function createDirectoryStructure(agentDir: string): Promise<void> {
 async function writeMinimalConfig(agentDir: string): Promise<void> {
   const config = {
     brain: {
-      model: 'claude-sonnet-4-5-20250929',
+      model: DEFAULT_MODELS.sonnet,
     },
   }
   await writeFile(path.join(agentDir, 'config.yaml'), stringify(config), 'utf-8')

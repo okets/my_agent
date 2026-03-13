@@ -2,6 +2,7 @@ import * as path from 'node:path'
 import { mkdir, writeFile, readdir, readFile, copyFile } from 'node:fs/promises'
 import { stringify } from 'yaml'
 import { validateSetupToken } from '../auth.js'
+import { DEFAULT_MODELS } from '../config.js'
 
 // ── Directory structure ──
 
@@ -23,7 +24,7 @@ export async function writeMinimalConfig(
 ): Promise<void> {
   const config: Record<string, unknown> = {
     brain: {
-      model: 'claude-sonnet-4-5-20250929',
+      model: DEFAULT_MODELS.sonnet,
     },
   }
   if (agentIdentity) {

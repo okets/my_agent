@@ -4,7 +4,23 @@ import { parse, stringify } from 'yaml'
 import type { BrainConfig } from './types.js'
 import type { ChannelInstanceConfig, ReconnectPolicy, WatchdogConfig } from './channels/types.js'
 
-const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929'
+/**
+ * Default model IDs — versionless, always resolve to latest.
+ * Users can override in config.yaml under `preferences.models`.
+ */
+export const DEFAULT_MODELS: ModelDefaults = {
+  sonnet: 'claude-sonnet-4-5',
+  haiku: 'claude-haiku-4-5',
+  opus: 'claude-opus-4-6',
+}
+
+export interface ModelDefaults {
+  sonnet: string
+  haiku: string
+  opus: string
+}
+
+const DEFAULT_MODEL = DEFAULT_MODELS.sonnet
 
 const DEFAULT_RECONNECT: ReconnectPolicy = {
   initialMs: 2000,
@@ -74,6 +90,7 @@ interface YamlConfig {
       channel?: string
     }
     timezone?: string
+    models?: Partial<ModelDefaults>
   }
 }
 
@@ -353,6 +370,22 @@ export function loadPreferences(agentDir?: string): UserPreferences {
       channel: mb.channel ?? DEFAULT_PREFERENCES.morningBrief.channel,
     },
     timezone: p.timezone ?? DEFAULT_PREFERENCES.timezone,
+  }
+}
+
+/**
+ * Load model IDs from config.yaml, falling back to defaults.
+ * Users override in config.yaml under `preferences.models`.
+ */
+export function loadModels(agentDir?: string): ModelDefaults {
+  const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
+  const yaml = loadYamlConfig(dir)
+  const overrides = yaml?.preferences?.models
+
+  return {
+    sonnet: overrides?.sonnet ?? DEFAULT_MODELS.sonnet,
+    haiku: overrides?.haiku ?? DEFAULT_MODELS.haiku,
+    opus: overrides?.opus ?? DEFAULT_MODELS.opus,
   }
 }
 

@@ -7,7 +7,7 @@
 
 import { ConversationManager } from "./manager.js";
 import { NamingService } from "./naming.js";
-import { createBrainQuery } from "@my-agent/core";
+import { createBrainQuery, loadModels } from "@my-agent/core";
 import type { Query } from "@my-agent/core";
 import {
   extractClassifiedFacts,
@@ -271,7 +271,7 @@ export class AbbreviationQueue {
     const fullPrompt = `${ABBREVIATION_PROMPT}\n\n---\n\nConversation transcript:\n\n${transcriptText}`;
 
     const query = createBrainQuery(fullPrompt, {
-      model: "claude-haiku-4-5-20251001",
+      model: loadModels().haiku,
       systemPrompt: "You are a conversation summarizer.",
       continue: false,
       includePartialMessages: false,

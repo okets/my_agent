@@ -1,27 +1,34 @@
 /**
  * Model-selectable background query utility
  *
- * Replaces queryHaiku with model-parameterized queries.
- * Model param resolves to the latest version internally.
- * Callers never specify version strings.
+ * Resolves model aliases ("haiku", "sonnet", "opus") via the central
+ * loadModels() from @my-agent/core. Users configure overrides in
+ * config.yaml under `preferences.models`.
  */
 
-import { createBrainQuery } from "@my-agent/core";
+import { createBrainQuery, loadModels } from "@my-agent/core";
 
 export type ModelAlias = "haiku" | "sonnet" | "opus";
 
-export const MODEL_MAP: Record<ModelAlias, string> = {
-  haiku: "claude-haiku-4-5-20251001",
-  sonnet: "claude-sonnet-4-5-20250929",
-  opus: "claude-opus-4-6-20250627",
-};
+/**
+ * Resolve a model alias to the configured model ID.
+ * Reads from config.yaml, falls back to defaults.
+ */
+export function resolveModelId(
+  alias: ModelAlias,
+  agentDir?: string,
+): string {
+  const models = loadModels(agentDir);
+  return models[alias];
+}
 
 export async function queryModel(
   prompt: string,
   systemPrompt: string,
   model: ModelAlias = "haiku",
+  agentDir?: string,
 ): Promise<string> {
-  const modelId = MODEL_MAP[model];
+  const modelId = resolveModelId(model, agentDir);
 
   const query = createBrainQuery(prompt, {
     model: modelId,

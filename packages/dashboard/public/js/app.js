@@ -37,7 +37,7 @@ function chat() {
     editTitleValue: "",
 
     // Action bar state
-    selectedModel: "claude-sonnet-4-5-20250929",
+    selectedModel: "claude-sonnet-4-5",
     reasoningEnabled: false,
     attachments: [], // Will hold {file, preview, type} objects
 
@@ -184,9 +184,9 @@ function chat() {
     },
 
     modelOptions: [
-      { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5" },
-      { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5" },
-      { id: "claude-opus-4-6", name: "Opus 4.6" },
+      { id: "claude-sonnet-4-5", name: "Sonnet" },
+      { id: "claude-haiku-4-5", name: "Haiku" },
+      { id: "claude-opus-4-6", name: "Opus" },
     ],
 
     // ─────────────────────────────────────────────────────────────────
@@ -999,11 +999,11 @@ function chat() {
             this.currentConversationId = data.conversation.id;
             // Sync model from conversation (use default if not set)
             this.selectedModel =
-              data.conversation.model || "claude-sonnet-4-5-20250929";
+              data.conversation.model || "claude-sonnet-4-5";
           } else {
             this.currentConversationId = null;
             // Reset to default model for new conversations
-            this.selectedModel = "claude-sonnet-4-5-20250929";
+            this.selectedModel = "claude-sonnet-4-5";
           }
 
           // Convert turns to messages
@@ -2589,6 +2589,25 @@ function chat() {
         this.briefModel = data.morningBrief?.model ?? "sonnet";
       } catch (err) {
         console.error("[App] Failed to load preferences:", err);
+      }
+
+      // Load configured model IDs (may be user-overridden)
+      try {
+        const res = await fetch("/api/settings/models");
+        if (res.ok) {
+          const models = await res.json();
+          this.modelOptions = [
+            { id: models.sonnet, name: "Sonnet" },
+            { id: models.haiku, name: "Haiku" },
+            { id: models.opus, name: "Opus" },
+          ];
+          // Update selected model if it's not in the new list
+          if (!this.modelOptions.some((m) => m.id === this.selectedModel)) {
+            this.selectedModel = models.sonnet;
+          }
+        }
+      } catch (err) {
+        console.error("[App] Failed to load models:", err);
       }
     },
 
