@@ -753,6 +753,7 @@ async function main() {
       notebookDir,
       conversationSearchService ?? undefined,
       conversationManager ?? undefined,
+      workLoopScheduler ?? undefined,
     );
   }
 

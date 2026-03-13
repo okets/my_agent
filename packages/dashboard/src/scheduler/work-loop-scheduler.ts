@@ -18,7 +18,7 @@ import {
   mkdir,
   readdir,
 } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import type Database from "better-sqlite3";
 import { loadWorkPatterns, isDue, isValidTimezone, type WorkPattern } from "./work-patterns.js";
 import { validateAndNotify } from "../metadata/validator.js";
@@ -272,6 +272,29 @@ export class WorkLoopScheduler {
     jobName: string,
   ): { system: string; userTemplate: string } | null {
     return WorkLoopScheduler.JOB_PROMPTS[jobName] ?? null;
+  }
+
+  /**
+   * Check if a job has run successfully today (by querying work_loop_runs).
+   */
+  hasRunToday(jobName: string): boolean {
+    const today = new Date().toISOString().slice(0, 10);
+    const row = this.db.prepare(
+      "SELECT 1 FROM work_loop_runs WHERE job_name = ? AND started_at >= ? LIMIT 1",
+    ).get(jobName, today + "T00:00:00");
+    return !!row;
+  }
+
+  /**
+   * Read the cached debrief output from current-state.md.
+   */
+  getDebriefOutput(): string | null {
+    const filePath = join(this.agentDir, "notebook/operations/current-state.md");
+    try {
+      return readFileSync(filePath, "utf-8");
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -562,7 +585,7 @@ export class WorkLoopScheduler {
   /**
    * Debrief Prep — reads summary stack, produces current-state briefing
    */
-  private async handleDebriefPrep(): Promise<string> {
+  async handleDebriefPrep(): Promise<string> {
     const notebookDir = join(this.agentDir, "notebook");
     const sections: string[] = [];
 

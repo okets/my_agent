@@ -19,6 +19,8 @@ import { SystemPromptBuilder } from "./system-prompt-builder.js";
 import type { BuildContext } from "./system-prompt-builder.js";
 import { createConversationServer } from "../mcp/conversation-server.js";
 import { createKnowledgeServer } from "../mcp/knowledge-server.js";
+import { createDebriefMcpServer } from "../mcp/debrief-server.js";
+import type { DebriefSchedulerLike } from "../mcp/debrief-server.js";
 import type { ConversationSearchService } from "../conversations/search-service.js";
 import type { ConversationManager } from "../conversations/manager.js";
 
@@ -63,6 +65,7 @@ export function initMcpServers(
   notebookDir: string,
   conversationSearchService?: ConversationSearchService,
   conversationManager?: ConversationManager,
+  debriefScheduler?: DebriefSchedulerLike,
 ): void {
   // Derive agentDir from notebookDir (parent directory)
   const agentDir = notebookDir.replace(/\/notebook$/, "");
@@ -86,6 +89,11 @@ export function initMcpServers(
     console.log(
       `[SessionManager] MCP servers initialized (memory → ${notebookDir}, knowledge)`,
     );
+  }
+
+  if (debriefScheduler) {
+    servers.debrief = createDebriefMcpServer(debriefScheduler);
+    console.log(`[SessionManager] Debrief MCP server registered`);
   }
 
   sharedMcpServers = servers;
