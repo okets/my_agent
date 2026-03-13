@@ -85,7 +85,7 @@ describe("M6.6 Memory Lifecycle E2E", () => {
     // Write work patterns
     writeFileSync(
       join(tmpDir, "notebook", "config", "work-patterns.md"),
-      `# Work Patterns\n\n## Morning Prep\n- cadence: daily:08:00\n- model: haiku\n\n## Daily Summary\n- cadence: daily:23:00\n- model: haiku\n\n## Weekly Review\n- cadence: weekly:sunday:09:00\n- model: haiku\n`,
+      `---\njobs:\n  morning-prep:\n    cadence: "daily:08:00"\n    model: haiku\n  daily-summary:\n    cadence: "daily:23:00"\n    model: haiku\n  weekly-review:\n    cadence: "weekly:sunday:09:00"\n    model: haiku\n---\n\n# Work Patterns\n`,
     );
   });
 

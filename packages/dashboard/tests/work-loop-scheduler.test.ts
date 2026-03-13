@@ -45,15 +45,17 @@ function writeWorkPatterns(agentDir: string, content: string): void {
 }
 
 // Patterns with cadence that will NEVER be due (for lifecycle tests that don't need Haiku)
-const LIFECYCLE_PATTERNS = `# Work Patterns
+const LIFECYCLE_PATTERNS = `---
+jobs:
+  morning-prep:
+    cadence: "weekly:saturday:03:33"
+    model: haiku
+  daily-summary:
+    cadence: "weekly:saturday:03:34"
+    model: haiku
+---
 
-## Morning Prep
-- cadence: weekly:saturday:03:33
-- model: haiku
-
-## Daily Summary
-- cadence: weekly:saturday:03:34
-- model: haiku
+# Work Patterns
 `;
 
 describe("WorkLoopScheduler", () => {
@@ -174,8 +176,21 @@ describe("WorkLoopScheduler", () => {
     // Update the file with an extra job
     writeWorkPatterns(
       agentDir,
-      LIFECYCLE_PATTERNS +
-        `\n## Weekly Review\n- cadence: weekly:sunday:09:00\n- model: haiku\n`,
+      `---
+jobs:
+  morning-prep:
+    cadence: "weekly:saturday:03:33"
+    model: haiku
+  daily-summary:
+    cadence: "weekly:saturday:03:34"
+    model: haiku
+  weekly-review:
+    cadence: "weekly:sunday:09:00"
+    model: haiku
+---
+
+# Work Patterns
+`,
     );
 
     await scheduler.reloadPatterns();
@@ -254,7 +269,13 @@ describe("WorkLoopScheduler", () => {
     // Write patterns with a job that has an unknown handler name
     writeWorkPatterns(
       agentDir,
-      `## Unknown Job Type\n- cadence: daily:08:00\n- model: haiku\n`,
+      `---
+jobs:
+  unknown-job-type:
+    cadence: "daily:08:00"
+    model: haiku
+---
+`,
     );
 
     const scheduler = new WorkLoopScheduler({

@@ -23,11 +23,14 @@ declare module "fastify" {
   }
 }
 
-const WORK_PATTERNS_MD = `# Work Patterns
+const WORK_PATTERNS_MD = `---
+jobs:
+  unknown-handler:
+    cadence: "weekly:saturday:03:33"
+    model: haiku
+---
 
-## Unknown Handler
-- cadence: weekly:saturday:03:33
-- model: haiku
+# Work Patterns
 `;
 
 let tmpDir: string;
