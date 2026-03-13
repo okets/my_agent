@@ -14,6 +14,11 @@ import { join } from "node:path";
 import { parse, stringify } from "yaml";
 import { loadPreferences, loadModels, type UserPreferences, type ModelDefaults } from "@my-agent/core";
 
+/** Cached available models (refreshed every 10 minutes) */
+let cachedAvailableModels: string[] | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL_MS = 10 * 60_000;
+
 /**
  * Register settings API routes
  */
@@ -162,4 +167,52 @@ export async function registerSettingsRoutes(
         .send({ error: "Failed to save models" } as unknown as ModelDefaults);
     }
   });
+
+  /**
+   * GET /api/settings/available-models
+   *
+   * Lists models available on the Anthropic API (cached 10 min).
+   */
+  fastify.get<{ Reply: { models: string[] } }>(
+    "/api/settings/available-models",
+    async (_request, reply) => {
+      const now = Date.now();
+      if (cachedAvailableModels && now - cacheTimestamp < CACHE_TTL_MS) {
+        return { models: cachedAvailableModels };
+      }
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        return reply.code(500).send({ models: [] } as any);
+      }
+
+      try {
+        const res = await fetch("https://api.anthropic.com/v1/models", {
+          headers: {
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+        });
+
+        if (!res.ok) {
+          fastify.log.warn("[Settings] Failed to fetch models from API: %s", res.status);
+          return { models: cachedAvailableModels ?? [] };
+        }
+
+        const data = (await res.json()) as { data?: Array<{ id: string }> };
+        const models = (data.data ?? []).map((m) => m.id).sort();
+
+        cachedAvailableModels = models;
+        cacheTimestamp = now;
+
+        return { models };
+      } catch (err) {
+        fastify.log.warn(
+          "[Settings] Failed to fetch models: %s",
+          err instanceof Error ? err.message : String(err),
+        );
+        return { models: cachedAvailableModels ?? [] };
+      }
+    },
+  );
 }

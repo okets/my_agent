@@ -215,6 +215,12 @@ function chat() {
     savingPreferences: false,
     preferencesStatus: null, // null | "saved" | "error"
 
+    // Model configuration
+    configuredModels: { sonnet: "claude-sonnet-4-5", haiku: "claude-haiku-4-5", opus: "claude-opus-4-6" },
+    availableModels: [],
+    savingModels: false,
+    modelsStatus: null, // "saved" | "error"
+
     notebookTree: [], // { path, name, type, children?, size?, modified? }
     notebookLoading: false,
     selectedNotebookFile: null, // { path, name, content, loading }
@@ -2596,6 +2602,7 @@ function chat() {
         const res = await fetch("/api/settings/models");
         if (res.ok) {
           const models = await res.json();
+          this.configuredModels = models;
           this.modelOptions = [
             { id: models.sonnet, name: "Sonnet" },
             { id: models.haiku, name: "Haiku" },
@@ -2608,6 +2615,50 @@ function chat() {
         }
       } catch (err) {
         console.error("[App] Failed to load models:", err);
+      }
+
+      // Load available models from Anthropic API
+      try {
+        const res = await fetch("/api/settings/available-models");
+        if (res.ok) {
+          const data = await res.json();
+          this.availableModels = data.models || [];
+        }
+      } catch (err) {
+        console.error("[App] Failed to load available models:", err);
+      }
+    },
+
+    async saveModels() {
+      this.savingModels = true;
+      this.modelsStatus = null;
+      try {
+        const res = await fetch("/api/settings/models", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(this.configuredModels),
+        });
+        if (!res.ok) {
+          this.modelsStatus = "error";
+        } else {
+          const updated = await res.json();
+          this.configuredModels = updated;
+          this.modelOptions = [
+            { id: updated.sonnet, name: "Sonnet" },
+            { id: updated.haiku, name: "Haiku" },
+            { id: updated.opus, name: "Opus" },
+          ];
+          if (!this.modelOptions.some((m) => m.id === this.selectedModel)) {
+            this.selectedModel = updated.sonnet;
+          }
+          this.modelsStatus = "saved";
+          setTimeout(() => (this.modelsStatus = null), 2000);
+        }
+      } catch (err) {
+        console.error("[App] Failed to save models:", err);
+        this.modelsStatus = "error";
+      } finally {
+        this.savingModels = false;
       }
     },
 
