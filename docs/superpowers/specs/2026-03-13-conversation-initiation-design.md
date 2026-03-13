@@ -32,14 +32,15 @@ This principle governs this sprint's implementation. A follow-up sprint (S3.5) w
 
 `ConversationInitiator` is a service with two public methods:
 
-### 3.1 `alert(prompt: string): Promise<void>`
+### 3.1 `alert(prompt: string): Promise<boolean>`
 
 Sends a message into the **active conversation** through the brain session.
 
 - Injects a synthetic system turn into the active brain session (e.g., `[SYSTEM: Morning brief is due. Ask the user if they'd like to start now or be reminded later.]`)
 - Nina responds naturally in her voice, adapting to conversational context
-- The synthetic turn is internal — the user only sees Nina's response
+- The synthetic turn is internal — the user only sees Nina's response. The synthetic turn is **not appended** to the conversation transcript; only the brain's response is appended as an assistant turn.
 - Sends via whatever channel the active conversation is on
+- Returns `true` if an active conversation was found and alerted, `false` otherwise (enables caller to fall back to `initiate()`)
 
 **When to use:** There's an active conversation and Working Nina needs Conversation Nina's attention without breaking flow.
 
@@ -100,7 +101,12 @@ Nina speaks first with all context already loaded. If initial testing shows she 
 
 If the user says "not now" to the in-conversation alert, it's on them to ask for the brief later. No timers, no retries, no flags.
 
-### 4.4 `handleMorningPrep()` Refactoring
+### 4.4 Guards
+
+- **Haiku failure guard:** If the Haiku synthesis step fails (current-state.md not updated), do NOT call ConversationInitiator. Stale context is worse than no conversation.
+- **Duplicate guard:** If morning brief already ran today (check work_loop_runs), skip. Prevents scheduler race conditions.
+
+### 4.5 `handleMorningPrep()` Refactoring
 
 Following the Working Nina / Conversation Nina principle:
 - `handleMorningPrep()` produces a **report** (`current-state.md`), not user-facing prose
@@ -158,10 +164,12 @@ When `alert()` needs to inject a system message into the active brain session:
 `SessionManager` needs a method to inject a turn into the active session without a real user message. This is a new capability:
 
 ```typescript
-async injectSystemTurn(conversationId: string, prompt: string): AsyncGenerator<StreamEvent>
+async *injectSystemTurn(prompt: string): AsyncGenerator<StreamEvent>
 ```
 
-Returns an `AsyncGenerator<StreamEvent>` (consistent with `streamMessage()`) so the caller can stream Nina's response to the channel in real time. The caller collects the full response for transcript storage.
+No `conversationId` parameter — `SessionManager` is per-conversation, so the conversation is already bound at construction. Returns an `AsyncGenerator<StreamEvent>` (consistent with `streamMessage()`) so the caller can stream the response to the channel in real time. The caller collects the full response for transcript storage.
+
+The method wraps the prompt in `[SYSTEM: {prompt}]` format before passing to the brain, so the brain can distinguish system injections from user messages.
 
 ---
 
