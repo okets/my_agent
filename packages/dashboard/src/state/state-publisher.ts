@@ -55,6 +55,7 @@ function toTaskSnapshot(task: Task): TaskSnapshot {
     deletedAt: task.deletedAt?.toISOString(),
     created: task.created.toISOString(),
     createdBy: task.createdBy,
+    notifyOnCompletion: task.notifyOnCompletion,
   };
 }
 

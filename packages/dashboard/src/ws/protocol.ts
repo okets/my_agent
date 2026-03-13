@@ -215,6 +215,7 @@ export interface TaskSnapshot {
   deletedAt?: string;
   created: string;
   createdBy: string;
+  notifyOnCompletion?: "immediate" | "debrief" | "none";
 }
 
 export interface CalendarEventSnapshot {
