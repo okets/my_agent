@@ -9,7 +9,7 @@ import type { ChannelInstanceConfig, ReconnectPolicy, WatchdogConfig } from './c
  * Users can override in config.yaml under `preferences.models`.
  */
 export const DEFAULT_MODELS: ModelDefaults = {
-  sonnet: 'claude-sonnet-4-5',
+  sonnet: 'claude-sonnet-4-6',
   haiku: 'claude-haiku-4-5',
   opus: 'claude-opus-4-6',
 }

@@ -37,7 +37,7 @@ function chat() {
     editTitleValue: "",
 
     // Action bar state
-    selectedModel: "claude-sonnet-4-5",
+    selectedModel: "claude-sonnet-4-6",
     reasoningEnabled: false,
     attachments: [], // Will hold {file, preview, type} objects
 
@@ -184,7 +184,7 @@ function chat() {
     },
 
     modelOptions: [
-      { id: "claude-sonnet-4-5", name: "Sonnet" },
+      { id: "claude-sonnet-4-6", name: "Sonnet" },
       { id: "claude-haiku-4-5", name: "Haiku" },
       { id: "claude-opus-4-6", name: "Opus" },
     ],
@@ -216,7 +216,7 @@ function chat() {
     preferencesStatus: null, // null | "saved" | "error"
 
     // Model configuration
-    configuredModels: { sonnet: "claude-sonnet-4-5", haiku: "claude-haiku-4-5", opus: "claude-opus-4-6" },
+    configuredModels: { sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5", opus: "claude-opus-4-6" },
     availableModels: [],
     savingModels: false,
     modelsStatus: null, // "saved" | "error"
@@ -1005,11 +1005,11 @@ function chat() {
             this.currentConversationId = data.conversation.id;
             // Sync model from conversation (use default if not set)
             this.selectedModel =
-              data.conversation.model || "claude-sonnet-4-5";
+              data.conversation.model || "claude-sonnet-4-6";
           } else {
             this.currentConversationId = null;
             // Reset to default model for new conversations
-            this.selectedModel = "claude-sonnet-4-5";
+            this.selectedModel = "claude-sonnet-4-6";
           }
 
           // Convert turns to messages
@@ -2653,7 +2653,7 @@ function chat() {
       }
 
       // Sort undated: extract version numbers, higher first
-      // e.g. claude-sonnet-4-6 > claude-sonnet-4-5 > claude-sonnet-4-0
+      // e.g. claude-sonnet-4-6 > claude-sonnet-4-6 > claude-sonnet-4-0
       undated.sort((a, b) => {
         const va = a.match(/(\d+(?:-\d+)*)/g) || [];
         const vb = b.match(/(\d+(?:-\d+)*)/g) || [];

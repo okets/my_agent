@@ -202,18 +202,11 @@ export async function registerSettingsRoutes(
         const data = (await res.json()) as { data?: Array<{ id: string }> };
         const rawIds = (data.data ?? []).map((m) => m.id);
 
-        // Synthesize undated aliases for dated models that lack them.
-        // Only strip date when model has a minor version before the date,
-        // e.g. claude-opus-4-5-20251101 → claude-opus-4-5 (has minor version "5")
-        // but NOT claude-opus-4-20250514 → claude-opus-4 (no minor version)
+        // Don't synthesize undated aliases — the API already returns working
+        // undated IDs (e.g. claude-sonnet-4-6). Synthesizing from dated models
+        // creates phantom IDs (e.g. claude-sonnet-4-5) that the API silently
+        // accepts but returns empty responses for.
         const idSet = new Set(rawIds);
-        for (const id of rawIds) {
-          // Match: name-major-minor-YYYYMMDD (minor must be a short number, not 8-digit date)
-          const match = id.match(/^(.+-\d+-\d{1,2})-\d{8}$/);
-          if (match && !idSet.has(match[1])) {
-            idSet.add(match[1]);
-          }
-        }
 
         const models = [...idSet].sort();
 
