@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-12 (M6.9-S1 complete, trip mode + verification pipeline shipped)
+> **Updated:** 2026-03-13 (M6.9-S2.5 complete, normalized metadata + timezone scheduling + model centralization)
 
 ---
 
@@ -20,7 +20,7 @@
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
-| **M6.9: Knowledge Lifecycle**| Active   | S1 complete, S2-S3 planned |
+| **M6.9: Knowledge Lifecycle**| Active   | S1-S2.5 complete, S3 planned |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -39,8 +39,8 @@ M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5
 [████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
    COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
                                                                                                     M6.7 Two-Agent   M6.6 Lifecycle   M6.9 Knowledge   M6.8 Skills
-                                                                                                    [████████████]   [████████████]   [████░░░░░░░░]   [░░░░░░░░░░]
-                                                                                                       COMPLETE         COMPLETE      ACTIVE (S1/3)     PLANNED
+                                                                                                    [████████████]   [████████████]   [████████░░░░]   [░░░░░░░░░░]
+                                                                                                       COMPLETE         COMPLETE     ACTIVE (S2.5/3)    PLANNED
                                                                                                                                             │
                                                                                                                                       ┌─────┴─────┐
                                                                                                                                       ▼           ▼
@@ -599,7 +599,7 @@ The knowledge system gets a lifecycle. Facts are classified at extraction (perma
 |--------|------|--------|-------|
 | S1 | Data Model + Pipeline | Complete | Classification prompt, routing, staging, summaries, properties, `queryModel()`, migration — [plan](sprints/m6.9-s1-data-model-pipeline/plan.md) · [review](sprints/m6.9-s1-data-model-pipeline/review.md) |
 | S2 | Behavioral Layer | Complete | Morning brief upgrade, approval flow MCP tool, property staleness, settings UI — [plan](../superpowers/plans/2026-03-12-m6.9-s2-behavioral-layer.md) · [review](sprints/m6.9-s2-behavioral-layer/review.md) |
-| S2.5 | Normalized Metadata & Timezone Scheduling | Planned | YAML frontmatter standard, timezone-aware `isDue()`, metadata validation + haiku repair, single source of truth for cadence — [spec](../superpowers/specs/2026-03-13-normalized-metadata-timezone-scheduling.md) |
+| S2.5 | Normalized Metadata & Timezone Scheduling | Complete | YAML frontmatter standard, timezone-aware `isDue()`, metadata validation + haiku repair, centralized model IDs, model selector UI — [plan](sprints/m6.9-s2.5-normalized-metadata/plan.md) · [review](sprints/m6.9-s2.5-normalized-metadata/review.md) |
 | S3 | Conversation Initiation | Planned | Scheduler → conversation manager → channel plugin (reusable primitive) |
 
 **Key design decisions:**
@@ -763,7 +763,7 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                               (independent)   (needs redesign)
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9. All complete through M6.6. M6.9 is active (S1 complete).
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9. All complete through M6.6. M6.9 is active (S1-S2.5 complete).
 
 **M6.7 delivers conversation architecture.** Unified resume+systemPrompt path, 6-layer system prompt with caching, conversation lifecycle (current/inactive), channel routing (owner → Nina, external → Working Agents), asymmetric channel switching. Removes context-builder.ts and the two-branch buildQuery bug. This is the foundation for all subsequent milestones.
 
