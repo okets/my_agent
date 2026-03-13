@@ -208,7 +208,7 @@ function chat() {
     localModelDeleting: false,
     localModelDeleteResult: null,
 
-    // Morning Brief preferences (M6.9-S2)
+    // Debrief preferences (M6.9-S2)
     briefTime: "08:00",
     briefTimezone: "UTC",
     briefModel: "sonnet",
@@ -2547,7 +2547,7 @@ function chat() {
     },
 
     // ─────────────────────────────────────────────────────────────────
-    // Morning Brief Preferences (M6.9-S2)
+    // Debrief Preferences (M6.9-S2)
     // ─────────────────────────────────────────────────────────────────
 
     async loadChannels() {
@@ -2573,9 +2573,9 @@ function chat() {
         const res = await fetch("/api/settings/preferences");
         if (!res.ok) return;
         const data = await res.json();
-        this.briefTime = data.morningBrief?.time ?? "08:00";
+        this.briefTime = data.debrief?.time ?? "08:00";
         this.briefTimezone = data.timezone ?? "UTC";
-        this.briefModel = data.morningBrief?.model ?? "sonnet";
+        this.briefModel = data.debrief?.model ?? "sonnet";
         this.briefOutboundChannel = data.outboundChannel ?? "web";
       } catch (err) {
         console.error("[App] Failed to load preferences:", err);
@@ -2698,7 +2698,7 @@ function chat() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            morningBrief: {
+            debrief: {
               time: this.briefTime,
               model: this.briefModel,
             },
