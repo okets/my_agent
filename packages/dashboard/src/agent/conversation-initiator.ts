@@ -25,6 +25,7 @@ export interface SessionFactory {
   /** Start a brain session for a new conversation (agent speaks first) */
   streamNewConversation(
     conversationId: string,
+    prompt?: string,
   ): AsyncGenerator<{ type: string; text?: string }>;
 }
 
@@ -44,6 +45,7 @@ export interface ChannelManagerLike {
   /** Get channel info to check connection status */
   getChannelInfos(): Array<{
     id: string;
+    plugin?: string;
     statusDetail?: { connected: boolean };
   }>;
 }
@@ -133,9 +135,12 @@ export class ConversationInitiator {
     const conv = await this.conversationManager.create();
 
     // Stream first turn from brain — agent speaks first
+    const prompt = options?.firstTurnPrompt ||
+      "[SYSTEM: You are starting a new conversation. Greet the user naturally.]";
     let response = "";
     for await (const event of this.sessionFactory.streamNewConversation(
       conv.id,
+      prompt,
     )) {
       if (event.type === "text" || event.type === "text_delta") {
         if (event.text) response += event.text;
@@ -167,8 +172,16 @@ export class ConversationInitiator {
 
     try {
       // Check if channel is connected
+      // channelId from preferences is a type like "whatsapp", but actual channel
+      // IDs are instance names like "ninas_dedicated_whatsapp". Match by plugin type
+      // first, fall back to exact ID match.
       const channels = this.channelManager.getChannelInfos();
-      const channel = channels.find((c) => c.id === channelId);
+      // Map preference names to plugin names (e.g. "whatsapp" → "baileys")
+      const PLUGIN_MAP: Record<string, string> = { whatsapp: "baileys" };
+      const pluginName = PLUGIN_MAP[channelId] || channelId;
+      const channel = channels.find(
+        (c) => c.id === channelId || c.plugin === pluginName,
+      );
       if (!channel?.statusDetail?.connected) {
         console.warn(
           `[ConversationInitiator] Channel ${channelId} not connected, falling back to web`,
@@ -177,7 +190,8 @@ export class ConversationInitiator {
       }
 
       // Get owner JID for outbound messaging
-      const config = this.channelManager.getChannelConfig(channelId);
+      const resolvedId = channel.id;
+      const config = this.channelManager.getChannelConfig(resolvedId);
       const ownerJid = config?.ownerJid;
       if (!ownerJid) {
         console.warn(
@@ -186,7 +200,7 @@ export class ConversationInitiator {
         return;
       }
 
-      await this.channelManager.send(channelId, ownerJid, { content });
+      await this.channelManager.send(resolvedId, ownerJid, { content });
     } catch (err) {
       console.warn(
         `[ConversationInitiator] Failed to send via ${channelId}, falling back to web:`,

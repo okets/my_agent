@@ -69,6 +69,7 @@ declare module "fastify" {
     pluginRegistry: PluginRegistry | null;
     conversationSearchService: ConversationSearchService | null;
     workLoopScheduler: WorkLoopScheduler | null;
+    conversationInitiator: { alert(prompt: string): Promise<boolean>; initiate(options?: { firstTurnPrompt?: string }): Promise<unknown> } | null;
   }
 }
 
@@ -160,6 +161,7 @@ export async function createServer(
   fastify.decorate("pluginRegistry", null);
   fastify.decorate("conversationSearchService", null);
   fastify.decorate("workLoopScheduler", null);
+  fastify.decorate("conversationInitiator", null);
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);

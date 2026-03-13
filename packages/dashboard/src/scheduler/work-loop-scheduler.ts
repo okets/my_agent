@@ -708,7 +708,9 @@ export class WorkLoopScheduler {
           "The morning brief has been updated. Ask the user if they'd like to go through it now, or present it naturally if starting a new conversation.",
         );
         if (!alerted) {
-          await this.conversationInitiator.initiate();
+          await this.conversationInitiator.initiate({
+            firstTurnPrompt: "[SYSTEM: The morning brief is ready. Start a new conversation and present it naturally to the user.]",
+          });
         }
       } catch (err) {
         console.error("[WorkLoop] Morning brief initiation failed:", err);

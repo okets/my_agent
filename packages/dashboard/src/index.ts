@@ -410,10 +410,9 @@ async function main() {
           );
           yield* sm.injectSystemTurn(prompt);
         },
-        async *streamNewConversation(conversationId) {
+        async *streamNewConversation(conversationId, prompt) {
           const sm = await sessionRegistry.getOrCreate(conversationId);
-          // Empty string content — brain speaks first via system prompt
-          yield* sm.streamMessage("");
+          yield* sm.streamMessage(prompt || "");
         },
       },
       channelManager: {
@@ -429,6 +428,7 @@ async function main() {
       },
       getOutboundChannel: () => loadPreferences(agentDir).outboundChannel,
     });
+    server.conversationInitiator = conversationInitiator;
     console.log("[ConversationInitiator] Initialized");
   }
 

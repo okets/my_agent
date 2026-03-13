@@ -1102,4 +1102,45 @@ export async function registerDebugRoutes(
       message: "Memory state broadcast triggered",
     };
   });
+
+  /**
+   * POST /api/debug/initiate — Test the ConversationInitiator bridge
+   *
+   * Body: { mode: "alert" | "initiate" | "auto", prompt?: string }
+   *
+   * - alert: inject into active conversation
+   * - initiate: start new conversation on preferred channel
+   * - auto: try alert, fall back to initiate (morning brief flow)
+   */
+  fastify.post<{
+    Body: { mode?: string; prompt?: string };
+  }>("/initiate", { preHandler: localhostOnly }, async (request, reply) => {
+    const initiator = fastify.conversationInitiator;
+    if (!initiator) {
+      return reply.code(503).send({ error: "ConversationInitiator not initialized" });
+    }
+
+    const mode = request.body?.mode || "auto";
+    const prompt =
+      request.body?.prompt ||
+      "The morning brief is ready. Ask the user if they'd like to go through it now.";
+
+    if (mode === "alert") {
+      const alerted = await initiator.alert(prompt);
+      return { mode: "alert", alerted };
+    }
+
+    if (mode === "initiate") {
+      const conv = await initiator.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+      return { mode: "initiate", conversation: conv };
+    }
+
+    // auto: morning brief flow
+    const alerted = await initiator.alert(prompt);
+    if (!alerted) {
+      const conv = await initiator.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+      return { mode: "auto", alerted: false, initiated: true, conversation: conv };
+    }
+    return { mode: "auto", alerted: true, initiated: false };
+  });
 }
