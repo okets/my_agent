@@ -401,6 +401,7 @@ async function main() {
         db,
         agentDir,
         pollIntervalMs: 60_000,
+        notificationService: notificationService ?? undefined,
       });
       await workLoopScheduler.start();
       console.log("Work loop scheduler started");

@@ -21,6 +21,7 @@ import {
 import { existsSync } from "node:fs";
 import type Database from "better-sqlite3";
 import { loadWorkPatterns, isDue, type WorkPattern } from "./work-patterns.js";
+import { validateAndNotify } from "../metadata/validator.js";
 import {
   runMorningPrep,
   formatStagedFactsSection,
@@ -53,9 +54,14 @@ export interface WorkLoopSchedulerConfig {
   db: Database.Database;
   agentDir: string;
   pollIntervalMs?: number;
-  /** Optional notification service for morning brief context (spec §5) */
+  /** Optional notification service for morning brief context (spec §5) and validation (spec §4) */
   notificationService?: {
     getPending: () => Array<{ type: string; message?: string; question?: string; problem?: string }>;
+    requestInput: (input: {
+      question: string;
+      options: string[] | Array<{ label: string; value: string }>;
+    }) => { id: string };
+    notify: (input: { message: string; importance?: "info" | "warning" | "success" | "error" }) => void;
   };
 }
 
@@ -142,6 +148,12 @@ export class WorkLoopScheduler {
       `[WorkLoop] Started, polling every ${this.pollIntervalMs / 1000}s with ${this.patterns.length} job(s)`,
     );
 
+    // Validate frontmatter 5 minutes after start (spec §4.2, non-blocking)
+    setTimeout(() => {
+      const workPatternsPath = `${this.agentDir}/notebook/config/work-patterns.md`;
+      validateAndNotify(workPatternsPath, this.agentDir, this.notificationService);
+    }, 5 * 60_000);
+
     // Check immediately on start (tracked)
     this.activeCheck = this.checkDueJobs().finally(() => {
       this.activeCheck = null;
@@ -172,6 +184,10 @@ export class WorkLoopScheduler {
    */
   async reloadPatterns(): Promise<void> {
     this.patterns = await loadWorkPatterns(this.agentDir);
+
+    // Validate frontmatter on reload (spec §4.2)
+    const workPatternsPath = `${this.agentDir}/notebook/config/work-patterns.md`;
+    validateAndNotify(workPatternsPath, this.agentDir, this.notificationService);
   }
 
   /**

@@ -203,6 +203,27 @@ export function getNextScheduledTime(
     const minute = parseInt(parts[2], 10);
     if (isNaN(hour) || isNaN(minute)) return null;
 
+    if (tz) {
+      // Timezone-aware: get current local time components
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const timeParts = formatter.formatToParts(now);
+      const nowHour = parseInt(timeParts.find((p) => p.type === "hour")!.value, 10);
+      const nowMinute = parseInt(timeParts.find((p) => p.type === "minute")!.value, 10);
+      const nowMinutes = nowHour * 60 + nowMinute;
+      const targetMinutes = hour * 60 + minute;
+
+      // Calculate ms until target time in the user's timezone
+      let deltaMinutes = targetMinutes - nowMinutes;
+      if (deltaMinutes <= 0) deltaMinutes += 24 * 60; // next day
+      return new Date(now.getTime() + deltaMinutes * 60_000);
+    }
+
+    // No timezone: use server local time
     const next = new Date(now);
     next.setHours(hour, minute, 0, 0);
 
@@ -233,6 +254,39 @@ export function getNextScheduledTime(
     const targetDay = dayMap[dayName];
     if (targetDay === undefined) return null;
 
+    if (tz) {
+      // Timezone-aware: get local day of week and time
+      const dayFormatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        weekday: "short",
+      });
+      const localDayStr = dayFormatter.format(now).toLowerCase();
+      const localDayMap: Record<string, number> = {
+        sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+      };
+      const localDay = localDayMap[localDayStr];
+
+      const timeFormatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const timeParts = timeFormatter.formatToParts(now);
+      const nowHour = parseInt(timeParts.find((p) => p.type === "hour")!.value, 10);
+      const nowMinute = parseInt(timeParts.find((p) => p.type === "minute")!.value, 10);
+      const nowMinutes = nowHour * 60 + nowMinute;
+      const targetMinutes = hour * 60 + minute;
+
+      let daysUntil = targetDay - localDay;
+      if (daysUntil < 0) daysUntil += 7;
+      if (daysUntil === 0 && nowMinutes >= targetMinutes) daysUntil = 7;
+
+      const deltaMinutes = daysUntil * 24 * 60 + (targetMinutes - nowMinutes);
+      return new Date(now.getTime() + deltaMinutes * 60_000);
+    }
+
+    // No timezone: server local time
     const next = new Date(now);
     next.setHours(hour, minute, 0, 0);
 
