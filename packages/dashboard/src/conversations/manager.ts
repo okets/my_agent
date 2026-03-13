@@ -124,6 +124,16 @@ export class ConversationManager {
   }
 
   /**
+   * Get the active conversation — current conversation with recent user activity.
+   * Returns null if no conversation has user activity within the threshold.
+   */
+  async getActiveConversation(
+    thresholdMinutes: number = 15,
+  ): Promise<Conversation | null> {
+    return this.db.getActiveConversation(thresholdMinutes);
+  }
+
+  /**
    * Append a turn to a conversation
    *
    * This updates:
