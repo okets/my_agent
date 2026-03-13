@@ -213,6 +213,7 @@ A short follow-up sprint to fully adopt the separation principle:
 - Refactor job outputs to produce structured data, not user-facing prose
 - Conversation Nina interprets and presents everything in her voice
 - **On-demand morning brief:** User can request the morning brief conversationally (before or after scheduled time). Brain reads existing `current-state.md` if prep already ran, or triggers the job if it hasn't. Consider MCP tool vs standing-order approach.
+- **Long-running response notifications:** If processing takes >15-20 seconds, Conversation Nina must send interim messages ("working on it", "researching X, give me a moment") so the user knows she's alive. Critical for WhatsApp where typing indicators time out.
 
 ---
 
