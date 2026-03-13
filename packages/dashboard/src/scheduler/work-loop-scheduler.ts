@@ -23,14 +23,15 @@ import type Database from "better-sqlite3";
 import { loadWorkPatterns, isDue, isValidTimezone, type WorkPattern } from "./work-patterns.js";
 import { validateAndNotify } from "../metadata/validator.js";
 import {
-  runMorningPrep,
+  runDebriefPrep,
   formatStagedFactsSection,
   formatStalePropertiesSection,
   SYSTEM_PROMPT as MORNING_SYSTEM,
   USER_PROMPT_TEMPLATE as MORNING_USER,
-} from "./jobs/morning-prep.js";
+} from "./jobs/debrief-prep.js";
 import type { ModelAlias } from "./query-model.js";
 import { loadPreferences } from "@my-agent/core";
+import type { TaskManager } from "../tasks/task-manager.js";
 import { readProperties, detectStaleProperties } from "../conversations/properties.js";
 import {
   readStagingFiles,
@@ -63,11 +64,13 @@ export interface WorkLoopSchedulerConfig {
     }) => { id: string };
     notify: (input: { message: string; importance?: "info" | "warning" | "success" | "error" }) => void;
   };
-  /** Optional ConversationInitiator for proactive outreach after morning prep (M6.9-S3) */
+  /** Optional ConversationInitiator for proactive outreach after debrief prep (M6.9-S3) */
   conversationInitiator?: {
     alert(prompt: string): Promise<boolean>;
     initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
   };
+  /** Optional TaskManager for including completed tasks in debrief */
+  taskManager?: TaskManager | null;
 }
 
 interface WorkLoopRun {
@@ -95,6 +98,7 @@ export class WorkLoopScheduler {
   private patterns: WorkPattern[] = [];
   private notificationService: WorkLoopSchedulerConfig["notificationService"];
   private conversationInitiator: WorkLoopSchedulerConfig["conversationInitiator"];
+  private taskManager: TaskManager | null;
 
   constructor(config: WorkLoopSchedulerConfig) {
     this.db = config.db;
@@ -102,6 +106,7 @@ export class WorkLoopScheduler {
     this.pollIntervalMs = config.pollIntervalMs ?? 60_000;
     this.notificationService = config.notificationService;
     this.conversationInitiator = config.conversationInitiator;
+    this.taskManager = config.taskManager ?? null;
 
     this.initDb();
   }
@@ -258,7 +263,7 @@ export class WorkLoopScheduler {
     string,
     { system: string; userTemplate: string }
   > = {
-    "morning-prep": { system: MORNING_SYSTEM, userTemplate: MORNING_USER },
+    "debrief-prep": { system: MORNING_SYSTEM, userTemplate: MORNING_USER },
     "daily-summary": { system: SUMMARY_SYSTEM, userTemplate: SUMMARY_USER },
     "weekly-review": { system: REVIEW_SYSTEM, userTemplate: REVIEW_USER },
   };
@@ -369,8 +374,8 @@ export class WorkLoopScheduler {
       let output: string;
 
       switch (pattern.name) {
-        case "morning-prep":
-          output = await this.handleMorningPrep();
+        case "debrief-prep":
+          output = await this.handleDebriefPrep();
           break;
         case "daily-summary":
           output = await this.handleDailySummary();
@@ -555,9 +560,9 @@ export class WorkLoopScheduler {
   }
 
   /**
-   * Morning Prep — reads summary stack, produces current-state briefing
+   * Debrief Prep — reads summary stack, produces current-state briefing
    */
-  private async handleMorningPrep(): Promise<string> {
+  private async handleDebriefPrep(): Promise<string> {
     const notebookDir = join(this.agentDir, "notebook");
     const sections: string[] = [];
 
@@ -655,9 +660,21 @@ export class WorkLoopScheduler {
       }
     }
 
-    const context = sections.length > 0
+    let context = sections.length > 0
       ? sections.join("\n\n---\n\n")
       : "No context available.";
+
+    // Tasks completed since last debrief
+    const lastRun = this.getLastRun("debrief-prep");
+    if (lastRun && this.taskManager) {
+      const completedTasks = this.taskManager.getCompletedForDebrief(lastRun.toISOString());
+      if (completedTasks.length > 0) {
+        const taskSection = completedTasks
+          .map((t) => `- **${t.title}** (completed ${t.completedAt?.toISOString().slice(0, 16)})`)
+          .join("\n");
+        context += `\n\n---\n\n## Tasks Completed Since Last Debrief\n\n${taskSection}`;
+      }
+    }
 
     // Clean expired facts before building the prompt (max 3 attempts)
     await cleanExpiredFacts(this.agentDir, 3);
@@ -676,7 +693,7 @@ export class WorkLoopScheduler {
     const preferences = loadPreferences(this.agentDir);
     const model = preferences.debrief.model as ModelAlias;
 
-    const output = await runMorningPrep(
+    const output = await runDebriefPrep(
       context,
       model,
       stagedFactsSection,
@@ -698,22 +715,22 @@ export class WorkLoopScheduler {
     // Log to daily log
     await this.appendToDailyLog(
       notebookDir,
-      `- Morning prep completed (${output.length} chars)`,
+      `- Debrief prep completed (${output.length} chars)`,
     );
 
     // Proactive outreach: alert active conversation or initiate new one (M6.9-S3)
     if (this.conversationInitiator && output) {
       try {
         const alerted = await this.conversationInitiator.alert(
-          "The morning brief has been updated. Ask the user if they'd like to go through it now, or present it naturally if starting a new conversation.",
+          "The debrief brief has been updated. Ask the user if they'd like to go through it now, or present it naturally if starting a new conversation.",
         );
         if (!alerted) {
           await this.conversationInitiator.initiate({
-            firstTurnPrompt: "[SYSTEM: The morning brief is ready. Start a new conversation and present it naturally to the user.]",
+            firstTurnPrompt: "[SYSTEM: The debrief brief is ready. Start a new conversation and present it naturally to the user.]",
           });
         }
       } catch (err) {
-        console.error("[WorkLoop] Morning brief initiation failed:", err);
+        console.error("[WorkLoop] Debrief brief initiation failed:", err);
       }
     }
 
@@ -752,7 +769,7 @@ export class WorkLoopScheduler {
   }
 
   /**
-   * Assemble notebook context for morning prep:
+   * Assemble notebook context for debrief prep:
    * reference/*, daily/{yesterday}, knowledge/*
    */
   private async assembleNotebookContext(notebookDir: string): Promise<string> {

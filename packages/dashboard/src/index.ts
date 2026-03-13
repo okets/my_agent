@@ -463,6 +463,7 @@ async function main() {
         pollIntervalMs: 60_000,
         notificationService: notificationService ?? undefined,
         conversationInitiator: conversationInitiator ?? undefined,
+        taskManager: taskManager ?? undefined,
       });
       await workLoopScheduler.start();
       console.log("Work loop scheduler started");

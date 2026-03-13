@@ -374,6 +374,22 @@ export class TaskManager {
   }
 
   /**
+   * Get tasks completed since a given timestamp that want debrief notification.
+   * Includes tasks with explicit 'debrief' AND scheduled tasks with NULL (default).
+   */
+  getCompletedForDebrief(since: string): Task[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM tasks
+      WHERE completed_at > ?
+        AND status = 'completed'
+        AND (notify_on_completion = 'debrief'
+             OR (notify_on_completion IS NULL AND type = 'scheduled'))
+      ORDER BY completed_at ASC
+    `).all(since) as any[];
+    return rows.map((r) => this.rowToTask(r));
+  }
+
+  /**
    * Get pending tasks that are due
    */
   getPendingDueTasks(): Task[] {

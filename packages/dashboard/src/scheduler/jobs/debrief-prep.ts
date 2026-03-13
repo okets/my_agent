@@ -1,5 +1,5 @@
 /**
- * Morning Prep Job (Morning Brief)
+ * Debrief Prep Job (Morning Brief)
  *
  * Reads summary stack + calendar + properties + staging,
  * produces operations/current-state.md with past+future temporal context.
@@ -51,7 +51,7 @@ Hard cap: 3000 characters.
 {context}`;
 
 /**
- * Format staged facts for inclusion in the morning brief prompt.
+ * Format staged facts for inclusion in the debrief prompt.
  */
 export function formatStagedFactsSection(stagingFiles: StagingFile[]): string {
   const allFacts = stagingFiles.flatMap((f) =>
@@ -73,7 +73,7 @@ export function formatStagedFactsSection(stagingFiles: StagingFile[]): string {
 }
 
 /**
- * Format stale properties for inclusion in the morning brief prompt.
+ * Format stale properties for inclusion in the debrief prompt.
  */
 export function formatStalePropertiesSection(staleProps: StaleProperty[]): string {
   if (staleProps.length === 0) return "";
@@ -88,9 +88,9 @@ export function formatStalePropertiesSection(staleProps: StaleProperty[]): strin
 }
 
 /**
- * Run the morning prep (morning brief) prompt.
+ * Run the debrief prep prompt.
  */
-export async function runMorningPrep(
+export async function runDebriefPrep(
   assembledContext: string,
   model: ModelAlias = "sonnet",
   stagedFactsSection: string = "",
