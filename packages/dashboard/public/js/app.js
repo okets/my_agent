@@ -219,7 +219,11 @@ function chat() {
     availableChannels: [], // populated from /api/channels
 
     // Model configuration
-    configuredModels: { sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5", opus: "claude-opus-4-6" },
+    configuredModels: {
+      sonnet: "claude-sonnet-4-6",
+      haiku: "claude-haiku-4-5",
+      opus: "claude-opus-4-6",
+    },
     availableModels: [],
     savingModels: false,
     modelsStatus: null, // "saved" | "error"
@@ -359,7 +363,6 @@ function chat() {
 
       // Initialize mobile viewport reset (fixes zoom lock issue)
       this.initViewportReset();
-
 
       // Load agent name and check hatching status
       fetch("/api/hatching/status")
@@ -567,7 +570,6 @@ function chat() {
     createNewConversation() {
       if (!this.wsConnected) return;
 
-
       // Send /new as a slash command — same path as WhatsApp /new
       this.resetChatState();
       this.currentConversationId = null;
@@ -581,7 +583,6 @@ function chat() {
     switchConversation(conversationId) {
       if (!this.wsConnected || conversationId === this.currentConversationId)
         return;
-
 
       this.ws.send({ type: "switch_conversation", conversationId });
     },
@@ -656,7 +657,6 @@ function chat() {
       if (this.isResponding && !this.isHatching && !this.composeHintControlId) {
         return;
       }
-
 
       // Show masked or actual text in user bubble
       const displayText = this.composePasswordMode
@@ -1011,8 +1011,7 @@ function chat() {
           if (data.conversation) {
             this.currentConversationId = data.conversation.id;
             // Sync model from conversation (use default if not set)
-            this.selectedModel =
-              data.conversation.model || "claude-sonnet-4-6";
+            this.selectedModel = data.conversation.model || "claude-sonnet-4-6";
           } else {
             this.currentConversationId = null;
             // Reset to default model for new conversations
@@ -1442,7 +1441,6 @@ function chat() {
     },
 
     respondToNotification(notificationId, response) {
-
       if (this.ws && this.wsConnected) {
         this.ws.send(
           JSON.stringify({
@@ -1464,7 +1462,6 @@ function chat() {
     },
 
     dismissNotification(notificationId) {
-
       if (this.ws && this.wsConnected) {
         this.ws.send(
           JSON.stringify({ type: "notification_dismiss", notificationId }),
@@ -1549,7 +1546,6 @@ function chat() {
     },
 
     stopResponse() {
-
       this.ws.send({ type: "abort" });
       this.isResponding = false;
       this.isThinking = false;
@@ -1610,7 +1606,6 @@ function chat() {
     // Model selection
     // ─────────────────────────────────────────────────────────────────
     onModelChange(model) {
-
       this.selectedModel = model;
       // Haiku doesn't support extended thinking — disable reasoning if switching to Haiku
       if (model.includes("haiku")) {
@@ -1632,7 +1627,6 @@ function chat() {
     },
 
     cancelDelete() {
-
       this.deleteConfirmOpen = false;
       this.deleteTargetId = null;
       this.deleteTargetTitle = null;
@@ -1640,7 +1634,6 @@ function chat() {
 
     executeDelete() {
       if (!this.deleteTargetId || !this.wsConnected) return;
-
 
       this.ws.send({
         type: "delete_conversation",
@@ -2068,7 +2061,6 @@ function chat() {
     // Haptic Feedback (subtle vibration on button clicks)
     // ─────────────────────────────────────────────────────────────────
 
-
     // ─────────────────────────────────────────────────────────────────
     // Input History (shell-style up/down arrows)
     // ─────────────────────────────────────────────────────────────────
@@ -2345,7 +2337,6 @@ function chat() {
      * Remove attachment at index
      */
     removeAttachment(index) {
-
       this.attachments.splice(index, 1);
     },
 
@@ -2896,7 +2887,6 @@ function chat() {
         this.codeCopied = { ...this.codeCopied, [channelId]: false };
       }, 1000);
 
-
       // Copy to clipboard - try modern API first, fallback to execCommand
       try {
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -3022,7 +3012,6 @@ function chat() {
     },
 
     async disconnectChannel(channelId) {
-
       try {
         const res = await fetch(`/api/channels/${channelId}/disconnect`, {
           method: "POST",
@@ -3047,7 +3036,6 @@ function chat() {
       ) {
         return;
       }
-
 
       try {
         const res = await fetch(`/api/channels/${channelId}`, {
@@ -3646,7 +3634,6 @@ function chat() {
     async saveEvent() {
       if (!this.eventForm.title) return;
 
-
       const eventData = {
         calendarId: this.eventForm.calendarId,
         title: this.eventForm.title,
@@ -3874,7 +3861,6 @@ function chat() {
 
       const confirmed = confirm(`Delete "${event.title}"?`);
       if (!confirmed) return;
-
 
       const calendarId = event.extendedProps?.calendarId;
       const success = await CalendarModule.deleteCalendarEvent(
@@ -4414,7 +4400,6 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
      * Mark task as completed
      */
     async completeTask(taskId) {
-
       try {
         const body = {};
         if (this.currentConversationId) {
@@ -4450,7 +4435,6 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       const task = this.tasks.find((t) => t.id === taskId);
       const confirmed = confirm(`Delete "${task?.title || "this task"}"?`);
       if (!confirmed) return;
-
 
       try {
         const res = await fetch(`/api/tasks/${taskId}`, {
@@ -4497,7 +4481,6 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         alert("Title and instructions are required");
         return;
       }
-
 
       try {
         const body = {

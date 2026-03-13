@@ -13,10 +13,7 @@ const TYPING_INTERVAL_MS = 10_000;
 const INTERIM_1_DELAY_MS = 30_000;
 const INTERIM_2_DELAY_MS = 90_000;
 
-const INTERIM_MESSAGES = [
-  "Working on it...",
-  "Still on it, bear with me...",
-];
+const INTERIM_MESSAGES = ["Working on it...", "Still on it, bear with me..."];
 
 export interface ResponseTimerOptions {
   sendTyping: () => Promise<void>;

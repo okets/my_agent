@@ -52,7 +52,11 @@ interface MessageHandlerDeps {
   agentDir: string;
   statePublisher?: { publishConversations: () => void } | null;
   postResponseHooks?: {
-    run(conversationId: string, userContent: string, assistantContent: string): Promise<void>;
+    run(
+      conversationId: string,
+      userContent: string,
+      assistantContent: string,
+    ): Promise<void>;
   } | null;
 }
 
@@ -331,8 +335,7 @@ export class ChannelMessageHandler {
 
       if (!modelArg) {
         // Show current model and options
-        const currentModel =
-          existingConversation?.model || loadModels().sonnet;
+        const currentModel = existingConversation?.model || loadModels().sonnet;
         const modelName = currentModel.includes("opus")
           ? "Opus"
           : currentModel.includes("haiku")
@@ -525,7 +528,9 @@ export class ChannelMessageHandler {
       sendTyping: () => this.deps.sendTypingIndicator(channelId, replyTo),
       sendInterim: async (message) => {
         // Send as real WhatsApp message (ephemeral, not saved to transcript)
-        await this.deps.sendViaChannel(channelId, replyTo, { content: message });
+        await this.deps.sendViaChannel(channelId, replyTo, {
+          content: message,
+        });
         // Also broadcast to web dashboard
         this.deps.connectionRegistry.broadcastToConversation(conversation.id, {
           type: "interim_status",

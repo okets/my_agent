@@ -899,8 +899,7 @@ export async function registerChatWebSocket(
           const conversation = currentConversationId
             ? await conversationManager.get(currentConversationId)
             : null;
-          const currentModel =
-            conversation?.model || loadModels().sonnet;
+          const currentModel = conversation?.model || loadModels().sonnet;
           const modelName = currentModel.includes("opus")
             ? "Opus"
             : currentModel.includes("haiku")

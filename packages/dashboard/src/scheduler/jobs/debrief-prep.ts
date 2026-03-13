@@ -75,7 +75,9 @@ export function formatStagedFactsSection(stagingFiles: StagingFile[]): string {
 /**
  * Format stale properties for inclusion in the debrief prompt.
  */
-export function formatStalePropertiesSection(staleProps: StaleProperty[]): string {
+export function formatStalePropertiesSection(
+  staleProps: StaleProperty[],
+): string {
   if (staleProps.length === 0) return "";
   return [
     "",

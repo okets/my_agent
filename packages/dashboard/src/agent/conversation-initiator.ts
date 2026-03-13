@@ -148,7 +148,8 @@ export class ConversationInitiator {
     const conv = await this.conversationManager.create();
 
     // Stream first turn from brain — agent speaks first
-    const prompt = options?.firstTurnPrompt ||
+    const prompt =
+      options?.firstTurnPrompt ||
       "[SYSTEM: You are starting a new conversation. Greet the user naturally.]";
     let response = "";
     for await (const event of this.sessionFactory.streamNewConversation(

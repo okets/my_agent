@@ -28,6 +28,8 @@ export const SCHEMAS: SchemaEntry[] = [
 /**
  * Get the schema for a given file path (relative to agent dir).
  */
-export function getSchemaForPath(relativePath: string): SchemaEntry | undefined {
+export function getSchemaForPath(
+  relativePath: string,
+): SchemaEntry | undefined {
   return SCHEMAS.find((s) => s.pathPattern === relativePath);
 }

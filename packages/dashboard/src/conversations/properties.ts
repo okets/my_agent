@@ -65,7 +65,9 @@ export function detectStaleProperties(
 
   for (const [key, entry] of Object.entries(properties)) {
     const updatedMs = new Date(entry.updated).getTime();
-    const daysSinceUpdate = Math.floor((todayMs - updatedMs) / (1000 * 60 * 60 * 24));
+    const daysSinceUpdate = Math.floor(
+      (todayMs - updatedMs) / (1000 * 60 * 60 * 24),
+    );
     const threshold = STALENESS_THRESHOLDS[key] ?? DEFAULT_STALENESS_THRESHOLD;
 
     if (daysSinceUpdate > threshold) {

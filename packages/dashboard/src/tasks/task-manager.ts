@@ -378,14 +378,18 @@ export class TaskManager {
    * Includes tasks with explicit 'debrief' AND scheduled tasks with NULL (default).
    */
   getCompletedForDebrief(since: string): Task[] {
-    const rows = this.db.prepare(`
+    const rows = this.db
+      .prepare(
+        `
       SELECT * FROM tasks
       WHERE completed_at > ?
         AND status = 'completed'
         AND (notify_on_completion = 'debrief'
              OR (notify_on_completion IS NULL AND type = 'scheduled'))
       ORDER BY completed_at ASC
-    `).all(since) as any[];
+    `,
+      )
+      .all(since) as any[];
     return rows.map((r) => this.rowToTask(r));
   }
 

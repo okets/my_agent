@@ -42,7 +42,7 @@ export class TaskProcessor {
   private deliveryExecutor: DeliveryExecutor;
   private notificationService: NotificationService | null;
   private onTaskMutated: (() => void) | null;
-  private conversationInitiator: TaskProcessorConfig['conversationInitiator'];
+  private conversationInitiator: TaskProcessorConfig["conversationInitiator"];
 
   constructor(config: TaskProcessorConfig) {
     this.taskManager = config.taskManager;
@@ -236,7 +236,8 @@ export class TaskProcessor {
     }
 
     // Proactive notification via ConversationInitiator
-    const effectiveNotify = task.notifyOnCompletion ??
+    const effectiveNotify =
+      task.notifyOnCompletion ??
       (task.type === "immediate" ? "immediate" : "debrief");
 
     if (effectiveNotify === "immediate" && this.conversationInitiator) {

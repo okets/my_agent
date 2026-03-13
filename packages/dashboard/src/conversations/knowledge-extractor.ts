@@ -111,7 +111,7 @@ export function parseClassifiedFacts(raw: string): ClassifiedFacts {
     }
 
     const propertyMatch = trimmed.match(
-      /^\[PROPERTY:([\w]+):(high|medium|low)\]\s+(.+)$/
+      /^\[PROPERTY:([\w]+):(high|medium|low)\]\s+(.+)$/,
     );
     if (propertyMatch) {
       result.properties.push({

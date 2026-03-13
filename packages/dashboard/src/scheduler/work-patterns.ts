@@ -65,10 +65,14 @@ export function isDue(
 ): boolean {
   // Resolve timezone: if provided and valid, use it; if provided but invalid, fall back to UTC
   const tz = timezone
-    ? (isValidTimezone(timezone) ? timezone : "UTC")
+    ? isValidTimezone(timezone)
+      ? timezone
+      : "UTC"
     : undefined;
   if (timezone && !isValidTimezone(timezone)) {
-    console.warn(`[WorkPatterns] Invalid timezone '${timezone}', falling back to UTC`);
+    console.warn(
+      `[WorkPatterns] Invalid timezone '${timezone}', falling back to UTC`,
+    );
   }
 
   const parts = cadence.toLowerCase().split(":");
@@ -87,8 +91,14 @@ export function isDue(
         hour12: false,
       });
       const timeParts = formatter.formatToParts(now);
-      const nowHour = parseInt(timeParts.find((p) => p.type === "hour")!.value, 10);
-      const nowMinute = parseInt(timeParts.find((p) => p.type === "minute")!.value, 10);
+      const nowHour = parseInt(
+        timeParts.find((p) => p.type === "hour")!.value,
+        10,
+      );
+      const nowMinute = parseInt(
+        timeParts.find((p) => p.type === "minute")!.value,
+        10,
+      );
       const nowMinutes = nowHour * 60 + nowMinute;
       const targetMinutes = hour * 60 + minute;
 
@@ -140,7 +150,13 @@ export function isDue(
       });
       const localDayStr = dayFormatter.format(now).toLowerCase();
       const localDayMap: Record<string, number> = {
-        sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+        sun: 0,
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
       };
       const localDay = localDayMap[localDayStr];
       if (localDay !== targetDay) return false;
@@ -153,8 +169,14 @@ export function isDue(
         hour12: false,
       });
       const timeParts = formatter.formatToParts(now);
-      const nowHour = parseInt(timeParts.find((p) => p.type === "hour")!.value, 10);
-      const nowMinute = parseInt(timeParts.find((p) => p.type === "minute")!.value, 10);
+      const nowHour = parseInt(
+        timeParts.find((p) => p.type === "hour")!.value,
+        10,
+      );
+      const nowMinute = parseInt(
+        timeParts.find((p) => p.type === "minute")!.value,
+        10,
+      );
       const nowMinutes = nowHour * 60 + nowMinute;
       const targetMinutes = hour * 60 + minute;
 
@@ -194,7 +216,9 @@ export function getNextScheduledTime(
   timezone?: string,
 ): Date | null {
   const tz = timezone
-    ? (isValidTimezone(timezone) ? timezone : "UTC")
+    ? isValidTimezone(timezone)
+      ? timezone
+      : "UTC"
     : undefined;
   const parts = cadence.toLowerCase().split(":");
 
@@ -212,8 +236,14 @@ export function getNextScheduledTime(
         hour12: false,
       });
       const timeParts = formatter.formatToParts(now);
-      const nowHour = parseInt(timeParts.find((p) => p.type === "hour")!.value, 10);
-      const nowMinute = parseInt(timeParts.find((p) => p.type === "minute")!.value, 10);
+      const nowHour = parseInt(
+        timeParts.find((p) => p.type === "hour")!.value,
+        10,
+      );
+      const nowMinute = parseInt(
+        timeParts.find((p) => p.type === "minute")!.value,
+        10,
+      );
       const nowMinutes = nowHour * 60 + nowMinute;
       const targetMinutes = hour * 60 + minute;
 
@@ -262,7 +292,13 @@ export function getNextScheduledTime(
       });
       const localDayStr = dayFormatter.format(now).toLowerCase();
       const localDayMap: Record<string, number> = {
-        sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+        sun: 0,
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
       };
       const localDay = localDayMap[localDayStr];
 
@@ -273,8 +309,14 @@ export function getNextScheduledTime(
         hour12: false,
       });
       const timeParts = timeFormatter.formatToParts(now);
-      const nowHour = parseInt(timeParts.find((p) => p.type === "hour")!.value, 10);
-      const nowMinute = parseInt(timeParts.find((p) => p.type === "minute")!.value, 10);
+      const nowHour = parseInt(
+        timeParts.find((p) => p.type === "hour")!.value,
+        10,
+      );
+      const nowMinute = parseInt(
+        timeParts.find((p) => p.type === "minute")!.value,
+        10,
+      );
       const nowMinutes = nowHour * 60 + nowMinute;
       const targetMinutes = hour * 60 + minute;
 
@@ -367,7 +409,11 @@ export async function loadWorkPatterns(
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true });
     }
-    writeFrontmatter(filePath, DEFAULT_WORK_PATTERNS_DATA, DEFAULT_WORK_PATTERNS_BODY);
+    writeFrontmatter(
+      filePath,
+      DEFAULT_WORK_PATTERNS_DATA,
+      DEFAULT_WORK_PATTERNS_BODY,
+    );
     console.log("[WorkPatterns] Created default work-patterns.md");
   }
 

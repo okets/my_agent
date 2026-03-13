@@ -39,7 +39,9 @@ Only include sections where you have information. Skip sections with no data.
 /**
  * Run the daily summary prompt and return the summary text.
  */
-export async function runDailySummary(dailyLogContent: string): Promise<string> {
+export async function runDailySummary(
+  dailyLogContent: string,
+): Promise<string> {
   const userPrompt = USER_PROMPT_TEMPLATE.replace("{context}", dailyLogContent);
   return queryModel(userPrompt, SYSTEM_PROMPT, "haiku");
 }

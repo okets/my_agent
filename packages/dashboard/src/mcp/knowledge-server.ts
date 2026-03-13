@@ -22,13 +22,21 @@ export function createKnowledgeServer(deps: KnowledgeServerDeps) {
     "manage_staged_knowledge",
     "Approve, reject, or skip a staged knowledge fact. Approve writes to the appropriate reference file. Reject deletes from staging. Skip increments the attempts counter.",
     {
-      action: z.enum(["approve", "reject", "skip"]).describe("The action to take on the fact"),
-      stagingFile: z.string().describe("Absolute path to the staging file containing the fact"),
-      factText: z.string().describe("The text of the fact to act on (substring match)"),
+      action: z
+        .enum(["approve", "reject", "skip"])
+        .describe("The action to take on the fact"),
+      stagingFile: z
+        .string()
+        .describe("Absolute path to the staging file containing the fact"),
+      factText: z
+        .string()
+        .describe("The text of the fact to act on (substring match)"),
       enrichment: z
         .string()
         .optional()
-        .describe("Additional detail from user to merge into the approved fact"),
+        .describe(
+          "Additional detail from user to merge into the approved fact",
+        ),
     },
     async (args) => {
       const result = await handleManageStagedKnowledge({

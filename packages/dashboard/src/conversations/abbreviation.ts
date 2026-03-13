@@ -9,10 +9,7 @@ import { ConversationManager } from "./manager.js";
 import { NamingService } from "./naming.js";
 import { createBrainQuery, loadModels } from "@my-agent/core";
 import type { Query } from "@my-agent/core";
-import {
-  extractClassifiedFacts,
-  routeFacts,
-} from "./knowledge-extractor.js";
+import { extractClassifiedFacts, routeFacts } from "./knowledge-extractor.js";
 import { writeStagingFile } from "./knowledge-staging.js";
 import { updateProperty } from "./properties.js";
 import { existsSync } from "node:fs";
@@ -338,7 +335,12 @@ export class AbbreviationQueue {
       // Route permanent facts to staging
       if (routed.staging.length > 0) {
         const title = this.getConversationTitle(conversationId);
-        await writeStagingFile(this.agentDir, conversationId, title, routed.staging);
+        await writeStagingFile(
+          this.agentDir,
+          conversationId,
+          title,
+          routed.staging,
+        );
         newCount += routed.staging.length;
       }
 
@@ -348,7 +350,11 @@ export class AbbreviationQueue {
         const block = "\n" + lines.join("\n") + "\n";
 
         if (!existsSync(logPath)) {
-          await writeFile(logPath, `# Daily Log -- ${today}\n${block}`, "utf-8");
+          await writeFile(
+            logPath,
+            `# Daily Log -- ${today}\n${block}`,
+            "utf-8",
+          );
         } else {
           await appendFile(logPath, block, "utf-8");
         }
@@ -375,7 +381,11 @@ export class AbbreviationQueue {
       const convLine = `\n- [conv] ${title} (${time})\n`;
 
       if (!existsSync(logPath)) {
-        await writeFile(logPath, `# Daily Log -- ${today}\n${convLine}`, "utf-8");
+        await writeFile(
+          logPath,
+          `# Daily Log -- ${today}\n${convLine}`,
+          "utf-8",
+        );
       } else {
         await appendFile(logPath, convLine, "utf-8");
       }

@@ -14,10 +14,7 @@ export type ModelAlias = "haiku" | "sonnet" | "opus";
  * Resolve a model alias to the configured model ID.
  * Reads from config.yaml, falls back to defaults.
  */
-export function resolveModelId(
-  alias: ModelAlias,
-  agentDir?: string,
-): string {
+export function resolveModelId(alias: ModelAlias, agentDir?: string): string {
   const models = loadModels(agentDir);
   return models[alias];
 }

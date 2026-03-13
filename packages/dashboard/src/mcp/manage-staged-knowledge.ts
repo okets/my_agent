@@ -17,7 +17,7 @@ import {
 
 const SUBCATEGORY_TO_FILE: Record<string, string> = {
   "user-info": "reference/user-info.md",
-  "contact": "reference/contacts.md",
+  contact: "reference/contacts.md",
   "preference:personal": "reference/preferences/personal.md",
   "preference:work": "reference/preferences/work.md",
   "preference:communication": "reference/preferences/communication.md",
@@ -62,13 +62,21 @@ export async function handleManageStagedKnowledge(
     if (!relPath) throw new Error(`Unknown subcategory: ${subcategory}`);
 
     const destPath = join(agentDir, "notebook", relPath);
-    const factContent = enrichment ? `${fullText}\n  - ${enrichment}` : fullText;
+    const factContent = enrichment
+      ? `${fullText}\n  - ${enrichment}`
+      : fullText;
 
     // Ensure directory exists, append to file
     await mkdir(dirname(destPath), { recursive: true });
-    const existing = existsSync(destPath) ? await readFile(destPath, "utf-8") : "";
+    const existing = existsSync(destPath)
+      ? await readFile(destPath, "utf-8")
+      : "";
     const separator = existing && !existing.endsWith("\n") ? "\n" : "";
-    await writeFile(destPath, `${existing}${separator}- ${factContent}\n`, "utf-8");
+    await writeFile(
+      destPath,
+      `${existing}${separator}- ${factContent}\n`,
+      "utf-8",
+    );
 
     // Remove from staging
     await deleteStagedFact(stagingFile, factText);

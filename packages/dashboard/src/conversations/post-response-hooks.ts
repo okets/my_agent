@@ -75,10 +75,7 @@ export class PostResponseHooks {
             createdBy: "agent",
           });
 
-          this.deps.taskManager.linkTaskToConversation(
-            task.id,
-            conversationId,
-          );
+          this.deps.taskManager.linkTaskToConversation(task.id, conversationId);
 
           this.deps.log(
             `[TaskExtractor] Created task "${task.title}" (${task.id}) for conversation ${conversationId}`,

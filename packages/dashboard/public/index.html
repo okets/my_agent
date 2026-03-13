@@ -2254,24 +2254,50 @@
 
               <!-- Preferred Channel section -->
               <div class="glass-strong rounded-xl p-5">
-                <h3 class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-tokyo-blue">
-                    <path d="M3.505 2.365A41.369 41.369 0 0 1 9 2c1.863 0 3.697.124 5.495.365 1.247.167 2.18 1.108 2.435 2.268a4.45 4.45 0 0 0-.577-.069 43.141 43.141 0 0 0-4.706 0C9.229 4.696 7.5 6.727 7.5 8.998v2.24c0 1.413.67 2.735 1.76 3.562l-2.98 2.98A.75.75 0 0 1 5 17.25v-3.443c-.501-.048-1-.106-1.495-.172C2.033 13.438 1 12.162 1 10.72V5.28c0-1.441 1.033-2.717 2.505-2.914Z" />
-                    <path d="M14 6c.762 0 1.52.02 2.272.06 1.207.066 2.228 1.013 2.228 2.262v2.397c0 1.25-1.021 2.196-2.228 2.262-.5.027-1.003.047-1.51.058v2.71a.75.75 0 0 1-1.28.53l-2.702-2.702A41.25 41.25 0 0 1 8.5 13.632V8.998c0-1.248 1.021-2.195 2.228-2.262A42.36 42.36 0 0 1 14 6Z" />
+                <h3
+                  class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class="w-4 h-4 text-tokyo-blue"
+                  >
+                    <path
+                      d="M3.505 2.365A41.369 41.369 0 0 1 9 2c1.863 0 3.697.124 5.495.365 1.247.167 2.18 1.108 2.435 2.268a4.45 4.45 0 0 0-.577-.069 43.141 43.141 0 0 0-4.706 0C9.229 4.696 7.5 6.727 7.5 8.998v2.24c0 1.413.67 2.735 1.76 3.562l-2.98 2.98A.75.75 0 0 1 5 17.25v-3.443c-.501-.048-1-.106-1.495-.172C2.033 13.438 1 12.162 1 10.72V5.28c0-1.441 1.033-2.717 2.505-2.914Z"
+                    />
+                    <path
+                      d="M14 6c.762 0 1.52.02 2.272.06 1.207.066 2.228 1.013 2.228 2.262v2.397c0 1.25-1.021 2.196-2.228 2.262-.5.027-1.003.047-1.51.058v2.71a.75.75 0 0 1-1.28.53l-2.702-2.702A41.25 41.25 0 0 1 8.5 13.632V8.998c0-1.248 1.021-2.195 2.228-2.262A42.36 42.36 0 0 1 14 6Z"
+                    />
                   </svg>
                   Preferred Channel
                 </h3>
                 <div class="space-y-3">
-                  <p class="text-xs text-tokyo-muted" x-text="'Where ' + agentNickname + ' reaches you when it needs your input'"></p>
+                  <p
+                    class="text-xs text-tokyo-muted"
+                    x-text="'Where ' + agentNickname + ' reaches you when it needs your input'"
+                  ></p>
                   <select
                     x-model="briefOutboundChannel"
                     @change="savePreferences()"
                     class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
-                    style="background-color: rgba(30, 30, 46, 0.9); color: #e5e7eb;"
+                    style="
+                      background-color: rgba(30, 30, 46, 0.9);
+                      color: #e5e7eb;
+                    "
                   >
-                    <option value="web" style="background-color: #1f2335; color: #e5e7eb;">Web Interface</option>
+                    <option
+                      value="web"
+                      style="background-color: #1f2335; color: #e5e7eb"
+                    >
+                      Web Interface
+                    </option>
                     <template x-for="ch in availableChannels" :key="ch.value">
-                      <option :value="ch.value" style="background-color: #1f2335; color: #e5e7eb;" x-text="ch.label + (ch.connected ? '' : ' (disconnected)')"></option>
+                      <option
+                        :value="ch.value"
+                        style="background-color: #1f2335; color: #e5e7eb"
+                        x-text="ch.label + (ch.connected ? '' : ' (disconnected)')"
+                      ></option>
                     </template>
                   </select>
                 </div>
@@ -2298,7 +2324,9 @@
                   <!-- Time + Timezone row -->
                   <div class="grid grid-cols-2 gap-4">
                     <div>
-                      <label class="block text-xs text-tokyo-muted mb-1.5">Delivery time</label>
+                      <label class="block text-xs text-tokyo-muted mb-1.5"
+                        >Delivery time</label
+                      >
                       <input
                         type="time"
                         x-model="briefTime"
@@ -2306,7 +2334,9 @@
                       />
                     </div>
                     <div>
-                      <label class="block text-xs text-tokyo-muted mb-1.5">Timezone</label>
+                      <label class="block text-xs text-tokyo-muted mb-1.5"
+                        >Timezone</label
+                      >
                       <input
                         type="text"
                         x-model="briefTimezone"
@@ -2317,15 +2347,35 @@
                   </div>
                   <!-- Model selector row -->
                   <div>
-                    <label class="block text-xs text-tokyo-muted mb-1.5">Model</label>
+                    <label class="block text-xs text-tokyo-muted mb-1.5"
+                      >Model</label
+                    >
                     <select
                       x-model="briefModel"
                       class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
-                      style="background-color: rgba(30, 30, 46, 0.9); color: #e5e7eb;"
+                      style="
+                        background-color: rgba(30, 30, 46, 0.9);
+                        color: #e5e7eb;
+                      "
                     >
-                      <option value="haiku" style="background-color: #1f2335; color: #e5e7eb;">Haiku — Fast and lightweight</option>
-                      <option value="sonnet" style="background-color: #1f2335; color: #e5e7eb;">Sonnet — Balanced</option>
-                      <option value="opus" style="background-color: #1f2335; color: #e5e7eb;">Opus — Most capable</option>
+                      <option
+                        value="haiku"
+                        style="background-color: #1f2335; color: #e5e7eb"
+                      >
+                        Haiku — Fast and lightweight
+                      </option>
+                      <option
+                        value="sonnet"
+                        style="background-color: #1f2335; color: #e5e7eb"
+                      >
+                        Sonnet — Balanced
+                      </option>
+                      <option
+                        value="opus"
+                        style="background-color: #1f2335; color: #e5e7eb"
+                      >
+                        Opus — Most capable
+                      </option>
                     </select>
                   </div>
                   <!-- Save row -->
@@ -2374,17 +2424,31 @@
 
                 <!-- Model Configuration -->
                 <div class="mt-5 pt-4 border-t border-white/5">
-                  <h4 class="text-xs font-medium text-tokyo-muted uppercase tracking-wider mb-3">Models</h4>
+                  <h4
+                    class="text-xs font-medium text-tokyo-muted uppercase tracking-wider mb-3"
+                  >
+                    Models
+                  </h4>
                   <div class="space-y-3">
-                    <template x-for="role in ['sonnet', 'haiku', 'opus']" :key="role">
+                    <template
+                      x-for="role in ['sonnet', 'haiku', 'opus']"
+                      :key="role"
+                    >
                       <div class="flex items-center gap-3">
-                        <span class="text-xs text-tokyo-muted w-14 capitalize" x-text="role"></span>
+                        <span
+                          class="text-xs text-tokyo-muted w-14 capitalize"
+                          x-text="role"
+                        ></span>
                         <select
                           x-model="configuredModels[role]"
                           @change="saveModels()"
                           class="flex-1 bg-[#1e1e2e] border border-white/10 rounded px-2 py-1.5 text-sm text-tokyo-text focus:border-violet-500/50 focus:outline-none"
                         >
-                          <option :value="configuredModels[role]" x-text="configuredModels[role]" selected></option>
+                          <option
+                            :value="configuredModels[role]"
+                            x-text="configuredModels[role]"
+                            selected
+                          ></option>
                           <template x-for="m in modelsForRole(role)" :key="m">
                             <option :value="m" x-text="m"></option>
                           </template>
@@ -2393,8 +2457,18 @@
                     </template>
                   </div>
                   <div class="mt-2 h-4">
-                    <span x-show="modelsStatus === 'saved'" x-transition class="text-xs text-green-400">Saved</span>
-                    <span x-show="modelsStatus === 'error'" x-transition class="text-xs text-red-400">Failed to save</span>
+                    <span
+                      x-show="modelsStatus === 'saved'"
+                      x-transition
+                      class="text-xs text-green-400"
+                      >Saved</span
+                    >
+                    <span
+                      x-show="modelsStatus === 'error'"
+                      x-transition
+                      class="text-xs text-red-400"
+                      >Failed to save</span
+                    >
                   </div>
                 </div>
               </div>
@@ -4639,7 +4713,10 @@
           <!-- Interim status message (ephemeral, disappears on first token) -->
           <template x-if="interimMessage">
             <div class="flex justify-start px-4 py-1">
-              <div class="text-sm text-gray-400 italic" x-text="interimMessage"></div>
+              <div
+                class="text-sm text-gray-400 italic"
+                x-text="interimMessage"
+              ></div>
             </div>
           </template>
         </main>
@@ -6590,31 +6667,60 @@
 
               <!-- Preferred Channel section (mobile) -->
               <div class="glass-strong rounded-xl p-4">
-                <h3 class="text-sm font-semibold text-tokyo-text mb-3 flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-tokyo-blue">
-                    <path d="M3.505 2.365A41.369 41.369 0 0 1 9 2c1.863 0 3.697.124 5.495.365 1.247.167 2.18 1.108 2.435 2.268a4.45 4.45 0 0 0-.577-.069 43.141 43.141 0 0 0-4.706 0C9.229 4.696 7.5 6.727 7.5 8.998v2.24c0 1.413.67 2.735 1.76 3.562l-2.98 2.98A.75.75 0 0 1 5 17.25v-3.443c-.501-.048-1-.106-1.495-.172C2.033 13.438 1 12.162 1 10.72V5.28c0-1.441 1.033-2.717 2.505-2.914Z" />
-                    <path d="M14 6c.762 0 1.52.02 2.272.06 1.207.066 2.228 1.013 2.228 2.262v2.397c0 1.25-1.021 2.196-2.228 2.262-.5.027-1.003.047-1.51.058v2.71a.75.75 0 0 1-1.28.53l-2.702-2.702A41.25 41.25 0 0 1 8.5 13.632V8.998c0-1.248 1.021-2.195 2.228-2.262A42.36 42.36 0 0 1 14 6Z" />
+                <h3
+                  class="text-sm font-semibold text-tokyo-text mb-3 flex items-center gap-2"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class="w-4 h-4 text-tokyo-blue"
+                  >
+                    <path
+                      d="M3.505 2.365A41.369 41.369 0 0 1 9 2c1.863 0 3.697.124 5.495.365 1.247.167 2.18 1.108 2.435 2.268a4.45 4.45 0 0 0-.577-.069 43.141 43.141 0 0 0-4.706 0C9.229 4.696 7.5 6.727 7.5 8.998v2.24c0 1.413.67 2.735 1.76 3.562l-2.98 2.98A.75.75 0 0 1 5 17.25v-3.443c-.501-.048-1-.106-1.495-.172C2.033 13.438 1 12.162 1 10.72V5.28c0-1.441 1.033-2.717 2.505-2.914Z"
+                    />
+                    <path
+                      d="M14 6c.762 0 1.52.02 2.272.06 1.207.066 2.228 1.013 2.228 2.262v2.397c0 1.25-1.021 2.196-2.228 2.262-.5.027-1.003.047-1.51.058v2.71a.75.75 0 0 1-1.28.53l-2.702-2.702A41.25 41.25 0 0 1 8.5 13.632V8.998c0-1.248 1.021-2.195 2.228-2.262A42.36 42.36 0 0 1 14 6Z"
+                    />
                   </svg>
                   Preferred Channel
                 </h3>
                 <div class="space-y-2">
-                  <p class="text-xs text-tokyo-muted" x-text="'Where ' + agentNickname + ' reaches you'"></p>
+                  <p
+                    class="text-xs text-tokyo-muted"
+                    x-text="'Where ' + agentNickname + ' reaches you'"
+                  ></p>
                   <select
                     x-model="briefOutboundChannel"
                     @change="savePreferences()"
                     class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
-                    style="background-color: rgba(30, 30, 46, 0.9); color: #e5e7eb;"
+                    style="
+                      background-color: rgba(30, 30, 46, 0.9);
+                      color: #e5e7eb;
+                    "
                   >
-                    <option value="web" style="background-color: #1f2335; color: #e5e7eb;">Web Interface</option>
+                    <option
+                      value="web"
+                      style="background-color: #1f2335; color: #e5e7eb"
+                    >
+                      Web Interface
+                    </option>
                     <template x-for="ch in availableChannels" :key="ch.value">
-                      <option :value="ch.value" style="background-color: #1f2335; color: #e5e7eb;" x-text="ch.label + (ch.connected ? '' : ' (disconnected)')"></option>
+                      <option
+                        :value="ch.value"
+                        style="background-color: #1f2335; color: #e5e7eb"
+                        x-text="ch.label + (ch.connected ? '' : ' (disconnected)')"
+                      ></option>
                     </template>
                   </select>
                 </div>
               </div>
 
               <!-- Debrief section (mobile, M6.9-S2) -->
-              <div id="mobile-settings-debrief" class="glass-strong rounded-xl p-4">
+              <div
+                id="mobile-settings-debrief"
+                class="glass-strong rounded-xl p-4"
+              >
                 <h3
                   class="text-sm font-semibold text-tokyo-text mb-3 flex items-center gap-2"
                 >
@@ -6633,7 +6739,9 @@
                 <div class="space-y-3">
                   <div class="grid grid-cols-2 gap-3">
                     <div>
-                      <label class="block text-xs text-tokyo-muted mb-1">Time</label>
+                      <label class="block text-xs text-tokyo-muted mb-1"
+                        >Time</label
+                      >
                       <input
                         type="time"
                         x-model="briefTime"
@@ -6641,7 +6749,9 @@
                       />
                     </div>
                     <div>
-                      <label class="block text-xs text-tokyo-muted mb-1">Timezone</label>
+                      <label class="block text-xs text-tokyo-muted mb-1"
+                        >Timezone</label
+                      >
                       <input
                         type="text"
                         x-model="briefTimezone"
@@ -6651,15 +6761,35 @@
                     </div>
                   </div>
                   <div>
-                    <label class="block text-xs text-tokyo-muted mb-1">Model</label>
+                    <label class="block text-xs text-tokyo-muted mb-1"
+                      >Model</label
+                    >
                     <select
                       x-model="briefModel"
                       class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
-                      style="background-color: rgba(30, 30, 46, 0.9); color: #e5e7eb;"
+                      style="
+                        background-color: rgba(30, 30, 46, 0.9);
+                        color: #e5e7eb;
+                      "
                     >
-                      <option value="haiku" style="background-color: #1f2335; color: #e5e7eb;">Haiku</option>
-                      <option value="sonnet" style="background-color: #1f2335; color: #e5e7eb;">Sonnet</option>
-                      <option value="opus" style="background-color: #1f2335; color: #e5e7eb;">Opus</option>
+                      <option
+                        value="haiku"
+                        style="background-color: #1f2335; color: #e5e7eb"
+                      >
+                        Haiku
+                      </option>
+                      <option
+                        value="sonnet"
+                        style="background-color: #1f2335; color: #e5e7eb"
+                      >
+                        Sonnet
+                      </option>
+                      <option
+                        value="opus"
+                        style="background-color: #1f2335; color: #e5e7eb"
+                      >
+                        Opus
+                      </option>
                     </select>
                   </div>
                   <div class="flex items-center justify-between pt-0.5">
@@ -6702,17 +6832,31 @@
 
                 <!-- Model Configuration (mobile) -->
                 <div class="mt-4 pt-3 border-t border-white/5">
-                  <h4 class="text-xs font-medium text-tokyo-muted uppercase tracking-wider mb-2">Models</h4>
+                  <h4
+                    class="text-xs font-medium text-tokyo-muted uppercase tracking-wider mb-2"
+                  >
+                    Models
+                  </h4>
                   <div class="space-y-2">
-                    <template x-for="role in ['sonnet', 'haiku', 'opus']" :key="role">
+                    <template
+                      x-for="role in ['sonnet', 'haiku', 'opus']"
+                      :key="role"
+                    >
                       <div class="flex items-center gap-2">
-                        <span class="text-xs text-tokyo-muted w-12 capitalize" x-text="role"></span>
+                        <span
+                          class="text-xs text-tokyo-muted w-12 capitalize"
+                          x-text="role"
+                        ></span>
                         <select
                           x-model="configuredModels[role]"
                           @change="saveModels()"
                           class="flex-1 bg-[#1e1e2e] border border-white/10 rounded px-2 py-1.5 text-sm text-tokyo-text focus:border-violet-500/50 focus:outline-none"
                         >
-                          <option :value="configuredModels[role]" x-text="configuredModels[role]" selected></option>
+                          <option
+                            :value="configuredModels[role]"
+                            x-text="configuredModels[role]"
+                            selected
+                          ></option>
                           <template x-for="m in modelsForRole(role)" :key="m">
                             <option :value="m" x-text="m"></option>
                           </template>
@@ -6721,8 +6865,18 @@
                     </template>
                   </div>
                   <div class="mt-1 h-4">
-                    <span x-show="modelsStatus === 'saved'" x-transition class="text-xs text-green-400">Saved</span>
-                    <span x-show="modelsStatus === 'error'" x-transition class="text-xs text-red-400">Failed to save</span>
+                    <span
+                      x-show="modelsStatus === 'saved'"
+                      x-transition
+                      class="text-xs text-green-400"
+                      >Saved</span
+                    >
+                    <span
+                      x-show="modelsStatus === 'error'"
+                      x-transition
+                      class="text-xs text-red-400"
+                      >Failed to save</span
+                    >
                   </div>
                 </div>
               </div>
@@ -7674,7 +7828,10 @@
               <!-- Interim status message (ephemeral, disappears on first token) -->
               <template x-if="interimMessage">
                 <div class="flex justify-start px-4 py-1">
-                  <div class="text-sm text-gray-400 italic" x-text="interimMessage"></div>
+                  <div
+                    class="text-sm text-gray-400 italic"
+                    x-text="interimMessage"
+                  ></div>
                 </div>
               </template>
             </div>

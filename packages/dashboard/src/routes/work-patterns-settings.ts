@@ -26,7 +26,8 @@ export async function registerWorkPatternsSettingsRoutes(
    */
   fastify.get("/api/settings/work-patterns", async (request, reply) => {
     try {
-      const { data } = readFrontmatter<WorkPatternsFrontmatter>(workPatternsPath());
+      const { data } =
+        readFrontmatter<WorkPatternsFrontmatter>(workPatternsPath());
       return { jobs: data.jobs ?? {} };
     } catch (err) {
       fastify.log.error(
@@ -51,17 +52,23 @@ export async function registerWorkPatternsSettingsRoutes(
     };
 
     if (!body.jobs || typeof body.jobs !== "object") {
-      return reply.code(400).send({ error: "Request body must contain a 'jobs' object" });
+      return reply
+        .code(400)
+        .send({ error: "Request body must contain a 'jobs' object" });
     }
 
     try {
       const filePath = workPatternsPath();
-      const { data, body: mdBody } = readFrontmatter<WorkPatternsFrontmatter>(filePath);
+      const { data, body: mdBody } =
+        readFrontmatter<WorkPatternsFrontmatter>(filePath);
 
       // Deep merge: update existing jobs, add new ones
       const existingJobs = data.jobs ?? {};
       for (const [jobName, updates] of Object.entries(body.jobs)) {
-        const existing = existingJobs[jobName] ?? { cadence: "", model: "haiku" };
+        const existing = existingJobs[jobName] ?? {
+          cadence: "",
+          model: "haiku",
+        };
         existingJobs[jobName] = {
           ...existing,
           ...updates,

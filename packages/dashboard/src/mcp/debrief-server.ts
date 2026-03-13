@@ -7,7 +7,6 @@
  */
 
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
-import { z } from "zod";
 
 export interface DebriefSchedulerLike {
   hasRunToday(jobName: string): boolean;
@@ -33,10 +32,13 @@ export function createDebriefMcpServer(scheduler: DebriefSchedulerLike) {
       tool(
         "request_debrief",
         "Run or retrieve today's debrief — use when the user asks about their day, tasks, or schedule",
-        z.object({}),
+        {},
         async () => {
           const result = await handler();
-          return { type: "text" as const, text: JSON.stringify({ debrief: result }) };
+          return {
+            type: "text" as const,
+            text: JSON.stringify({ debrief: result }),
+          };
         },
       ),
     ],

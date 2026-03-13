@@ -20,7 +20,12 @@ import {
 } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import type Database from "better-sqlite3";
-import { loadWorkPatterns, isDue, isValidTimezone, type WorkPattern } from "./work-patterns.js";
+import {
+  loadWorkPatterns,
+  isDue,
+  isValidTimezone,
+  type WorkPattern,
+} from "./work-patterns.js";
 import { validateAndNotify } from "../metadata/validator.js";
 import {
   runDebriefPrep,
@@ -32,7 +37,10 @@ import {
 import type { ModelAlias } from "./query-model.js";
 import { loadPreferences } from "@my-agent/core";
 import type { TaskManager } from "../tasks/task-manager.js";
-import { readProperties, detectStaleProperties } from "../conversations/properties.js";
+import {
+  readProperties,
+  detectStaleProperties,
+} from "../conversations/properties.js";
 import {
   readStagingFiles,
   cleanExpiredFacts,
@@ -57,12 +65,20 @@ export interface WorkLoopSchedulerConfig {
   pollIntervalMs?: number;
   /** Optional notification service for morning brief context (spec §5) and validation (spec §4) */
   notificationService?: {
-    getPending: () => Array<{ type: string; message?: string; question?: string; problem?: string }>;
+    getPending: () => Array<{
+      type: string;
+      message?: string;
+      question?: string;
+      problem?: string;
+    }>;
     requestInput: (input: {
       question: string;
       options: string[] | Array<{ label: string; value: string }>;
     }) => { id: string };
-    notify: (input: { message: string; importance?: "info" | "warning" | "success" | "error" }) => void;
+    notify: (input: {
+      message: string;
+      importance?: "info" | "warning" | "success" | "error";
+    }) => void;
   };
   /** Optional ConversationInitiator for proactive outreach after debrief prep (M6.9-S3) */
   conversationInitiator?: {
@@ -163,7 +179,11 @@ export class WorkLoopScheduler {
     // Validate frontmatter 5 minutes after start (spec §4.2, non-blocking)
     setTimeout(() => {
       const workPatternsPath = `${this.agentDir}/notebook/config/work-patterns.md`;
-      validateAndNotify(workPatternsPath, this.agentDir, this.notificationService);
+      validateAndNotify(
+        workPatternsPath,
+        this.agentDir,
+        this.notificationService,
+      );
     }, 5 * 60_000);
 
     // Check immediately on start (tracked)
@@ -199,7 +219,11 @@ export class WorkLoopScheduler {
 
     // Validate frontmatter on reload (spec §4.2)
     const workPatternsPath = `${this.agentDir}/notebook/config/work-patterns.md`;
-    validateAndNotify(workPatternsPath, this.agentDir, this.notificationService);
+    validateAndNotify(
+      workPatternsPath,
+      this.agentDir,
+      this.notificationService,
+    );
   }
 
   /**
@@ -279,9 +303,11 @@ export class WorkLoopScheduler {
    */
   hasRunToday(jobName: string): boolean {
     const today = new Date().toISOString().slice(0, 10);
-    const row = this.db.prepare(
-      "SELECT 1 FROM work_loop_runs WHERE job_name = ? AND started_at >= ? LIMIT 1",
-    ).get(jobName, today + "T00:00:00");
+    const row = this.db
+      .prepare(
+        "SELECT 1 FROM work_loop_runs WHERE job_name = ? AND started_at >= ? LIMIT 1",
+      )
+      .get(jobName, today + "T00:00:00");
     return !!row;
   }
 
@@ -289,7 +315,10 @@ export class WorkLoopScheduler {
    * Read the cached debrief output from current-state.md.
    */
   getDebriefOutput(): string | null {
-    const filePath = join(this.agentDir, "notebook/operations/current-state.md");
+    const filePath = join(
+      this.agentDir,
+      "notebook/operations/current-state.md",
+    );
     try {
       return readFileSync(filePath, "utf-8");
     } catch {
@@ -538,7 +567,10 @@ export class WorkLoopScheduler {
     const now = new Date();
     const yearStart = new Date(now.getFullYear(), 0, 1);
     const weekNum = Math.ceil(
-      ((now.getTime() - yearStart.getTime()) / 86400000 + yearStart.getDay() + 1) / 7,
+      ((now.getTime() - yearStart.getTime()) / 86400000 +
+        yearStart.getDay() +
+        1) /
+        7,
     );
     const weekStr = `${now.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
     await writeFile(join(weeklyDir, `${weekStr}.md`), output, "utf-8");
@@ -593,17 +625,29 @@ export class WorkLoopScheduler {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split("T")[0];
-    const yesterdaySummary = join(notebookDir, "summaries", "daily", `${yesterdayStr}.md`);
+    const yesterdaySummary = join(
+      notebookDir,
+      "summaries",
+      "daily",
+      `${yesterdayStr}.md`,
+    );
     if (existsSync(yesterdaySummary)) {
-      sections.push("# Yesterday's Summary\n" + await readFile(yesterdaySummary, "utf-8"));
+      sections.push(
+        "# Yesterday's Summary\n" + (await readFile(yesterdaySummary, "utf-8")),
+      );
     }
 
     // This week's summary (if exists)
     const weeklyDir = join(notebookDir, "summaries", "weekly");
     if (existsSync(weeklyDir)) {
-      const weekFiles = (await readdir(weeklyDir)).filter((f) => f.endsWith(".md")).sort();
+      const weekFiles = (await readdir(weeklyDir))
+        .filter((f) => f.endsWith(".md"))
+        .sort();
       if (weekFiles.length > 0) {
-        const latest = await readFile(join(weeklyDir, weekFiles[weekFiles.length - 1]), "utf-8");
+        const latest = await readFile(
+          join(weeklyDir, weekFiles[weekFiles.length - 1]),
+          "utf-8",
+        );
         sections.push("# This Week\n" + latest);
       }
     }
@@ -611,9 +655,14 @@ export class WorkLoopScheduler {
     // This month's summary (if exists)
     const monthlyDir = join(notebookDir, "summaries", "monthly");
     if (existsSync(monthlyDir)) {
-      const monthFiles = (await readdir(monthlyDir)).filter((f) => f.endsWith(".md")).sort();
+      const monthFiles = (await readdir(monthlyDir))
+        .filter((f) => f.endsWith(".md"))
+        .sort();
       if (monthFiles.length > 0) {
-        const latest = await readFile(join(monthlyDir, monthFiles[monthFiles.length - 1]), "utf-8");
+        const latest = await readFile(
+          join(monthlyDir, monthFiles[monthFiles.length - 1]),
+          "utf-8",
+        );
         sections.push("# This Month\n" + latest);
       }
     }
@@ -622,31 +671,39 @@ export class WorkLoopScheduler {
     const today = new Date().toISOString().split("T")[0];
     const todayLog = join(notebookDir, "daily", `${today}.md`);
     if (existsSync(todayLog)) {
-      sections.push("# Today's Log So Far\n" + await readFile(todayLog, "utf-8"));
+      sections.push(
+        "# Today's Log So Far\n" + (await readFile(todayLog, "utf-8")),
+      );
     }
 
     // Reference files (user-info, for context)
     const userInfo = join(notebookDir, "reference", "user-info.md");
     if (existsSync(userInfo)) {
-      sections.push("# User Info\n" + await readFile(userInfo, "utf-8"));
+      sections.push("# User Info\n" + (await readFile(userInfo, "utf-8")));
     }
 
     // Properties (location, timezone, availability)
     const propsFile = join(notebookDir, "properties", "status.yaml");
     if (existsSync(propsFile)) {
-      sections.push("# Current Properties\n" + await readFile(propsFile, "utf-8"));
+      sections.push(
+        "# Current Properties\n" + (await readFile(propsFile, "utf-8")),
+      );
     }
 
     // Staged permanent facts awaiting approval
     const stagingDir = join(notebookDir, "knowledge", "extracted");
     if (existsSync(stagingDir)) {
-      const stagingFiles = (await readdir(stagingDir)).filter((f) => f.endsWith(".md"));
+      const stagingFiles = (await readdir(stagingDir)).filter((f) =>
+        f.endsWith(".md"),
+      );
       if (stagingFiles.length > 0) {
         const stagingContent: string[] = [];
         for (const f of stagingFiles) {
           stagingContent.push(await readFile(join(stagingDir, f), "utf-8"));
         }
-        sections.push("# Pending Knowledge (for approval)\n" + stagingContent.join("\n\n"));
+        sections.push(
+          "# Pending Knowledge (for approval)\n" + stagingContent.join("\n\n"),
+        );
       }
     }
 
@@ -683,17 +740,23 @@ export class WorkLoopScheduler {
       }
     }
 
-    let context = sections.length > 0
-      ? sections.join("\n\n---\n\n")
-      : "No context available.";
+    let context =
+      sections.length > 0
+        ? sections.join("\n\n---\n\n")
+        : "No context available.";
 
     // Tasks completed since last debrief
     const lastRun = this.getLastRun("debrief-prep");
     if (lastRun && this.taskManager) {
-      const completedTasks = this.taskManager.getCompletedForDebrief(lastRun.toISOString());
+      const completedTasks = this.taskManager.getCompletedForDebrief(
+        lastRun.toISOString(),
+      );
       if (completedTasks.length > 0) {
         const taskSection = completedTasks
-          .map((t) => `- **${t.title}** (completed ${t.completedAt?.toISOString().slice(0, 16)})`)
+          .map(
+            (t) =>
+              `- **${t.title}** (completed ${t.completedAt?.toISOString().slice(0, 16)})`,
+          )
           .join("\n");
         context += `\n\n---\n\n## Tasks Completed Since Last Debrief\n\n${taskSection}`;
       }
@@ -749,7 +812,8 @@ export class WorkLoopScheduler {
         );
         if (!alerted) {
           await this.conversationInitiator.initiate({
-            firstTurnPrompt: "[SYSTEM: The debrief brief is ready. Start a new conversation and present it naturally to the user.]",
+            firstTurnPrompt:
+              "[SYSTEM: The debrief brief is ready. Start a new conversation and present it naturally to the user.]",
           });
         }
       } catch (err) {

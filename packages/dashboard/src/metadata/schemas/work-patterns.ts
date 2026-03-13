@@ -13,7 +13,8 @@
  * ```
  */
 
-const VALID_CADENCE = /^(daily:\d{2}:\d{2}|weekly:(sunday|monday|tuesday|wednesday|thursday|friday|saturday):\d{2}:\d{2})$/;
+const VALID_CADENCE =
+  /^(daily:\d{2}:\d{2}|weekly:(sunday|monday|tuesday|wednesday|thursday|friday|saturday):\d{2}:\d{2})$/;
 const KNOWN_MODELS = ["haiku", "sonnet", "opus"];
 
 /**
@@ -35,7 +36,11 @@ export function validateWorkPatterns(data: unknown): string[] {
     return errors;
   }
 
-  if (typeof obj.jobs !== "object" || obj.jobs === null || Array.isArray(obj.jobs)) {
+  if (
+    typeof obj.jobs !== "object" ||
+    obj.jobs === null ||
+    Array.isArray(obj.jobs)
+  ) {
     errors.push("'jobs' must be an object mapping job names to configurations");
     return errors;
   }
@@ -44,7 +49,9 @@ export function validateWorkPatterns(data: unknown): string[] {
 
   for (const [jobName, jobConfig] of Object.entries(jobs)) {
     if (!jobConfig || typeof jobConfig !== "object") {
-      errors.push(`Job '${jobName}': must be an object with cadence and optional model`);
+      errors.push(
+        `Job '${jobName}': must be an object with cadence and optional model`,
+      );
       continue;
     }
 

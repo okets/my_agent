@@ -12,7 +12,12 @@ import type { FastifyInstance } from "fastify";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse, stringify } from "yaml";
-import { loadPreferences, loadModels, type UserPreferences, type ModelDefaults } from "@my-agent/core";
+import {
+  loadPreferences,
+  loadModels,
+  type UserPreferences,
+  type ModelDefaults,
+} from "@my-agent/core";
 
 /** Cached available models (refreshed every 10 minutes) */
 let cachedAvailableModels: string[] | null = null;
@@ -63,7 +68,9 @@ export async function registerSettingsRoutes(
     const agentDir = fastify.agentDir;
     const configPath = join(agentDir, "config.yaml");
 
-    const body = request.body as Partial<UserPreferences> & { outboundChannel?: string };
+    const body = request.body as Partial<UserPreferences> & {
+      outboundChannel?: string;
+    };
 
     try {
       // Read existing YAML (preserves all other config keys)
@@ -86,13 +93,18 @@ export async function registerSettingsRoutes(
         (existingPrefs.debrief as Record<string, unknown>) ?? {};
 
       const newDebrief = body.debrief
-        ? { ...existingDebrief, ...(body.debrief as unknown as Record<string, unknown>) }
+        ? {
+            ...existingDebrief,
+            ...(body.debrief as unknown as Record<string, unknown>),
+          }
         : existingDebrief;
 
       yaml.preferences = {
         ...existingPrefs,
         ...(body.timezone !== undefined ? { timezone: body.timezone } : {}),
-        ...(body.outboundChannel !== undefined ? { outboundChannel: body.outboundChannel } : {}),
+        ...(body.outboundChannel !== undefined
+          ? { outboundChannel: body.outboundChannel }
+          : {}),
         debrief: newDebrief,
       };
 
@@ -109,7 +121,9 @@ export async function registerSettingsRoutes(
       );
       return reply
         .code(500)
-        .send({ error: "Failed to save preferences" } as unknown as UserPreferences);
+        .send({
+          error: "Failed to save preferences",
+        } as unknown as UserPreferences);
     }
   });
 
@@ -118,12 +132,9 @@ export async function registerSettingsRoutes(
    *
    * Returns configured model IDs (with defaults).
    */
-  fastify.get<{ Reply: ModelDefaults }>(
-    "/api/settings/models",
-    async () => {
-      return loadModels(fastify.agentDir);
-    },
-  );
+  fastify.get<{ Reply: ModelDefaults }>("/api/settings/models", async () => {
+    return loadModels(fastify.agentDir);
+  });
 
   /**
    * PUT /api/settings/models
@@ -142,7 +153,11 @@ export async function registerSettingsRoutes(
       let yaml: Record<string, unknown> = {};
       if (existsSync(configPath)) {
         try {
-          yaml = (parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>) ?? {};
+          yaml =
+            (parse(readFileSync(configPath, "utf-8")) as Record<
+              string,
+              unknown
+            >) ?? {};
         } catch {
           yaml = {};
         }
@@ -196,7 +211,10 @@ export async function registerSettingsRoutes(
         });
 
         if (!res.ok) {
-          fastify.log.warn("[Settings] Failed to fetch models from API: %s", res.status);
+          fastify.log.warn(
+            "[Settings] Failed to fetch models from API: %s",
+            res.status,
+          );
           return { models: cachedAvailableModels ?? [] };
         }
 

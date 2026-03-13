@@ -69,8 +69,13 @@ declare module "fastify" {
     pluginRegistry: PluginRegistry | null;
     conversationSearchService: ConversationSearchService | null;
     workLoopScheduler: WorkLoopScheduler | null;
-    conversationInitiator: { alert(prompt: string): Promise<boolean>; initiate(options?: { firstTurnPrompt?: string }): Promise<unknown> } | null;
-    postResponseHooks: import("./conversations/post-response-hooks.js").PostResponseHooks | null;
+    conversationInitiator: {
+      alert(prompt: string): Promise<boolean>;
+      initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
+    } | null;
+    postResponseHooks:
+      | import("./conversations/post-response-hooks.js").PostResponseHooks
+      | null;
   }
 }
 

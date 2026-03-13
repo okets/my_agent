@@ -1117,7 +1117,9 @@ export async function registerDebugRoutes(
   }>("/initiate", { preHandler: localhostOnly }, async (request, reply) => {
     const initiator = fastify.conversationInitiator;
     if (!initiator) {
-      return reply.code(503).send({ error: "ConversationInitiator not initialized" });
+      return reply
+        .code(503)
+        .send({ error: "ConversationInitiator not initialized" });
     }
 
     const mode = request.body?.mode || "auto";
@@ -1131,15 +1133,24 @@ export async function registerDebugRoutes(
     }
 
     if (mode === "initiate") {
-      const conv = await initiator.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+      const conv = await initiator.initiate({
+        firstTurnPrompt: `[SYSTEM: ${prompt}]`,
+      });
       return { mode: "initiate", conversation: conv };
     }
 
     // auto: morning brief flow
     const alerted = await initiator.alert(prompt);
     if (!alerted) {
-      const conv = await initiator.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
-      return { mode: "auto", alerted: false, initiated: true, conversation: conv };
+      const conv = await initiator.initiate({
+        firstTurnPrompt: `[SYSTEM: ${prompt}]`,
+      });
+      return {
+        mode: "auto",
+        alerted: false,
+        initiated: true,
+        conversation: conv,
+      };
     }
     return { mode: "auto", alerted: true, initiated: false };
   });

@@ -73,7 +73,10 @@ export function validateAndNotify(
       question: string;
       options: string[] | Array<{ label: string; value: string }>;
     }) => { id: string };
-    notify: (input: { message: string; importance?: "info" | "warning" | "success" | "error" }) => void;
+    notify: (input: {
+      message: string;
+      importance?: "info" | "warning" | "success" | "error";
+    }) => void;
   },
 ): ValidationError[] {
   const errors = validateFrontmatter(filePath, agentDir);
@@ -111,7 +114,10 @@ export async function attemptHaikuRepair(
   errors: ValidationError[],
   queryHaiku: (system: string, user: string) => Promise<string>,
   notificationService?: {
-    notify: (input: { message: string; importance?: "info" | "warning" | "success" | "error" }) => void;
+    notify: (input: {
+      message: string;
+      importance?: "info" | "warning" | "success" | "error";
+    }) => void;
   },
 ): Promise<boolean> {
   const relativePath = relative(agentDir, filePath);

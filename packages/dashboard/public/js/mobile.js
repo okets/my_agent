@@ -99,7 +99,6 @@ document.addEventListener("alpine:init", () => {
       if (!this.isMobile) return;
       if (state !== "peek" && state !== "half" && state !== "full") return;
 
-
       const ratio =
         state === "peek"
           ? CHAT_RATIO_PEEK
@@ -133,7 +132,6 @@ document.addEventListener("alpine:init", () => {
     openPopover(type, data) {
       if (!this.isMobile) return;
 
-
       this.popover = { type: type, data: data || null };
 
       // Set chat context tag (mirrors desktop tab behavior)
@@ -141,7 +139,6 @@ document.addEventListener("alpine:init", () => {
     },
 
     closePopover() {
-
       this.popover = null;
       this._clearChatContext();
     },
@@ -676,7 +673,6 @@ function initChatSheetGesture(el) {
       setChatRatio(nearestPreset(startRatio));
       return;
     }
-
 
     if (isFastSwipe) {
       /* Fast swipe: skip to next/previous preset based on direction */

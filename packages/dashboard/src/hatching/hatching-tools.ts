@@ -226,7 +226,11 @@ export function createHatchingSession(
           let yaml: Record<string, unknown> = {};
           if (existsSync(configPath)) {
             try {
-              yaml = (parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>) ?? {};
+              yaml =
+                (parse(readFileSync(configPath, "utf-8")) as Record<
+                  string,
+                  unknown
+                >) ?? {};
             } catch {
               yaml = {};
             }
@@ -234,7 +238,11 @@ export function createHatchingSession(
           const prefs = (yaml.preferences as Record<string, unknown>) ?? {};
           prefs.outboundChannel = args.outboundChannel;
           yaml.preferences = prefs;
-          writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), "utf-8");
+          writeFileSync(
+            configPath,
+            stringify(yaml, { lineWidth: 120 }),
+            "utf-8",
+          );
         }
 
         // Mark as hatched
