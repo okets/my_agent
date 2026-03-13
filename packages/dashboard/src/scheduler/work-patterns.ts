@@ -13,10 +13,6 @@ import { dirname } from "node:path";
 
 const DEFAULT_WORK_PATTERNS = `# Work Patterns
 
-## Morning Prep
-- cadence: daily:08:00
-- model: haiku
-
 ## Daily Summary
 - cadence: daily:23:00
 - model: haiku

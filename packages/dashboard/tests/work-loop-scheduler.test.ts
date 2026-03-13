@@ -152,9 +152,9 @@ describe("WorkLoopScheduler", () => {
     // Should have auto-created the file
     expect(existsSync(patternsPath)).toBe(true);
 
-    // Should have loaded the default patterns
+    // Should have loaded the default patterns (Daily Summary only; morning-prep is scheduler-driven)
     const patterns = scheduler.getPatterns();
-    expect(patterns.length).toBeGreaterThanOrEqual(2);
+    expect(patterns.length).toBeGreaterThanOrEqual(1);
 
     await scheduler.stop();
   }, 30_000); // Default patterns may trigger a Haiku call if time is past 08:00

@@ -96,17 +96,7 @@ export const operatingRulesStep: HatchingStep = {
     )
     const timezone = timezoneRaw.trim() || 'UTC'
 
-    console.log('\nWhich model should run your morning brief?')
-    console.log('  1. haiku   — Fast and lightweight')
-    console.log('  2. sonnet  — Balanced (default)')
-    console.log('  3. opus    — Most capable')
-    const MODEL_OPTIONS: Record<string, string> = { '1': 'haiku', '2': 'sonnet', '3': 'opus' }
-    let briefModel = 'sonnet'
-    const modelChoice = await rl.question('\nPick a number (1-3, default 2): ')
-    const modelMatch = MODEL_OPTIONS[modelChoice.trim()]
-    if (modelMatch) {
-      briefModel = modelMatch
-    }
+    const briefModel = 'sonnet'
 
     // Write preferences to config.yaml using raw YAML read/write pattern
     const configPath = path.join(agentDir, 'config.yaml')

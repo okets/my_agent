@@ -598,7 +598,7 @@ The knowledge system gets a lifecycle. Facts are classified at extraction (perma
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
 | S1 | Data Model + Pipeline | Complete | Classification prompt, routing, staging, summaries, properties, `queryModel()`, migration — [plan](sprints/m6.9-s1-data-model-pipeline/plan.md) · [review](sprints/m6.9-s1-data-model-pipeline/review.md) |
-| S2 | Behavioral Layer | Planned | Morning brief upgrade (Sonnet/Opus), approval flow, standing orders, property staleness |
+| S2 | Behavioral Layer | Complete | Morning brief upgrade, approval flow MCP tool, property staleness, settings UI — [plan](../superpowers/plans/2026-03-12-m6.9-s2-behavioral-layer.md) · [review](sprints/m6.9-s2-behavioral-layer/review.md) |
 | S3 | Conversation Initiation | Planned | Scheduler → conversation manager → channel plugin (reusable primitive) |
 
 **Key design decisions:**
