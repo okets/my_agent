@@ -212,6 +212,7 @@ function chat() {
     briefTime: "08:00",
     briefTimezone: "UTC",
     briefModel: "sonnet",
+    briefOutboundChannel: "web",
     savingPreferences: false,
     preferencesStatus: null, // null | "saved" | "error"
 
@@ -2593,6 +2594,7 @@ function chat() {
         this.briefTime = data.morningBrief?.time ?? "08:00";
         this.briefTimezone = data.timezone ?? "UTC";
         this.briefModel = data.morningBrief?.model ?? "sonnet";
+        this.briefOutboundChannel = data.outboundChannel ?? "web";
       } catch (err) {
         console.error("[App] Failed to load preferences:", err);
       }
@@ -2718,6 +2720,7 @@ function chat() {
               model: this.briefModel,
             },
             timezone: this.briefTimezone,
+            outboundChannel: this.briefOutboundChannel,
           }),
         });
         if (!res.ok) {
