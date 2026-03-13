@@ -126,6 +126,13 @@ export class ConversationDatabase {
       );
     }
 
+    // Migration: add last_user_message_at for active conversation detection (M6.9-S3)
+    if (!columns.some((c) => c.name === "last_user_message_at")) {
+      this.db.exec(
+        "ALTER TABLE conversations ADD COLUMN last_user_message_at TEXT DEFAULT NULL",
+      );
+    }
+
     // Migration: add status column for conversation lifecycle (M6.7-S2)
     if (!columns.some((c) => c.name === "status")) {
       this.db.exec(
@@ -274,8 +281,8 @@ export class ConversationDatabase {
       INSERT INTO conversations (
         id, channel, title, topics, created, updated,
         turn_count, participants, abbreviation, needs_abbreviation, manually_named,
-        last_renamed_at_turn, model, external_party, is_pinned, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        last_renamed_at_turn, model, external_party, is_pinned, status, last_user_message_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -295,6 +302,7 @@ export class ConversationDatabase {
       conversation.externalParty,
       conversation.isPinned !== false ? 1 : 0,
       conversation.status ?? "inactive",
+      conversation.lastUserMessageAt?.toISOString() ?? null,
     );
   }
 
@@ -413,6 +421,11 @@ export class ConversationDatabase {
       values.push(updates.status);
     }
 
+    if (updates.lastUserMessageAt !== undefined) {
+      fields.push("last_user_message_at = ?");
+      values.push(updates.lastUserMessageAt?.toISOString() ?? null);
+    }
+
     if (fields.length === 0) {
       return;
     }
@@ -522,6 +535,9 @@ export class ConversationDatabase {
       externalParty: row.external_party ?? null,
       isPinned: row.is_pinned !== 0,
       status: (row.status as "current" | "inactive") ?? "inactive",
+      lastUserMessageAt: row.last_user_message_at
+        ? new Date(row.last_user_message_at)
+        : null,
     };
   }
 
