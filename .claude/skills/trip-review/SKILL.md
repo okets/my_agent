@@ -26,21 +26,37 @@ If any artifact is missing, note it explicitly: "No deviations logged" or "test-
 
 Read the verdict from `review.md`: PASS, PASS WITH CONCERNS, or FAIL.
 
-### 3. Present Findings
+### 3. What Was Built
+
+**This comes first.** The CTO wasn't at their desk — they need to understand what changed before they can evaluate the verdict. Summarize in plain language:
+
+- What the sprint goal was (1-2 sentences)
+- What user-visible things changed (new UI, new behavior, new settings)
+- What internal things changed (new APIs, new background behavior)
+
+Keep it concrete: "Morning brief now auto-adjusts when you travel" not "implemented timezone-aware scheduling logic."
+
+### 4. How to Verify
+
+**This is the main deliverable.** Give the CTO specific things they can do on their phone to see the sprint working:
+
+- URLs to visit, buttons to tap, settings to change
+- Observable behavior changes ("tomorrow's morning brief will arrive at your local time")
+- Before/after comparisons where helpful
+
+If there's nothing user-verifiable yet (pure backend/infra), say so explicitly.
+
+### 5. Present Verdict & Concerns
 
 Present in order, one topic per message. Keep messages short — the CTO is on a phone.
 
 **If PASS:**
 
 ```
-"Sprint M{N}-S{N} is done. {N} commits, all {N} tasks complete."
+"External reviewer: PASS. All {N} tests pass,
+browser checks passed, no spec gaps."
 
-"The external reviewer gave it a PASS. All {N} tests pass,
-browser checks passed, no spec gaps found."
-
-"{N} decisions were made, all minor — {brief summary}."
-
-"{N} deviations: {brief summary of each}."
+"No decisions or deviations to flag."
 
 "Want to merge to master?"
 ```
@@ -48,7 +64,7 @@ browser checks passed, no spec gaps found."
 **If PASS WITH CONCERNS:**
 
 ```
-"Sprint done, but the reviewer flagged {N} concerns."
+"External reviewer: PASS WITH CONCERNS. {N} issues flagged."
 
 "Concern 1: {1-2 sentence description}"
 
@@ -63,7 +79,7 @@ requirements covered. These are non-blocking."
 **If FAIL:**
 
 ```
-"Sprint finished but the reviewer failed it."
+"External reviewer: FAIL."
 
 "Main issue: {1-2 sentence description of primary failure}"
 
@@ -75,7 +91,7 @@ B. Wait until you're at a desk
 C. Roll back the branch"
 ```
 
-### 4. Handle CTO Response
+### 6. Handle CTO Response
 
 | Response | Action |
 |----------|--------|
@@ -85,12 +101,13 @@ C. Roll back the branch"
 | "elaborate" / question | Give more detail on whatever they ask about |
 | Blocked items from timeout | Present each blocked item with the deviation details, ask for decision on each |
 
-### 5. After Merge
+### 7. After Merge
 
 If CTO approves merge:
 1. Execute the merge
 2. Confirm: "Merged to master. {N} commits."
 3. Check if roadmap needs updating
+4. Handle all post-merge tasks yourself (service restarts, builds, etc.)
 
 ## Conversation Style
 
@@ -99,6 +116,7 @@ If CTO approves merge:
 - **Numbers over prose** — "5 decisions, all minor" not "several decisions were made"
 - **Lead with verdict** — then details
 - **Always end with a clear question or action**
+- **Never ask CTO to run commands** — the whole point of trip mode is they're on mobile. Execute everything yourself: service restarts, builds, deployments, verifications. Never say "you'll want to run X".
 
 ## Identifying the Sprint
 
