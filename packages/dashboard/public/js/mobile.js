@@ -99,8 +99,6 @@ document.addEventListener("alpine:init", () => {
       if (!this.isMobile) return;
       if (state !== "peek" && state !== "half" && state !== "full") return;
 
-      // Haptic feedback for navigation
-      window.haptic?.light();
 
       const ratio =
         state === "peek"
@@ -135,8 +133,6 @@ document.addEventListener("alpine:init", () => {
     openPopover(type, data) {
       if (!this.isMobile) return;
 
-      // Haptic feedback for navigation
-      window.haptic?.light();
 
       this.popover = { type: type, data: data || null };
 
@@ -145,8 +141,6 @@ document.addEventListener("alpine:init", () => {
     },
 
     closePopover() {
-      // Haptic feedback for navigation
-      window.haptic?.light();
 
       this.popover = null;
       this._clearChatContext();
@@ -499,8 +493,6 @@ function initSheetGesture(el, options) {
 
     // Dismiss if past threshold or flicked fast enough
     if (fraction > opts.dismissThreshold || velocity > opts.velocityThreshold) {
-      // Haptic feedback for gesture completion
-      window.haptic?.light();
       opts.onDismiss();
     }
   }
@@ -685,8 +677,6 @@ function initChatSheetGesture(el) {
       return;
     }
 
-    // Haptic feedback for gesture snap
-    window.haptic?.light();
 
     if (isFastSwipe) {
       /* Fast swipe: skip to next/previous preset based on direction */

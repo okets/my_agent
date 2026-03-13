@@ -359,8 +359,6 @@ function chat() {
       // Initialize mobile viewport reset (fixes zoom lock issue)
       this.initViewportReset();
 
-      // Initialize haptic feedback for buttons
-      this.initHapticFeedback();
 
       // Load agent name and check hatching status
       fetch("/api/hatching/status")
@@ -568,8 +566,6 @@ function chat() {
     createNewConversation() {
       if (!this.wsConnected) return;
 
-      // Haptic feedback for primary action
-      window.haptic?.strong();
 
       // Send /new as a slash command — same path as WhatsApp /new
       this.resetChatState();
@@ -585,8 +581,6 @@ function chat() {
       if (!this.wsConnected || conversationId === this.currentConversationId)
         return;
 
-      // Haptic feedback for selection
-      window.haptic?.medium();
 
       this.ws.send({ type: "switch_conversation", conversationId });
     },
@@ -662,8 +656,6 @@ function chat() {
         return;
       }
 
-      // Haptic feedback for primary action
-      window.haptic?.strong();
 
       // Show masked or actual text in user bubble
       const displayText = this.composePasswordMode
@@ -1437,8 +1429,6 @@ function chat() {
     },
 
     respondToNotification(notificationId, response) {
-      // Haptic feedback for selection
-      window.haptic?.medium();
 
       if (this.ws && this.wsConnected) {
         this.ws.send(
@@ -1461,8 +1451,6 @@ function chat() {
     },
 
     dismissNotification(notificationId) {
-      // Haptic feedback for dismiss
-      window.haptic?.light();
 
       if (this.ws && this.wsConnected) {
         this.ws.send(
@@ -1548,8 +1536,6 @@ function chat() {
     },
 
     stopResponse() {
-      // Haptic feedback for interrupt action
-      window.haptic?.heavy();
 
       this.ws.send({ type: "abort" });
       this.isResponding = false;
@@ -1611,8 +1597,6 @@ function chat() {
     // Model selection
     // ─────────────────────────────────────────────────────────────────
     onModelChange(model) {
-      // Haptic feedback for selection
-      window.haptic?.medium();
 
       this.selectedModel = model;
       // Haiku doesn't support extended thinking — disable reasoning if switching to Haiku
@@ -1635,8 +1619,6 @@ function chat() {
     },
 
     cancelDelete() {
-      // Haptic feedback for cancel
-      window.haptic?.light();
 
       this.deleteConfirmOpen = false;
       this.deleteTargetId = null;
@@ -1646,8 +1628,6 @@ function chat() {
     executeDelete() {
       if (!this.deleteTargetId || !this.wsConnected) return;
 
-      // Haptic feedback for destructive action
-      window.haptic?.warning();
 
       this.ws.send({
         type: "delete_conversation",
@@ -2075,21 +2055,6 @@ function chat() {
     // Haptic Feedback (subtle vibration on button clicks)
     // ─────────────────────────────────────────────────────────────────
 
-    initHapticFeedback() {
-      // Only add if Vibration API is available
-      if (!navigator.vibrate) {
-        return;
-      }
-
-      // Add click listener to document (delegation)
-      document.addEventListener("click", (e) => {
-        const button = e.target.closest("button");
-        // Only vibrate for enabled buttons
-        if (button && !button.disabled) {
-          navigator.vibrate(10); // 10ms subtle pulse
-        }
-      });
-    },
 
     // ─────────────────────────────────────────────────────────────────
     // Input History (shell-style up/down arrows)
@@ -2367,8 +2332,6 @@ function chat() {
      * Remove attachment at index
      */
     removeAttachment(index) {
-      // Haptic feedback for removal
-      window.haptic?.light();
 
       this.attachments.splice(index, 1);
     },
@@ -2908,7 +2871,7 @@ function chat() {
     },
 
     /**
-     * Copy pairing code to clipboard with animation and haptic feedback
+     * Copy pairing code to clipboard with animation
      */
     async copyPairingCode(channelId) {
       const code = this.pairingCodes[channelId];
@@ -2920,10 +2883,6 @@ function chat() {
         this.codeCopied = { ...this.codeCopied, [channelId]: false };
       }, 1000);
 
-      // Trigger haptic feedback on mobile
-      if (navigator.vibrate) {
-        navigator.vibrate(50);
-      }
 
       // Copy to clipboard - try modern API first, fallback to execCommand
       try {
@@ -3050,8 +3009,6 @@ function chat() {
     },
 
     async disconnectChannel(channelId) {
-      // Haptic feedback for destructive action
-      window.haptic?.warning();
 
       try {
         const res = await fetch(`/api/channels/${channelId}/disconnect`, {
@@ -3078,8 +3035,6 @@ function chat() {
         return;
       }
 
-      // Haptic feedback for destructive action
-      window.haptic?.warning();
 
       try {
         const res = await fetch(`/api/channels/${channelId}`, {
@@ -3678,8 +3633,6 @@ function chat() {
     async saveEvent() {
       if (!this.eventForm.title) return;
 
-      // Haptic feedback for primary action
-      window.haptic?.strong();
 
       const eventData = {
         calendarId: this.eventForm.calendarId,
@@ -3909,8 +3862,6 @@ function chat() {
       const confirmed = confirm(`Delete "${event.title}"?`);
       if (!confirmed) return;
 
-      // Haptic feedback for destructive action
-      window.haptic?.warning();
 
       const calendarId = event.extendedProps?.calendarId;
       const success = await CalendarModule.deleteCalendarEvent(
@@ -4450,8 +4401,6 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
      * Mark task as completed
      */
     async completeTask(taskId) {
-      // Haptic feedback for completion
-      window.haptic?.success();
 
       try {
         const body = {};
@@ -4489,8 +4438,6 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       const confirmed = confirm(`Delete "${task?.title || "this task"}"?`);
       if (!confirmed) return;
 
-      // Haptic feedback for destructive action
-      window.haptic?.warning();
 
       try {
         const res = await fetch(`/api/tasks/${taskId}`, {
@@ -4538,8 +4485,6 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         return;
       }
 
-      // Haptic feedback for primary action
-      window.haptic?.strong();
 
       try {
         const body = {
