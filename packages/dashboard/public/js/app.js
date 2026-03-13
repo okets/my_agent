@@ -215,6 +215,7 @@ function chat() {
     briefOutboundChannel: "web",
     savingPreferences: false,
     preferencesStatus: null, // null | "saved" | "error"
+    availableChannels: [], // populated from /api/channels
 
     // Model configuration
     configuredModels: { sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5", opus: "claude-opus-4-6" },
@@ -2586,6 +2587,24 @@ function chat() {
     // Morning Brief Preferences (M6.9-S2)
     // ─────────────────────────────────────────────────────────────────
 
+    async loadChannels() {
+      try {
+        const res = await fetch("/api/channels");
+        if (!res.ok) return;
+        const channels = await res.json();
+        // Use channel ID as both value and label — these are user-defined names
+        const PLUGIN_LABELS = { baileys: "WhatsApp" };
+        this.availableChannels = channels.map((ch) => ({
+          value: ch.id,
+          label: ch.id,
+          pluginLabel: PLUGIN_LABELS[ch.plugin] || ch.plugin,
+          connected: ch.statusDetail?.connected ?? false,
+        }));
+      } catch (err) {
+        console.error("[App] Failed to load channels:", err);
+      }
+    },
+
     async loadPreferences() {
       try {
         const res = await fetch("/api/settings/preferences");
@@ -2598,6 +2617,7 @@ function chat() {
       } catch (err) {
         console.error("[App] Failed to load preferences:", err);
       }
+      await this.loadChannels();
 
       // Load configured model IDs (may be user-overridden)
       try {
