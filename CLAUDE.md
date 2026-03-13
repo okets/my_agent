@@ -10,6 +10,8 @@
 
 **Markdown is source of truth. SQLite is derived.** Job definitions, facts, configuration, and operational state live in markdown files. Databases store run history, search indexes, and caches. If the database is deleted, the system rebuilds from markdown. If markdown is deleted, data is lost.
 
+**Normalized metadata standard.** Any markdown file needing machine-readable structured data MUST use YAML frontmatter (not `- key: value` under headings). Read/write via `readFrontmatter()`/`writeFrontmatter()` only. See [`docs/design/normalized-markdown-metadata.md`](docs/design/normalized-markdown-metadata.md).
+
 ---
 
 ## Project Structure
@@ -95,6 +97,7 @@ my_agent/                           # PUBLIC REPO (framework)
 | Design specs | `docs/design/*.md` | Detailed specs (channels, conversations, etc.) |
 | Self-evolving infra | `docs/design/self-evolving-infrastructure.md` | Philosophy: APIs for agents, by agents |
 | Debug API | `docs/design/debug-api.md` | Debug/Admin API specification |
+| Normalized metadata | `docs/design/normalized-markdown-metadata.md` | YAML frontmatter standard for markdown files |
 | Procedures | `docs/procedures/*.md` | Team workflows (overnight sprints, etc.) |
 | References | `.my_agent/docs/references.md` | OpenClaw source paths, vision docs, SDK links (private) |
 | Agent SDK docs | https://platform.claude.com/docs/en/agent-sdk/overview | Official docs |
