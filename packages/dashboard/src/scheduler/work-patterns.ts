@@ -30,18 +30,40 @@ export interface WorkPattern {
 }
 
 /**
+ * Validate a timezone string using Intl.DateTimeFormat.
+ */
+export function isValidTimezone(tz: string): boolean {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Parse a cadence string and check if a job is due.
  *
  * @param cadence - "daily:HH:MM" or "weekly:DAYNAME:HH:MM"
  * @param lastRun - When the job last ran (null = never ran)
  * @param now - Current time
+ * @param timezone - Optional IANA timezone string (e.g. "Asia/Bangkok")
  * @returns true if the job should run now
  */
 export function isDue(
   cadence: string,
   lastRun: Date | null,
   now: Date = new Date(),
+  timezone?: string,
 ): boolean {
+  // Resolve timezone: if provided and valid, use it; if provided but invalid, fall back to UTC
+  const tz = timezone
+    ? (isValidTimezone(timezone) ? timezone : "UTC")
+    : undefined;
+  if (timezone && !isValidTimezone(timezone)) {
+    console.warn(`[WorkPatterns] Invalid timezone '${timezone}', falling back to UTC`);
+  }
+
   const parts = cadence.toLowerCase().split(":");
 
   if (parts[0] === "daily" && parts.length === 3) {
@@ -49,7 +71,31 @@ export function isDue(
     const minute = parseInt(parts[2], 10);
     if (isNaN(hour) || isNaN(minute)) return false;
 
-    // Build today's scheduled time
+    if (tz) {
+      // Timezone-aware: compare in the user's local time
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const timeParts = formatter.formatToParts(now);
+      const nowHour = parseInt(timeParts.find((p) => p.type === "hour")!.value, 10);
+      const nowMinute = parseInt(timeParts.find((p) => p.type === "minute")!.value, 10);
+      const nowMinutes = nowHour * 60 + nowMinute;
+      const targetMinutes = hour * 60 + minute;
+
+      if (nowMinutes < targetMinutes) return false;
+      if (!lastRun) return true;
+
+      // Check if last run was before today in user's timezone
+      const dateFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+      const todayStr = dateFormatter.format(now);
+      const lastRunDayStr = dateFormatter.format(lastRun);
+      return lastRunDayStr < todayStr;
+    }
+
+    // No timezone: use server local time (backward compatible)
     const scheduled = new Date(now);
     scheduled.setHours(hour, minute, 0, 0);
 
@@ -79,7 +125,42 @@ export function isDue(
     const targetDay = dayMap[dayName];
     if (targetDay === undefined) return false;
 
-    // Is today the right day of the week?
+    if (tz) {
+      // Timezone-aware: get local day of week
+      const dayFormatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        weekday: "short",
+      });
+      const localDayStr = dayFormatter.format(now).toLowerCase();
+      const localDayMap: Record<string, number> = {
+        sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+      };
+      const localDay = localDayMap[localDayStr];
+      if (localDay !== targetDay) return false;
+
+      // Check time
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const timeParts = formatter.formatToParts(now);
+      const nowHour = parseInt(timeParts.find((p) => p.type === "hour")!.value, 10);
+      const nowMinute = parseInt(timeParts.find((p) => p.type === "minute")!.value, 10);
+      const nowMinutes = nowHour * 60 + nowMinute;
+      const targetMinutes = hour * 60 + minute;
+
+      if (nowMinutes < targetMinutes) return false;
+      if (!lastRun) return true;
+
+      const dateFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+      const todayStr = dateFormatter.format(now);
+      const lastRunDayStr = dateFormatter.format(lastRun);
+      return lastRunDayStr < todayStr;
+    }
+
+    // No timezone: server local time
     if (now.getDay() !== targetDay) return false;
 
     // Build today's scheduled time
@@ -103,7 +184,11 @@ export function isDue(
 export function getNextScheduledTime(
   cadence: string,
   now: Date = new Date(),
+  timezone?: string,
 ): Date | null {
+  const tz = timezone
+    ? (isValidTimezone(timezone) ? timezone : "UTC")
+    : undefined;
   const parts = cadence.toLowerCase().split(":");
 
   if (parts[0] === "daily" && parts.length === 3) {
