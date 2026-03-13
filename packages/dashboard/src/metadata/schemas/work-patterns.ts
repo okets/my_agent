@@ -4,7 +4,7 @@
  * Expected structure:
  * ```yaml
  * jobs:
- *   morning-prep:
+ *   debrief-prep:
  *     cadence: "daily:08:00"
  *     model: haiku
  *   daily-summary:

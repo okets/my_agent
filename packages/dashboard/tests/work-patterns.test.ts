@@ -38,7 +38,7 @@ describe("parseWorkPatterns", () => {
   it("parses YAML frontmatter with two jobs", () => {
     const file = writeWP(`---
 jobs:
-  morning-prep:
+  debrief-prep:
     cadence: "daily:08:00"
     model: haiku
   daily-summary:
@@ -53,8 +53,8 @@ jobs:
 
     expect(patterns).toHaveLength(2);
 
-    expect(patterns[0].name).toBe("morning-prep");
-    expect(patterns[0].displayName).toBe("Morning Prep");
+    expect(patterns[0].name).toBe("debrief-prep");
+    expect(patterns[0].displayName).toBe("Debrief Prep");
     expect(patterns[0].cadence).toBe("daily:08:00");
     expect(patterns[0].model).toBe("haiku");
 

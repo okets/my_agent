@@ -16,13 +16,13 @@ const dashboardAvailable = await isDashboardReachable();
 // Generous timeout — Haiku calls take 5-15s each
 const HAIKU_TIMEOUT = 60_000;
 
-// --- Morning Prep Tests ---
+// --- Debrief Prep Tests ---
 
-describe.skipIf(!dashboardAvailable)("morning prep via endpoint", () => {
+describe.skipIf(!dashboardAvailable)("debrief prep via endpoint", () => {
   it(
-    "morning-prep produces output",
+    "debrief-prep produces output",
     async () => {
-      const result = await triggerJob("morning-prep");
+      const result = await triggerJob("debrief-prep");
       expect(result.success).toBe(true);
       expect(result.run).toBeDefined();
       expect(result.run.output).toBeTruthy();
@@ -33,9 +33,9 @@ describe.skipIf(!dashboardAvailable)("morning prep via endpoint", () => {
   );
 
   it(
-    "morning-prep output is concise (< 2000 chars)",
+    "debrief-prep output is concise (< 2000 chars)",
     async () => {
-      const result = await triggerJob("morning-prep");
+      const result = await triggerJob("debrief-prep");
       expect(result.success).toBe(true);
       expect(result.run.output.length).toBeLessThan(2000);
     },
@@ -43,11 +43,11 @@ describe.skipIf(!dashboardAvailable)("morning prep via endpoint", () => {
   );
 
   it(
-    "morning-prep writes current-state.md (verified via consecutive trigger)",
+    "debrief-prep writes current-state.md (verified via consecutive trigger)",
     async () => {
       // First trigger writes current-state.md, second proves the pipeline works again
-      const result1 = await triggerJob("morning-prep");
-      const result2 = await triggerJob("morning-prep");
+      const result1 = await triggerJob("debrief-prep");
+      const result2 = await triggerJob("debrief-prep");
       expect(result1.success).toBe(true);
       expect(result2.success).toBe(true);
       // Both should produce non-empty output

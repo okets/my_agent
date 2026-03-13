@@ -1,5 +1,5 @@
 /**
- * Debrief Prep Job (Morning Brief)
+ * Debrief Prep Job
  *
  * Reads summary stack + calendar + properties + staging,
  * produces operations/current-state.md with past+future temporal context.

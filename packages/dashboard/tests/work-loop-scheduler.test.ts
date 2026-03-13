@@ -47,7 +47,7 @@ function writeWorkPatterns(agentDir: string, content: string): void {
 // Patterns with cadence that will NEVER be due (for lifecycle tests that don't need Haiku)
 const LIFECYCLE_PATTERNS = `---
 jobs:
-  morning-prep:
+  debrief-prep:
     cadence: "weekly:saturday:03:33"
     model: haiku
   daily-summary:
@@ -125,7 +125,7 @@ describe("WorkLoopScheduler", () => {
     const patterns = scheduler.getPatterns();
 
     expect(patterns).toHaveLength(2);
-    expect(patterns[0].name).toBe("morning-prep");
+    expect(patterns[0].name).toBe("debrief-prep");
     expect(patterns[1].name).toBe("daily-summary");
 
     await scheduler.stop();
@@ -154,7 +154,7 @@ describe("WorkLoopScheduler", () => {
     // Should have auto-created the file
     expect(existsSync(patternsPath)).toBe(true);
 
-    // Should have loaded the default patterns (Daily Summary only; morning-prep is scheduler-driven)
+    // Should have loaded the default patterns (Daily Summary only; debrief-prep is scheduler-driven)
     const patterns = scheduler.getPatterns();
     expect(patterns.length).toBeGreaterThanOrEqual(1);
 
@@ -178,7 +178,7 @@ describe("WorkLoopScheduler", () => {
       agentDir,
       `---
 jobs:
-  morning-prep:
+  debrief-prep:
     cadence: "weekly:saturday:03:33"
     model: haiku
   daily-summary:
@@ -205,7 +205,7 @@ jobs:
     writeWorkPatterns(agentDir, LIFECYCLE_PATTERNS);
     const scheduler = new WorkLoopScheduler({ db, agentDir });
 
-    expect(scheduler.getLastRun("morning-prep")).toBeNull();
+    expect(scheduler.getLastRun("debrief-prep")).toBeNull();
   });
 
   it("getRuns returns empty array when no runs exist", () => {
@@ -322,7 +322,7 @@ jobs:
        VALUES (?, ?, ?, ?, 'completed', 1000, 'test output')`,
     ).run(
       "persist-test",
-      "morning-prep",
+      "debrief-prep",
       startedAt.toISOString(),
       completedAt.toISOString(),
     );
@@ -335,12 +335,12 @@ jobs:
     });
 
     // Verify it can see the previous run
-    const lastRun = scheduler2.getLastRun("morning-prep");
+    const lastRun = scheduler2.getLastRun("debrief-prep");
     expect(lastRun).not.toBeNull();
     expect(lastRun!.getTime()).toBe(completedAt.getTime());
 
     // Verify getRuns returns it too
-    const runs = scheduler2.getRuns({ jobName: "morning-prep" });
+    const runs = scheduler2.getRuns({ jobName: "debrief-prep" });
     expect(runs).toHaveLength(1);
     expect(runs[0].status).toBe("completed");
   });
@@ -357,9 +357,9 @@ describe.skipIf(!dashboardAvailable)(
   "WorkLoopScheduler — real Haiku jobs via endpoint",
   () => {
     it(
-      "morning-prep: produces output via endpoint",
+      "debrief-prep: produces output via endpoint",
       async () => {
-        const result = await triggerJob("morning-prep");
+        const result = await triggerJob("debrief-prep");
         expect(result.success).toBe(true);
         expect(result.run).toBeDefined();
         expect(result.run.output).toBeTruthy();
@@ -392,10 +392,10 @@ describe.skipIf(!dashboardAvailable)(
     );
 
     it(
-      "sequential: two morning-prep triggers produce output",
+      "sequential: two debrief-prep triggers produce output",
       async () => {
-        const run1 = await triggerJob("morning-prep");
-        const run2 = await triggerJob("morning-prep");
+        const run1 = await triggerJob("debrief-prep");
+        const run2 = await triggerJob("debrief-prep");
 
         expect(run1.success).toBe(true);
         expect(run2.success).toBe(true);

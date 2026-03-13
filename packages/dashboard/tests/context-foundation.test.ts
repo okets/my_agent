@@ -141,18 +141,18 @@ describe("S1: Context Foundation", () => {
   });
 });
 
-describe("S2: Morning Prep → System Prompt Pipeline", () => {
+describe("S2: Debrief Prep → System Prompt Pipeline", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  // E2E test #6: Trigger morning prep → output appears in assembled prompt
-  it("morning prep output appears in assembled system prompt", async () => {
+  // E2E test #6: Trigger debrief prep → output appears in assembled prompt
+  it("debrief prep output appears in assembled system prompt", async () => {
     const { assembleSystemPrompt } = await import("@my-agent/core");
 
-    // Step 1: Simulate assembleSystemPrompt including morning prep output
-    // In production: morning prep writes current-state.md → assembleSystemPrompt reads it
-    // In test: we mock the result to include the morning prep content
+    // Step 1: Simulate assembleSystemPrompt including debrief prep output
+    // In production: debrief prep writes current-state.md → assembleSystemPrompt reads it
+    // In test: we mock the result to include the debrief prep content
     const morningPrepOutput =
       "Location: Chiang Mai. Weather: 32C sunny. Plan: Visit Doi Suthep.";
     vi.mocked(assembleSystemPrompt).mockResolvedValue(
@@ -166,7 +166,7 @@ describe("S2: Morning Prep → System Prompt Pipeline", () => {
 
     const result = await builder.build(buildContext);
 
-    // Verify the morning prep output is in the stable prompt
+    // Verify the debrief prep output is in the stable prompt
     expect(result[0].text).toContain("Chiang Mai");
     expect(result[0].text).toContain("Doi Suthep");
     expect(result[0].text).toContain("Current State");

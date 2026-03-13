@@ -14,14 +14,14 @@ import { readFrontmatter, writeFrontmatter } from "../metadata/frontmatter.js";
 
 const DEFAULT_WORK_PATTERNS_DATA = {
   jobs: {
-    "morning-prep": { cadence: "daily:08:00", model: "haiku" },
+    "debrief-prep": { cadence: "daily:08:00", model: "haiku" },
     "daily-summary": { cadence: "daily:23:00", model: "haiku" },
   },
 };
 
 const DEFAULT_WORK_PATTERNS_BODY = `# Work Patterns
 
-Morning prep runs at 08:00 in the user's local timezone.
+Debrief prep runs at 08:00 in the user's local timezone.
 Daily summary compresses the day's log at 23:00.
 `;
 
@@ -303,7 +303,7 @@ export function getNextScheduledTime(
 }
 
 /**
- * Format job name for display: "morning-prep" → "Morning Prep"
+ * Format job name for display: "debrief-prep" → "Debrief Prep"
  */
 function toDisplayName(name: string): string {
   return name

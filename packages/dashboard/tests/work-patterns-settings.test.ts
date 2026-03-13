@@ -26,7 +26,7 @@ let scheduler: WorkLoopScheduler;
 
 const INITIAL_JOBS = {
   jobs: {
-    "morning-prep": { cadence: "daily:08:00", model: "haiku" },
+    "debrief-prep": { cadence: "daily:08:00", model: "haiku" },
     "daily-summary": { cadence: "daily:23:00", model: "haiku" },
   },
 };
@@ -79,7 +79,7 @@ describe("work patterns settings API", () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.jobs["morning-prep"].cadence).toBe("daily:08:00");
+    expect(body.jobs["debrief-prep"].cadence).toBe("daily:08:00");
     expect(body.jobs["daily-summary"].cadence).toBe("daily:23:00");
   });
 
@@ -88,12 +88,12 @@ describe("work patterns settings API", () => {
       method: "PUT",
       url: "/api/settings/work-patterns",
       payload: {
-        jobs: { "morning-prep": { cadence: "daily:09:00" } },
+        jobs: { "debrief-prep": { cadence: "daily:09:00" } },
       },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.jobs["morning-prep"].cadence).toBe("daily:09:00");
+    expect(body.jobs["debrief-prep"].cadence).toBe("daily:09:00");
     // Other jobs unchanged
     expect(body.jobs["daily-summary"].cadence).toBe("daily:23:00");
   });
@@ -120,7 +120,7 @@ describe("work patterns settings API", () => {
       method: "PUT",
       url: "/api/settings/work-patterns",
       payload: {
-        jobs: { "morning-prep": { cadence: "daily:10:00" } },
+        jobs: { "debrief-prep": { cadence: "daily:10:00" } },
       },
     });
 
@@ -131,7 +131,7 @@ describe("work patterns settings API", () => {
     });
     expect(getRes.statusCode).toBe(200);
     // The job update should work
-    expect(getRes.json().jobs["morning-prep"].cadence).toBe("daily:10:00");
+    expect(getRes.json().jobs["debrief-prep"].cadence).toBe("daily:10:00");
   });
 
   it("PUT returns 400 for missing jobs key", async () => {

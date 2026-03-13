@@ -22,7 +22,7 @@ describe("validateWorkPatterns", () => {
   it("returns no errors for valid frontmatter", () => {
     const data = {
       jobs: {
-        "morning-prep": { cadence: "daily:08:00", model: "haiku" },
+        "debrief-prep": { cadence: "daily:08:00", model: "haiku" },
         "daily-summary": { cadence: "daily:23:00", model: "haiku" },
       },
     };

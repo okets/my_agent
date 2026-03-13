@@ -2,10 +2,10 @@
  * M6.9-S1: Memory Lifecycle E2E Tests
  *
  * Validates the full memory pipeline: conversation -> classified extraction ->
- * staging files / daily log / properties -> morning prep -> current-state.md -> system prompt.
+ * staging files / daily log / properties -> debrief prep -> current-state.md -> system prompt.
  *
  * Uses synthetic Thailand vacation data. No live LLM calls for extraction
- * (mocked). Morning prep and daily summary use mocked Haiku responses.
+ * (mocked). Debrief prep and daily summary use mocked Haiku responses.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
@@ -85,7 +85,7 @@ describe("M6.6 Memory Lifecycle E2E", () => {
     // Write work patterns
     writeFileSync(
       join(tmpDir, "notebook", "config", "work-patterns.md"),
-      `---\njobs:\n  morning-prep:\n    cadence: "daily:08:00"\n    model: haiku\n  daily-summary:\n    cadence: "daily:23:00"\n    model: haiku\n  weekly-review:\n    cadence: "weekly:sunday:09:00"\n    model: haiku\n---\n\n# Work Patterns\n`,
+      `---\njobs:\n  debrief-prep:\n    cadence: "daily:08:00"\n    model: haiku\n  daily-summary:\n    cadence: "daily:23:00"\n    model: haiku\n  weekly-review:\n    cadence: "weekly:sunday:09:00"\n    model: haiku\n---\n\n# Work Patterns\n`,
     );
   });
 
@@ -156,7 +156,7 @@ describe("M6.6 Memory Lifecycle E2E", () => {
       }
     });
 
-    it("0c: writes current-state.md (simulating morning prep output)", () => {
+    it("0c: writes current-state.md (simulating debrief prep output)", () => {
       const currentState = [
         `## Current State (updated ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })})`,
         "- Location: Chiang Mai, Thailand (then Krabi)",

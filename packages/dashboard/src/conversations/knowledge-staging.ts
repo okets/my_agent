@@ -51,7 +51,7 @@ export async function writeStagingFile(
     `# Extracted: ${new Date().toISOString()}`,
     `# Source: ${conversationId} ("${conversationTitle}")`,
     "",
-    "## Pending -- Propose in Morning Brief",
+    "## Pending -- Propose in Debrief",
     ...facts.map((f) => `- [${f.subcategory}, attempts: 0] ${f.text}`),
   ];
 

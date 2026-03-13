@@ -255,7 +255,7 @@ export async function registerWorkLoopRoutes(
 }
 
 /**
- * Format job name for display: "morning-prep" → "Morning Prep"
+ * Format job name for display: "debrief-prep" → "Debrief Prep"
  */
 function formatJobTitle(jobName: string): string {
   return jobName

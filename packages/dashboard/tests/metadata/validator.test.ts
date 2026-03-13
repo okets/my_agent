@@ -25,7 +25,7 @@ describe("validateFrontmatter", () => {
     const file = join(tmpDir, "notebook", "config", "work-patterns.md");
     writeFrontmatter(file, {
       jobs: {
-        "morning-prep": { cadence: "daily:08:00", model: "haiku" },
+        "debrief-prep": { cadence: "daily:08:00", model: "haiku" },
       },
     });
 
@@ -109,7 +109,7 @@ describe("validateAndNotify", () => {
   it("does not create notification when valid", () => {
     const file = join(tmpDir, "notebook", "config", "work-patterns.md");
     writeFrontmatter(file, {
-      jobs: { "morning-prep": { cadence: "daily:08:00", model: "haiku" } },
+      jobs: { "debrief-prep": { cadence: "daily:08:00", model: "haiku" } },
     });
 
     const notifications: any[] = [];

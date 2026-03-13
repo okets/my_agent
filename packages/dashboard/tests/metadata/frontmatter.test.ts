@@ -84,8 +84,8 @@ describe("writeFrontmatter", () => {
 
   it("roundtrips correctly", () => {
     const file = join(tmpDir, "test.md");
-    const data = { jobs: { "morning-prep": { cadence: "daily:08:00", model: "haiku" } } };
-    const body = "# Work Patterns\n\nMorning prep runs at 08:00.";
+    const data = { jobs: { "debrief-prep": { cadence: "daily:08:00", model: "haiku" } } };
+    const body = "# Work Patterns\n\nDebrief prep runs at 08:00.";
     writeFrontmatter(file, data, body);
     const result = readFrontmatter<typeof data>(file);
     expect(result.data).toEqual(data);

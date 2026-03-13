@@ -23,7 +23,7 @@ describe("manage_staged_knowledge handler", () => {
       "# Extracted: 2026-03-12T14:30:00Z",
       '# Source: conv-abc ("Trip Planning")',
       "",
-      "## Pending -- Propose in Morning Brief",
+      "## Pending -- Propose in Debrief",
       "- [user-info, attempts: 0] Has two daughters, Noa (5) and Maya (3)",
       "- [contact, attempts: 1] Kai — tour guide in Chiang Mai",
     ].join("\n"));

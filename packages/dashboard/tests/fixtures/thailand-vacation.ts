@@ -451,7 +451,7 @@ export const SPARSE_CONVERSATION_ABBREVIATIONS = [
   },
 ];
 
-// --- Helper to assemble notebook content as the morning prep job would receive it ---
+// --- Helper to assemble notebook content as the debrief prep job would receive it ---
 
 export function assembleNotebookContext(input: {
   reference: Record<string, string>;
