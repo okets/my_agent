@@ -110,6 +110,7 @@ export async function registerWorkLoopRoutes(
 
     // Upcoming scheduled runs (future only — past occurrences show as actual runs from DB)
     const now = new Date();
+    const resolvedTimezone = await scheduler.getResolvedTimezone();
     const patterns = scheduler.getPatterns();
     for (const pattern of patterns) {
       let cursor = new Date(Math.max(startDate.getTime(), now.getTime()));
@@ -117,7 +118,7 @@ export async function registerWorkLoopRoutes(
       const maxOccurrences = 50;
 
       while (safety < maxOccurrences) {
-        const nextTime = getNextScheduledTime(pattern.cadence, cursor);
+        const nextTime = getNextScheduledTime(pattern.cadence, cursor, resolvedTimezone);
         if (!nextTime || nextTime > endDate) break;
 
         const displayDuration = 30 * 60_000; // 30 min so it's visible in week view
@@ -155,8 +156,10 @@ export async function registerWorkLoopRoutes(
   fastify.get("/api/work-loop/status", async () => {
     const scheduler = fastify.workLoopScheduler;
     if (!scheduler) {
-      return { running: false, patterns: [], recentRuns: [] };
+      return { running: false, patterns: [], recentRuns: [], resolvedTimezone: "UTC" };
     }
+
+    const resolvedTimezone = await scheduler.getResolvedTimezone();
 
     const patterns = scheduler.getPatterns().map((p) => ({
       name: p.name,
@@ -164,7 +167,7 @@ export async function registerWorkLoopRoutes(
       cadence: p.cadence,
       model: p.model,
       lastRun: scheduler.getLastRun(p.name)?.toISOString() ?? null,
-      nextRun: getNextScheduledTime(p.cadence)?.toISOString() ?? null,
+      nextRun: getNextScheduledTime(p.cadence, undefined, resolvedTimezone)?.toISOString() ?? null,
     }));
 
     const recentRuns = scheduler.getRuns({ limit: 10 });
@@ -173,6 +176,7 @@ export async function registerWorkLoopRoutes(
       running: true,
       patterns,
       recentRuns,
+      resolvedTimezone,
     };
   });
 
@@ -200,7 +204,8 @@ export async function registerWorkLoopRoutes(
 
     const runs = scheduler.getRuns({ jobName, limit });
     const lastRun = scheduler.getLastRun(jobName);
-    const nextRun = getNextScheduledTime(pattern.cadence);
+    const resolvedTimezone = await scheduler.getResolvedTimezone();
+    const nextRun = getNextScheduledTime(pattern.cadence, undefined, resolvedTimezone);
     const prompts = scheduler.getJobPrompts(jobName);
 
     return {
