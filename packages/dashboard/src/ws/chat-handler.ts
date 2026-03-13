@@ -11,10 +11,6 @@ import type { ConversationManager } from "../conversations/index.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
 import { ConnectionRegistry } from "./connection-registry.js";
 import { AttachmentService } from "../conversations/attachments.js";
-import {
-  extractTaskFromMessage,
-  type ExtractedTask,
-} from "../tasks/task-extractor.js";
 import type {
   Attachment,
   ClientMessage,
@@ -1311,85 +1307,11 @@ export async function registerChatWebSocket(
           })();
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // Task Extraction — Deterministic task creation from user message
-        // ═══════════════════════════════════════════════════════════════════
-        if (
-          fastify.taskManager &&
-          fastify.taskProcessor &&
-          currentConversationId
-        ) {
-          const convIdForTask = currentConversationId;
-
-          // Fire-and-forget task extraction
-          (async () => {
-            try {
-              const extraction = await extractTaskFromMessage(
-                textContent,
-                assistantContent,
-              );
-
-              if (extraction.shouldCreateTask && extraction.task) {
-                // Build list of tasks to create: use tasks[] if multiple, otherwise single task
-                const extractedTasks: ExtractedTask[] =
-                  extraction.tasks && extraction.tasks.length > 1
-                    ? extraction.tasks
-                    : [extraction.task];
-
-                for (const extracted of extractedTasks) {
-                  const task = fastify.taskManager!.create({
-                    type: extracted.type,
-                    sourceType: "conversation",
-                    title: extracted.title,
-                    instructions: extracted.instructions,
-                    work: extracted.work,
-                    delivery: extracted.delivery,
-                    scheduledFor: extracted.scheduledFor
-                      ? new Date(extracted.scheduledFor)
-                      : undefined,
-                    createdBy: "agent",
-                  });
-
-                  // Link task to conversation
-                  fastify.taskManager!.linkTaskToConversation(
-                    task.id,
-                    convIdForTask,
-                  );
-
-                  fastify.log.info(
-                    `[TaskExtractor] Created task "${task.title}" (${task.id}) for conversation ${convIdForTask}`,
-                  );
-
-                  // Note: CalDAV event creation is handled by the brain via MCP tool.
-                  // TaskExtractor only creates the Task entity — single source of truth.
-
-                  // Trigger immediate task execution
-                  fastify.taskProcessor!.onTaskCreated(task);
-
-                  // Broadcast task creation to clients
-                  connectionRegistry.broadcastToConversation(convIdForTask, {
-                    type: "task:created",
-                    task: {
-                      id: task.id,
-                      title: task.title,
-                      type: task.type,
-                      status: task.status,
-                      work: task.work,
-                      delivery: task.delivery,
-                    },
-                  } as any);
-                }
-
-                // Broadcast updated task list as state snapshot (once, after all tasks created)
-                fastify.statePublisher?.publishTasks();
-              }
-            } catch (err) {
-              fastify.log.error(
-                err,
-                `[TaskExtractor] Failed to extract task for conversation ${convIdForTask}`,
-              );
-            }
-          })();
+        // Post-response hooks (task extraction, etc.) — fire-and-forget
+        if (fastify.postResponseHooks && currentConversationId) {
+          fastify.postResponseHooks
+            .run(currentConversationId, textContent, assistantContent)
+            .catch(() => {});
         }
 
         // Broadcast assistant turn to other tabs

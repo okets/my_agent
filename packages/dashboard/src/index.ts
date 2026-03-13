@@ -48,6 +48,7 @@ import {
 } from "./tasks/index.js";
 import { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
 import { ConversationInitiator } from "./agent/conversation-initiator.js";
+import { PostResponseHooks } from "./conversations/post-response-hooks.js";
 import { connectionRegistry, sessionRegistry } from "./ws/chat-handler.js";
 import { StatePublisher } from "./state/state-publisher.js";
 import {
@@ -206,6 +207,9 @@ async function main() {
         publishConversations: () =>
           server.statePublisher?.publishConversations(),
       },
+      get postResponseHooks() {
+        return server.postResponseHooks;
+      },
     });
 
     channelManager.onMessage((channelId, messages) => {
@@ -343,6 +347,17 @@ async function main() {
     });
 
     console.log("Task system initialized with processor and scheduler");
+
+    // Post-response hooks (shared between WebSocket and channel handlers)
+    server.postResponseHooks = new PostResponseHooks({
+      taskManager,
+      taskProcessor,
+      broadcastToConversation: (convId, msg) =>
+        connectionRegistry.broadcastToConversation(convId, msg as any),
+      publishTasks: () => server.statePublisher?.publishTasks(),
+      log: (msg) => console.log(msg),
+      logError: (err, msg) => console.error(msg, err),
+    });
   }
 
   server.notificationService = notificationService;

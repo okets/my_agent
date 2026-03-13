@@ -50,6 +50,9 @@ interface MessageHandlerDeps {
   ) => void;
   agentDir: string;
   statePublisher?: { publishConversations: () => void } | null;
+  postResponseHooks?: {
+    run(conversationId: string, userContent: string, assistantContent: string): Promise<void>;
+  } | null;
 }
 
 /**
@@ -579,6 +582,11 @@ export class ChannelMessageHandler {
           turnNumber,
         },
       });
+
+      // Post-response hooks (task extraction, etc.) — fire-and-forget
+      this.deps.postResponseHooks
+        ?.run(conversation.id, textContent, assistantContent)
+        .catch(() => {});
     }
   }
 
