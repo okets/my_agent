@@ -2303,6 +2303,19 @@
                       <option value="opus" style="background-color: #1f2335; color: #e5e7eb;">Opus — Most capable</option>
                     </select>
                   </div>
+                  <!-- Outbound channel selector row -->
+                  <div>
+                    <label class="block text-xs text-tokyo-muted mb-1.5">Outbound Channel</label>
+                    <select
+                      x-model="briefOutboundChannel"
+                      class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                      style="background-color: rgba(30, 30, 46, 0.9); color: #e5e7eb;"
+                    >
+                      <option value="web" style="background-color: #1f2335; color: #e5e7eb;">Web Only</option>
+                      <option value="whatsapp" style="background-color: #1f2335; color: #e5e7eb;">WhatsApp</option>
+                    </select>
+                    <p class="text-xs text-tokyo-muted mt-1">Where to send proactive messages</p>
+                  </div>
                   <!-- Save row -->
                   <div class="flex items-center justify-between pt-1">
                     <span
@@ -6604,6 +6617,18 @@
                       <option value="sonnet" style="background-color: #1f2335; color: #e5e7eb;">Sonnet</option>
                       <option value="opus" style="background-color: #1f2335; color: #e5e7eb;">Opus</option>
                     </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-tokyo-muted mb-1">Outbound Channel</label>
+                    <select
+                      x-model="briefOutboundChannel"
+                      class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
+                      style="background-color: rgba(30, 30, 46, 0.9); color: #e5e7eb;"
+                    >
+                      <option value="web" style="background-color: #1f2335; color: #e5e7eb;">Web Only</option>
+                      <option value="whatsapp" style="background-color: #1f2335; color: #e5e7eb;">WhatsApp</option>
+                    </select>
+                    <p class="text-xs text-tokyo-muted mt-1">Where to send proactive messages</p>
                   </div>
                   <div class="flex items-center justify-between pt-0.5">
                     <span
