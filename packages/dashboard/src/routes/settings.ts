@@ -63,7 +63,7 @@ export async function registerSettingsRoutes(
     const agentDir = fastify.agentDir;
     const configPath = join(agentDir, "config.yaml");
 
-    const body = request.body as Partial<UserPreferences>;
+    const body = request.body as Partial<UserPreferences> & { outboundChannel?: string };
 
     try {
       // Read existing YAML (preserves all other config keys)
@@ -92,6 +92,7 @@ export async function registerSettingsRoutes(
       yaml.preferences = {
         ...existingPrefs,
         ...(body.timezone !== undefined ? { timezone: body.timezone } : {}),
+        ...(body.outboundChannel !== undefined ? { outboundChannel: body.outboundChannel } : {}),
         morningBrief: newBrief,
       };
 

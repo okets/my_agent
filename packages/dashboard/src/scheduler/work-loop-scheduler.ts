@@ -63,6 +63,11 @@ export interface WorkLoopSchedulerConfig {
     }) => { id: string };
     notify: (input: { message: string; importance?: "info" | "warning" | "success" | "error" }) => void;
   };
+  /** Optional ConversationInitiator for proactive outreach after morning prep (M6.9-S3) */
+  conversationInitiator?: {
+    alert(prompt: string): Promise<boolean>;
+    initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
+  };
 }
 
 interface WorkLoopRun {
@@ -89,12 +94,14 @@ export class WorkLoopScheduler {
   private activeCheck: Promise<void> | null = null;
   private patterns: WorkPattern[] = [];
   private notificationService: WorkLoopSchedulerConfig["notificationService"];
+  private conversationInitiator: WorkLoopSchedulerConfig["conversationInitiator"];
 
   constructor(config: WorkLoopSchedulerConfig) {
     this.db = config.db;
     this.agentDir = config.agentDir;
     this.pollIntervalMs = config.pollIntervalMs ?? 60_000;
     this.notificationService = config.notificationService;
+    this.conversationInitiator = config.conversationInitiator;
 
     this.initDb();
   }
@@ -688,6 +695,20 @@ export class WorkLoopScheduler {
       notebookDir,
       `- Morning prep completed (${output.length} chars)`,
     );
+
+    // Proactive outreach: alert active conversation or initiate new one (M6.9-S3)
+    if (this.conversationInitiator && output) {
+      try {
+        const alerted = await this.conversationInitiator.alert(
+          "The morning brief has been updated. Ask the user if they'd like to go through it now, or present it naturally if starting a new conversation.",
+        );
+        if (!alerted) {
+          await this.conversationInitiator.initiate();
+        }
+      } catch (err) {
+        console.error("[WorkLoop] Morning brief initiation failed:", err);
+      }
+    }
 
     return output;
   }

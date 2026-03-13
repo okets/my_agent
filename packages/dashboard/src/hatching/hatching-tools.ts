@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { parse, stringify } from "yaml";
 import {
   query,
   createSdkMcpServer,
@@ -183,6 +186,10 @@ export function createHatchingSession(
       personalityFilename: z
         .string()
         .describe("Filename of the chosen personality (without .md)"),
+      outboundChannel: z
+        .enum(["web", "whatsapp"])
+        .optional()
+        .describe("Preferred channel for proactive messages (default: web)"),
       autonomy: z.string().optional().describe("Autonomy level (optional)"),
       escalations: z
         .string()
@@ -211,6 +218,23 @@ export function createHatchingSession(
             escalations: args.escalations || "Nothing specified",
             style: args.style || "Direct and concise",
           });
+        }
+
+        // Persist outbound channel preference
+        if (args.outboundChannel) {
+          const configPath = join(agentDir, "config.yaml");
+          let yaml: Record<string, unknown> = {};
+          if (existsSync(configPath)) {
+            try {
+              yaml = (parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>) ?? {};
+            } catch {
+              yaml = {};
+            }
+          }
+          const prefs = (yaml.preferences as Record<string, unknown>) ?? {};
+          prefs.outboundChannel = args.outboundChannel;
+          yaml.preferences = prefs;
+          writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), "utf-8");
         }
 
         // Mark as hatched

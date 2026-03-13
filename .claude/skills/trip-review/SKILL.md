@@ -111,9 +111,10 @@ If CTO approves merge:
 
 ## Conversation Style
 
-- **Short messages** — one topic per message
+- **Short messages** — one topic per message, no walls of text. CTO is on a tiny screen.
 - **No jargon** — no file paths unless CTO asks for specifics
 - **Numbers over prose** — "5 decisions, all minor" not "several decisions were made"
+- **Number questions with progress** — "Question 1/3: ..." so CTO knows the time commitment
 - **Lead with verdict** — then details
 - **Always end with a clear question or action**
 - **Never ask CTO to run commands** — the whole point of trip mode is they're on mobile. Execute everything yourself: service restarts, builds, deployments, verifications. Never say "you'll want to run X".

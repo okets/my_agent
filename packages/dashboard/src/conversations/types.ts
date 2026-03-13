@@ -57,6 +57,9 @@ export interface Conversation {
 
   /** Conversation lifecycle status: one current, rest inactive */
   status: "current" | "inactive";
+
+  /** When the user last sent a message (for active conversation detection) */
+  lastUserMessageAt: Date | null;
 }
 
 /**

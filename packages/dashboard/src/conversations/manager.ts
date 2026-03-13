@@ -59,6 +59,7 @@ export class ConversationManager {
       externalParty: options?.externalParty ?? null,
       isPinned: true,
       status: "current",
+      lastUserMessageAt: null,
     };
 
     // Demote current conversation before creating new one
@@ -123,6 +124,16 @@ export class ConversationManager {
   }
 
   /**
+   * Get the active conversation — current conversation with recent user activity.
+   * Returns null if no conversation has user activity within the threshold.
+   */
+  async getActiveConversation(
+    thresholdMinutes: number = 15,
+  ): Promise<Conversation | null> {
+    return this.db.getActiveConversation(thresholdMinutes);
+  }
+
+  /**
    * Append a turn to a conversation
    *
    * This updates:
@@ -146,6 +157,9 @@ export class ConversationManager {
     // Update metadata (only increment on user messages to avoid double-counting)
     if (turn.role === "user") {
       this.db.incrementTurnCount(id);
+      this.db.updateConversation(id, {
+        lastUserMessageAt: new Date(turn.timestamp),
+      });
     } else {
       // Just update the timestamp for assistant messages
       this.db.updateConversation(id, { updated: new Date(turn.timestamp) });
