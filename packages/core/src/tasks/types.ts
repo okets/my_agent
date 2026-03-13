@@ -6,6 +6,11 @@
  */
 
 /**
+ * When to notify the user about task completion
+ */
+export type NotifyOnCompletion = 'immediate' | 'debrief' | 'none'
+
+/**
  * Task execution status
  */
 export type TaskStatus =
@@ -79,6 +84,9 @@ export interface Task {
   /** Delivery actions for the system to execute after brain completes */
   delivery?: DeliveryAction[]
 
+  /** When to notify user of completion (null = type-based default) */
+  notifyOnCompletion?: NotifyOnCompletion
+
   /** Current execution status */
   status: TaskStatus
 
@@ -124,6 +132,7 @@ export interface CreateTaskInput {
   instructions: string
   work?: WorkItem[]
   delivery?: DeliveryAction[]
+  notifyOnCompletion?: NotifyOnCompletion
   recurrenceId?: string
   occurrenceDate?: string
   scheduledFor?: Date

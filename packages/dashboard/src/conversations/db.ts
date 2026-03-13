@@ -249,6 +249,13 @@ export class ConversationDatabase {
       );
     }
 
+    // M6.9-S3.5: Task completion notification preference
+    if (!taskColumns.some((c) => c.name === "notify_on_completion")) {
+      this.db.exec(
+        "ALTER TABLE tasks ADD COLUMN notify_on_completion TEXT DEFAULT NULL",
+      );
+    }
+
     // Create task_conversations junction table (M5-S5)
     // Soft references: no FK constraints for graceful degradation
     this.db.exec(`

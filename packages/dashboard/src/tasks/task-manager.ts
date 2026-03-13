@@ -82,6 +82,7 @@ export class TaskManager {
       instructions: input.instructions,
       work: input.work,
       delivery: input.delivery,
+      notifyOnCompletion: input.notifyOnCompletion,
       status: "pending",
       sessionId,
       recurrenceId: input.recurrenceId,
@@ -95,9 +96,9 @@ export class TaskManager {
     const stmt = this.db.prepare(`
       INSERT INTO tasks (
         id, type, source_type, source_ref, title, instructions, work, delivery,
-        status, session_id, recurrence_id, occurrence_date,
+        notify_on_completion, status, session_id, recurrence_id, occurrence_date,
         scheduled_for, created_by, log_path, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -109,6 +110,7 @@ export class TaskManager {
       task.instructions,
       task.work ? JSON.stringify(task.work) : null,
       task.delivery ? JSON.stringify(task.delivery) : null,
+      task.notifyOnCompletion ?? null,
       task.status,
       task.sessionId,
       task.recurrenceId ?? null,
@@ -418,6 +420,7 @@ export class TaskManager {
       delivery: row.delivery
         ? (JSON.parse(row.delivery) as DeliveryAction[])
         : undefined,
+      notifyOnCompletion: row.notify_on_completion ?? undefined,
       status: row.status as TaskStatus,
       sessionId: row.session_id,
       recurrenceId: row.recurrence_id ?? undefined,

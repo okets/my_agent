@@ -140,6 +140,7 @@ export type {
   GetLogOptions,
   WorkItem,
   DeliveryAction,
+  NotifyOnCompletion,
 } from './tasks/types.js'
 
 // Tools
