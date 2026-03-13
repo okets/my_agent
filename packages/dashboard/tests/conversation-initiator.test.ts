@@ -281,6 +281,60 @@ describe("Task 5: ConversationInitiator", () => {
       const result = await initiator.alert("Morning brief is due.");
       expect(result).toBe(false);
     });
+
+    it("sends via active conversation's channel, not global preference", async () => {
+      const conv = await manager.create();
+      await manager.appendTurn(conv.id, {
+        type: "turn",
+        role: "user",
+        content: "hello",
+        timestamp: new Date().toISOString(),
+        turnNumber: 1,
+        channel: "web",
+      });
+
+      const channelManager = createMockChannelManager();
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        sessionFactory: createMockSessionFactory(),
+        channelManager,
+        getOutboundChannel: () => "whatsapp",
+      });
+
+      const result = await initiator.alert("test prompt");
+      expect(result).toBe(true);
+      expect(channelManager.sent.length).toBe(0); // web = no channel send
+    });
+
+    it("sends via active conversation's whatsapp channel, ignoring global web preference", async () => {
+      // Create conversation with user turn on whatsapp channel
+      const conv = await manager.create();
+      await manager.appendTurn(conv.id, {
+        type: "turn",
+        role: "user",
+        content: "hey there",
+        timestamp: new Date().toISOString(),
+        turnNumber: 1,
+        channel: "whatsapp",
+      });
+
+      // Connected whatsapp channel manager
+      const channelManager = createMockChannelManager(true);
+      // Global preference is "web" — alert() must ignore it and use the conversation's channel
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        sessionFactory: createMockSessionFactory("Good morning!"),
+        channelManager,
+        getOutboundChannel: () => "web",
+      });
+
+      const result = await initiator.alert("Morning brief is due.");
+      expect(result).toBe(true);
+      // Should have sent via whatsapp, not fallen back to web
+      expect(channelManager.sent).toHaveLength(1);
+      expect(channelManager.sent[0].channelId).toBe("whatsapp");
+      expect(channelManager.sent[0].content).toBe("Good morning!");
+    });
   });
 
   describe("initiate()", () => {

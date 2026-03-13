@@ -117,8 +117,21 @@ export class ConversationInitiator {
         turnNumber: (active.turnCount ?? 0) + 1,
       });
 
-      // Send via whatever channel the active conversation is on
-      await this.trySendViaChannel(response);
+      // Send via the active conversation's channel, not the global preference
+      // Search enough turns back to find the inbound channel, even if assistant
+      // turns have accumulated since the last user message
+      const CHANNEL_SEARCH_DEPTH = 20;
+      const recentTurns = await this.conversationManager.getRecentTurns(
+        active.id,
+        CHANNEL_SEARCH_DEPTH,
+      );
+      const lastChannelTurn = recentTurns
+        .filter((t) => t.channel && t.role === "user")
+        .at(-1);
+      await this.trySendViaChannel(
+        response,
+        lastChannelTurn?.channel ?? undefined,
+      );
     }
 
     return true;
@@ -165,10 +178,16 @@ export class ConversationInitiator {
   /**
    * Try to send a message via the preferred outbound channel.
    * Silently falls back to web (no send) if channel is unavailable.
+   *
+   * @param channelOverride - If provided, use this channel instead of the global preference.
+   *   Used by alert() to send via the active conversation's channel.
    */
-  private async trySendViaChannel(content: string): Promise<void> {
-    const channelId = this.getOutboundChannel();
-    if (channelId === "web") return;
+  private async trySendViaChannel(
+    content: string,
+    channelOverride?: string,
+  ): Promise<void> {
+    const channelId = channelOverride ?? this.getOutboundChannel();
+    if (channelId === "web" || !channelId) return;
 
     try {
       // Check if channel is connected
