@@ -92,6 +92,7 @@ export async function registerSettingsRoutes(
       yaml.preferences = {
         ...existingPrefs,
         ...(body.timezone !== undefined ? { timezone: body.timezone } : {}),
+        ...(body.outboundChannel !== undefined ? { outboundChannel: body.outboundChannel } : {}),
         morningBrief: newBrief,
       };
 
