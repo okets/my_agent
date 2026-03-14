@@ -256,6 +256,13 @@ export class ConversationDatabase {
       );
     }
 
+    // M6.9-S4: Per-task model override
+    if (!taskColumns.some((c) => c.name === "model")) {
+      this.db.exec(
+        "ALTER TABLE tasks ADD COLUMN model TEXT DEFAULT NULL",
+      );
+    }
+
     // Create task_conversations junction table (M5-S5)
     // Soft references: no FK constraints for graceful degradation
     this.db.exec(`

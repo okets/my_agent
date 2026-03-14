@@ -87,6 +87,9 @@ export interface Task {
   /** When to notify user of completion (null = type-based default) */
   notifyOnCompletion?: NotifyOnCompletion
 
+  /** Override model for this task (e.g. 'claude-opus-4-6' for planning tasks) */
+  model?: string
+
   /** Current execution status */
   status: TaskStatus
 
@@ -133,6 +136,8 @@ export interface CreateTaskInput {
   work?: WorkItem[]
   delivery?: DeliveryAction[]
   notifyOnCompletion?: NotifyOnCompletion
+  /** Override model for this task (e.g. 'claude-opus-4-6' for planning tasks) */
+  model?: string
   recurrenceId?: string
   occurrenceDate?: string
   scheduledFor?: Date

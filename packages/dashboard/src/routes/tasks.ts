@@ -247,6 +247,7 @@ export async function registerTaskRoutes(
       instructions: string;
       work?: any[];
       delivery?: any[];
+      model?: string;
       recurrenceId?: string;
       occurrenceDate?: string;
       scheduledFor?: string;

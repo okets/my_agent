@@ -355,8 +355,12 @@ Explain your reason in the working section above.`;
     task: Task,
     priorContext: TranscriptTurn[],
   ): Promise<string> {
-    // Load brain configuration
+    // Load brain configuration, with per-task model override
     const brainConfig = loadConfig();
+    const effectiveConfig = {
+      ...brainConfig,
+      model: task.model ?? brainConfig.model,
+    };
 
     // Check for stored SDK session ID (M6.5-S2: native session resumption)
     const storedSessionId = this.db.getTaskSdkSessionId(task.id);
@@ -366,7 +370,7 @@ Explain your reason in the working section above.`;
       try {
         return await this.iterateBrainQuery(
           task,
-          this.buildResumeQuery(task, brainConfig, storedSessionId),
+          this.buildResumeQuery(task, effectiveConfig, storedSessionId),
         );
       } catch (resumeError) {
         console.warn(
@@ -380,7 +384,7 @@ Explain your reason in the working section above.`;
     // Fresh execution — build full system prompt with context
     const freshQuery = await this.buildFreshQuery(
       task,
-      brainConfig,
+      effectiveConfig,
       priorContext,
     );
     return this.iterateBrainQuery(task, freshQuery);
