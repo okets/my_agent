@@ -274,6 +274,50 @@ Both `session-manager.ts` (conversation Nina) and the new task executor session 
 
 ---
 
+## 7. Status Reports + Task Revision
+
+### 7.1 Status Reports
+
+Every working Nina writes a `status-report.md` to its task folder at the end of execution. This is a system prompt instruction, not code — the agent is told to always produce one.
+
+Contents: what was done, what was found, artifacts created, issues/concerns.
+
+Purpose: If the SDK session expires or can't be resumed, the status report provides enough context for a fresh session to continue the work.
+
+### 7.2 `revise_task` MCP Tool
+
+When conversation Nina presents task results (via immediate notification or debrief) and the user requests corrections, conversation Nina calls `revise_task`:
+
+```
+revise_task({ taskId: "task-xxx", instructions: "Change the chart to weekly instead of daily" })
+```
+
+Behavior:
+- Validates task is `completed` or `needs_review`
+- Appends revision instructions to the task (with pointer to `status-report.md` for context)
+- Resets status to `pending`
+- Triggers re-execution via TaskProcessor
+- TaskExecutor resumes the same SDK session (stored session ID), so the agent has full context
+
+If session resume fails, falls back to a fresh session — the status report provides the prior context.
+
+### 7.3 Per-task Model Override
+
+Tasks can specify `model` (e.g. `"claude-opus-4-6"`) to override the default. Set via API or future skill config. Enables Opus for planning tasks, Sonnet for execution.
+
+### 7.4 Files Changed
+
+| File | Changes |
+|------|---------|
+| `dashboard/src/tasks/working-nina-prompt.ts` | Status report instruction in persona |
+| `dashboard/src/mcp/task-revision-server.ts` | New: `revise_task` MCP tool |
+| `dashboard/src/agent/session-manager.ts` | `addMcpServer()` for post-init registration |
+| `dashboard/src/index.ts` | Wire task-revision server |
+| `dashboard/src/tasks/task-manager.ts` | `update()` supports `instructions` field |
+| `core/src/tasks/types.ts` | `model` field on Task and CreateTaskInput |
+
+---
+
 ## 8. Edge Cases
 
 | Scenario | Behavior |
@@ -287,6 +331,10 @@ Both `session-manager.ts` (conversation Nina) and the new task executor session 
 | Hook itself throws an error | Operation proceeds (permissive on error) |
 | Playwright browser fails to launch | Task reports error, doesn't crash the dashboard |
 | Task extraction can't determine notifyOnCompletion | Omits it, system defaults apply |
+| User requests correction to task results | Conversation Nina calls `revise_task`, executor resumes session |
+| Revision on expired SDK session | Falls back to fresh session; status-report.md provides context |
+| Revision on running task | `revise_task` rejects — task must be completed first |
+| Multiple revisions on same task | Each appends to instructions; session builds on prior context |
 
 ---
 
