@@ -25,34 +25,46 @@ export interface TaskLogMeta {
  * Manages JSONL execution logs for tasks
  */
 export class TaskLogStorage {
+  private agentDir: string;
   private logsDir: string;
 
   constructor(agentDir: string) {
+    this.agentDir = agentDir;
     this.logsDir = path.join(agentDir, "tasks", "logs");
-    this.ensureLogsDir();
   }
 
   /**
-   * Ensure the logs directory exists
+   * Get the task directory path for a task (new structure)
    */
-  private ensureLogsDir(): void {
-    if (!fs.existsSync(this.logsDir)) {
-      fs.mkdirSync(this.logsDir, { recursive: true });
-    }
+  getTaskDir(taskId: string): string {
+    return path.join(this.agentDir, "tasks", taskId);
   }
 
   /**
-   * Get the log file path for a task
+   * Get the log file path for a task.
+   * Checks new path first, then old path, defaults to new path for new tasks.
    */
   getLogPath(taskId: string): string {
-    return path.join(this.logsDir, `${taskId}.jsonl`);
+    const newPath = path.join(this.agentDir, "tasks", taskId, "task.jsonl");
+    if (fs.existsSync(newPath)) return newPath;
+
+    const oldPath = path.join(this.logsDir, `${taskId}.jsonl`);
+    if (fs.existsSync(oldPath)) return oldPath;
+
+    // Default to new path for new tasks
+    return newPath;
   }
 
   /**
-   * Create a new execution log file with metadata header
+   * Create a new execution log file with metadata header.
+   * Creates the new task directory structure with a workspace subdirectory.
    */
   createLog(taskId: string, sessionId: string, title: string): void {
-    const logPath = this.getLogPath(taskId);
+    const taskDir = this.getTaskDir(taskId);
+    const workspaceDir = path.join(taskDir, "workspace");
+    fs.mkdirSync(workspaceDir, { recursive: true });
+
+    const logPath = path.join(taskDir, "task.jsonl");
 
     const meta: TaskLogMeta = {
       type: "meta",
