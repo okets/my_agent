@@ -6,6 +6,7 @@ import path from "node:path";
 interface WorkingNinaPromptOptions {
   taskTitle: string;
   taskId: string;
+  taskDir?: string;
   calendarContext?: string;
 }
 
@@ -22,7 +23,7 @@ Principles:
 - Write results to your workspace directory when producing artifacts.
 - If you need to alert the user about something urgent, use the alert tools.
 
-Your workspace is the current working directory. Create files, run scripts, fetch data — whatever the task requires.`;
+When saving files, use absolute paths to your workspace directory (provided below). Create files, run scripts, fetch data — whatever the task requires.`;
 
 export async function buildWorkingNinaPrompt(
   agentDir: string,
@@ -63,6 +64,7 @@ export async function buildWorkingNinaPrompt(
     `Current time: ${now}`,
     `Timezone: ${timezone}`,
     `Task: ${options.taskTitle} (${options.taskId})`,
+    options.taskDir ? `Workspace: ${options.taskDir}` : "",
     `[End Temporal Context]`,
     propertiesSection,
     options.calendarContext ? `\n${options.calendarContext}\n` : "",

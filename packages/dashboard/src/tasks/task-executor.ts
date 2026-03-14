@@ -447,9 +447,11 @@ Explain your reason in the working section above.`;
     const calendarContext = await this.loadCalendarContext(task);
 
     // Build working Nina system prompt (autonomous persona + temporal + properties + notebook)
+    const taskDir = this.config.logStorage.getTaskDir(task.id);
     const systemPrompt = await buildWorkingNinaPrompt(this.agentDir, {
       taskTitle: task.title,
       taskId: task.id,
+      taskDir,
       calendarContext,
     });
 
@@ -466,9 +468,6 @@ Explain your reason in the working section above.`;
     }
 
     fullPrompt += this.buildUserMessage(task);
-
-    // Get task directory for cwd
-    const taskDir = this.logStorage.getTaskDir(task.id);
 
     return createBrainQuery(fullPrompt, {
       model: brainConfig.model,

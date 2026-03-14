@@ -195,6 +195,7 @@ describe("TaskExecutor — agentic session config", () => {
     expect(buildWorkingNinaPrompt).toHaveBeenCalledWith(agentDir, {
       taskTitle: "Test Task",
       taskId: "task-001",
+      taskDir: `${agentDir}/tasks/task-001`,
       calendarContext: undefined,
     });
     expect(capturedOptions?.systemPrompt).toBe("Working Nina system prompt");
