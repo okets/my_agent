@@ -12,6 +12,7 @@ import {
   loadCalendarCredentials,
   NotificationService,
   HealthMonitor,
+  createHooks,
   // Memory system (M6-S2)
   MemoryDb,
   SyncService,
@@ -55,6 +56,7 @@ import {
   initMcpServers,
   initPromptBuilder,
   getPromptBuilder,
+  getSharedMcpServers,
 } from "./agent/session-manager.js";
 
 // Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
@@ -290,6 +292,11 @@ async function main() {
       logStorage,
       agentDir,
       db: conversationManager.getConversationDb(),
+      // Lazy getter — MCP servers are initialized later (after searchService is ready)
+      get mcpServers() {
+        return getSharedMcpServers() ?? undefined;
+      },
+      hooks: createHooks("task", { agentDir }),
     });
 
     // Initialize notification service (before task processor so it can be passed in)

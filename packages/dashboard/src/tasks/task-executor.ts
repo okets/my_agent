@@ -8,7 +8,6 @@
 import {
   createBrainQuery,
   loadConfig,
-  assembleSystemPrompt,
   assembleCalendarContext,
   createCalDAVClient,
   loadCalendarConfig,
@@ -16,13 +15,16 @@ import {
 } from "@my-agent/core";
 import type {
   Task,
-  ScheduledTaskContext,
   DeliveryAction,
+  HookEvent,
+  HookCallbackMatcher,
 } from "@my-agent/core";
+import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { TranscriptTurn } from "../conversations/types.js";
 import type { ConversationDatabase } from "../conversations/db.js";
 import { TaskManager } from "./task-manager.js";
 import { TaskLogStorage } from "./log-storage.js";
+import { buildWorkingNinaPrompt } from "./working-nina-prompt.js";
 
 /**
  * Configuration for TaskExecutor
@@ -33,6 +35,11 @@ export interface TaskExecutorConfig {
   agentDir: string;
   /** Database for reading/writing SDK session IDs (M6.5-S2 session resumption) */
   db: ConversationDatabase;
+  // New for agentic execution:
+  /** MCP servers to attach to task sessions (e.g., memory, knowledge) */
+  mcpServers?: Options["mcpServers"];
+  /** Programmatic hooks for safety and auditing */
+  hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
 }
 
 /**
@@ -123,8 +130,11 @@ export class TaskExecutor {
   private logStorage: TaskLogStorage;
   private agentDir: string;
   private db: ConversationDatabase;
+  /** Store config reference to support lazy getters on mcpServers */
+  private config: TaskExecutorConfig;
 
   constructor(config: TaskExecutorConfig) {
+    this.config = config;
     this.taskManager = config.taskManager;
     this.logStorage = config.logStorage;
     this.agentDir = config.agentDir;
@@ -396,53 +406,48 @@ Explain your reason in the working section above.`;
   }
 
   /**
-   * Build a fresh query with full system prompt and prior context.
+   * Load calendar context for a task. Returns undefined if calendar is not configured
+   * or unavailable.
    */
-  private async buildFreshQuery(
-    task: Task,
-    brainConfig: { model: string; brainDir: string },
-    priorContext: TranscriptTurn[],
-  ) {
-    // Extract calendarId from sourceRef (format: "calendarId:uid")
-    let calendarId = "system";
-    if (task.sourceType === "caldav" && task.sourceRef) {
-      const colonIndex = task.sourceRef.indexOf(":");
-      if (colonIndex > 0) {
-        calendarId = task.sourceRef.substring(0, colonIndex);
-      }
-    }
-
-    // Build scheduled task context for prompt
-    const scheduledTaskContext: ScheduledTaskContext = {
-      title: task.title,
-      start: task.scheduledFor?.toISOString() ?? new Date().toISOString(),
-      calendarId,
-      action: undefined,
-    };
-
-    // Try to assemble calendar context
-    let calendarContext: string | undefined;
+  private async loadCalendarContext(task: Task): Promise<string | undefined> {
     try {
       const calConfig = loadCalendarConfig(this.agentDir);
       const credentials = loadCalendarCredentials(this.agentDir);
-
       if (calConfig && credentials) {
         const calendarRepo = createCalDAVClient(calConfig, credentials);
-        calendarContext = await assembleCalendarContext(calendarRepo);
+        return await assembleCalendarContext(calendarRepo);
       }
     } catch (err) {
       console.warn(
         `[TaskExecutor] Calendar context unavailable: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+    return undefined;
+  }
 
-    // Assemble system prompt
-    const systemPrompt = await assembleSystemPrompt(brainConfig.brainDir, {
+  /**
+   * Build a fresh query with full agentic session config.
+   *
+   * Uses the Working Nina system prompt (autonomous persona + temporal + properties + notebook),
+   * attaches tools (Bash, Read, Write, Edit, Glob, Grep), MCP servers, safety hooks,
+   * and sets cwd to the task directory.
+   */
+  private async buildFreshQuery(
+    task: Task,
+    brainConfig: { model: string; brainDir: string },
+    priorContext: TranscriptTurn[],
+  ) {
+    // Extract calendar context
+    const calendarContext = await this.loadCalendarContext(task);
+
+    // Build working Nina system prompt (autonomous persona + temporal + properties + notebook)
+    const systemPrompt = await buildWorkingNinaPrompt(this.agentDir, {
+      taskTitle: task.title,
+      taskId: task.id,
       calendarContext,
-      scheduledTaskContext,
     });
 
-    // Build the full prompt including prior context (text injection fallback)
+    // Build prior context as text injection
     let fullPrompt = "";
 
     if (priorContext.length > 0) {
@@ -456,10 +461,17 @@ Explain your reason in the working section above.`;
 
     fullPrompt += this.buildUserMessage(task);
 
-    // Spawn brain query — fresh session
+    // Get task directory for cwd
+    const taskDir = this.logStorage.getTaskDir(task.id);
+
     return createBrainQuery(fullPrompt, {
       model: brainConfig.model,
       systemPrompt,
+      cwd: taskDir,
+      tools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
+      mcpServers: this.config.mcpServers,
+      hooks: this.config.hooks,
+      persistSession: !!task.recurrenceId,
       includePartialMessages: false,
     });
   }
