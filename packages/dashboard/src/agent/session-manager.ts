@@ -96,7 +96,23 @@ export function initMcpServers(
     console.log(`[SessionManager] Debrief MCP server registered`);
   }
 
+  // Playwright browser automation MCP server (stdio transport)
+  servers.playwright = {
+    type: "stdio" as const,
+    command: "npx",
+    args: ["@playwright/mcp"],
+  };
+  console.log(`[SessionManager] Playwright MCP server registered`);
+
   sharedMcpServers = servers;
+}
+
+/**
+ * Get the shared MCP servers (for TaskExecutor and other consumers).
+ * Returns null if initMcpServers() has not been called yet.
+ */
+export function getSharedMcpServers(): Options["mcpServers"] | null {
+  return sharedMcpServers;
 }
 
 interface StreamOptions {

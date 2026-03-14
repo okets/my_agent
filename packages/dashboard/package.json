@@ -21,6 +21,7 @@
     "@fastify/websocket": "^11.0.0",
     "@my-agent/channel-whatsapp": "file:../../plugins/channel-whatsapp",
     "@my-agent/core": "file:../core",
+    "@playwright/mcp": "^0.0.68",
     "better-sqlite3": "^12.6.2",
     "fastify": "^5.0.0",
     "pino-pretty": "^13.1.0",
