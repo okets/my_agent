@@ -52,8 +52,14 @@ None found. All changes trace directly to spec sections.
 
 ---
 
-## Verdict: PASS WITH CONCERNS
+## Verdict: PASS
 
 The implementation matches the spec across all 16+ requirements. Tests are comprehensive with 13 new tests covering all major features. TypeScript compiles cleanly. The code is well-structured with proper dependency injection and clean separation.
 
-**Concern:** The sidebar navigation button label "Morning Prep" was not renamed to "Debrief Prep" (or equivalent). This is a minor UI inconsistency that should be fixed before merge.
+**Post-merge fixes applied:**
+- CI lazy getter bug: `TaskProcessor` eagerly evaluated `conversationInitiator` to null at construction time (before CI was initialized). Fixed to use a getter function for lazy resolution.
+- Sidebar "Morning Prep" label concern from initial review: confirmed as false positive (grep finds zero matches in codebase).
+- DB migration: renamed 345 `morning-prep` → `debrief-prep` entries in `work_loop_runs` to prevent spurious debrief fire on restart.
+- Trigger endpoint: `skipOutreach` flag + `localhostOnly` middleware added after 270-trigger incident.
+
+**CTO verified:** Task completion notification via WhatsApp confirmed working end-to-end on 2026-03-14.
