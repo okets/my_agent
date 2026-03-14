@@ -13,7 +13,7 @@
 
 import type { HookEvent, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk'
 import { createAuditHook } from './audit.js'
-import { createBashBlocker, createPathRestrictor } from './safety.js'
+import { createBashBlocker, createInfrastructureGuard, createPathRestrictor } from './safety.js'
 import type { TrustLevel, HookFactoryOptions } from './types.js'
 
 /**
@@ -39,6 +39,14 @@ export function createHooks(
         hooks: [createBashBlocker()],
       },
     ]
+  }
+
+  if (trustLevel === 'task' && options?.agentDir) {
+    hooks.PreToolUse = hooks.PreToolUse ?? []
+    hooks.PreToolUse.push({
+      matcher: 'Write|Edit',
+      hooks: [createInfrastructureGuard(options.agentDir)],
+    })
   }
 
   if (trustLevel === 'subagent' && options?.allowedPaths) {

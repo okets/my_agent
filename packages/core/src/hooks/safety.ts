@@ -22,6 +22,10 @@ const BLOCKED_BASH_PATTERNS = [
   /mkfs\./, // mkfs.* (format filesystem)
   /:\(\)\s*\{\s*:\|:\s*&\s*\}\s*;/, // fork bomb
   />\s*\/dev\/sd[a-z]/, // write to raw disk
+  /systemctl\s+(stop|disable)\s+nina-/i, // stop/disable agent services
+  /kill(?:all)?\s+.*nina/i, // kill / killall agent process
+  /chmod\s+000\s/i, // remove all permissions
+  /chown\s+.*\/(brain|config|auth|\.env)/i, // chown on infrastructure paths
 ]
 
 /**
@@ -53,6 +57,91 @@ export function createBashBlocker(): HookCallback {
     }
 
     return {}
+  }
+}
+
+/**
+ * Escape a string for use in a RegExp.
+ */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Create an infrastructure guard hook for Write/Edit tools.
+ *
+ * Blocks writes to protected infrastructure files regardless of trust level.
+ * Applied at task trust level (and above) so task agents cannot tamper with
+ * brain identity, config, secrets, database files, or safety hooks.
+ */
+export function createInfrastructureGuard(agentDir: string): HookCallback {
+  const protectedPatterns: Array<{ pattern: RegExp; reason: string }> = [
+    {
+      pattern: new RegExp(`${escapeRegex(agentDir)}/brain/CLAUDE\\.md$`),
+      reason: "Identity file — conversation Nina's domain",
+    },
+    {
+      pattern: new RegExp(`${escapeRegex(agentDir)}/brain/skills/`),
+      reason: 'Brain-level skills — not modifiable by tasks',
+    },
+    {
+      pattern: new RegExp(`${escapeRegex(agentDir)}/config\\.yaml$`),
+      reason: 'Agent configuration',
+    },
+    { pattern: /\.env$/, reason: 'Environment secrets' },
+    {
+      pattern: new RegExp(`${escapeRegex(agentDir)}/auth/`),
+      reason: 'Channel credentials',
+    },
+    { pattern: /\.db$/, reason: 'Database files' },
+    { pattern: /\.guardrails$/, reason: 'Safety patterns' },
+    { pattern: /\.git\/hooks\//, reason: 'Git hook scripts' },
+    { pattern: /\.service$/, reason: 'Systemd service definitions' },
+  ]
+
+  return async (input, _toolUseId, _options) => {
+    try {
+      const preInput = input as PreToolUseHookInput
+      const toolInput = preInput.tool_input as Record<string, unknown> | null
+
+      if (!toolInput) {
+        return {
+          decision: 'block' as const,
+          reason: 'Infrastructure guard: no tool_input',
+        }
+      }
+
+      const filePath = toolInput.file_path as string | undefined
+
+      if (!filePath) {
+        return {
+          decision: 'block' as const,
+          reason: 'Infrastructure guard: no file_path in tool input',
+        }
+      }
+
+      for (const { pattern, reason } of protectedPatterns) {
+        if (pattern.test(filePath)) {
+          return {
+            decision: 'block' as const,
+            reason: `Infrastructure guard: ${reason}`,
+            systemMessage: `Blocked: ${reason}. This file is protected infrastructure. Try an alternative approach or write to your workspace instead.`,
+            hookSpecificOutput: {
+              hookEventName: 'PreToolUse' as const,
+              permissionDecision: 'deny' as const,
+              permissionDecisionReason: reason,
+            },
+          }
+        }
+      }
+
+      return {}
+    } catch (err) {
+      return {
+        decision: 'block' as const,
+        reason: `Infrastructure guard error: ${err instanceof Error ? err.message : String(err)}`,
+      }
+    }
   }
 }
 
