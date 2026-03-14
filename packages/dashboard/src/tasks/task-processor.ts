@@ -244,9 +244,11 @@ export class TaskProcessor {
 
     if (effectiveNotify === "immediate" && ci) {
       try {
+        const statusReport = this.loadStatusReport(task.id);
+        const statusContext = statusReport ? `\nStatus report:\n${statusReport}` : "";
         const prompt = result.success
-          ? `A task has been completed: "${task.title}". Result summary: ${result.work?.slice(0, 500)}. Let the user know naturally.`
-          : `A task has failed: "${task.title}". Error: ${result.error || "Unknown error"}. Let the user know.`;
+          ? `A task has been completed: "${task.title}" [Task ID: ${task.id}]. Result summary: ${result.work?.slice(0, 500)}.${statusContext}\nLet the user know naturally. If they want changes, use revise_task with task ID ${task.id}.`
+          : `A task has failed: "${task.title}" [Task ID: ${task.id}]. Error: ${result.error || "Unknown error"}. Let the user know.`;
 
         const alerted = await ci.alert(prompt);
         if (!alerted) {
@@ -265,11 +267,39 @@ export class TaskProcessor {
    */
   private formatResult(task: Task, result: ExecutionResult): string {
     if (result.success) {
-      return `**Task Completed: ${task.title}**\n\n${result.work}`;
+      // Include task ID and status report so conversation Nina can use revise_task
+      const statusReport = this.loadStatusReport(task.id);
+      const header = `**Task Completed: ${task.title}**\n[Task ID: ${task.id}]\n`;
+      const body = result.work;
+      const context = statusReport
+        ? `\n\n---\n**Working Agent Status Report:**\n${statusReport}`
+        : "";
+      return `${header}\n${body}${context}`;
     } else {
       const reason = result.error || "Unknown error";
       return `**Task Failed: ${task.title}**\n\nError: ${reason}`;
     }
+  }
+
+  /**
+   * Load the status-report.md from a task's folder, if it exists.
+   */
+  private loadStatusReport(taskId: string): string | null {
+    try {
+      const task = this.taskManager.findById(taskId);
+      if (!task) return null;
+      // Task logPath points to the JSONL log; status-report.md is a sibling
+      const path = require("node:path");
+      const fs = require("node:fs");
+      const taskDir = path.dirname(task.logPath);
+      const reportPath = path.join(taskDir, "status-report.md");
+      if (fs.existsSync(reportPath)) {
+        return fs.readFileSync(reportPath, "utf-8");
+      }
+    } catch {
+      // Non-fatal
+    }
+    return null;
   }
 
   /**
