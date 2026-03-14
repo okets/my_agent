@@ -144,8 +144,8 @@ export class DeliveryExecutor {
         `[DeliveryExecutor] WhatsApp message sent to ${ownerJid} for task ${task.id}`,
       );
 
-      // Record the sent message in the owner's conversation
-      await this.recordInChannelConversation(ownerJid, content);
+      // Record the sent message in the owner's conversation (with channel to prevent routing mismatch)
+      await this.recordInChannelConversation(ownerJid, content, "whatsapp");
 
       return { channel: "whatsapp", success: true };
     } catch (err) {
@@ -163,6 +163,7 @@ export class DeliveryExecutor {
   private async recordInChannelConversation(
     externalParty: string,
     content: string,
+    channel?: string,
   ): Promise<void> {
     if (!this.conversationManager) return;
 
@@ -178,6 +179,7 @@ export class DeliveryExecutor {
         content,
         timestamp: new Date().toISOString(),
         turnNumber,
+        channel,
       });
 
       console.log(
