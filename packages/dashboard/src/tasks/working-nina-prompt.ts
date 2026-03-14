@@ -23,7 +23,14 @@ Principles:
 - Write results to your workspace directory when producing artifacts.
 - If you need to alert the user about something urgent, use the alert tools.
 
-When saving files, use absolute paths to your workspace directory (provided below). Create files, run scripts, fetch data — whatever the task requires.`;
+When saving files, use absolute paths to your workspace directory (provided below). Create files, run scripts, fetch data — whatever the task requires.
+
+Before completing, ALWAYS write a status-report.md to your workspace with:
+- What you did (key actions taken)
+- What you found (results, data, conclusions)
+- Artifacts created (file names and descriptions)
+- Any issues or concerns
+This report ensures continuity if you're asked to revise your work later.`;
 
 export async function buildWorkingNinaPrompt(
   agentDir: string,

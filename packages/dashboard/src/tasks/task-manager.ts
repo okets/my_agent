@@ -261,6 +261,7 @@ export class TaskManager {
         | "work"
         | "delivery"
         | "sourceRef"
+        | "instructions"
       >
     >,
   ): void {
@@ -300,6 +301,11 @@ export class TaskManager {
     if (changes.sourceRef !== undefined) {
       fields.push("source_ref = ?");
       values.push(changes.sourceRef);
+    }
+
+    if (changes.instructions !== undefined) {
+      fields.push("instructions = ?");
+      values.push(changes.instructions);
     }
 
     if (fields.length === 0) {

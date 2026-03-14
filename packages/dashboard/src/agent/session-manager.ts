@@ -115,6 +115,23 @@ export function getSharedMcpServers(): Options["mcpServers"] | null {
   return sharedMcpServers;
 }
 
+/**
+ * Add a single MCP server to the shared pool.
+ * Must be called after initMcpServers() has been called.
+ * Allows index.ts to register additional servers (e.g. task-revision)
+ * that depend on services not yet available when initMcpServers() runs.
+ */
+export function addMcpServer(
+  name: string,
+  server: NonNullable<Options["mcpServers"]>[string],
+): void {
+  if (!sharedMcpServers) {
+    sharedMcpServers = {};
+  }
+  sharedMcpServers[name] = server;
+  console.log(`[SessionManager] MCP server added: ${name}`);
+}
+
 interface StreamOptions {
   /** Override the default model */
   model?: string;

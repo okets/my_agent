@@ -57,7 +57,9 @@ import {
   initPromptBuilder,
   getPromptBuilder,
   getSharedMcpServers,
+  addMcpServer,
 } from "./agent/session-manager.js";
+import { createTaskRevisionServer } from "./mcp/task-revision-server.js";
 
 // Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
 // When the dashboard is started from within a Claude Code session (e.g. during dev),
@@ -762,6 +764,15 @@ async function main() {
       conversationManager ?? undefined,
       workLoopScheduler ?? undefined,
     );
+  }
+
+  // Register task-revision MCP server (needs taskManager + taskProcessor)
+  if (taskManager && taskProcessor) {
+    const taskRevisionServer = createTaskRevisionServer({
+      taskManager,
+      taskProcessor,
+    });
+    addMcpServer("task-revision", taskRevisionServer);
   }
 
   // Connect memory services to state publisher for live updates

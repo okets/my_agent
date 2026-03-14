@@ -73,4 +73,12 @@ describe("buildWorkingNinaPrompt", () => {
     });
     expect(prompt).toContain("Meeting at 3pm");
   });
+
+  it("includes status-report.md instruction", async () => {
+    const prompt = await buildWorkingNinaPrompt(agentDir, {
+      taskTitle: "Check weather",
+      taskId: "abc123",
+    });
+    expect(prompt).toContain("status-report.md");
+  });
 });
