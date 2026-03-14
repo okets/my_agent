@@ -601,6 +601,7 @@ The knowledge system gets a lifecycle. Facts are classified at extraction (perma
 | S2 | Behavioral Layer | Complete | Morning brief upgrade, approval flow MCP tool, property staleness, settings UI — [plan](../superpowers/plans/2026-03-12-m6.9-s2-behavioral-layer.md) · [review](sprints/m6.9-s2-behavioral-layer/review.md) |
 | S2.5 | Normalized Metadata & Timezone Scheduling | Complete | YAML frontmatter standard, timezone-aware `isDue()`, metadata validation + haiku repair, centralized model IDs, model selector UI — [plan](sprints/m6.9-s2.5-normalized-metadata/plan.md) · [review](sprints/m6.9-s2.5-normalized-metadata/review.md) |
 | S3 | Conversation Initiation | Complete | ConversationInitiator service (`alert()`/`initiate()`), active conversation detection, outbound channel preference, morning brief integration, settings UI — [spec](../superpowers/specs/2026-03-13-conversation-initiation-design.md) · [review](sprints/m6.9-s3-conversation-initiation/review.md) |
+| S3.5 | Working Nina / Conversation Nina Refactor | Complete | Task completion notifications (`notifyOnCompletion`), debrief rename, `request_debrief` MCP tool, ResponseTimer (interim messages), alert() channel fix — [spec](../superpowers/specs/2026-03-13-s3.5-conversation-refactor-design.md) · [plan](../superpowers/plans/2026-03-13-s3.5-conversation-refactor.md) · [review](sprints/m6.9-s3.5-conversation-refactor/review.md) |
 
 **Key design decisions:**
 
