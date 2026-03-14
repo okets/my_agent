@@ -10,6 +10,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { resolveTimezone as resolveTimezoneUtil } from "../utils/timezone.js";
 import { join } from "node:path";
 import {
   readFile,
@@ -374,26 +375,7 @@ export class WorkLoopScheduler {
    * 3. "UTC" (fallback)
    */
   private async resolveTimezone(): Promise<string> {
-    try {
-      const props = await readProperties(this.agentDir);
-      if (props.timezone?.value) {
-        // Safety: strip any parenthetical commentary from extracted value
-        // e.g. "Asia/Bangkok (inferred from location)" → "Asia/Bangkok"
-        const raw = props.timezone.value.split(/\s*\(/)[0].trim();
-        if (isValidTimezone(raw)) return raw;
-      }
-    } catch {
-      // Properties unavailable — continue to preferences
-    }
-
-    try {
-      const prefs = loadPreferences(this.agentDir);
-      if (prefs.timezone) return prefs.timezone;
-    } catch {
-      // Preferences unavailable — continue to fallback
-    }
-
-    return "UTC";
+    return resolveTimezoneUtil(this.agentDir);
   }
 
   /**
