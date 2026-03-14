@@ -111,6 +111,14 @@ export class SystemPromptBuilder {
       `[Inbound Metadata]\n${JSON.stringify(metadata, null, 2)}\n[End Inbound Metadata]`,
     );
 
+    // Working agent awareness: tell conversation Nina when tasks are in progress
+    const activeAgents = context.activeWorkingAgents ?? [];
+    if (activeAgents.length > 0) {
+      dynamicParts.push(
+        `[Active Working Agents]\nThe following tasks are currently being worked on by background agents:\n${activeAgents.map((a) => `- ${a}`).join("\n")}\n\nIf the user's message is about these tasks, let them know you're still working on it and results will arrive shortly. Do not try to answer questions about these tasks yourself — wait for the working agent to finish.\n[End Active Working Agents]`,
+      );
+    }
+
     // Layer 6: Session context
     dynamicParts.push(
       `[Session Context]\nConversation ID: ${context.conversationId}\nMessage index: ${context.messageIndex}\n[End Session Context]`,

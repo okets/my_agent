@@ -513,6 +513,20 @@ export class TaskManager {
    *
    * Returns task IDs, ordered by link time (most recent first).
    */
+  /**
+   * Get running tasks linked to a conversation.
+   */
+  getRunningTasksForConversation(conversationId: string): Task[] {
+    const stmt = this.db.prepare(`
+      SELECT t.* FROM tasks t
+      JOIN task_conversations tc ON t.id = tc.task_id
+      WHERE tc.conversation_id = ? AND t.status IN ('pending', 'running')
+      ORDER BY t.created_at DESC
+    `);
+    const rows = stmt.all(conversationId) as any[];
+    return rows.map((row) => this.rowToTask(row));
+  }
+
   getTasksForConversation(
     conversationId: string,
   ): Array<{ taskId: string; linkedAt: Date }> {

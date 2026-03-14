@@ -27,6 +27,19 @@ import type { ConversationManager } from "../conversations/manager.js";
 /** Cached MCP servers — initialized once via initMcpServers() */
 let sharedMcpServers: Options["mcpServers"] | null = null;
 
+/** Optional callback to check for running tasks linked to a conversation */
+let runningTasksChecker: ((conversationId: string) => string[]) | null = null;
+
+/**
+ * Register a callback to check for running tasks linked to a conversation.
+ * SessionManager uses this to populate activeWorkingAgents in the system prompt.
+ */
+export function setRunningTasksChecker(
+  checker: (conversationId: string) => string[],
+): void {
+  runningTasksChecker = checker;
+}
+
 /** Shared prompt builder — initialized once via initPromptBuilder(), shared across all sessions */
 let sharedPromptBuilder: SystemPromptBuilder | null = null;
 
@@ -280,10 +293,15 @@ export class SessionManager {
     model: string,
     reasoning: boolean | undefined,
   ): Promise<Query> {
+    const activeWorkingAgents = runningTasksChecker
+      ? runningTasksChecker(this.conversationId)
+      : [];
+
     const buildContext: BuildContext = {
       channel: this.channel,
       conversationId: this.conversationId,
       messageIndex: this.messageIndex,
+      activeWorkingAgents,
     };
 
     const systemPrompt = await this.promptBuilder!.build(buildContext);

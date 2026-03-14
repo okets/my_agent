@@ -58,6 +58,7 @@ import {
   getPromptBuilder,
   getSharedMcpServers,
   addMcpServer,
+  setRunningTasksChecker,
 } from "./agent/session-manager.js";
 import { createTaskRevisionServer } from "./mcp/task-revision-server.js";
 
@@ -773,6 +774,12 @@ async function main() {
       taskProcessor,
     });
     addMcpServer("task-revision", taskRevisionServer);
+
+    // Wire running tasks checker so conversation Nina knows when working Nina is busy
+    setRunningTasksChecker((conversationId: string) => {
+      const running = taskManager.getRunningTasksForConversation(conversationId);
+      return running.map((t) => `"${t.title}" (${t.id})`);
+    });
   }
 
   // Connect memory services to state publisher for live updates
