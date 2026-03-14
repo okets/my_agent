@@ -42,7 +42,7 @@ export class TaskProcessor {
   private deliveryExecutor: DeliveryExecutor;
   private notificationService: NotificationService | null;
   private onTaskMutated: (() => void) | null;
-  private conversationInitiator: TaskProcessorConfig["conversationInitiator"];
+  private getConversationInitiator: () => TaskProcessorConfig["conversationInitiator"];
 
   constructor(config: TaskProcessorConfig) {
     this.taskManager = config.taskManager;
@@ -55,7 +55,7 @@ export class TaskProcessor {
     );
     this.notificationService = config.notificationService ?? null;
     this.onTaskMutated = config.onTaskMutated ?? null;
-    this.conversationInitiator = config.conversationInitiator ?? null;
+    this.getConversationInitiator = () => config.conversationInitiator ?? null;
   }
 
   /**
@@ -240,15 +240,17 @@ export class TaskProcessor {
       task.notifyOnCompletion ??
       (task.type === "immediate" ? "immediate" : "debrief");
 
-    if (effectiveNotify === "immediate" && this.conversationInitiator) {
+    const ci = this.getConversationInitiator();
+
+    if (effectiveNotify === "immediate" && ci) {
       try {
         const prompt = result.success
           ? `A task has been completed: "${task.title}". Result summary: ${result.work?.slice(0, 500)}. Let the user know naturally.`
           : `A task has failed: "${task.title}". Error: ${result.error || "Unknown error"}. Let the user know.`;
 
-        const alerted = await this.conversationInitiator.alert(prompt);
+        const alerted = await ci.alert(prompt);
         if (!alerted) {
-          await this.conversationInitiator.initiate({
+          await ci.initiate({
             firstTurnPrompt: `[SYSTEM: ${prompt}]`,
           });
         }
