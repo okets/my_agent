@@ -15,6 +15,7 @@ export interface ExtractedTask {
   delivery: DeliveryAction[];
   type: "immediate" | "scheduled";
   scheduledFor?: string;
+  notifyOnCompletion?: "immediate" | "debrief" | "none";
 }
 
 export interface ExtractionResult {
@@ -67,6 +68,10 @@ If a task should be created, extract:
    - If the brain needs to compose content, omit "content" (brain will produce it)
 5. type: "immediate" or "scheduled"
 6. scheduledFor: ISO datetime calculated from CURRENT TIME (e.g., "in 5 minutes" = CURRENT TIME + 5 minutes)
+7. notifyOnCompletion: How to notify the user when the task completes:
+   - "immediate" — user wants to hear back right away ("message me", "let me know", "tell me", "remind me", "send me", "notify me", "report back")
+   - "debrief" — background work, no urgency ("check daily", "keep an eye on", "when you get a chance", "log this")
+   - Omit if unclear — system defaults apply
 
 MULTIPLE TASKS:
 If the user requests multiple distinct tasks in one message, return ALL of them in a "tasks" array (not "task").
@@ -89,9 +94,9 @@ User: "What's the weather like?"
 OUTPUT FORMAT (no other text allowed):
 {"shouldCreateTask": false}
 or (single task):
-{"shouldCreateTask": true, "task": {"title": "...", "instructions": "...", "work": [...], "delivery": [...], "type": "..."}}
+{"shouldCreateTask": true, "task": {"title": "...", "instructions": "...", "work": [...], "delivery": [...], "type": "...", "notifyOnCompletion": "immediate"|"debrief"}}
 or (multiple tasks):
-{"shouldCreateTask": true, "tasks": [{"title": "...", "instructions": "...", "work": [...], "delivery": [...], "type": "..."}, ...]}`;
+{"shouldCreateTask": true, "tasks": [{"title": "...", "instructions": "...", "work": [...], "delivery": [...], "type": "...", "notifyOnCompletion": "immediate"|"debrief"}, ...]}`;
 }
 
 /**
@@ -143,6 +148,12 @@ function normalizeExtractedTask(raw: any): ExtractedTask {
     status: "pending" as const,
   }));
 
+  const validNotifyValues = ["immediate", "debrief", "none"] as const;
+  const notifyOnCompletion =
+    validNotifyValues.includes(raw.notifyOnCompletion)
+      ? (raw.notifyOnCompletion as "immediate" | "debrief" | "none")
+      : undefined;
+
   return {
     title: String(raw.title ?? ""),
     instructions: String(raw.instructions ?? ""),
@@ -150,6 +161,7 @@ function normalizeExtractedTask(raw: any): ExtractedTask {
     delivery,
     type: raw.type === "scheduled" ? "scheduled" : "immediate",
     scheduledFor: raw.scheduledFor,
+    notifyOnCompletion,
   };
 }
 

@@ -72,6 +72,7 @@ export class PostResponseHooks {
             scheduledFor: extracted.scheduledFor
               ? new Date(extracted.scheduledFor)
               : undefined,
+            notifyOnCompletion: extracted.notifyOnCompletion,
             createdBy: "agent",
           });
 
