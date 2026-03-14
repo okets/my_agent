@@ -398,9 +398,15 @@ Explain your reason in the working section above.`;
       `[TaskExecutor] Resuming SDK session ${sessionId} for task "${task.title}"`,
     );
 
+    const taskDir = this.config.logStorage.getTaskDir(task.id);
+
     return createBrainQuery(this.buildUserMessage(task), {
       model: brainConfig.model,
       resume: sessionId,
+      cwd: taskDir,
+      tools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
+      mcpServers: this.config.mcpServers,
+      hooks: this.config.hooks,
       includePartialMessages: false,
     });
   }
