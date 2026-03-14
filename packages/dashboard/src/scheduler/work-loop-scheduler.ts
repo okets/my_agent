@@ -327,7 +327,7 @@ export class WorkLoopScheduler {
   }
 
   /**
-   * Manually trigger a job by name
+   * Manually trigger a job by name (API-triggered — skips outreach)
    */
   async triggerJob(jobName: string): Promise<WorkLoopRun> {
     const pattern = this.patterns.find((p) => p.name === jobName);
@@ -335,7 +335,7 @@ export class WorkLoopScheduler {
       throw new Error(`Unknown job: ${jobName}`);
     }
 
-    return this.runJob(pattern);
+    return this.runJob(pattern, true);
   }
 
   /**
@@ -406,7 +406,10 @@ export class WorkLoopScheduler {
   /**
    * Run a single job — assembles context, calls Haiku, stores result
    */
-  private async runJob(pattern: WorkPattern): Promise<WorkLoopRun> {
+  private async runJob(
+    pattern: WorkPattern,
+    skipOutreach = false,
+  ): Promise<WorkLoopRun> {
     this.isExecuting = true;
 
     const runId = randomUUID();
@@ -427,7 +430,7 @@ export class WorkLoopScheduler {
 
       switch (pattern.name) {
         case "debrief-prep":
-          output = await this.handleDebriefPrep();
+          output = await this.handleDebriefPrep(skipOutreach);
           break;
         case "daily-summary":
           output = await this.handleDailySummary();
@@ -617,7 +620,7 @@ export class WorkLoopScheduler {
   /**
    * Debrief Prep — reads summary stack, produces current-state briefing
    */
-  async handleDebriefPrep(): Promise<string> {
+  async handleDebriefPrep(skipOutreach = false): Promise<string> {
     const notebookDir = join(this.agentDir, "notebook");
     const sections: string[] = [];
 
@@ -805,7 +808,8 @@ export class WorkLoopScheduler {
     );
 
     // Proactive outreach: alert active conversation or initiate new one (M6.9-S3)
-    if (this.conversationInitiator && output) {
+    // Skipped when triggered via API (e.g. test/manual trigger) to prevent unintended messages
+    if (!skipOutreach && this.conversationInitiator && output) {
       try {
         const alerted = await this.conversationInitiator.alert(
           "The debrief brief has been updated. Ask the user if they'd like to go through it now, or present it naturally if starting a new conversation.",

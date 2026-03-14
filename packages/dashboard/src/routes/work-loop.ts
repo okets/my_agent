@@ -7,8 +7,27 @@
  * - POST /api/work-loop/trigger/:jobName — Manual job trigger
  */
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { getNextScheduledTime } from "../scheduler/work-patterns.js";
+
+/**
+ * Localhost-only middleware — blocks non-localhost callers with 403
+ */
+function localhostOnly(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  done: () => void,
+) {
+  const ip = request.ip;
+  const isLocalhost =
+    ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+
+  if (!isLocalhost) {
+    reply.code(403).send({ error: "This endpoint is localhost-only" });
+    return;
+  }
+  done();
+}
 
 // Catppuccin Mocha colors
 const COLORS = {
@@ -246,7 +265,7 @@ export async function registerWorkLoopRoutes(
   fastify.post<{
     Params: { jobName: string };
     Reply: { success: boolean; run?: any; error?: string };
-  }>("/api/work-loop/trigger/:jobName", async (request, reply) => {
+  }>("/api/work-loop/trigger/:jobName", { preHandler: localhostOnly }, async (request, reply) => {
     const scheduler = fastify.workLoopScheduler;
     if (!scheduler) {
       return reply
