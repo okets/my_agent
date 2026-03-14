@@ -37,6 +37,13 @@ export interface BrainSessionOptions {
   agents?: Record<string, AgentDefinition>
   /** Programmatic hooks for safety and auditing */
   hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>
+  // New fields for agentic task execution:
+  /** Working directory for the Claude Code subprocess */
+  cwd?: string
+  /** Allowed tools list (defaults to Bash, Read, Write, Edit, Glob, Grep) */
+  tools?: string[]
+  /** Whether to persist the session for resumption */
+  persistSession?: boolean
 }
 
 /** Content block types for multimodal messages */
@@ -63,8 +70,9 @@ export function createBrainQuery(prompt: PromptContent, options: BrainSessionOpt
   }
 
   // Build allowed tools list — add Task tool when agents are provided
-  const allowedTools = ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep']
-  if (options.agents && Object.keys(options.agents).length > 0) {
+  const defaultTools = ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep']
+  const allowedTools = options.tools ? [...options.tools] : defaultTools
+  if (options.agents && Object.keys(options.agents).length > 0 && !allowedTools.includes('Task')) {
     allowedTools.push('Task')
   }
 
@@ -106,6 +114,9 @@ export function createBrainQuery(prompt: PromptContent, options: BrainSessionOpt
   if (options.hooks) {
     queryOptions.hooks = options.hooks
   }
+  // Wire agentic task execution options
+  if (options.cwd) queryOptions.cwd = options.cwd
+  if (options.persistSession !== undefined) queryOptions.persistSession = options.persistSession
   console.log(`[Brain] Full queryOptions: model=${queryOptions.model}`)
   if (options.resume) {
     queryOptions.resume = options.resume
