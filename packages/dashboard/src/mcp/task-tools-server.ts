@@ -114,7 +114,10 @@ export function createTaskToolsServer(deps: TaskToolsServerDeps) {
           sourceType: "conversation",
           title: args.title,
           instructions: args.instructions,
-          work: args.work,
+          work: args.work?.map((w) => ({
+            ...w,
+            status: "pending" as const,
+          })),
           notifyOnCompletion: args.notifyOnCompletion ?? "immediate",
           model: args.model,
           scheduledFor: args.scheduledFor

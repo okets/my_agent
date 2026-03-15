@@ -309,6 +309,7 @@ export class SessionManager {
     const opts: BrainSessionOptions = {
       model,
       systemPrompt,
+      tools: ["WebSearch", "WebFetch"],
       includePartialMessages: true,
       reasoning,
       hooks: this.hooks ?? undefined,

@@ -133,8 +133,8 @@ describe("create_task MCP tool", () => {
     expect(deps.taskManager.create).toHaveBeenCalledWith(
       expect.objectContaining({
         work: [
-          { description: "Search Google Flights" },
-          { description: "Search AirAsia" },
+          { description: "Search Google Flights", status: "pending" },
+          { description: "Search AirAsia", status: "pending" },
         ],
       }),
     );
