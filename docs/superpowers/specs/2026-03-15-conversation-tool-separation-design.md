@@ -29,6 +29,7 @@ Remove all power tools. Keep only:
 | MCP: knowledge | manage_staged_knowledge |
 | MCP: create_task (NEW) | Delegate work to working Nina |
 | MCP: revise_task | Correct completed tasks |
+| MCP: search_tasks (NEW) | Find past tasks by meaning ("that flights research") |
 | MCP: update_property (NEW) | Update location/timezone/availability immediately |
 | MCP: debrief | Request debrief |
 
@@ -113,7 +114,104 @@ If the user says "I just landed in New York" and later creates a scheduled task,
 
 ---
 
-## 6. Post-Response Task Extraction → Missed Task Detection
+## 6. `search_tasks` MCP Tool
+
+Enables conversation Nina to find past tasks by meaning. When the user says "that flights research from last week", Nina searches and confirms before revising.
+
+Schema:
+```
+search_tasks({
+  query: string,           // Natural language query
+  status?: string,         // Filter: "completed" | "failed" | "all" (default: "completed")
+  limit?: number,          // Max results (default: 5)
+})
+→ Returns: [{ id, title, status, created, completedAt }]
+```
+
+### 6.1 Hybrid Search (FTS5 + Vector with RRF)
+
+Reuses the proven pattern from `ConversationSearchService`:
+
+1. **FTS5 (keyword):** `tasks_fts` virtual table on `title || ' ' || instructions`
+2. **Vector (semantic):** `tasks_vec` virtual table via `sqlite-vec`
+3. **Mapping:** `task_embedding_map` table (maps vec0 rowids → task IDs)
+4. **Merger:** Reciprocal Rank Fusion (K=60) — same as memory and conversation search
+
+This means "trip research" matches "Find cheapest flight CNX→Bangkok" even without keyword overlap.
+
+### 6.2 Indexing
+
+Fire-and-forget, same as conversation indexing:
+- When a task is created, `TaskSearchService.indexTask(task)` embeds `title + instructions`
+- Async, never blocks task execution
+- Embedding model is configurable via the `EmbeddingsPlugin` interface (Ollama `nomic-embed-text` is one implementation)
+
+### 6.3 DB Tables (3 new)
+
+```sql
+-- FTS5 for keyword search
+CREATE VIRTUAL TABLE tasks_fts USING fts5(task_id, content);
+
+-- Vector for semantic search (dimensions from embedding plugin)
+CREATE VIRTUAL TABLE tasks_vec USING vec0(embedding float[N]);
+
+-- Mapping layer (vec0 rowids → task IDs)
+CREATE TABLE task_embedding_map (
+  vec_rowid INTEGER PRIMARY KEY,
+  task_id TEXT NOT NULL
+);
+```
+
+### 6.4 Flow
+
+```
+User: "remember that flights research from last week?"
+  → Nina calls search_tasks({ query: "flights research" })
+  → Returns: [{ id: "task-01KKP...", title: "Find cheapest flight CNX→Bangkok", completed: "2026-03-14" }]
+  → Nina: "Found it — the Bangkok flight search from March 14. Want me to check for better deals?"
+  → User: "yes"
+  → Nina calls revise_task({ taskId: "task-01KKP...", instructions: "Check if prices have changed..." })
+```
+
+---
+
+## 7. WebUI Task Context
+
+Currently the WebUI `ViewContext` type has `type: "notebook" | "conversation" | "settings"` — no task type. When the user is viewing a task in the dashboard and sends a chat message, conversation Nina doesn't know which task they're looking at.
+
+### 7.1 Fix
+
+Add `task` to ViewContext:
+
+```typescript
+export interface ViewContext {
+  type: "notebook" | "conversation" | "settings" | "task";  // Add "task"
+  title: string;
+  icon?: string;
+  file?: string;
+  conversationId?: string;
+  taskId?: string;  // NEW — set when viewing a task tab/popover
+}
+```
+
+When the frontend renders a task view, set `chatContext = { type: "task", title: task.title, taskId: task.id }`.
+
+### 7.2 System Prompt Injection
+
+When `viewContext.type === "task"`, the chat handler includes the task context in the system prompt:
+
+```
+[Active View]
+The user is currently viewing task: "Find cheapest flight CNX→Bangkok" (task-01KKP...)
+If they ask about "this task" or request changes, use revise_task with this task ID.
+[End Active View]
+```
+
+This already works for notebook views (file path injected) — same pattern.
+
+---
+
+## 8. Post-Response Task Extraction → Missed Task Detection
 
 The current post-response hook auto-extracts and auto-creates tasks. This changes:
 
@@ -130,7 +228,7 @@ This is a safety net, not a primary path. Nina is the only one who creates tasks
 
 ---
 
-## 7. Tool Restriction Implementation
+## 9. Tool Restriction Implementation
 
 ### 7.1 Where to Restrict
 
@@ -157,7 +255,7 @@ TaskExecutor already explicitly passes `tools: ["Bash", "Read", "Write", "Edit",
 
 ---
 
-## 8. Standing Orders Update
+## 10. Standing Orders Update
 
 Add to `.my_agent/notebook/reference/standing-orders.md`:
 
@@ -178,21 +276,26 @@ You do not have Bash, file editing, or browser tools. For anything beyond a quic
 
 ---
 
-## 9. Files Changed
+## 11. Files Changed
 
 | File | Changes |
 |------|---------|
 | `dashboard/src/agent/session-manager.ts` | Pass `tools: ["WebSearch", "WebFetch"]` in buildQuery(), remove Playwright MCP from conversation Nina |
-| `dashboard/src/mcp/task-revision-server.ts` | Rename to `task-tools-server.ts`, add `create_task` and `update_property` tools |
+| `dashboard/src/mcp/task-revision-server.ts` | Rename to `task-tools-server.ts`, add `create_task`, `search_tasks`, and `update_property` tools |
+| `dashboard/src/tasks/task-search-service.ts` | New: hybrid FTS5+vector search for tasks (mirrors ConversationSearchService) |
+| `dashboard/src/conversations/db.ts` | Add `tasks_fts`, `tasks_vec`, `task_embedding_map` tables |
 | `dashboard/src/conversations/post-response-hooks.ts` | Change from task creation to missed task detection (log/notify only) |
 | `dashboard/src/tasks/task-extractor.ts` | Keep extraction logic, remove creation — return detected tasks for logging |
-| `dashboard/src/index.ts` | Wire renamed MCP server |
+| `dashboard/src/index.ts` | Wire renamed MCP server, wire TaskSearchService |
+| `dashboard/src/ws/protocol.ts` | Add `"task"` to ViewContext type, add `taskId` field |
+| `dashboard/src/ws/chat-handler.ts` | Inject task context into system prompt when viewing a task |
+| `dashboard/public/js/app.js` | Set chatContext with taskId when viewing task |
 | `.my_agent/notebook/reference/standing-orders.md` | Add task delegation section |
 | `dashboard/src/conversations/properties.ts` | `updateProperty` already exported — no change needed |
 
 ---
 
-## 10. Edge Cases
+## 12. Edge Cases
 
 | Scenario | Behavior |
 |----------|----------|
@@ -206,10 +309,15 @@ You do not have Bash, file editing, or browser tools. For anything beyond a quic
 | User says "restart the dashboard" | Nina explains she can't do system operations and suggests the API/manual approach |
 | User uploads file for analysis | Nina creates task — working Nina has Read tool |
 | Multiple tasks in one message | Nina calls create_task multiple times |
+| User says "that research from last week" | Nina calls search_tasks, confirms match, then revise_task |
+| search_tasks returns no results | Nina tells user she couldn't find it, asks for more detail |
+| search_tasks returns multiple matches | Nina presents options, user picks one |
+| User viewing task tab and says "fix this" | System prompt includes task ID from ViewContext, Nina calls revise_task |
+| Embeddings unavailable (Ollama down) | search_tasks falls back to FTS5-only keyword search |
 
 ---
 
-## 11. Conversation ID Routing
+## 13. Conversation ID Routing
 
 The `create_task` and `revise_task` tools need to link tasks to conversations. MCP servers are singletons — they can't infer which conversation triggered the call.
 
@@ -230,7 +338,7 @@ File uploads from the conversation are not directly passable to working Nina in 
 
 ---
 
-## 12. Test Strategy
+## 14. Test Strategy
 
 - **Unit tests:** create_task tool — verify task creation, conversation linking, processor trigger
 - **Unit tests:** update_property tool — verify property file updates
@@ -238,11 +346,16 @@ File uploads from the conversation are not directly passable to working Nina in 
 - **Integration:** Conversation Nina without power tools can still answer simple questions via WebSearch
 - **Integration:** Conversation Nina creates task, working Nina executes, result delivered back
 - **Integration:** Scheduled task with timezone conversion executes at correct time
+- **Unit tests:** search_tasks tool — verify FTS5 match, vector match, RRF merge, status filter
+- **Unit tests:** Task indexing — verify fire-and-forget embedding on task creation
+- **Integration:** search_tasks finds a completed task by semantic meaning
+- **Integration:** User viewing task tab, sends "fix this" — correct task ID injected
 - **E2E (browser):** Full flow — ask for research on WhatsApp, get results, request correction via revise_task
+- **E2E (browser):** "Remember that flights research?" → search_tasks → revise_task → updated results
 
 ---
 
-## 13. Relationship to Existing Architecture
+## 15. Relationship to Existing Architecture
 
 This is the missing piece from M6.9-S4. The agentic task executor gave working Nina full tools. This spec gives conversation Nina the constraint that makes her USE working Nina instead of doing the work herself.
 
