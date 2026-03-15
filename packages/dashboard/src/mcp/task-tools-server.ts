@@ -2,6 +2,7 @@ import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { TaskManager } from "../tasks/task-manager.js";
 import type { TaskProcessor } from "../tasks/task-processor.js";
+import { updateProperty } from "../conversations/properties.js";
 
 export interface TaskToolsServerDeps {
   taskManager: TaskManager;
@@ -71,8 +72,132 @@ export function createTaskToolsServer(deps: TaskToolsServerDeps) {
     },
   );
 
+  const createTaskTool = tool(
+    "create_task",
+    "Create a background task for a working agent. Use when the user requests research, comparison, scripting, browser automation, or any multi-step work. Include ALL context in instructions — the working agent cannot see this conversation.",
+    {
+      title: z.string().describe("Short descriptive title"),
+      instructions: z
+        .string()
+        .describe(
+          "Self-contained instructions with full context — the working agent cannot see this conversation",
+        ),
+      work: z
+        .array(z.object({ description: z.string() }))
+        .optional()
+        .describe("Work items to complete"),
+      type: z
+        .enum(["immediate", "scheduled"])
+        .describe("immediate = now, scheduled = later"),
+      conversationId: z
+        .string()
+        .describe(
+          "Conversation ID from [Session Context] in your system prompt",
+        ),
+      scheduledFor: z
+        .string()
+        .optional()
+        .describe("ISO datetime in UTC for scheduled tasks"),
+      notifyOnCompletion: z
+        .enum(["immediate", "debrief", "none"])
+        .optional()
+        .describe("How to notify when complete (default: immediate)"),
+      model: z
+        .string()
+        .optional()
+        .describe("Override model (e.g. 'claude-opus-4-6')"),
+    },
+    async (args) => {
+      try {
+        const task = deps.taskManager.create({
+          type: args.type,
+          sourceType: "conversation",
+          title: args.title,
+          instructions: args.instructions,
+          work: args.work,
+          notifyOnCompletion: args.notifyOnCompletion ?? "immediate",
+          model: args.model,
+          scheduledFor: args.scheduledFor
+            ? new Date(args.scheduledFor)
+            : undefined,
+          createdBy: "agent",
+        });
+
+        deps.taskManager.linkTaskToConversation(task.id, args.conversationId);
+
+        if (args.type === "immediate") {
+          deps.taskProcessor.onTaskCreated(task);
+        }
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Task created: "${task.title}" (ID: ${task.id}). ${args.type === "immediate" ? "Executing now — I'll let you know when it's done." : `Scheduled for ${args.scheduledFor}.`}`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Failed to create task: ${err instanceof Error ? err.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  const updatePropertyTool = tool(
+    "update_property",
+    "Update a dynamic property (location, timezone, availability). Call immediately when the user shares changes to these. Properties feed into task scheduling and working agent context.",
+    {
+      key: z
+        .string()
+        .describe("Property key: location, timezone, or availability"),
+      value: z.string().describe("The new value"),
+      confidence: z
+        .enum(["high", "medium", "low"])
+        .describe("How confident you are"),
+      source: z
+        .string()
+        .default("conversation")
+        .describe("How you learned this"),
+    },
+    async (args) => {
+      try {
+        await updateProperty(deps.agentDir, args.key, {
+          value: args.value,
+          confidence: args.confidence,
+          source: args.source,
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Updated ${args.key} to "${args.value}"`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Failed to update property: ${err instanceof Error ? err.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
   return createSdkMcpServer({
     name: "task-tools",
-    tools: [reviseTaskTool],
+    tools: [reviseTaskTool, createTaskTool, updatePropertyTool],
   });
 }
