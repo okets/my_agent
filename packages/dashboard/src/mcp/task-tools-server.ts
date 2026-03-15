@@ -3,12 +3,13 @@ import { z } from "zod";
 import type { TaskManager } from "../tasks/task-manager.js";
 import type { TaskProcessor } from "../tasks/task-processor.js";
 
-export interface TaskRevisionServerDeps {
+export interface TaskToolsServerDeps {
   taskManager: TaskManager;
   taskProcessor: TaskProcessor;
+  agentDir: string;
 }
 
-export function createTaskRevisionServer(deps: TaskRevisionServerDeps) {
+export function createTaskToolsServer(deps: TaskToolsServerDeps) {
   const reviseTaskTool = tool(
     "revise_task",
     "Re-open a completed task with revision instructions. The same working agent session will be resumed with the new instructions. Use when the user wants corrections or changes to task results.",
@@ -71,7 +72,7 @@ export function createTaskRevisionServer(deps: TaskRevisionServerDeps) {
   );
 
   return createSdkMcpServer({
-    name: "task-revision",
+    name: "task-tools",
     tools: [reviseTaskTool],
   });
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createTaskRevisionServer } from "../../src/mcp/task-revision-server.js";
+import { createTaskToolsServer } from "../../src/mcp/task-tools-server.js";
 import type { TaskManager } from "../../src/tasks/task-manager.js";
 import type { TaskProcessor } from "../../src/tasks/task-processor.js";
 import type { Task } from "@my-agent/core";
@@ -48,14 +48,15 @@ function createMockTaskProcessor() {
   } as unknown as TaskProcessor;
 }
 
-describe("createTaskRevisionServer", () => {
+describe("createTaskToolsServer", () => {
   it("creates a server with the correct name", () => {
-    const server = createTaskRevisionServer({
+    const server = createTaskToolsServer({
       taskManager: createMockTaskManager(),
       taskProcessor: createMockTaskProcessor(),
+      agentDir: "/tmp/test-agent",
     });
     expect(server).toBeDefined();
-    expect((server as any).name).toBe("task-revision");
+    expect((server as any).name).toBe("task-tools");
   });
 });
 
@@ -78,7 +79,7 @@ describe("revise_task tool", () => {
       .mockReturnValueOnce(task)
       .mockReturnValueOnce(updatedTask);
 
-    const server = createTaskRevisionServer({ taskManager, taskProcessor });
+    const server = createTaskToolsServer({ taskManager, taskProcessor, agentDir: "/tmp/test-agent" });
     const reviseToolHandler = (server as any).tools[0].handler;
 
     const result = await reviseToolHandler({
@@ -119,7 +120,7 @@ describe("revise_task tool", () => {
       .mockReturnValueOnce(task)
       .mockReturnValueOnce(updatedTask);
 
-    const server = createTaskRevisionServer({ taskManager, taskProcessor });
+    const server = createTaskToolsServer({ taskManager, taskProcessor, agentDir: "/tmp/test-agent" });
     const reviseToolHandler = (server as any).tools[0].handler;
 
     const result = await reviseToolHandler({
@@ -135,7 +136,7 @@ describe("revise_task tool", () => {
     taskManager = createMockTaskManager(null);
     taskProcessor = createMockTaskProcessor();
 
-    const server = createTaskRevisionServer({ taskManager, taskProcessor });
+    const server = createTaskToolsServer({ taskManager, taskProcessor, agentDir: "/tmp/test-agent" });
     const reviseToolHandler = (server as any).tools[0].handler;
 
     const result = await reviseToolHandler({
@@ -154,7 +155,7 @@ describe("revise_task tool", () => {
     taskManager = createMockTaskManager(task);
     taskProcessor = createMockTaskProcessor();
 
-    const server = createTaskRevisionServer({ taskManager, taskProcessor });
+    const server = createTaskToolsServer({ taskManager, taskProcessor, agentDir: "/tmp/test-agent" });
     const reviseToolHandler = (server as any).tools[0].handler;
 
     const result = await reviseToolHandler({
@@ -174,7 +175,7 @@ describe("revise_task tool", () => {
     taskManager = createMockTaskManager(task);
     taskProcessor = createMockTaskProcessor();
 
-    const server = createTaskRevisionServer({ taskManager, taskProcessor });
+    const server = createTaskToolsServer({ taskManager, taskProcessor, agentDir: "/tmp/test-agent" });
     const reviseToolHandler = (server as any).tools[0].handler;
 
     const result = await reviseToolHandler({
