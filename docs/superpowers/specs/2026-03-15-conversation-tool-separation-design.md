@@ -57,6 +57,7 @@ create_task({
   instructions: string,    // Self-contained instructions (working Nina has no conversation context)
   work: [{ description }], // Work items
   type: "immediate" | "scheduled",
+  conversationId: string,  // From [Session Context] in system prompt
   scheduledFor?: string,   // ISO datetime (UTC) for scheduled tasks
   notifyOnCompletion?: "immediate" | "debrief" | "none",
   model?: string,          // Override model (e.g. "claude-opus-4-6")
@@ -69,7 +70,7 @@ The tool handler:
 3. For immediate tasks: triggers `taskProcessor.onTaskCreated()`
 4. Returns task ID to conversation Nina so she can reference it
 
-The `conversationId` is NOT a parameter — it's injected by the tool handler from the session context. Conversation Nina doesn't need to know or pass it.
+The `conversationId` is passed explicitly by conversation Nina. She knows it from the `[Session Context]` block in her system prompt (which already includes `Conversation ID: conv-01KKP...`). This avoids the shared-MCP-server problem — since MCP servers are singletons, a callback-based approach can't distinguish concurrent conversations. Explicit parameter passing is simple and reliable.
 
 ### 4.1 Instructions Must Be Self-Contained
 
@@ -139,14 +140,16 @@ In `session-manager.ts`, `buildQuery()` currently doesn't pass `tools` to `creat
 const opts: BrainSessionOptions = {
   model,
   systemPrompt,
-  tools: [],  // No power tools — only MCP tools available
+  tools: ["WebSearch", "WebFetch"],  // Only web lookup tools — no Bash/Read/Write/Edit/Glob/Grep
   // ... rest unchanged
 };
 ```
 
 MCP tools (memory, knowledge, create_task, revise_task, update_property, debrief) are registered via `mcpServers` and remain available.
 
-WebSearch is a built-in Claude capability, not an SDK tool — it remains available regardless of the `tools` setting. (VERIFY THIS ASSUMPTION — check if WebSearch needs to be in the tools array or if it's always available.)
+**VERIFIED:** WebSearch and WebFetch are built-in SDK tools, not magic model capabilities. Setting `tools: []` disables them. They must be explicitly listed to remain available. The SDK docs confirm: `[]` (empty array) = "Disable all built-in tools."
+
+Note: Playwright MCP server is removed from conversation Nina. She has no use for browser automation if she must delegate research. Working Nina retains Playwright via her own MCP servers.
 
 ### 7.2 Working Nina Unchanged
 
@@ -179,13 +182,13 @@ You do not have Bash, file editing, or browser tools. For anything beyond a quic
 
 | File | Changes |
 |------|---------|
-| `dashboard/src/agent/session-manager.ts` | Pass `tools: []` in buildQuery() |
+| `dashboard/src/agent/session-manager.ts` | Pass `tools: ["WebSearch", "WebFetch"]` in buildQuery(), remove Playwright MCP from conversation Nina |
 | `dashboard/src/mcp/task-revision-server.ts` | Rename to `task-tools-server.ts`, add `create_task` and `update_property` tools |
 | `dashboard/src/conversations/post-response-hooks.ts` | Change from task creation to missed task detection (log/notify only) |
 | `dashboard/src/tasks/task-extractor.ts` | Keep extraction logic, remove creation — return detected tasks for logging |
-| `dashboard/src/index.ts` | Wire renamed MCP server, pass conversationId context |
+| `dashboard/src/index.ts` | Wire renamed MCP server |
 | `.my_agent/notebook/reference/standing-orders.md` | Add task delegation section |
-| `dashboard/src/conversations/properties.ts` | Export `updateProperty` for MCP tool handler |
+| `dashboard/src/conversations/properties.ts` | `updateProperty` already exported — no change needed |
 
 ---
 
@@ -206,11 +209,24 @@ You do not have Bash, file editing, or browser tools. For anything beyond a quic
 
 ---
 
-## 11. What About the Conversation ID?
+## 11. Conversation ID Routing
 
-The `create_task` tool needs to link tasks to the current conversation. But MCP tools don't inherently know which conversation they're serving.
+The `create_task` and `revise_task` tools need to link tasks to conversations. MCP servers are singletons — they can't infer which conversation triggered the call.
 
-Solution: The MCP server factory receives a `getActiveConversationId` callback from index.ts. When conversation Nina calls `create_task`, the handler calls this function to get the current conversation ID. This avoids exposing internal IDs to the model.
+Solution: `conversationId` is an explicit parameter. Conversation Nina knows her conversation ID from the `[Session Context]` block in her system prompt (`Conversation ID: conv-01KKP...`). She passes it when calling `create_task`. This is simple, reliable, and handles concurrent conversations correctly.
+
+For `revise_task`, the conversation ID is already implicit — the task is already linked to a conversation from the original `create_task` call.
+
+### 11.1 Error Handling
+
+If `create_task` fails (DB error, invalid parameters):
+- Tool returns an error message to conversation Nina
+- Nina tells the user: "I couldn't create that task — [reason]. Can you try rephrasing?"
+- No silent failures
+
+### 11.2 File Uploads
+
+File uploads from the conversation are not directly passable to working Nina in this design. Conversation Nina should tell the user: "Send me the file and I'll save it to my notebook, then create a task to analyze it." The file goes through `notebook_write` MCP tool (which she keeps), then the task instructions reference the notebook path.
 
 ---
 
