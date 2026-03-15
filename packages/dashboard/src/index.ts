@@ -365,10 +365,6 @@ async function main() {
     // Post-response hooks (shared between WebSocket and channel handlers)
     server.postResponseHooks = new PostResponseHooks({
       taskManager,
-      taskProcessor,
-      broadcastToConversation: (convId, msg) =>
-        connectionRegistry.broadcastToConversation(convId, msg as any),
-      publishTasks: () => server.statePublisher?.publishTasks(),
       log: (msg) => console.log(msg),
       logError: (err, msg) => console.error(msg, err),
     });
