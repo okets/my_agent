@@ -140,6 +140,53 @@ describe("create_task MCP tool", () => {
     );
   });
 
+  it("passes delivery actions through", async () => {
+    const server = createTaskToolsServer(deps as any);
+    const handler = getToolHandler(server, "create_task");
+
+    await handler({
+      title: "Send reminder on WhatsApp",
+      instructions: "Send a reminder message",
+      delivery: [
+        { channel: "whatsapp", content: "Don't forget to call mom" },
+      ],
+      type: "scheduled",
+      conversationId: "conv-TEST01",
+      scheduledFor: "2026-03-15T14:00:00Z",
+    });
+
+    expect(deps.taskManager.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        delivery: [
+          {
+            channel: "whatsapp",
+            content: "Don't forget to call mom",
+            status: "pending",
+          },
+        ],
+      }),
+    );
+  });
+
+  it("passes delivery without content (agent composes)", async () => {
+    const server = createTaskToolsServer(deps as any);
+    const handler = getToolHandler(server, "create_task");
+
+    await handler({
+      title: "Research and email results",
+      instructions: "Research Bangkok hotels and email me a summary",
+      delivery: [{ channel: "email" }],
+      type: "immediate",
+      conversationId: "conv-TEST01",
+    });
+
+    expect(deps.taskManager.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        delivery: [{ channel: "email", status: "pending" }],
+      }),
+    );
+  });
+
   it("passes notifyOnCompletion and model through", async () => {
     const server = createTaskToolsServer(deps as any);
     const handler = getToolHandler(server, "create_task");

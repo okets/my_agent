@@ -88,6 +88,24 @@ export function createTaskToolsServer(deps: TaskToolsServerDeps) {
         .array(z.object({ description: z.string() }))
         .optional()
         .describe("Work items to complete"),
+      delivery: z
+        .array(
+          z.object({
+            channel: z
+              .enum(["whatsapp", "email", "dashboard"])
+              .describe("Delivery channel"),
+            content: z
+              .string()
+              .optional()
+              .describe(
+                "Exact message content to send. Omit if the working agent should compose it.",
+              ),
+          }),
+        )
+        .optional()
+        .describe(
+          "How to deliver results. Use for 'send X on WhatsApp' or 'email me the results'.",
+        ),
       type: z
         .enum(["immediate", "scheduled"])
         .describe("immediate = now, scheduled = later"),
@@ -118,6 +136,10 @@ export function createTaskToolsServer(deps: TaskToolsServerDeps) {
           instructions: args.instructions,
           work: args.work?.map((w) => ({
             ...w,
+            status: "pending" as const,
+          })),
+          delivery: args.delivery?.map((d) => ({
+            ...d,
             status: "pending" as const,
           })),
           notifyOnCompletion: args.notifyOnCompletion ?? "immediate",
