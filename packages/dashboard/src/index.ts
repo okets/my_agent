@@ -803,6 +803,8 @@ async function main() {
     }
   }
 
+  server.taskSearchService = taskSearchService;
+
   // Register task-tools MCP server (needs taskManager + taskProcessor)
   if (taskManager && taskProcessor) {
     const taskToolsServer = createTaskToolsServer({

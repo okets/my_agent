@@ -1154,4 +1154,164 @@ export async function registerDebugRoutes(
     }
     return { mode: "auto", alerted: true, initiated: false };
   });
+
+  // ── M6.9-S5: Task Tools E2E Testing ──
+
+  /**
+   * POST /task-tools/create_task
+   *
+   * Invoke the create_task MCP tool handler directly.
+   * Tests the full wiring: task creation, conversation linking, search indexing.
+   */
+  fastify.post<{
+    Body: {
+      title: string;
+      instructions: string;
+      type?: "immediate" | "scheduled";
+      conversationId: string;
+      scheduledFor?: string;
+      notifyOnCompletion?: "immediate" | "debrief" | "none";
+      model?: string;
+      work?: Array<{ description: string }>;
+    };
+  }>("/task-tools/create_task", async (request, reply) => {
+    const taskManager = fastify.taskManager;
+    const taskProcessor = fastify.taskProcessor;
+
+    if (!taskManager || !taskProcessor) {
+      return reply
+        .code(503)
+        .send({ error: "Task system not initialized" });
+    }
+
+    const args = request.body;
+    if (!args?.title || !args?.instructions || !args?.conversationId) {
+      return reply
+        .code(400)
+        .send({ error: "title, instructions, and conversationId are required" });
+    }
+
+    try {
+      const task = taskManager.create({
+        type: args.type ?? "immediate",
+        sourceType: "conversation",
+        title: args.title,
+        instructions: args.instructions,
+        work: args.work?.map((w) => ({ ...w, status: "pending" as const })),
+        notifyOnCompletion: args.notifyOnCompletion ?? "immediate",
+        model: args.model,
+        scheduledFor: args.scheduledFor
+          ? new Date(args.scheduledFor)
+          : undefined,
+        createdBy: "agent",
+      });
+
+      taskManager.linkTaskToConversation(task.id, args.conversationId);
+
+      // Don't trigger execution for E2E test — just verify creation + linking
+      return {
+        success: true,
+        task: {
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          type: task.type,
+        },
+      };
+    } catch (err) {
+      return reply.code(500).send({
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  });
+
+  /**
+   * POST /task-tools/search_tasks
+   *
+   * Invoke TaskSearchService directly. Tests FTS5 + vector indexing.
+   */
+  fastify.post<{
+    Body: {
+      query: string;
+      status?: string;
+      limit?: number;
+    };
+  }>("/task-tools/search_tasks", async (request, reply) => {
+    const taskSearchService = (fastify as any).taskSearchService;
+
+    if (!taskSearchService) {
+      return reply
+        .code(503)
+        .send({ error: "TaskSearchService not initialized" });
+    }
+
+    const { query, status, limit } = request.body || {};
+    if (!query) {
+      return reply.code(400).send({ error: "query is required" });
+    }
+
+    try {
+      const results = await taskSearchService.search(query, {
+        status: status ?? "all",
+        limit: limit ?? 5,
+      });
+      return { results, count: results.length };
+    } catch (err) {
+      return reply.code(500).send({
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  });
+
+  /**
+   * POST /task-tools/update_property
+   *
+   * Invoke updateProperty directly. Tests property file writes.
+   */
+  fastify.post<{
+    Body: {
+      key: string;
+      value: string;
+      confidence: "high" | "medium" | "low";
+      source?: string;
+    };
+  }>("/task-tools/update_property", async (request, reply) => {
+    const { key, value, confidence, source } = request.body || {};
+    if (!key || !value || !confidence) {
+      return reply
+        .code(400)
+        .send({ error: "key, value, and confidence are required" });
+    }
+
+    try {
+      const { updateProperty } = await import(
+        "../conversations/properties.js"
+      );
+      const agentDir = fastify.agentDir;
+      if (!agentDir) {
+        return reply.code(503).send({ error: "agentDir not available" });
+      }
+
+      await updateProperty(agentDir, key, {
+        value,
+        confidence,
+        source: source ?? "e2e-test",
+      });
+
+      // Read back to verify
+      const { readProperties } = await import(
+        "../conversations/properties.js"
+      );
+      const props = await readProperties(agentDir);
+
+      return {
+        success: true,
+        property: props[key],
+      };
+    } catch (err) {
+      return reply.code(500).send({
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  });
 }

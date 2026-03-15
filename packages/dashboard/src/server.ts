@@ -76,6 +76,9 @@ declare module "fastify" {
     postResponseHooks:
       | import("./conversations/post-response-hooks.js").PostResponseHooks
       | null;
+    taskSearchService:
+      | import("./tasks/task-search-service.js").TaskSearchService
+      | null;
   }
 }
 
@@ -169,6 +172,7 @@ export async function createServer(
   fastify.decorate("workLoopScheduler", null);
   fastify.decorate("conversationInitiator", null);
   fastify.decorate("postResponseHooks", null);
+  fastify.decorate("taskSearchService", null);
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);
