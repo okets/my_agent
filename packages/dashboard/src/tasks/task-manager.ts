@@ -26,6 +26,9 @@ export class TaskManager {
   private agentDir: string;
   private logsDir: string;
 
+  /** Optional callback fired when a task is created (for search indexing) */
+  onTaskCreated: ((task: Task) => void) | null = null;
+
   /**
    * Create a TaskManager
    *
@@ -122,6 +125,9 @@ export class TaskManager {
       task.logPath,
       task.created.toISOString(),
     );
+
+    // Fire-and-forget: index for search
+    this.onTaskCreated?.(task);
 
     return task;
   }

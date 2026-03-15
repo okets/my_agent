@@ -46,6 +46,7 @@ import {
   TaskExecutor,
   TaskProcessor,
   TaskScheduler,
+  TaskSearchService,
 } from "./tasks/index.js";
 import { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
 import { ConversationInitiator } from "./agent/conversation-initiator.js";
@@ -763,12 +764,52 @@ async function main() {
     );
   }
 
-  // Register task-revision MCP server (needs taskManager + taskProcessor)
+  // Initialize task search service (M6.9-S5)
+  let taskSearchService: TaskSearchService | null = null;
+  if (taskManager) {
+    try {
+      const rawDb = conversationManager.getDb();
+      taskSearchService = new TaskSearchService({
+        db: rawDb,
+        getPlugin: () => pluginRegistry?.getActive() ?? null,
+      });
+
+      // Initialize vector table if embeddings plugin is active
+      const activePlugin = pluginRegistry?.getActive() ?? null;
+      if (activePlugin) {
+        const dims = activePlugin.getDimensions();
+        if (dims) {
+          taskSearchService.initVectorTable(dims);
+          console.log(
+            `[TaskSearch] Vector table initialized (${dims} dims)`,
+          );
+        }
+      }
+
+      // Wire fire-and-forget indexing on task creation
+      const searchSvc = taskSearchService;
+      taskManager.onTaskCreated = (task) => {
+        searchSvc
+          .indexTask({ id: task.id, title: task.title, instructions: task.instructions })
+          .catch(() => {});
+      };
+
+      console.log("[TaskSearch] Service initialized");
+    } catch (err) {
+      console.warn(
+        "[TaskSearch] Failed to initialize:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  // Register task-tools MCP server (needs taskManager + taskProcessor)
   if (taskManager && taskProcessor) {
     const taskToolsServer = createTaskToolsServer({
       taskManager,
       taskProcessor,
       agentDir,
+      taskSearchService: taskSearchService ?? undefined,
     });
     addMcpServer("task-tools", taskToolsServer);
 

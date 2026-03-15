@@ -2,12 +2,14 @@ import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { TaskManager } from "../tasks/task-manager.js";
 import type { TaskProcessor } from "../tasks/task-processor.js";
+import type { TaskSearchService } from "../tasks/task-search-service.js";
 import { updateProperty } from "../conversations/properties.js";
 
 export interface TaskToolsServerDeps {
   taskManager: TaskManager;
   taskProcessor: TaskProcessor;
   agentDir: string;
+  taskSearchService?: TaskSearchService;
 }
 
 export function createTaskToolsServer(deps: TaskToolsServerDeps) {
@@ -199,8 +201,80 @@ export function createTaskToolsServer(deps: TaskToolsServerDeps) {
     },
   );
 
+  const searchTasksTool = tool(
+    "search_tasks",
+    "Search past tasks by meaning. Use when the user refers to a previous task ('that flights research', 'the co-working comparison'). Returns matching tasks with IDs for use with revise_task.",
+    {
+      query: z.string().describe("Natural language search query"),
+      status: z
+        .enum(["completed", "failed", "all"])
+        .optional()
+        .describe("Filter by status (default: completed)"),
+      limit: z.number().optional().describe("Max results (default: 5)"),
+    },
+    async (args) => {
+      if (!deps.taskSearchService) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: "Task search is not available yet.",
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      try {
+        const results = await deps.taskSearchService.search(args.query, {
+          status: args.status ?? "completed",
+          limit: args.limit ?? 5,
+        });
+
+        if (results.length === 0) {
+          return {
+            content: [
+              { type: "text" as const, text: "No matching tasks found." },
+            ],
+          };
+        }
+
+        const formatted = results
+          .map(
+            (r) =>
+              `- "${r.title}" (ID: ${r.id}) — ${r.status}, ${r.completedAt ?? r.created}`,
+          )
+          .join("\n");
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Found ${results.length} task(s):\n${formatted}`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Search failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
   return createSdkMcpServer({
     name: "task-tools",
-    tools: [reviseTaskTool, createTaskTool, updatePropertyTool],
+    tools: [
+      reviseTaskTool,
+      createTaskTool,
+      updatePropertyTool,
+      searchTasksTool,
+    ],
   });
 }

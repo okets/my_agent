@@ -7,6 +7,7 @@ export { TaskLogStorage } from "./log-storage.js";
 export { TaskExecutor } from "./task-executor.js";
 export { TaskProcessor } from "./task-processor.js";
 export { TaskScheduler } from "./task-scheduler.js";
+export { TaskSearchService } from "./task-search-service.js";
 export { DeliveryExecutor } from "./delivery-executor.js";
 export type { TaskLogMeta } from "./log-storage.js";
 export type {

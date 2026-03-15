@@ -285,6 +285,22 @@ export class ConversationDatabase {
       CREATE INDEX IF NOT EXISTS idx_task_conversations_conv
       ON task_conversations(conversation_id);
     `);
+
+    // M6.9-S5: Task search tables (FTS5 for keyword search)
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
+        task_id UNINDEXED,
+        content
+      );
+    `);
+
+    // M6.9-S5: Task embedding map (vec0 rowids → task IDs)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS task_embedding_map (
+        vec_rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL UNIQUE
+      );
+    `);
   }
 
   /**
