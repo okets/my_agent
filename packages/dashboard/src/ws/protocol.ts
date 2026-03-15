@@ -71,11 +71,12 @@ export interface Turn {
 
 // Context from dashboard (what user is currently viewing)
 export interface ViewContext {
-  type: "notebook" | "conversation" | "settings";
+  type: "notebook" | "conversation" | "settings" | "task";
   title: string;
   icon?: string;
   file?: string; // For notebook tabs
   conversationId?: string; // For external conversation tabs
+  taskId?: string; // For task tabs/popovers
 }
 
 // Client → Server messages

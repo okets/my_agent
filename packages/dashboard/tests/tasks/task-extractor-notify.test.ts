@@ -154,13 +154,13 @@ describe("normalizeExtractedTask — notifyOnCompletion passthrough", () => {
 });
 
 // -------------------------------------------------------------------
-// Tests for post-response-hooks: verify notifyOnCompletion is forwarded
-// to taskManager.create()
+// Tests for post-response-hooks: verify detection-only behavior (M6.9-S5)
+// PostResponseHooks no longer creates tasks — it only detects missed tasks.
+// Task creation is now done exclusively via the create_task MCP tool.
 // -------------------------------------------------------------------
 
-describe("PostResponseHooks — notifyOnCompletion forwarded to taskManager.create()", () => {
-  it("passes notifyOnCompletion from extracted task to taskManager.create()", async () => {
-    // Mock extractTaskFromMessage to return a task with notifyOnCompletion
+describe("PostResponseHooks — missed task detection (M6.9-S5)", () => {
+  it("logs warning for task-worthy request when Nina didn't create a task", async () => {
     vi.mock("../../src/tasks/task-extractor.js", () => ({
       extractTaskFromMessage: vi.fn().mockResolvedValue({
         shouldCreateTask: true,
@@ -168,34 +168,15 @@ describe("PostResponseHooks — notifyOnCompletion forwarded to taskManager.crea
           title: "Look up flights",
           instructions: "Research cheap flights to Tokyo.",
           work: [{ description: "Search flights", status: "pending" }],
-          delivery: [{ channel: "dashboard", status: "pending" }],
           type: "immediate",
           notifyOnCompletion: "immediate",
         },
-        tasks: [
-          {
-            title: "Look up flights",
-            instructions: "Research cheap flights to Tokyo.",
-            work: [{ description: "Search flights", status: "pending" }],
-            delivery: [{ channel: "dashboard", status: "pending" }],
-            type: "immediate",
-            notifyOnCompletion: "immediate",
-          },
-        ],
       }),
     }));
 
-    const createdTasks: any[] = [];
+    const mockLog = vi.fn();
     const mockTaskManager = {
-      create: vi.fn((input: any) => {
-        const task = { id: "task-test-123", ...input };
-        createdTasks.push(input);
-        return task;
-      }),
-      linkTaskToConversation: vi.fn(),
-    };
-    const mockTaskProcessor = {
-      onTaskCreated: vi.fn(),
+      getTasksForConversation: vi.fn().mockReturnValue([]),
     };
 
     const { PostResponseHooks } = await import(
@@ -204,17 +185,18 @@ describe("PostResponseHooks — notifyOnCompletion forwarded to taskManager.crea
 
     const hooks = new PostResponseHooks({
       taskManager: mockTaskManager as any,
-      taskProcessor: mockTaskProcessor as any,
-      broadcastToConversation: vi.fn(),
-      publishTasks: vi.fn(),
-      log: vi.fn(),
+      log: mockLog,
       logError: vi.fn(),
     });
 
     await hooks.run("conv-123", "Find me flights to Tokyo", "Sure, I'll look that up.");
 
-    expect(mockTaskManager.create).toHaveBeenCalledOnce();
-    const callArg = mockTaskManager.create.mock.calls[0][0];
-    expect(callArg.notifyOnCompletion).toBe("immediate");
+    // Should detect and log, NOT create
+    expect(mockLog).toHaveBeenCalledWith(
+      expect.stringContaining("[MissedTaskDetector]"),
+    );
+    expect(mockLog).toHaveBeenCalledWith(
+      expect.stringContaining("Look up flights"),
+    );
   });
 });

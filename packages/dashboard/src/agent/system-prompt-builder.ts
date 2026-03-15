@@ -29,6 +29,7 @@ export interface BuildContext {
   messageIndex: number;
   hasPendingEscalations?: boolean;
   activeWorkingAgents?: string[];
+  activeTaskContext?: { taskId: string; title: string } | null;
 }
 
 export interface SystemPromptBlock {
@@ -116,6 +117,13 @@ export class SystemPromptBuilder {
     if (activeAgents.length > 0) {
       dynamicParts.push(
         `[Active Working Agents]\nThe following tasks are currently being worked on by background agents:\n${activeAgents.map((a) => `- ${a}`).join("\n")}\n\nIf the user's message is about these tasks, let them know you're still working on it and results will arrive shortly. Do not try to answer questions about these tasks yourself — wait for the working agent to finish.\n[End Active Working Agents]`,
+      );
+    }
+
+    // Task context: tell conversation Nina when the user is viewing a specific task
+    if (context.activeTaskContext) {
+      dynamicParts.push(
+        `[Active Task View]\nThe user is currently viewing task: "${context.activeTaskContext.title}" (${context.activeTaskContext.taskId})\nIf they ask about "this task" or request changes, use revise_task with this task ID.\n[End Active Task View]`,
       );
     }
 

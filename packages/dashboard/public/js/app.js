@@ -1673,6 +1673,7 @@ function chat() {
             icon: tab.icon,
             file: tab.data?.file,
             conversationId: tab.data?.conversationId,
+            taskId: tab.data?.task?.id,
           };
 
           // Reload job detail when switching to a workloop tab

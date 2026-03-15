@@ -163,6 +163,7 @@ export class SessionManager {
   private activeQuery: Query | null = null;
   private messageIndex = 0;
   private promptBuilder: SystemPromptBuilder | null = null;
+  private activeTaskContext: { taskId: string; title: string } | null = null;
 
   constructor(conversationId: string, sdkSessionId?: string | null) {
     this.conversationId = conversationId;
@@ -172,6 +173,11 @@ export class SessionManager {
   /** Set the channel for the next query (per-message, not per-session) */
   setChannel(channel: string): void {
     this.channel = channel;
+  }
+
+  /** Set task context for the next query (cleared after use) */
+  setTaskContext(taskId: string, title: string): void {
+    this.activeTaskContext = { taskId, title };
   }
 
   /**
@@ -302,7 +308,10 @@ export class SessionManager {
       conversationId: this.conversationId,
       messageIndex: this.messageIndex,
       activeWorkingAgents,
+      activeTaskContext: this.activeTaskContext,
     };
+    // Clear after use — only applies to this message
+    this.activeTaskContext = null;
 
     const systemPrompt = await this.promptBuilder!.build(buildContext);
 

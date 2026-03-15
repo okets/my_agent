@@ -827,6 +827,11 @@ export async function registerChatWebSocket(
         fastify.log.info(
           `[Context] User viewing: ${context.title} (${context.type}${context.file ? `, file: ${context.file}` : ""})`,
         );
+
+        // Inject task context so conversation Nina knows which task the user is viewing
+        if (context.type === "task" && context.taskId && sessionManager) {
+          sessionManager.setTaskContext(context.taskId, context.title);
+        }
       }
       const textContent = content.trim().toLowerCase();
 
