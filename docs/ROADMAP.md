@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-13 (M6.9-S2.5 complete, normalized metadata + timezone scheduling + model centralization)
+> **Updated:** 2026-03-15 (M6.9-S4 complete, S5 tool separation in progress)
 
 ---
 
@@ -20,7 +20,7 @@
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
-| **M6.9: Knowledge Lifecycle**| Active   | S1-S2.5 complete, S3 planned |
+| **M6.9: Knowledge Lifecycle**| Active   | S1-S4 complete, S5 in progress |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -39,8 +39,8 @@ M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5
 [████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
    COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
                                                                                                     M6.7 Two-Agent   M6.6 Lifecycle   M6.9 Knowledge   M6.8 Skills
-                                                                                                    [████████████]   [████████████]   [████████░░░░]   [░░░░░░░░░░]
-                                                                                                       COMPLETE         COMPLETE     ACTIVE (S2.5/3)    PLANNED
+                                                                                                    [████████████]   [████████████]   [██████████░░]   [░░░░░░░░░░]
+                                                                                                       COMPLETE         COMPLETE      ACTIVE (S5)       PLANNED
                                                                                                                                             │
                                                                                                                                       ┌─────┴─────┐
                                                                                                                                       ▼           ▼
@@ -588,7 +588,7 @@ DAILY CYCLE (repeats)
 
 ---
 
-### M6.9: Knowledge Lifecycle — S1 COMPLETE
+### M6.9: Knowledge Lifecycle — S4 COMPLETE, S5 IN PROGRESS
 
 The knowledge system gets a lifecycle. Facts are classified at extraction (permanent vs temporal), routed to appropriate stores, and curated through a daily morning brief. Permanent knowledge is user-approved. Temporal context lives in summaries that age out naturally. Dynamic properties (location, availability) are updated in real-time by Nina during conversation.
 
@@ -602,7 +602,8 @@ The knowledge system gets a lifecycle. Facts are classified at extraction (perma
 | S2.5 | Normalized Metadata & Timezone Scheduling | Complete | YAML frontmatter standard, timezone-aware `isDue()`, metadata validation + haiku repair, centralized model IDs, model selector UI — [plan](sprints/m6.9-s2.5-normalized-metadata/plan.md) · [review](sprints/m6.9-s2.5-normalized-metadata/review.md) |
 | S3 | Conversation Initiation | Complete | ConversationInitiator service (`alert()`/`initiate()`), active conversation detection, outbound channel preference, morning brief integration, settings UI — [spec](../superpowers/specs/2026-03-13-conversation-initiation-design.md) · [review](sprints/m6.9-s3-conversation-initiation/review.md) |
 | S3.5 | Working Nina / Conversation Nina Refactor | Complete | Task completion notifications (`notifyOnCompletion`), debrief rename, `request_debrief` MCP tool, ResponseTimer (interim messages), alert() channel fix — [spec](../superpowers/specs/2026-03-13-s3.5-conversation-refactor-design.md) · [plan](../superpowers/plans/2026-03-13-s3.5-conversation-refactor.md) · [review](sprints/m6.9-s3.5-conversation-refactor/review.md) |
-| S4 | Agentic Task Executor | Planned | Upgrade TaskExecutor from bare `createBrainQuery` text pipe to full Agent SDK session with tool use, bash, MCP servers. Prerequisite for M7 (coding projects). |
+| S4 | Agentic Task Executor | Complete | Full Agent SDK session with tools, bash, MCP; infrastructure guard hook; extended bash blocker; per-task model override; TaskLogStorage migration; 162 tests — [plan](sprints/m6.9-s4-agentic-task-executor/plan.md) · [review](sprints/m6.9-s4-agentic-task-executor/review.md) · [test-report](sprints/m6.9-s4-agentic-task-executor/test-report.md) |
+| S5 | Tool Separation | In Progress | Restrict conversation Nina to WebSearch+WebFetch, add create_task/search_tasks/update_property MCP tools, WebUI task context, missed task detector hook — [spec](../superpowers/specs/2026-03-15-conversation-tool-separation-design.md) · [plan](sprints/m6.9-s5-tool-separation/plan.md) |
 
 **Key design decisions:**
 
@@ -765,7 +766,7 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                               (independent)   (needs redesign)
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9. All complete through M6.6. M6.9 is active (S1-S2.5 complete).
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9. All complete through M6.6. M6.9 is active (S1-S4 complete, S5 in progress).
 
 **M6.7 delivers conversation architecture.** Unified resume+systemPrompt path, 6-layer system prompt with caching, conversation lifecycle (current/inactive), channel routing (owner → Nina, external → Working Agents), asymmetric channel switching. Removes context-builder.ts and the two-branch buildQuery bug. This is the foundation for all subsequent milestones.
 
