@@ -12,7 +12,7 @@ const DEFAULT_PERSONALITY_PATH = path.resolve(
 const FRAMEWORK_SKILLS_DIR = path.resolve(import.meta.dirname, '../skills')
 
 const BRAIN_FILES = [
-  { rel: 'CLAUDE.md', header: null },
+  { rel: 'AGENTS.md', header: null },
   { rel: 'memory/core/identity.md', header: '## Identity' },
   { rel: 'memory/core/contacts.md', header: '## Key People' },
   { rel: 'memory/core/preferences.md', header: '## Preferences' },
@@ -450,7 +450,15 @@ export async function assembleSystemPrompt(
   const agentDir = path.dirname(brainDir)
 
   for (const { rel, header } of BRAIN_FILES) {
-    const content = await readOptionalFile(path.join(brainDir, rel))
+    // For AGENTS.md, fall back to CLAUDE.md during transition
+    let filePath = path.join(brainDir, rel)
+    if (rel === 'AGENTS.md' && !existsSync(filePath)) {
+      const legacyPath = path.join(brainDir, 'CLAUDE.md')
+      if (existsSync(legacyPath)) {
+        filePath = legacyPath
+      }
+    }
+    const content = await readOptionalFile(filePath)
     if (content) {
       if (header) {
         sections.push(`${header}\n\n${content.trim()}`)
