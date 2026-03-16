@@ -20,6 +20,8 @@ vi.mock("@my-agent/core", () => ({
   loadCalendarConfig: vi.fn().mockReturnValue(null),
   loadCalendarCredentials: vi.fn().mockReturnValue(null),
   loadProperties: vi.fn().mockResolvedValue(null),
+  filterSkillsByTools: vi.fn().mockResolvedValue([]),
+  cleanupSkillFilters: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
