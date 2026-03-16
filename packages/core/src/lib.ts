@@ -97,6 +97,9 @@ export { getEnvValue, setEnvValue, removeEnvValue, getAllSecrets } from './env.j
 // Skill filtering
 export { filterSkillsByTools, cleanupSkillFilters } from './skill-filter.js'
 
+// Skills health check (M6.8-S2)
+export { checkSkillsHealth } from './skills-health.js'
+
 // Utilities
 export { computeBackoff, DEFAULT_BACKOFF, DedupCache, MessageDebouncer } from './utils/index.js'
 export type { DedupOptions, DebouncerOptions, DebouncedMessage } from './utils/index.js'

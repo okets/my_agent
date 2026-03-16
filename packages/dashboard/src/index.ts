@@ -23,6 +23,7 @@ import {
   initNotebook,
   migrateToNotebook,
   needsMigration,
+  checkSkillsHealth,
 } from "@my-agent/core";
 import type { HealthChangedEvent } from "@my-agent/core";
 import { join } from "node:path";
@@ -762,6 +763,11 @@ async function main() {
       conversationManager ?? undefined,
       workLoopScheduler ?? undefined,
     );
+  }
+
+  // Startup health check: log how many skills the SDK will discover (M6.8-S2)
+  if (hatched) {
+    await checkSkillsHealth(agentDir);
   }
 
   // Initialize task search service (M6.9-S5)
