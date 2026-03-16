@@ -9,8 +9,6 @@ const DEFAULT_PERSONALITY_PATH = path.resolve(
   '../defaults/personalities/partner.md',
 )
 
-const FRAMEWORK_SKILLS_DIR = path.resolve(import.meta.dirname, '../skills')
-
 const BRAIN_FILES = [
   { rel: 'AGENTS.md', header: null },
   { rel: 'memory/core/identity.md', header: '## Identity' },
@@ -34,7 +32,7 @@ const MAX_REFERENCE_TOTAL_CHARS = 32000
 const NOTEBOOK_TREE_IGNORE = new Set(['.DS_Store', 'Thumbs.db'])
 
 // Skills whose full content should be included in the system prompt (not just commands)
-const SKILL_CONTENT_FILES = ['conversation-role.md', 'task-api.md', 'channels.md', 'notebook.md']
+const SKILL_CONTENT_FILES = ['conversation-role.md', 'notebook.md']
 
 /**
  * Format scheduled task context for inclusion in system prompt.
@@ -384,45 +382,6 @@ async function loadSkillContent(skillsDirs: string[]): Promise<string[]> {
   return sections
 }
 
-async function loadSkillDescriptions(skillsDirs: string[]): Promise<string | null> {
-  const commands: string[] = []
-
-  for (const dir of skillsDirs) {
-    let entries: string[]
-    try {
-      entries = await readdir(dir)
-    } catch {
-      continue
-    }
-    for (const entry of entries.sort()) {
-      // Try subdirectory structure: skills/*/SKILL.md
-      const skillMd = await readOptionalFile(path.join(dir, entry, 'SKILL.md'))
-      if (skillMd) {
-        const firstLine = skillMd.split('\n').find((l) => l.trim() && !l.trim().startsWith('#'))
-        if (firstLine) {
-          commands.push(`- /my-agent:${entry} — ${firstLine.trim()}`)
-        }
-        continue
-      }
-
-      // Try flat file structure: skills/*.md
-      if (entry.endsWith('.md')) {
-        const flatMd = await readOptionalFile(path.join(dir, entry))
-        if (flatMd) {
-          const skillName = entry.slice(0, -3) // Remove .md extension
-          const firstLine = flatMd.split('\n').find((l) => l.trim() && !l.trim().startsWith('#'))
-          if (firstLine) {
-            commands.push(`- /my-agent:${skillName} — ${firstLine.trim()}`)
-          }
-        }
-      }
-    }
-  }
-
-  if (commands.length === 0) return null
-  return `## Available Commands\n\n${commands.join('\n')}`
-}
-
 /** Scheduled task context for scheduler-triggered queries */
 export interface ScheduledTaskContext {
   title: string
@@ -528,17 +487,11 @@ export async function assembleSystemPrompt(
     sections.push(formatScheduledTaskContext(options.scheduledTaskContext))
   }
 
-  const skillsDirs = [FRAMEWORK_SKILLS_DIR, path.join(brainDir, 'skills')]
+  const skillsDirs = [brainDir]
 
   // Load full content of specific skills (API documentation, etc.)
   const skillContent = await loadSkillContent(skillsDirs)
   sections.push(...skillContent)
-
-  // Load skill commands list
-  const skills = await loadSkillDescriptions(skillsDirs)
-  if (skills) {
-    sections.push(skills)
-  }
 
   return sections.join('\n\n')
 }
