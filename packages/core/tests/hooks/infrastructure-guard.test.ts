@@ -28,14 +28,14 @@ function makeNullInput(): PreToolUseHookInput {
 describe('createInfrastructureGuard — blocked paths', () => {
   const guard = createInfrastructureGuard(AGENT_DIR)
 
-  it('blocks Write to brain/CLAUDE.md', async () => {
-    const result = await guard(makeInput(`${AGENT_DIR}/brain/CLAUDE.md`), 'id1', undefined as never)
+  it('blocks Write to brain/AGENTS.md', async () => {
+    const result = await guard(makeInput(`${AGENT_DIR}/brain/AGENTS.md`), 'id1', undefined as never)
     expect(result.decision).toBe('block')
   })
 
-  it('blocks Write to a file inside brain/skills/', async () => {
+  it('blocks Write to a file inside .claude/skills/', async () => {
     const result = await guard(
-      makeInput(`${AGENT_DIR}/brain/skills/core.md`),
+      makeInput(`${AGENT_DIR}/.claude/skills/scheduling/SKILL.md`),
       'id2',
       undefined as never,
     )
@@ -106,7 +106,7 @@ describe('createInfrastructureGuard — blocked paths', () => {
   })
 
   it('returns hookSpecificOutput with deny on block', async () => {
-    const result = await guard(makeInput(`${AGENT_DIR}/brain/CLAUDE.md`), 'idX', undefined as never)
+    const result = await guard(makeInput(`${AGENT_DIR}/brain/AGENTS.md`), 'idX', undefined as never)
     expect(result.hookSpecificOutput).toBeDefined()
     expect(
       (result.hookSpecificOutput as { permissionDecision: string }).permissionDecision,

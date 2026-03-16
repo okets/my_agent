@@ -46,7 +46,7 @@ describe('createBashBlocker — extended patterns (blocked)', () => {
   })
 
   it('blocks chmod 000 on a file', async () => {
-    const result = await blocker(makeInput('chmod 000 /home/user/.my_agent/brain/CLAUDE.md'), 'id6', undefined as never)
+    const result = await blocker(makeInput('chmod 000 /home/user/.my_agent/brain/AGENTS.md'), 'id6', undefined as never)
     expect(result.decision).toBe('block')
   })
 

@@ -77,12 +77,12 @@ function escapeRegex(s: string): string {
 export function createInfrastructureGuard(agentDir: string): HookCallback {
   const protectedPatterns: Array<{ pattern: RegExp; reason: string }> = [
     {
-      pattern: new RegExp(`${escapeRegex(agentDir)}/brain/CLAUDE\\.md$`),
+      pattern: new RegExp(`${escapeRegex(agentDir)}/brain/AGENTS\\.md$`),
       reason: "Identity file — conversation Nina's domain",
     },
     {
-      pattern: new RegExp(`${escapeRegex(agentDir)}/brain/skills/`),
-      reason: 'Brain-level skills — not modifiable by tasks',
+      pattern: new RegExp(`${escapeRegex(agentDir)}/\\.claude/skills/`),
+      reason: 'SDK skills directory — not modifiable by tasks',
     },
     {
       pattern: new RegExp(`${escapeRegex(agentDir)}/config\\.yaml$`),
