@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-15 (M6.9 complete — 7 sprints, knowledge lifecycle fully operational)
+> **Updated:** 2026-03-16 (M6.11 Headless App planned — next after M6.8)
 
 ---
 
@@ -22,6 +22,7 @@
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5 incl. S2.5, S3.5), 593 tests |
 | **M6.8: Skills Architecture**| Active   | S1 complete, S2 in progress |
+| **M6.11: Headless App**     | Planned  | 4 sprints (integration tests, App extraction, chat decomposition, agent verification) |
 | **M6.10: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -39,15 +40,15 @@
 M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory        M6.5 SDK
 [████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
    COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
-                                                                                                    M6.7 Two-Agent   M6.6 Lifecycle   M6.9 Knowledge   M6.8 Skills
-                                                                                                    [████████████]   [████████████]   [████████████]   [██░░░░░░░░]
-                                                                                                       COMPLETE         COMPLETE         COMPLETE          ACTIVE
-                                                                                                                                            │
-                                                                                                                                      ┌─────┴─────┐
-                                                                                                                                      ▼           ▼
-                                                                                                                         M6.10 Multimodal   M7 (redesign)  M9 (redesign)
-                                                                                                                                              [░░░░░░░░░░]                        │
-                                                                                                                                                 PLANNED                      M10 (redesign)
+                                                                                                    M6.7 Two-Agent   M6.6 Lifecycle   M6.9 Knowledge   M6.8 Skills      M6.11 Headless
+                                                                                                    [████████████]   [████████████]   [████████████]   [██░░░░░░░░]   [░░░░░░░░░░]
+                                                                                                       COMPLETE         COMPLETE         COMPLETE          ACTIVE         PLANNED
+                                                                                                                                                             │
+                                                                                                                                                       ┌─────┴─────┐
+                                                                                                                                                       ▼           ▼
+                                                                                                                                          M6.10 Multimodal   M7 (redesign)  M9 (redesign)
+                                                                                                                                                               [░░░░░░░░░░]
+                                                                                                                                                                  PLANNED                      M10 (redesign)
 ```
 
 ---
@@ -536,6 +537,33 @@ Skills come from:
 - Agent SDK Skills: `platform.claude.com/docs/en/agent-sdk/skills`
 - BMAD Method: `github.com/bmad-code-org/BMAD-METHOD`
 - OpenAI Prompt Personalities: `developers.openai.com/cookbook/examples/gpt-5/prompt_personalities`
+
+---
+
+### M6.11: Headless App — PLANNED
+
+Extract a headless `App` class from the dashboard so the application can be driven programmatically — by agents, tests, or future interfaces (mobile) — without HTTP or WebSocket transport. The web dashboard becomes a thin adapter. Business behavior gets integration tests for the first time.
+
+**Design spec:** [headless-app-design.md](superpowers/specs/2026-03-16-headless-app-design.md)
+
+| Sprint | Name | Scope | Status |
+|--------|------|-------|--------|
+| S1 | Business Layer Integration Tests | `AppHarness` + integration tests for core flows (conversation, task, channel, memory, state publishing). Capture behavior before extraction. | Planned |
+| S2 | Extract App Class | Move service ownership from Fastify decorators to `App.create()`. Break broadcast coupling. `index.ts` becomes ~50 lines. | Planned |
+| S3 | Chat Handler Decomposition | Split 900-line `chat-handler.ts` into App-owned `ChatService` + thin WS adapter. Streaming state machine extraction. | Planned |
+| S4 | Agent-Driven Verification | Agent-style test scenarios driving App directly. Prove QA agents can operate headlessly. Document headless API. | Planned |
+
+**Key design decisions:**
+
+1. **App class in existing package** — no new `packages/app/`. A new package is warranted only when there's a real second consumer.
+2. **Tests first, extract second** — S1 writes integration tests against current code. S2-S3 refactor. Tests prove zero degradation.
+3. **EventEmitter for all output** — App emits events, adapters subscribe. No direct `broadcastToAll()` calls inside business logic.
+4. **Module singletons → App-owned** — `sessionRegistry` moves to App. `connectionRegistry` stays in WS adapter (transport-specific).
+5. **No behavior changes** — purely structural. REST, WebSocket, and frontend are identical after extraction.
+
+**Baseline:** 50 test files, 476 tests (2 skipped) as of 2026-03-16.
+
+**Dependencies:** M6.8 (skills architecture — completes before this starts)
 
 ---
 
