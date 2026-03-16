@@ -28,6 +28,9 @@ import { TaskManager } from "./task-manager.js";
 import { TaskLogStorage } from "./log-storage.js";
 import { buildWorkingNinaPrompt } from "./working-nina-prompt.js";
 
+/** Working Nina's allowed tools — single source of truth for buildQuery and skill filtering */
+const WORKER_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill"];
+
 /**
  * Configuration for TaskExecutor
  */
@@ -419,7 +422,7 @@ Explain your reason in the working section above.`;
       model: brainConfig.model,
       resume: sessionId,
       cwd: taskDir,
-      tools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill"],
+      tools: WORKER_TOOLS,
       settingSources: ["project"],
       additionalDirectories: [this.agentDir],
       mcpServers: this.config.mcpServers,
@@ -490,7 +493,7 @@ Explain your reason in the working section above.`;
       model: brainConfig.model,
       systemPrompt,
       cwd: taskDir,
-      tools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill"],
+      tools: WORKER_TOOLS,
       settingSources: ["project"],
       additionalDirectories: [this.agentDir],
       mcpServers: this.config.mcpServers,

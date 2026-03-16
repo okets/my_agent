@@ -154,6 +154,9 @@ interface StreamOptions {
   reasoning?: boolean;
 }
 
+/** Conversation Nina's allowed tools — single source of truth for buildQuery and skill filtering */
+const CONVERSATION_TOOLS = ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Skill"];
+
 export class SessionManager {
   private conversationId: string;
   private channel: string = "web";
@@ -219,7 +222,7 @@ export class SessionManager {
     );
 
     // Disable skills whose required tools aren't available in Conversation Nina's session
-    this.disabledSkills = await filterSkillsByTools(agentDir, ["WebSearch", "WebFetch", "Skill"]);
+    this.disabledSkills = await filterSkillsByTools(agentDir, CONVERSATION_TOOLS);
   }
 
   async *streamMessage(
@@ -328,7 +331,7 @@ export class SessionManager {
       systemPrompt,
       cwd: this.agentDir!,
       settingSources: ["project"],
-      tools: ["WebSearch", "WebFetch", "Skill"],
+      tools: CONVERSATION_TOOLS,
       agents: {
         researcher: {
           description:
