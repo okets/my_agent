@@ -44,6 +44,10 @@ export interface BrainSessionOptions {
   tools?: string[]
   /** Whether to persist the session for resumption */
   persistSession?: boolean
+  /** SDK skill discovery: which setting sources to scan (e.g., ['project']) */
+  settingSources?: Options['settingSources']
+  /** Additional directories for SDK skill discovery (for Working Nina) */
+  additionalDirectories?: string[]
 }
 
 /** Content block types for multimodal messages */
@@ -117,6 +121,16 @@ export function createBrainQuery(prompt: PromptContent, options: BrainSessionOpt
   // Wire agentic task execution options
   if (options.cwd) queryOptions.cwd = options.cwd
   if (options.persistSession !== undefined) queryOptions.persistSession = options.persistSession
+  if (options.settingSources) {
+    queryOptions.settingSources = options.settingSources
+    // Auto-add Skill tool when SDK skill discovery is enabled
+    if (!allowedTools.includes('Skill')) {
+      allowedTools.push('Skill')
+    }
+  }
+  if (options.additionalDirectories) {
+    queryOptions.additionalDirectories = options.additionalDirectories
+  }
   console.log(`[Brain] Full queryOptions: model=${queryOptions.model}`)
   if (options.resume) {
     queryOptions.resume = options.resume

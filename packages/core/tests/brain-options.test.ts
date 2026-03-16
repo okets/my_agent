@@ -58,4 +58,28 @@ describe("createBrainQuery — extended options", () => {
     expect(capturedOptions.allowedTools).toContain("Bash");
     expect(capturedOptions.allowedTools).toContain("Read");
   });
+
+  it("passes settingSources to SDK options", () => {
+    createBrainQuery("test", {
+      model: "claude-sonnet-4-6",
+      settingSources: ["project"],
+    });
+    expect(capturedOptions.settingSources).toEqual(["project"]);
+  });
+
+  it("passes additionalDirectories to SDK options", () => {
+    createBrainQuery("test", {
+      model: "claude-sonnet-4-6",
+      additionalDirectories: ["/home/user/.my_agent"],
+    });
+    expect(capturedOptions.additionalDirectories).toEqual(["/home/user/.my_agent"]);
+  });
+
+  it("includes Skill in allowedTools when settingSources is set", () => {
+    createBrainQuery("test", {
+      model: "claude-sonnet-4-6",
+      settingSources: ["project"],
+    });
+    expect(capturedOptions.allowedTools).toContain("Skill");
+  });
 });
