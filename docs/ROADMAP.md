@@ -22,6 +22,7 @@
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5), 593 tests |
 | **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
+| **M6.10: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
 | **M9: Email Integration**    | Redesign | Redesign post-M6.7 (Working Agent routing) |
@@ -44,9 +45,9 @@ M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5
                                                                                                                                             │
                                                                                                                                       ┌─────┴─────┐
                                                                                                                                       ▼           ▼
-                                                                                                                                M7 (redesign)  M9 (redesign)
-                                                                                                                                                  │
-                                                                                                                                               M10 (redesign)
+                                                                                                                         M6.10 Multimodal   M7 (redesign)  M9 (redesign)
+                                                                                                                                              [░░░░░░░░░░]                        │
+                                                                                                                                                 PLANNED                      M10 (redesign)
 ```
 
 ---
@@ -631,6 +632,23 @@ The knowledge system gets a lifecycle. Facts are classified at extraction (perma
 
 ---
 
+### M6.10: Multimodal — PLANNED
+
+Nina goes beyond text — understanding images and voice messages, producing rich deliverables (images, artifacts, links), and speaking back via TTS.
+
+**Note:** Conversation Nina vs Working Agent responsibility split TBD after M6.8 (skills architecture will clarify routing).
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Rich Input | Planned | Verify/fix image passthrough (dashboard + WhatsApp). Voice messages: STT (Whisper or similar) → text → Claude. Both channels. |
+| S2 | Rich Output | Planned | Asset storage + serving (`/assets/:taskId/`), deliverable type schema (text/image/html), image inline rendering in chat, link delivery. Both channels. |
+| S3 | Micro-websites | Planned *(nice-to-have)* | Iframe rendering for task-generated HTML artifacts in dashboard chat. Only if straightforward. |
+| S4 | Voice Mode | Planned | TTS on Conversation Nina responses. Dashboard audio playback + WhatsApp voice note replies. |
+
+**Dependencies:** M6.8 (skills architecture — determines how multimodal capabilities route between conversation and worker agents)
+
+---
+
 ### M7: Coding Projects — NEEDS REDESIGN
 
 Autonomous coding projects. Original design predates M6.7's two-agent architecture.
@@ -643,7 +661,7 @@ Autonomous coding projects. Original design predates M6.7's two-agent architectu
 - Internal self-development projects are Working Agents spawned by the work loop
 - Session streaming and `/whats-next` deliverables are still valid
 
-**Dependencies:** M6.6 (agentic lifecycle — work loop powers autonomous project spawning)
+**Dependencies:** M6.6 (agentic lifecycle — work loop powers autonomous project spawning), M6.10 (rich deliverables for code output)
 
 ---
 
@@ -721,6 +739,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | settingSources       | Revised  | M6.5, M6.8  | [design/settings-sources-evaluation.md](design/settings-sources-evaluation.md) |
 | Two-Agent Refactor   | Approved | M6.7        | [plans/2026-03-04-conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Skills Architecture  | Idea     | M6.8        | TBD at [design/skills-architecture.md](design/skills-architecture.md) |
+| Multimodal           | Idea     | M6.10       | TBD — rich input/output, voice mode, asset serving |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
 | Knowledge Lifecycle  | Approved | M6.9        | [sprints/m6.6-s6-knowledge-lifecycle/design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md) |
 | Trip Mode & Verification Pipeline | Complete | Process | [superpowers/specs/2026-03-12-trip-mode-verification-pipeline-design.md](superpowers/specs/2026-03-12-trip-mode-verification-pipeline-design.md) |
@@ -754,16 +773,19 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                           M6.6 Agentic Lifecycle (+ M8 absorbed)        │
                                                                       │                                 │
                                                                       ▼                                 │
-                                                           M6.9 Knowledge Lifecycle ◄── ACTIVE          │
+                                                           M6.9 Knowledge Lifecycle (COMPLETE)           │
                                                                       │                                 │
                                                                ┌──────┴──────┐                          │
                                                                ▼             ▼                          │
-                                                     M7 Coding Projects   M9 Email ◄───────────────────┘
-                                                       (needs redesign)     (needs redesign)
-                                                                              │
-                                                               M6.8 Skills    ▼
-                                                              Architecture  M10 External Comms
-                                                              (independent)   (needs redesign)
+                                                        M6.8 Skills       M9 Email ◄───────────────────┘
+                                                        Architecture        (needs redesign)
+                                                               │              │
+                                                               ▼              ▼
+                                                        M6.10 Multimodal  M10 External Comms
+                                                               │            (needs redesign)
+                                                               ▼
+                                                        M7 Coding Projects
+                                                          (needs redesign)
 ```
 
 **Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9. All complete.
@@ -772,11 +794,13 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
 
 **M6.6 built on M6.7 only.** `current-state.md` injected via `loadNotebookOperations()`. `work-patterns.md` lives in `notebook/config/` (not prompt-injected). No M6.8 dependency.
 
-**M6.8 is independent.** Skills architecture can happen before or after M6.9. It provides the general-purpose responsibility loading that M7 and M9 will eventually need.
+**M6.8 is next.** Skills architecture provides the general-purpose responsibility loading that M7 and M9 will eventually need. Also determines how multimodal capabilities route between conversation and worker agents.
+
+**M6.10 follows M6.8.** Multimodal capabilities (rich input, rich output, voice mode). Conversation/worker split TBD after M6.8 clarifies skill routing.
+
+**M7 requires M6.6 + M6.10:** Autonomous coding projects are triggered by the work loop. Rich deliverables from M6.10 enable code output beyond text. M7 will extend the `work-patterns.md` schema to support dynamic responsibility spawning.
 
 **M9 builds on M6.7 + M6.6.** Email integration uses M6.7's external contact routing and M6.6's work loop for email monitoring responsibilities.
-
-**M7 requires M6.6:** Autonomous coding projects are triggered by the work loop. M7 will extend the `work-patterns.md` schema to support dynamic responsibility spawning.
 
 **M8 absorbed into M6.6:** System calendar provides work loop visibility. Most dashboard already exists from M5-S10 and M6.
 

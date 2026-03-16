@@ -35,3 +35,6 @@ prototypes/calendar/radicale-venv/
 prototypes/calendar/radicale-data/
 prototypes/calendar/node_modules/
 .worktrees/
+
+# Superpowers brainstorm artifacts
+.superpowers/
