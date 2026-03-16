@@ -57,15 +57,21 @@ Identity/memory/calendar assembly is unchanged. Skill loading moves from `prompt
 ```typescript
 const queryOptions: Options = {
   systemPrompt: resolvedSystemPrompt,
-  settingSources: ['project'],
-  settings: {
-    claudeMdExcludes: ['**/CLAUDE.md'],
-  },
+  settingSources: ['project'],             // loads .my_agent/.claude/settings.json
   allowedTools: [...existingTools, 'Skill'],
-  cwd: agentDir,                              // .my_agent/
+  cwd: agentDir,                           // .my_agent/
   // ...existing options
 }
 ```
+
+**Settings file** (`.my_agent/.claude/settings.json`):
+```json
+{
+  "claudeMdExcludes": ["**/CLAUDE.md"]
+}
+```
+
+> **Note:** `claudeMdExcludes` is a settings-file feature, not a programmatic SDK option. It is loaded via `settingSources: ['project']` from `{cwd}/.claude/settings.json`.
 
 > **✅ Validated via live SDK testing (2026-03-15).** Confirmed:
 > - `settingSources: ['project']` + `cwd: .my_agent/` discovers skills from `.my_agent/.claude/skills/`
@@ -74,13 +80,36 @@ const queryOptions: Options = {
 > - Skills must be flat under `.claude/skills/<name>/SKILL.md` (no subdirectory nesting)
 > - Symlinks work transparently
 
+### Skill-Tool Filtering
+
+Conversation Nina and Working Nina share a single skill pool. However, Conversation Nina has a restricted tool set (no Write, Edit, Bash, etc.). If she invokes a skill like "debugging" that instructs her to use tools she doesn't have, she'll produce confused output.
+
+**Solution:** At session startup, before the first `query()` call, filter skills based on tool compatibility:
+
+1. Scan `.my_agent/.claude/skills/*/SKILL.md`
+2. Read `allowed-tools` from each skill's YAML frontmatter
+3. Compare against the session's `allowedTools` list
+4. For any skill where `allowed-tools` contains tools NOT in the session's tool set, write `disable-model-invocation: true` to the skill's frontmatter file
+5. Skills without an `allowed-tools` field are always visible (backwards compatible)
+
+The SDK honors `disable-model-invocation: true` natively — the skill is excluded from the context list. This is the same mechanism the dashboard notebook UI will use for global skill toggles (S6).
+
+**Soft fallback:** AGENTS.md includes a guardrail for edge cases where a skill doesn't declare `allowed-tools`:
+
+> "If you invoke a skill that references tools you don't have (Write, Edit, Bash, etc.), delegate the work to a task instead of attempting it yourself."
+
+**Cleanup:** After the session ends (or before the next session starts), any `disable-model-invocation` flags set dynamically should be removed so the skill is available for sessions that do have the required tools. In practice, Working Nina sessions have all tools, so filtering only disables skills for Conversation Nina.
+
 ### Skill Discovery Flow
 
 ```
 Session starts
+  ├── Skill-tool filtering: scan SKILL.md frontmatter, compare allowed-tools
+  │   against session's allowedTools, set disable-model-invocation on mismatches
   ├── SDK scans {cwd}/.claude/skills/ (.my_agent/.claude/skills/)
   ├── Reads YAML frontmatter (name, description) from each SKILL.md
-  ├── Injects skill list into context (names + descriptions only)
+  ├── Skips skills with disable-model-invocation: true
+  ├── Injects remaining skill list into context (names + descriptions only)
   └── Full SKILL.md content loads on-demand when Skill tool is invoked
 
 During conversation:
@@ -88,6 +117,9 @@ During conversation:
   ├── Decides relevance based on current context
   ├── Invokes Skill tool → full content loaded
   └── Dashboard shows tag for user-generated skills
+
+Session ends:
+  └── Clean up: remove disable-model-invocation flags set during filtering
 ```
 
 ---
@@ -162,6 +194,7 @@ Each skill directory:
 name: skill-name
 description: One-line description — used by SDK for discovery and by notebook for search
 origin: system | user-generated
+allowed-tools: [Write, Edit, Bash, Glob, Grep]  # optional — tools this skill requires
 ---
 
 # Skill content (markdown)
@@ -169,11 +202,13 @@ origin: system | user-generated
 Instructions for the LLM when this skill is invoked.
 ```
 
-- **`name`** — human-readable skill name
-- **`description`** — keyword-rich, specific. This is what the LLM reads to decide relevance. Quality matters.
-- **`origin`** — `system` skills ship with my_agent and are not shown as tags. `user` skills are created by Nina or the user and appear as toggleable tags in chat. Frontmatter is authoritative (no directory-based grouping — SDK requires flat structure).
+- **`name`** — human-readable skill name (required)
+- **`description`** — keyword-rich, specific. This is what the LLM reads to decide relevance. Quality matters. (required)
+- **`origin`** — `system` skills ship with my_agent and are not shown as tags. `user` skills are created by Nina or the user and appear as toggleable tags in chat. Frontmatter is authoritative (no directory-based grouping — SDK requires flat structure). (required)
+- **`allowed-tools`** — list of tools the skill requires. Used by skill-tool filtering at session startup: if the session doesn't have these tools, the skill is hidden via `disable-model-invocation: true`. Skills without this field are always visible. (recommended)
+- **`disable-model-invocation`** — SDK-native field. When `true`, the skill is excluded from context. Set dynamically by skill-tool filtering and by the notebook UI's global toggle (S6). Should not be set manually in committed files.
 
-Optional frontmatter fields from the SDK spec (`allowed-tools`, `disable-model-invocation`, etc.) are supported but not required.
+Other optional frontmatter fields from the SDK spec are supported but not required.
 
 ---
 
@@ -365,8 +400,9 @@ AFTER (M6.8):
 ### What changes in brain.ts
 
 - Add `settingSources: ['project']` to query options
-- Add `settings: { claudeMdExcludes: ['**/CLAUDE.md'] }` to query options
+- Create `.my_agent/.claude/settings.json` with `claudeMdExcludes` (settings-file feature, not programmatic)
 - Add `'Skill'` to `allowedTools`
+- Add skill-tool filtering at session startup (scan `allowed-tools` frontmatter, set `disable-model-invocation` on incompatible skills)
 - Conversation Nina: `cwd` stays as `.my_agent/` (skill discovery works directly)
 - Working Nina: `cwd` stays as `taskDir`, add `additionalDirectories: [agentDir]` for skill discovery (no breaking changes). **Fallback:** if `additionalDirectories` does not trigger skill discovery reliably, symlink `.my_agent/.claude/skills/` into each task directory's `.claude/skills/` at task creation time (in `TaskExecutor.createTaskDir()` or equivalent). Test both approaches in S1 Phase 2.
 
