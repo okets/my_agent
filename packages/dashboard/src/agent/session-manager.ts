@@ -164,6 +164,7 @@ export class SessionManager {
   private messageIndex = 0;
   private promptBuilder: SystemPromptBuilder | null = null;
   private activeTaskContext: { taskId: string; title: string } | null = null;
+  private agentDir: string | null = null;
 
   constructor(conversationId: string, sdkSessionId?: string | null) {
     this.conversationId = conversationId;
@@ -198,6 +199,7 @@ export class SessionManager {
     this.config = loadConfig();
 
     const agentDir = this.config.brainDir.replace(/\/brain$/, "");
+    this.agentDir = agentDir;
 
     // Use shared SystemPromptBuilder (initialized in index.ts), fall back to local instance
     this.promptBuilder =
@@ -318,7 +320,9 @@ export class SessionManager {
     const opts: BrainSessionOptions = {
       model,
       systemPrompt,
-      tools: ["WebSearch", "WebFetch"],
+      cwd: this.agentDir!,
+      settingSources: ["project"] as any,
+      tools: ["WebSearch", "WebFetch", "Skill"],
       agents: {
         researcher: {
           description:
