@@ -10,9 +10,11 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 SOURCE_DIR="$PROJECT_DIR/.claude/skills"
 TARGET_DIR="$HOME/.claude/skills"
 
-if [ ! -d "$SOURCE_DIR" ]; then
-  echo "Error: Source skills directory not found: $SOURCE_DIR"
-  exit 1
+if [ ! -d "$SOURCE_DIR" ] || [ -z "$(ls -A "$SOURCE_DIR" 2>/dev/null)" ]; then
+  echo "No developer skills found in $SOURCE_DIR"
+  echo "Skills may have already been moved to $TARGET_DIR"
+  ls "$TARGET_DIR" 2>/dev/null && echo "" && echo "User-level skills are already installed."
+  exit 0
 fi
 
 mkdir -p "$TARGET_DIR"
