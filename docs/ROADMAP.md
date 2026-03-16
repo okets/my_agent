@@ -21,7 +21,7 @@
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5 incl. S2.5, S3.5), 593 tests |
-| **M6.8: Skills Architecture**| Active   | 1/6 sprints (S1 AGENTS.md rename), design spec approved |
+| **M6.8: Skills Architecture**| Active   | S1 complete, S2 in progress |
 | **M6.10: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -466,7 +466,7 @@ Adopt the Agent Skills Standard and SDK native skill discovery. Skills become th
 | Sprint | Name | Scope | Status |
 |--------|------|-------|--------|
 | S1 | AGENTS.md Rename | Rename `brain/CLAUDE.md` → `brain/AGENTS.md`, update all references, fallback for transition, `.claude/skills/` directory structure | Complete — [plan](sprints/m6.8-s1-agents-md-rename/plan.md) [review](sprints/m6.8-s1-agents-md-rename/review.md) |
-| S2 | SDK Skill Discovery | Enable `settingSources: ['project']`, `claudeMdExcludes`, `Skill` tool, `additionalDirectories`, migrate skills, startup health check | Planned |
+| S2 | SDK Skill Discovery | Enable `settingSources: ['project']`, `claudeMdExcludes`, `Skill` tool, `additionalDirectories`, migrate skills, startup health check | Active |
 | S3 | Seed Skills | Extract operational skills from hardcoded logic: knowledge curation, morning sequence, task triage, scheduling | Planned |
 | S4 | Curated Library | Adapt Superpowers + BMAD skills, strip personas, keep procedures | Planned |
 | S5 | Skill Creator | MCP tools (create/update/delete), responsibility flow, corrections/lessons | Planned |
