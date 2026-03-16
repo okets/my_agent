@@ -154,24 +154,24 @@ export async function getPersonalities(): Promise<PersonalityOption[]> {
 export async function applyPersonality(agentDir: string, filename: string): Promise<void> {
   const brainDir = path.join(agentDir, 'brain')
   await mkdir(brainDir, { recursive: true })
-  const claudeMdPath = path.join(brainDir, 'CLAUDE.md')
+  const agentsMdPath = path.join(brainDir, 'AGENTS.md')
   const sourcePath = path.resolve(PERSONALITIES_DIR, `${filename}.md`)
   if (!sourcePath.startsWith(PERSONALITIES_DIR)) {
     throw new Error(`Invalid personality filename: ${filename}`)
   }
-  await copyFile(sourcePath, claudeMdPath)
+  await copyFile(sourcePath, agentsMdPath)
 }
 
 export async function writeCustomPersonality(agentDir: string, text: string): Promise<void> {
   const brainDir = path.join(agentDir, 'brain')
   await mkdir(brainDir, { recursive: true })
-  const claudeMdPath = path.join(brainDir, 'CLAUDE.md')
+  const agentsMdPath = path.join(brainDir, 'AGENTS.md')
   const customPath = path.join(PERSONALITIES_DIR, 'custom.md')
   const template = await readFile(customPath, 'utf-8')
 
   // Replace the placeholder or append to template
   const content = text.trim() ? text : template
-  await writeFile(claudeMdPath, content, 'utf-8')
+  await writeFile(agentsMdPath, content, 'utf-8')
 }
 
 // ── Auth ──
@@ -196,8 +196,8 @@ export { validateSetupToken }
 
 // ── Operating Rules ──
 // NOTE: Operating rules are OPERATIONAL instructions, not identity.
-// They live in notebook/reference/standing-orders.md, NOT in brain/CLAUDE.md.
-// brain/CLAUDE.md is for identity only: who you are, your voice, your philosophy.
+// They live in notebook/reference/standing-orders.md, NOT in brain/AGENTS.md.
+// brain/AGENTS.md is for identity only: who you are, your voice, your philosophy.
 
 export interface OperatingRulesData {
   autonomy: string

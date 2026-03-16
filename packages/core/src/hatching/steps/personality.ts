@@ -66,16 +66,16 @@ export const personalityStep: HatchingStep = {
 
     const brainDir = path.join(agentDir, 'brain')
     await mkdir(brainDir, { recursive: true })
-    const claudeMdPath = path.join(brainDir, 'CLAUDE.md')
+    const agentsMdPath = path.join(brainDir, 'AGENTS.md')
 
     if (choice >= 1 && choice <= personalities.length) {
       const selected = personalities[choice - 1]
-      await copyFile(selected.filePath, claudeMdPath)
+      await copyFile(selected.filePath, agentsMdPath)
       console.log(`\n${selected.name} personality applied.`)
     } else {
       const customPath = path.join(PERSONALITIES_DIR, 'custom.md')
-      await copyFile(customPath, claudeMdPath)
-      console.log('\nCustom template copied to brain/CLAUDE.md — edit it to make it yours.')
+      await copyFile(customPath, agentsMdPath)
+      console.log('\nCustom template copied to brain/AGENTS.md — edit it to make it yours.')
     }
   },
 }
