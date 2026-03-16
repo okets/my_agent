@@ -3,6 +3,8 @@ import {
   loadConfig,
   createHooks,
   createMemoryServer,
+  filterSkillsByTools,
+  cleanupSkillFilters,
 } from "@my-agent/core";
 import type {
   Query,
@@ -165,6 +167,7 @@ export class SessionManager {
   private promptBuilder: SystemPromptBuilder | null = null;
   private activeTaskContext: { taskId: string; title: string } | null = null;
   private agentDir: string | null = null;
+  private disabledSkills: string[] = [];
 
   constructor(conversationId: string, sdkSessionId?: string | null) {
     this.conversationId = conversationId;
@@ -214,6 +217,9 @@ export class SessionManager {
     console.log(
       `[SessionManager] Initialized (trust: brain, dir: ${agentDir})`,
     );
+
+    // Disable skills whose required tools aren't available in Conversation Nina's session
+    this.disabledSkills = await filterSkillsByTools(agentDir, ["WebSearch", "WebFetch", "Skill"]);
   }
 
   async *streamMessage(
@@ -369,6 +375,10 @@ export class SessionManager {
   async abort(): Promise<void> {
     if (this.activeQuery) {
       await this.activeQuery.interrupt();
+    }
+    if (this.disabledSkills.length > 0 && this.agentDir) {
+      await cleanupSkillFilters(this.agentDir, this.disabledSkills);
+      this.disabledSkills = [];
     }
   }
 }

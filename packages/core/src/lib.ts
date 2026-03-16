@@ -94,6 +94,9 @@ export type {
 // Env utility
 export { getEnvValue, setEnvValue, removeEnvValue, getAllSecrets } from './env.js'
 
+// Skill filtering
+export { filterSkillsByTools, cleanupSkillFilters } from './skill-filter.js'
+
 // Utilities
 export { computeBackoff, DEFAULT_BACKOFF, DedupCache, MessageDebouncer } from './utils/index.js'
 export type { DedupOptions, DebouncerOptions, DebouncedMessage } from './utils/index.js'

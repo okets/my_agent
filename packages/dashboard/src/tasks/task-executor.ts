@@ -12,6 +12,8 @@ import {
   createCalDAVClient,
   loadCalendarConfig,
   loadCalendarCredentials,
+  filterSkillsByTools,
+  cleanupSkillFilters,
 } from "@my-agent/core";
 import type {
   Task,
@@ -168,6 +170,11 @@ export class TaskExecutor {
       this.logStorage.createLog(task.id, task.sessionId, task.title);
     }
 
+    // Filter skills incompatible with Working Nina's tool set (no-op when all tools present)
+    const disabledSkills = await filterSkillsByTools(this.agentDir, [
+      "Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill",
+    ]);
+
     try {
       // 3. Load prior context for recurring tasks
       const priorContext = await this.loadPriorContext(task);
@@ -259,6 +266,10 @@ export class TaskExecutor {
         deliverable: null,
         error: errorMessage,
       };
+    } finally {
+      if (disabledSkills.length > 0) {
+        await cleanupSkillFilters(this.agentDir, disabledSkills);
+      }
     }
   }
 
