@@ -97,4 +97,8 @@ describeIf('Level 3: triage routing decisions (live LLM)', () => {
   it('delegates tasks with delivery actions', async () => {
     await assertRouting('Research Tokyo restaurants and send me the list on WhatsApp', 'DELEGATE')
   }, 30000)
+
+  it('answers memory recall directly', async () => {
+    await assertRouting('Do you remember where I\'m traveling next?', 'DIRECT')
+  }, 30000)
 })

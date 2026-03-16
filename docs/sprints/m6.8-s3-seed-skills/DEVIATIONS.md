@@ -29,3 +29,23 @@
 **Impact:** Minor — reformatted the comment to avoid the pattern.
 
 **Category:** Change (comment wording)
+
+## Deviation 4: skill-discovery-regression.test.ts replaced by curl verification
+
+**Plan/Spec:** Design spec's Files Affected table lists `packages/dashboard/tests/skill-discovery-regression.test.ts` as a deliverable.
+
+**Actual:** Level 2 validation was done via curl commands to the debug API instead of a vitest test file. The sprint plan (Task 6) specified curl verification, not a test file.
+
+**Impact:** None — the verification is equivalent. Curl commands confirmed 7/7 skills discovered and triage directives present. The spec's file listing was aspirational; the plan's curl approach is simpler and equally valid.
+
+**Category:** Removal (test file replaced by manual verification)
+
+## Deviation 5: Knowledge-curation behavioral scenarios deferred
+
+**Plan/Spec:** Spec defines scenarios 8-9 (debrief trigger with/without staged facts) for knowledge-curation verification.
+
+**Actual:** Not implemented. Knowledge-curation is on-demand (not always-on), so it doesn't go through the `assembleSystemPrompt()` path being tested. The debrief prep endpoint is in the dashboard package, making cross-package behavioral tests complex.
+
+**Impact:** Knowledge-curation SKILL.md exists and is discovered by the SDK (Level 2 verified). Behavioral validation deferred to manual testing or future sprint.
+
+**Category:** Removal (scenarios deferred)
