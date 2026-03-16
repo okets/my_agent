@@ -69,7 +69,7 @@ export const operatingRulesStep: HatchingStep = {
       console.log('Invalid choice, please try again.')
     }
 
-    // Operating rules are OPERATIONAL, not identity — write to standing-orders, not CLAUDE.md
+    // Operating rules are OPERATIONAL, not identity — write to standing-orders, not AGENTS.md
     const notebookDir = path.join(agentDir, 'notebook', 'reference')
     await mkdir(notebookDir, { recursive: true })
     const standingOrdersPath = path.join(notebookDir, 'standing-orders.md')
