@@ -225,11 +225,16 @@ export async function registerDebugRoutes(
     const components: Record<string, { source: string; chars: number } | null> =
       {};
 
-    // Personality (CLAUDE.md)
+    // Personality (AGENTS.md, with CLAUDE.md fallback for transition)
     try {
-      const content = await readFile(join(brainDir, "CLAUDE.md"), "utf-8");
+      let content: string;
+      try {
+        content = await readFile(join(brainDir, "AGENTS.md"), "utf-8");
+      } catch {
+        content = await readFile(join(brainDir, "CLAUDE.md"), "utf-8");
+      }
       components.personality = {
-        source: "brain/CLAUDE.md",
+        source: "brain/AGENTS.md",
         chars: content.length,
       };
     } catch {
@@ -385,8 +390,8 @@ export async function registerDebugRoutes(
     const frameworkSkills = await loadSkills(frameworkSkillsDir, "framework");
 
     // User skills
-    const userSkillsDir = join(brainDir, "skills");
-    const userSkills = await loadSkills(userSkillsDir, "user");
+    const sdkSkillsDir = join(agentDir, ".claude", "skills");
+    const userSkills = await loadSkills(sdkSkillsDir, "sdk");
 
     return {
       framework: frameworkSkills,
