@@ -21,7 +21,7 @@
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5), 593 tests |
-| **M6.8: Skills Architecture**| Planned  | Idea complete, design spec TBD, 3 sprints |
+| **M6.8: Skills Architecture**| Active   | 1/6 sprints (S1 AGENTS.md rename), design spec approved |
 | **M6.10: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -456,18 +456,21 @@ Adopt the Agent Skills Standard and SDK native skill discovery. Skills become th
 - [skills-roadmap-integration.md](ideas/skills-roadmap-integration.md) — Roadmap integration proposal
 - [bmad-skills-integration.md](ideas/bmad-skills-integration.md) — BMAD compatibility analysis
 
-**Design spec:** TBD at `design/skills-architecture.md` — required before sprints begin
+**Design spec:** [skills-architecture-design.md](superpowers/specs/2026-03-15-skills-architecture-design.md)
 
 **Pre-sprint validation tasks:**
 
-- [ ] Validate `settingSources: ['project']` behavior with custom `systemPrompt` string — does SDK load CLAUDE.md? Does it walk up parent directories? Are skills discovered correctly?
+- [x] Validate `settingSources: ['project']` behavior with custom `systemPrompt` string — validated 2026-03-15
 - [ ] Verify hatching process creates proper personality files aligned with OpenAI's approach — personality defines HOW (tone, style), not WHAT (capabilities). Ensure guardrail against skill identity override is present.
 
-| Sprint | Name | Scope |
-|--------|------|-------|
-| S1 | Skill Format + Migration | YAML frontmatter standard, migrate existing skills to `.my_agent/.claude/skills/`, resolve settingSources double-loading (validate custom systemPrompt + settingSources coexistence), update prompt.ts to stop injecting skill content |
-| S2 | SDK Integration + Routing | Enable `settingSources: ['project']` + `Skill` tool in brain.ts, cwd-based skill routing (Conversation Nina vs Working Agents), personality guardrail in CLAUDE.md, skill authoring guidelines |
-| S3 | Community Skills + Validation | BMAD technique library adoption (100 methods as reference data), community skill installation path, E2E tests for skill loading in both agent contexts, skill authoring guide |
+| Sprint | Name | Scope | Status |
+|--------|------|-------|--------|
+| S1 | AGENTS.md Rename | Rename `brain/CLAUDE.md` → `brain/AGENTS.md`, update all references, fallback for transition, `.claude/skills/` directory structure | Complete — [plan](sprints/m6.8-s1-agents-md-rename/plan.md) [review](sprints/m6.8-s1-agents-md-rename/review.md) |
+| S2 | SDK Skill Discovery | Enable `settingSources: ['project']`, `claudeMdExcludes`, `Skill` tool, `additionalDirectories`, migrate skills, startup health check | Planned |
+| S3 | Seed Skills | Extract operational skills from hardcoded logic: knowledge curation, morning sequence, task triage, scheduling | Planned |
+| S4 | Curated Library | Adapt Superpowers + BMAD skills, strip personas, keep procedures | Planned |
+| S5 | Skill Creator | MCP tools (create/update/delete), responsibility flow, corrections/lessons | Planned |
+| S6 | Dashboard UI + Validation | Notebook skills section, full E2E validation | Planned |
 
 **Key design decisions (2026-03-04):**
 
