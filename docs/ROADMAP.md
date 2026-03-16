@@ -20,7 +20,7 @@
 | **M6.5: Agent SDK Alignment**| Complete | 4/4 sprints, 10 pass, 2 N/A           |
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
-| **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5), 593 tests |
+| **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5 incl. S2.5, S3.5), 593 tests |
 | **M6.8: Skills Architecture**| Active   | 1/6 sprints (S1 AGENTS.md rename), design spec approved |
 | **M6.10: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
@@ -40,8 +40,8 @@ M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5
 [████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
    COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
                                                                                                     M6.7 Two-Agent   M6.6 Lifecycle   M6.9 Knowledge   M6.8 Skills
-                                                                                                    [████████████]   [████████████]   [████████████]   [░░░░░░░░░░]
-                                                                                                       COMPLETE         COMPLETE         COMPLETE         PLANNED
+                                                                                                    [████████████]   [████████████]   [████████████]   [██░░░░░░░░]
+                                                                                                       COMPLETE         COMPLETE         COMPLETE          ACTIVE
                                                                                                                                             │
                                                                                                                                       ┌─────┴─────┐
                                                                                                                                       ▼           ▼
@@ -446,7 +446,7 @@ Conversation Nina becomes a resumable long-lived session with a system prompt re
 
 ---
 
-### M6.8: Skills Architecture — PLANNED
+### M6.8: Skills Architecture — ACTIVE
 
 Adopt the Agent Skills Standard and SDK native skill discovery. Skills become the primary mechanism for extending Nina's capabilities — conversation skills for the brain, worker skills for task agents.
 
