@@ -319,6 +319,16 @@ export class SessionManager {
       model,
       systemPrompt,
       tools: ["WebSearch", "WebFetch"],
+      agents: {
+        researcher: {
+          description:
+            "Read-only helper for quick lookups — reading files, searching code, gathering context. Never makes changes.",
+          prompt:
+            "You are a read-only research helper. Read files, search code, gather context. Return a concise summary. Never write, edit, or execute commands.",
+          tools: ["Read", "Glob", "Grep", "WebSearch", "WebFetch"],
+          model: "haiku",
+        },
+      },
       includePartialMessages: true,
       reasoning,
       hooks: this.hooks ?? undefined,
