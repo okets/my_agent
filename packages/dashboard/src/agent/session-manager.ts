@@ -327,7 +327,7 @@ export class SessionManager {
       model,
       systemPrompt,
       cwd: this.agentDir!,
-      settingSources: ["project"] as any,
+      settingSources: ["project"],
       tools: ["WebSearch", "WebFetch", "Skill"],
       agents: {
         researcher: {
