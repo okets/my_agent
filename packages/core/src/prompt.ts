@@ -34,7 +34,7 @@ const MAX_REFERENCE_TOTAL_CHARS = 32000
 const NOTEBOOK_TREE_IGNORE = new Set(['.DS_Store', 'Thumbs.db'])
 
 // Skills whose full content should be included in the system prompt (not just commands)
-const SKILL_CONTENT_FILES = ['task-api.md', 'channels.md', 'notebook.md']
+const SKILL_CONTENT_FILES = ['conversation-role.md', 'task-api.md', 'channels.md', 'notebook.md']
 
 /**
  * Format scheduled task context for inclusion in system prompt.
