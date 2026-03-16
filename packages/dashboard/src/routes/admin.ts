@@ -130,12 +130,15 @@ export async function registerAdminRoutes(
       // Doesn't exist
     }
 
-    // Remove brain/CLAUDE.md
-    try {
-      await unlink(join(agentDir, "brain/CLAUDE.md"));
-      removed.push("brain/CLAUDE.md");
-    } catch {
-      // Doesn't exist
+    // Remove brain/AGENTS.md (or legacy brain/CLAUDE.md)
+    for (const identityFile of ["brain/AGENTS.md", "brain/CLAUDE.md"]) {
+      try {
+        await unlink(join(agentDir, identityFile));
+        removed.push(identityFile);
+        break; // Only one should exist
+      } catch {
+        // Doesn't exist, try next
+      }
     }
 
     // Remove brain/memory/core/ contents
