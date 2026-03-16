@@ -27,7 +27,7 @@ async function createDirectoryStructure(agentDir: string): Promise<void> {
     agentDir,
     path.join(agentDir, 'brain'),
     path.join(agentDir, 'brain', 'memory', 'core'),
-    path.join(agentDir, 'brain', 'skills'),
+    path.join(agentDir, '.claude', 'skills'),
   ]
   for (const dir of dirs) {
     await mkdir(dir, { recursive: true })
