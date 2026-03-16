@@ -74,7 +74,7 @@ describe("S1: Context Foundation", () => {
   // Test 3: Skills loaded into system prompt (notebook.md or any skill content)
   it("loads skills content into system prompt", async () => {
     const { assembleSystemPrompt } = await import("@my-agent/core");
-    // assembleSystemPrompt is responsible for loading skills from brain/skills/
+    // assembleSystemPrompt is responsible for loading identity from brain/AGENTS.md
     vi.mocked(assembleSystemPrompt).mockResolvedValue(
       "## Identity\nYou are an assistant.\n\n## Skills\n### notebook.md\nYou can manage a notebook.\n",
     );
