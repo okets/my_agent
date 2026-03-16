@@ -21,35 +21,46 @@ import type {
   ViewContext,
 } from "./protocol.js";
 
-// Framework skills directory (relative to packages/dashboard/src/ws/)
-const FRAMEWORK_SKILLS_DIR = path.resolve(
-  import.meta.dirname,
-  "../../../core/skills",
-);
+// Skills directories: SDK skills (primary) + framework skills (fallback)
+function getSkillsDirs(agentDir: string): string[] {
+  return [
+    path.join(agentDir, ".claude", "skills"),
+    path.resolve(import.meta.dirname, "../../../core/skills"),
+  ];
+}
 
 /**
  * Load skill content for /my-agent:* commands
- * Returns null if skill not found
+ * Searches SDK skills first, then framework skills
  */
-async function loadSkillContent(skillName: string): Promise<string | null> {
-  const skillPath = path.join(FRAMEWORK_SKILLS_DIR, skillName, "SKILL.md");
-  try {
-    return await readFile(skillPath, "utf-8");
-  } catch {
-    return null;
+async function loadSkillContent(
+  skillName: string,
+  agentDir: string,
+): Promise<string | null> {
+  for (const dir of getSkillsDirs(agentDir)) {
+    const skillPath = path.join(dir, skillName, "SKILL.md");
+    try {
+      return await readFile(skillPath, "utf-8");
+    } catch {
+      continue;
+    }
   }
+  return null;
 }
 
 /**
  * Expand /my-agent:* commands in message content
  * Returns expanded content with skill instructions prepended
  */
-async function expandSkillCommand(content: string): Promise<string> {
+async function expandSkillCommand(
+  content: string,
+  agentDir: string,
+): Promise<string> {
   const match = content.match(/^\/my-agent:(\S+)/);
   if (!match) return content;
 
   const skillName = match[1];
-  const skillContent = await loadSkillContent(skillName);
+  const skillContent = await loadSkillContent(skillName, agentDir);
 
   if (!skillContent) {
     // Skill not found, return original
@@ -978,7 +989,7 @@ export async function registerChatWebSocket(
       // ── Normal message processing ───────────────────────────────────
 
       // Expand /my-agent:* skill commands (inject skill content)
-      const expandedContent = await expandSkillCommand(content);
+      const expandedContent = await expandSkillCommand(content, fastify.agentDir);
       const isSkillCommand = expandedContent !== content;
       if (isSkillCommand) {
         fastify.log.info(`Expanded skill command in message`);
