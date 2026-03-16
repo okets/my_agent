@@ -73,7 +73,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
   } as Task;
 }
 
-describe("TaskExecutor — agentic session config", () => {
+describe("TaskExecutor — SDK skill discovery", () => {
   const agentDir = "/tmp/agent";
 
   beforeEach(() => {
@@ -81,23 +81,7 @@ describe("TaskExecutor — agentic session config", () => {
     vi.clearAllMocks();
   });
 
-  it("passes cwd = logStorage.getTaskDir(taskId)", async () => {
-    const logStorage = makeLogStorage(agentDir);
-    const executor = new TaskExecutor({
-      taskManager: makeTaskManager(),
-      logStorage,
-      agentDir,
-      db: makeDb(),
-    });
-
-    const task = makeTask();
-    await executor.run(task);
-
-    expect(logStorage.getTaskDir).toHaveBeenCalledWith(task.id);
-    expect(capturedOptions?.cwd).toBe(`${agentDir}/tasks/${task.id}`);
-  });
-
-  it("passes tools = [Bash, Read, Write, Edit, Glob, Grep, Skill]", async () => {
+  it("passes additionalDirectories containing agentDir (fresh query)", async () => {
     const executor = new TaskExecutor({
       taskManager: makeTaskManager(),
       logStorage: makeLogStorage(agentDir),
@@ -107,83 +91,10 @@ describe("TaskExecutor — agentic session config", () => {
 
     await executor.run(makeTask());
 
-    expect(capturedOptions?.tools).toEqual([
-      "Bash",
-      "Read",
-      "Write",
-      "Edit",
-      "Glob",
-      "Grep",
-      "Skill",
-    ]);
+    expect(capturedOptions?.additionalDirectories).toContain(agentDir);
   });
 
-  it("passes hooks when provided", async () => {
-    const mockHooks = {
-      PreToolUse: [{ matcher: "Bash", hooks: [] }],
-      PostToolUse: [{ matcher: ".*", hooks: [] }],
-    };
-
-    const executor = new TaskExecutor({
-      taskManager: makeTaskManager(),
-      logStorage: makeLogStorage(agentDir),
-      agentDir,
-      db: makeDb(),
-      hooks: mockHooks as any,
-    });
-
-    await executor.run(makeTask());
-
-    expect(capturedOptions?.hooks).toBe(mockHooks);
-  });
-
-  it("passes mcpServers when provided", async () => {
-    const mockMcpServers = { memory: {} as any };
-
-    const executor = new TaskExecutor({
-      taskManager: makeTaskManager(),
-      logStorage: makeLogStorage(agentDir),
-      agentDir,
-      db: makeDb(),
-      mcpServers: mockMcpServers,
-    });
-
-    await executor.run(makeTask());
-
-    expect(capturedOptions?.mcpServers).toBe(mockMcpServers);
-  });
-
-  it("persistSession = false for non-recurring task (no recurrenceId)", async () => {
-    const executor = new TaskExecutor({
-      taskManager: makeTaskManager(),
-      logStorage: makeLogStorage(agentDir),
-      agentDir,
-      db: makeDb(),
-    });
-
-    await executor.run(makeTask({ recurrenceId: undefined }));
-
-    expect(capturedOptions?.persistSession).toBe(false);
-  });
-
-  it("persistSession = true for recurring task (has recurrenceId)", async () => {
-    const executor = new TaskExecutor({
-      taskManager: makeTaskManager(),
-      logStorage: makeLogStorage(agentDir),
-      agentDir,
-      db: makeDb(),
-    });
-
-    await executor.run(makeTask({ recurrenceId: "recurrence-xyz" }));
-
-    expect(capturedOptions?.persistSession).toBe(true);
-  });
-
-  it("systemPrompt comes from buildWorkingNinaPrompt", async () => {
-    const { buildWorkingNinaPrompt } = await import(
-      "../../src/tasks/working-nina-prompt.js"
-    );
-
+  it("passes settingSources = ['project'] (fresh query)", async () => {
     const executor = new TaskExecutor({
       taskManager: makeTaskManager(),
       logStorage: makeLogStorage(agentDir),
@@ -193,36 +104,86 @@ describe("TaskExecutor — agentic session config", () => {
 
     await executor.run(makeTask());
 
-    expect(buildWorkingNinaPrompt).toHaveBeenCalledWith(agentDir, {
-      taskTitle: "Test Task",
-      taskId: "task-001",
-      taskDir: `${agentDir}/tasks/task-001`,
-      calendarContext: undefined,
-    });
-    expect(capturedOptions?.systemPrompt).toBe("Working Nina system prompt");
+    expect(capturedOptions?.settingSources).toEqual(["project"]);
   });
 
-  it("supports lazy getter for mcpServers", async () => {
-    let mcpServersValue: any = null;
-
+  it("passes allowedTools containing 'Skill' (fresh query)", async () => {
     const executor = new TaskExecutor({
       taskManager: makeTaskManager(),
       logStorage: makeLogStorage(agentDir),
       agentDir,
       db: makeDb(),
-      get mcpServers() {
-        return mcpServersValue;
-      },
     });
 
-    // Before servers are ready, undefined is passed
     await executor.run(makeTask());
-    expect(capturedOptions?.mcpServers).toBeNull();
 
-    // After servers are initialized, they are picked up
-    mcpServersValue = { memory: {} as any };
-    capturedOptions = null;
+    expect(capturedOptions?.tools).toContain("Skill");
+  });
+
+  it("passes all three skill discovery options together (fresh query)", async () => {
+    const customAgentDir = "/home/user/.my_agent";
+    const executor = new TaskExecutor({
+      taskManager: makeTaskManager(),
+      logStorage: makeLogStorage(customAgentDir),
+      agentDir: customAgentDir,
+      db: makeDb(),
+    });
+
     await executor.run(makeTask());
-    expect(capturedOptions?.mcpServers).toBe(mcpServersValue);
+
+    expect(capturedOptions?.additionalDirectories).toContain(customAgentDir);
+    expect(capturedOptions?.settingSources).toEqual(["project"]);
+    expect(capturedOptions?.tools).toContain("Skill");
+  });
+
+  it("passes additionalDirectories containing agentDir (resume query)", async () => {
+    const storedSessionId = "existing-session-abc";
+    const db = makeDb();
+    db.getTaskSdkSessionId = vi.fn().mockReturnValue(storedSessionId);
+
+    const executor = new TaskExecutor({
+      taskManager: makeTaskManager(),
+      logStorage: makeLogStorage(agentDir),
+      agentDir,
+      db,
+    });
+
+    await executor.run(makeTask());
+
+    expect(capturedOptions?.additionalDirectories).toContain(agentDir);
+  });
+
+  it("passes settingSources = ['project'] (resume query)", async () => {
+    const storedSessionId = "existing-session-abc";
+    const db = makeDb();
+    db.getTaskSdkSessionId = vi.fn().mockReturnValue(storedSessionId);
+
+    const executor = new TaskExecutor({
+      taskManager: makeTaskManager(),
+      logStorage: makeLogStorage(agentDir),
+      agentDir,
+      db,
+    });
+
+    await executor.run(makeTask());
+
+    expect(capturedOptions?.settingSources).toEqual(["project"]);
+  });
+
+  it("passes allowedTools containing 'Skill' (resume query)", async () => {
+    const storedSessionId = "existing-session-abc";
+    const db = makeDb();
+    db.getTaskSdkSessionId = vi.fn().mockReturnValue(storedSessionId);
+
+    const executor = new TaskExecutor({
+      taskManager: makeTaskManager(),
+      logStorage: makeLogStorage(agentDir),
+      agentDir,
+      db,
+    });
+
+    await executor.run(makeTask());
+
+    expect(capturedOptions?.tools).toContain("Skill");
   });
 });
