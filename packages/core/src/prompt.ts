@@ -34,6 +34,11 @@ const NOTEBOOK_TREE_IGNORE = new Set(['.DS_Store', 'Thumbs.db'])
 // Skills whose full content should be included in the system prompt (not just commands)
 const SKILL_CONTENT_FILES = ['conversation-role.md', 'notebook.md']
 
+// Always-on skills: sourced from .claude/skills/ but injected into system prompt.
+// SDK skills preload (Options.skills) is not yet implemented in the runtime —
+// we load these ourselves via assembleSystemPrompt() until the SDK adds support.
+const ALWAYS_ON_SKILLS = ['task-triage']
+
 /**
  * Format scheduled task context for inclusion in system prompt.
  * Used when CalendarScheduler fires a scheduled task.
@@ -492,6 +497,20 @@ export async function assembleSystemPrompt(
   // Load full content of specific skills (API documentation, etc.)
   const skillContent = await loadSkillContent(skillsDirs)
   sections.push(...skillContent)
+
+  // Load always-on skills from SDK skills directory
+  const sdkSkillsDir = path.join(agentDir, '.claude', 'skills')
+  for (const skillName of ALWAYS_ON_SKILLS) {
+    const skillPath = path.join(sdkSkillsDir, skillName, 'SKILL.md')
+    const content = await readOptionalFile(skillPath)
+    if (content) {
+      // Strip YAML frontmatter before injecting into system prompt
+      const body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n*/, '')
+      if (body.trim()) {
+        sections.push(body.trim())
+      }
+    }
+  }
 
   return sections.join('\n\n')
 }
