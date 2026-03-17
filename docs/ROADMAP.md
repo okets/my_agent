@@ -469,7 +469,7 @@ Adopt the Agent Skills Standard and SDK native skill discovery. Skills become th
 | S1 | AGENTS.md Rename | Rename `brain/CLAUDE.md` → `brain/AGENTS.md`, update all references, fallback for transition, `.claude/skills/` directory structure | Complete — [plan](sprints/m6.8-s1-agents-md-rename/plan.md) [review](sprints/m6.8-s1-agents-md-rename/review.md) |
 | S2 | SDK Skill Discovery | Enable `settingSources: ['project']`, `claudeMdExcludes`, `Skill` tool, `additionalDirectories`, migrate skills, startup health check, skill-tool filtering | Complete — [plan](sprints/m6.8-s2-sdk-skill-discovery/plan.md) [review](sprints/m6.8-s2-sdk-skill-discovery/review.md) |
 | S3 | Seed Skills | Extract task-triage and knowledge-curation into SKILL.md files, ALWAYS_ON_SKILLS loading in assembleSystemPrompt(), three-level validation suite | Complete — [plan](sprints/m6.8-s3-seed-skills/plan.md) [review](sprints/m6.8-s3-seed-skills/review.md) |
-| S4 | Curated Library | Adapt Superpowers + BMAD skills, strip personas, keep procedures | Planned |
+| S4 | Curated Library | Adapt Superpowers + BMAD skills, strip personas, keep procedures, `origin: curated` tier, hatching copies skills | Complete — [plan](sprints/m6.8-s4-curated-library/plan.md) [review](sprints/m6.8-s4-curated-library/review.md) |
 | S5 | Skill Creator | MCP tools (create/update/delete), responsibility flow, corrections/lessons | Planned |
 | S6 | Dashboard UI + Validation | Notebook skills section, full E2E validation | Planned |
 
