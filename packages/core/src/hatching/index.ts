@@ -8,6 +8,7 @@ import { identityStep } from './steps/identity.js'
 import { personalityStep } from './steps/personality.js'
 import { authStep } from './steps/auth.js'
 import { operatingRulesStep } from './steps/operating-rules.js'
+import { copyFrameworkSkills } from './skills-copy.js'
 
 export interface HatchingStep {
   name: string
@@ -55,6 +56,7 @@ export async function runHatching(rl: readline.Interface, agentDir: string): Pro
   console.log("\nWelcome! Let's set up your agent.\n")
 
   await createDirectoryStructure(agentDir)
+  await copyFrameworkSkills(agentDir)
 
   for (const step of requiredSteps) {
     await step.run(rl, agentDir)

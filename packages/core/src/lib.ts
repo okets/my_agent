@@ -62,6 +62,8 @@ export type { ResolvedAuth } from './auth.js'
 export { isHatched, allSteps } from './hatching/index.js'
 export type { HatchingStep } from './hatching/index.js'
 
+export { copyFrameworkSkills } from './hatching/skills-copy.js'
+
 export {
   createDirectoryStructure,
   writeMinimalConfig,
