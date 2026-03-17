@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-16 (M6.11 Headless App planned — next after M6.8)
+> **Updated:** 2026-03-17 (M6.8-S3 Seed Skills complete)
 
 ---
 
@@ -21,7 +21,7 @@
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5 incl. S2.5, S3.5), 593 tests |
-| **M6.8: Skills Architecture**| Active   | S1 complete, S2 in progress |
+| **M6.8: Skills Architecture**| Active   | S1-S3 complete, 641 tests |
 | **M6.11: Headless App**     | Planned  | 4 sprints (integration tests, App extraction, chat decomposition, agent verification) |
 | **M6.10: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
@@ -468,6 +468,7 @@ Adopt the Agent Skills Standard and SDK native skill discovery. Skills become th
 |--------|------|-------|--------|
 | S1 | AGENTS.md Rename | Rename `brain/CLAUDE.md` → `brain/AGENTS.md`, update all references, fallback for transition, `.claude/skills/` directory structure | Complete — [plan](sprints/m6.8-s1-agents-md-rename/plan.md) [review](sprints/m6.8-s1-agents-md-rename/review.md) |
 | S2 | SDK Skill Discovery | Enable `settingSources: ['project']`, `claudeMdExcludes`, `Skill` tool, `additionalDirectories`, migrate skills, startup health check, skill-tool filtering | Complete — [plan](sprints/m6.8-s2-sdk-skill-discovery/plan.md) [review](sprints/m6.8-s2-sdk-skill-discovery/review.md) |
+| S3 | Seed Skills | Extract task-triage and knowledge-curation into SKILL.md files, ALWAYS_ON_SKILLS loading in assembleSystemPrompt(), three-level validation suite | Complete — [plan](sprints/m6.8-s3-seed-skills/plan.md) [review](sprints/m6.8-s3-seed-skills/review.md) |
 | S3 | Seed Skills | Extract operational skills from hardcoded logic: knowledge curation, morning sequence, task triage, scheduling | Planned |
 | S4 | Curated Library | Adapt Superpowers + BMAD skills, strip personas, keep procedures | Planned |
 | S5 | Skill Creator | MCP tools (create/update/delete), responsibility flow, corrections/lessons | Planned |
