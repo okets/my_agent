@@ -1,12 +1,12 @@
 ---
 name: brainstorming-techniques
-description: 56 brainstorming techniques across 10 categories (creative, structured, deep, collaborative, theatrical, wild, introspective, biomimetic, quantum, cultural) — reference data for enriching brainstorming sessions
+description: 61 brainstorming techniques across 10 categories (creative, structured, deep, collaborative, theatrical, wild, introspective, biomimetic, quantum, cultural) — reference data for enriching brainstorming sessions
 origin: curated
 ---
 
 # Brainstorming Techniques Library
 
-A library of 56 brainstorming techniques for enriching creative exploration. These are reference data — select and apply techniques silently based on the conversation context.
+A library of 61 brainstorming techniques for enriching creative exploration. These are reference data — select and apply techniques silently based on the conversation context.
 
 ## Usage Rules
 
