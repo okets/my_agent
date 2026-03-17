@@ -41,16 +41,17 @@ The context below the command tells you which mode.
 
 ## Endpoints
 
-| Method | Path | Required Fields | Description |
-|--------|------|-----------------|-------------|
-| GET | /api/calendar/events | — | List all scheduled tasks |
-| POST | /api/calendar/events | calendarId, title, start | Create scheduled task |
-| PUT | /api/calendar/events/:uid | — | Update scheduled task |
-| DELETE | /api/calendar/events/:uid | — | Delete scheduled task |
+| Method | Path                      | Required Fields          | Description              |
+| ------ | ------------------------- | ------------------------ | ------------------------ |
+| GET    | /api/calendar/events      | —                        | List all scheduled tasks |
+| POST   | /api/calendar/events      | calendarId, title, start | Create scheduled task    |
+| PUT    | /api/calendar/events/:uid | —                        | Update scheduled task    |
+| DELETE | /api/calendar/events/:uid | —                        | Delete scheduled task    |
 
 ## API Reference
 
 **Create:**
+
 ```bash
 curl -s -X POST http://localhost:4321/api/calendar/events \
   -H "Content-Type: application/json" \
@@ -58,6 +59,7 @@ curl -s -X POST http://localhost:4321/api/calendar/events \
 ```
 
 **Update:**
+
 ```bash
 curl -s -X PUT http://localhost:4321/api/calendar/events/EVENT_UID \
   -H "Content-Type: application/json" \
@@ -65,11 +67,13 @@ curl -s -X PUT http://localhost:4321/api/calendar/events/EVENT_UID \
 ```
 
 **Delete:**
+
 ```bash
 curl -s -X DELETE "http://localhost:4321/api/calendar/events/EVENT_UID?calendarId=user"
 ```
 
 **List:**
+
 ```bash
 curl -s http://localhost:4321/api/calendar/events
 ```
