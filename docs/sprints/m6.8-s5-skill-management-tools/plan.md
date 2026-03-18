@@ -722,16 +722,16 @@ cat packages/core/skills/references/skill-description-guide.md | head -5
 
 ---
 
-## Chunk 3: Triage Behavioral Tests
+## Chunk 3: Triage Content Smoke Tests
 
-### Task 6: Triage behavioral tests for skill operations
+### Task 6: Triage content smoke tests (trimmed)
 
 **Files:**
 - Create: `packages/dashboard/tests/mcp/skill-triage-scenarios.test.ts`
 
-Test that the updated triage skill content enables correct routing. These are behavioral scenario tests — they verify the triage skill content contains the right guidance, not that the LLM follows it (that's E2E in S6).
+Minimal content validation — just confirm the triage skill mentions skill tools and distinguishes skills from tasks. Real verification happens in Task 8 via browser E2E.
 
-- [ ] **Step 1: Write scenario validation tests**
+- [ ] **Step 1: Write minimal content smoke tests**
 
 Create `packages/dashboard/tests/mcp/skill-triage-scenarios.test.ts`:
 
@@ -740,86 +740,37 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-/**
- * Behavioral scenario tests for task-triage skill.
- * Validates that the triage skill content provides correct guidance
- * for routing skill operations.
- *
- * These are content validation tests — they verify the skill contains
- * the right instructions. E2E behavioral tests (does Nina actually
- * route correctly?) are deferred to S6.
- */
-
 const AGENT_SKILLS_DIR = join(process.cwd(), '..', '..', '.my_agent', '.claude', 'skills')
 const FRAMEWORK_SKILLS_DIR = join(process.cwd(), '..', 'core', 'skills')
 
 function getTriageContent(): string {
-  // Try agent dir first, then framework
   const agentPath = join(AGENT_SKILLS_DIR, 'task-triage', 'SKILL.md')
   const frameworkPath = join(FRAMEWORK_SKILLS_DIR, 'task-triage', 'SKILL.md')
-
   for (const p of [agentPath, frameworkPath]) {
     if (existsSync(p)) return readFileSync(p, 'utf-8')
   }
   throw new Error('task-triage SKILL.md not found')
 }
 
-describe('task-triage skill — skill operation routing', () => {
+describe('task-triage skill — skill operations content', () => {
   const content = getTriageContent()
 
-  describe('skill creation scenarios', () => {
-    it('mentions create_skill as a routing option', () => {
-      expect(content).toContain('create_skill')
-    })
-
-    it('distinguishes skill creation from task creation', () => {
-      // Triage must explain when to create a skill vs a task
-      expect(content).toMatch(/skill.*capabilit/i)
-      expect(content).toContain('create_task')
-    })
-
-    it('provides examples of skill-worthy requests', () => {
-      // Triage should include trigger phrases
-      expect(content).toMatch(/learn|teach|reusable|how to/i)
-    })
+  it('mentions skill CRUD tools', () => {
+    expect(content).toContain('create_skill')
+    expect(content).toContain('update_skill')
+    expect(content).toContain('delete_skill')
   })
 
-  describe('skill update scenarios', () => {
-    it('mentions update_skill as a routing option', () => {
-      expect(content).toContain('update_skill')
-    })
-
-    it('describes the correction flow', () => {
-      expect(content).toMatch(/investigat/i)
-      expect(content).toMatch(/ask.*question|clarif/i)
-    })
-
-    it('differentiates skill corrections from task corrections', () => {
-      expect(content).toContain('revise_task')
-      expect(content).toContain('update_skill')
-    })
+  it('distinguishes skills from tasks', () => {
+    expect(content).toMatch(/skill.*capabilit/i)
+    expect(content).toContain('create_task')
   })
 
-  describe('skill discovery', () => {
-    it('mentions list_skills for checking existing skills', () => {
-      expect(content).toContain('list_skills')
-    })
-
-    it('mentions get_skill for reading before updating', () => {
-      expect(content).toContain('get_skill')
-    })
-  })
-
-  describe('pre-action behavior', () => {
-    it('instructs to clarify before acting', () => {
-      expect(content).toMatch(/clarif|ask.*question|never guess/i)
-    })
-
-    it('instructs to brainstorm for incomplete ideas', () => {
-      expect(content).toMatch(/brainstorm/i)
-    })
+  it('instructs to understand before acting', () => {
+    expect(content).toMatch(/clarif|ask.*question|never guess/i)
   })
 })
+```
 ```
 
 - [ ] **Step 2: Run tests**
@@ -927,7 +878,7 @@ Expected: PASS
 
 ---
 
-### Task 8: Full validation
+### Task 8: Full validation + browser E2E
 
 - [ ] **Step 1: TypeScript compiles (both packages)**
 
@@ -945,14 +896,20 @@ cd packages/core && npx vitest run
 cd packages/dashboard && npx vitest run
 ```
 
-Expected: All PASS. Baseline: 641+ tests. New: ~25-30 tests from Tasks 1, 2, 6, 7.
+Expected: All PASS. Baseline: 641+ tests. New: ~20-25 tests from Tasks 1, 2, 6, 7.
 
-- [ ] **Step 3: Restart dashboard and verify skill server registered**
+- [ ] **Step 3: Prettier**
+
+```bash
+cd packages/dashboard && npx prettier --write src/mcp/skill-server.ts src/mcp/skill-validation.ts
+cd packages/dashboard && npx prettier --write tests/mcp/skill-server.test.ts tests/mcp/skill-validation.test.ts tests/mcp/skill-triage-scenarios.test.ts tests/mcp/skill-lifecycle.test.ts
+```
+
+- [ ] **Step 4: Restart dashboard and verify skill server registered**
 
 ```bash
 systemctl --user restart nina-dashboard.service
 sleep 5
-# Verify the skill tools are available via debug API
 curl -s http://localhost:4321/api/debug/brain/tools | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
@@ -966,16 +923,28 @@ if not skill_tools:
 
 Expected: 5 skill tools visible (create_skill, get_skill, update_skill, delete_skill, list_skills)
 
-- [ ] **Step 4: Manual smoke test — create a skill via debug API or conversation**
+- [ ] **Step 5: Browser E2E — Nina naturally creates a skill**
 
-Test by creating a skill through the MCP tool (via conversation or debug endpoint), then verify it appears in the skills directory and in `list_skills` output.
+Open the dashboard via Playwright. Send a message that should trigger skill creation naturally (e.g., "I want to teach you how to generate weekly reports — whenever I ask for a report, gather data from the last 7 days and format it as bullet points with headers"). Verify:
 
-- [ ] **Step 5: Prettier**
+1. Nina responds conversationally (asks clarifying questions or confirms understanding)
+2. Nina uses `create_skill` tool (visible in tool use or debug API)
+3. Skill file appears on disk at `.my_agent/.claude/skills/*/SKILL.md`
+4. Skill has valid frontmatter with `origin: user`
 
-```bash
-cd packages/dashboard && npx prettier --write src/mcp/skill-server.ts src/mcp/skill-validation.ts
-cd packages/dashboard && npx prettier --write tests/mcp/skill-server.test.ts tests/mcp/skill-validation.test.ts tests/mcp/skill-triage-scenarios.test.ts tests/mcp/skill-lifecycle.test.ts
-```
+Then send a follow-up message to update the skill (e.g., "actually, also include a summary section at the top"). Verify:
+
+5. Nina uses `get_skill` to read current content
+6. Nina uses `update_skill` with the correction
+7. Updated file on disk reflects the change
+
+Clean up the test skill after verification.
+
+**Note:** This is the real proof the system works end-to-end. If Nina doesn't naturally route these messages to skill tools, the triage skill needs adjustment before the sprint is complete.
+
+- [ ] **Step 6: Clean up test artifacts**
+
+Remove any test skills created during E2E verification from `.my_agent/.claude/skills/`.
 
 ---
 
@@ -988,9 +957,9 @@ cd packages/dashboard && npx prettier --write tests/mcp/skill-server.test.ts tes
 | 3 | Register server + wire filtering | Modify `session-manager.ts`, `index.ts` |
 | 4 | Update task-triage skill | `.my_agent/.claude/skills/task-triage/SKILL.md` |
 | 5 | Description guidance reference | `packages/core/skills/references/skill-description-guide.md` |
-| 6 | Triage behavioral tests | `packages/dashboard/tests/mcp/skill-triage-scenarios.test.ts` |
+| 6 | Triage content smoke tests (3 tests) | `packages/dashboard/tests/mcp/skill-triage-scenarios.test.ts` |
 | 7 | Lifecycle integration test | `packages/dashboard/tests/mcp/skill-lifecycle.test.ts` |
-| 8 | Full validation | TypeScript, tests, dashboard restart, smoke test |
+| 8 | Full validation + browser E2E | TypeScript, tests, dashboard restart, Playwright E2E |
 
 **Dependencies:**
 - Tasks 1-2 are sequential (validation needed by server)
@@ -1007,4 +976,4 @@ cd packages/dashboard && npx prettier --write tests/mcp/skill-server.test.ts tes
 - Full rewrite on update — no partial merge, Conversation Nina assembles complete content
 - `origin: user` always enforced — cannot create system/curated skills via MCP tools
 - Description guidance as tool response + reference doc — two touchpoints for quality
-- Triage behavioral tests validate content, not LLM behavior — E2E in S6
+- Triage content tests trimmed to 3 smoke checks — real validation via browser E2E in Task 8
