@@ -20,6 +20,8 @@ import { registerConversationSearchRoutes } from "./routes/conversation-search.j
 import { registerWorkLoopRoutes } from "./routes/work-loop.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerWorkPatternsSettingsRoutes } from "./routes/work-patterns-settings.js";
+import { registerSkillRoutes } from "./routes/skills.js";
+import { SkillService } from "./services/skill-service.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { ChannelManager } from "./channels/index.js";
@@ -79,6 +81,7 @@ declare module "fastify" {
     taskSearchService:
       | import("./tasks/task-search-service.js").TaskSearchService
       | null;
+    skillService: SkillService;
   }
 }
 
@@ -173,6 +176,7 @@ export async function createServer(
   fastify.decorate("conversationInitiator", null);
   fastify.decorate("postResponseHooks", null);
   fastify.decorate("taskSearchService", null);
+  fastify.decorate("skillService", new SkillService(agentDir));
 
   // Register WebSocket chat route
   await registerChatWebSocket(fastify);
@@ -227,6 +231,14 @@ export async function createServer(
       await registerNotebookRoutes(instance);
     },
     { prefix: "/api/notebook" },
+  );
+
+  // Register skill routes (M6.8-S6)
+  await fastify.register(
+    async (instance) => {
+      await registerSkillRoutes(instance);
+    },
+    { prefix: "/api/skills" },
   );
 
   // Register memory routes (M6-S3)
