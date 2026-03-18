@@ -24,6 +24,7 @@ import {
   migrateToNotebook,
   needsMigration,
   checkSkillsHealth,
+  filterSkillsByTools,
 } from "@my-agent/core";
 import type { HealthChangedEvent } from "@my-agent/core";
 import { join } from "node:path";
@@ -63,6 +64,7 @@ import {
   setRunningTasksChecker,
 } from "./agent/session-manager.js";
 import { createTaskToolsServer } from "./mcp/task-tools-server.js";
+import { createSkillServer } from "./mcp/skill-server.js";
 
 // Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
 // When the dashboard is started from within a Claude Code session (e.g. during dev),
@@ -826,6 +828,27 @@ async function main() {
       const running = taskManager.getRunningTasksForConversation(conversationId);
       return running.map((t) => `"${t.title}" (${t.id})`);
     });
+  }
+
+  // Register skill MCP server (M6.8-S5)
+  {
+    const skillServer = createSkillServer({
+      agentDir,
+      onSkillCreated: async () => {
+        // Re-run skill-tool filtering after a skill is created/updated
+        // so incompatible skills are immediately hidden from Conversation Nina
+        const conversationTools = [
+          "Read",
+          "Glob",
+          "Grep",
+          "WebSearch",
+          "WebFetch",
+          "Skill",
+        ];
+        await filterSkillsByTools(agentDir, conversationTools);
+      },
+    });
+    addMcpServer("skills", skillServer);
   }
 
   // Connect memory services to state publisher for live updates
