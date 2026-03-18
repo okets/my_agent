@@ -7500,6 +7500,70 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- Skills section (M6.8-S6) -->
+                <div class="mt-3 border-t border-white/5 pt-3">
+                  <div class="flex items-center justify-between px-1 mb-2">
+                    <div class="flex items-center gap-1.5">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="w-3.5 h-3.5 text-tokyo-purple"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
+                        />
+                      </svg>
+                      <span class="text-xs font-medium text-tokyo-text"
+                        >Skills</span
+                      >
+                    </div>
+                    <span
+                      class="text-[10px] text-tokyo-muted"
+                      x-text="skillsList.length"
+                    ></span>
+                  </div>
+                  <div class="space-y-0.5">
+                    <template
+                      x-for="skill in skillsList"
+                      :key="skill.name"
+                    >
+                      <button
+                        @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
+                        class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-tokyo-purple/10 transition-colors text-left"
+                        :class="skill.disabled ? 'opacity-50' : ''"
+                      >
+                        <span
+                          class="text-xs text-tokyo-text truncate flex-1"
+                          x-text="skill.name"
+                        ></span>
+                        <span
+                          x-show="skill.origin !== 'user'"
+                          class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400"
+                          x-text="skill.origin"
+                        >
+                        </span>
+                        <span
+                          x-show="skill.disabled"
+                          class="text-[9px] px-1 py-px rounded bg-orange-500/15 text-orange-400"
+                          >off</span
+                        >
+                      </button>
+                    </template>
+                    <template x-if="skillsList.length === 0">
+                      <p
+                        class="text-[10px] text-tokyo-muted/40 italic py-1 pl-2"
+                      >
+                        No skills
+                      </p>
+                    </template>
+                  </div>
+                </div>
               </template>
             </div>
           </template>
@@ -7528,6 +7592,78 @@
                 class="text-sm text-tokyo-text chat-md"
                 x-html="renderMarkdown(fileContent)"
               ></div>
+            </div>
+          </template>
+
+          <!-- Skill detail popover (M6.8-S6) -->
+          <template
+            x-if="$store.mobile.popover?.type === 'skill-detail'"
+          >
+            <div
+              class="p-4"
+              x-data="{ skillData: null, loading: true }"
+              x-init="fetch('/api/skills/' + encodeURIComponent($store.mobile.popover.data?.name))
+                .then(r => r.json()).then(d => { skillData = d; loading = false })
+                .catch(() => { loading = false })"
+            >
+              <template x-if="loading">
+                <div class="text-center text-tokyo-muted text-sm py-8">
+                  Loading...
+                </div>
+              </template>
+
+              <template x-if="!loading && skillData">
+                <div>
+                  <!-- Header -->
+                  <div class="flex items-center justify-between mb-3">
+                    <h3
+                      class="text-base font-semibold"
+                      x-text="skillData.name"
+                    ></h3>
+                    <span
+                      class="text-[10px] px-1.5 py-0.5 rounded"
+                      :class="skillData.origin === 'user' ? 'bg-green-500/15 text-green-400' : 'bg-violet-500/15 text-violet-400'"
+                      x-text="skillData.origin"
+                    >
+                    </span>
+                  </div>
+                  <p
+                    class="text-xs text-tokyo-muted mb-4"
+                    x-text="skillData.description"
+                  ></p>
+
+                  <!-- Actions (user skills only) -->
+                  <template x-if="skillData.origin === 'user'">
+                    <div class="flex gap-2 mb-4">
+                      <button
+                        @click="toggleSkill(skillData.name).then(() => { skillData.disabled = !skillData.disabled })"
+                        class="text-xs px-3 py-1.5 rounded transition-colors"
+                        :class="skillData.disabled ? 'bg-orange-500/15 text-orange-400' : 'bg-green-500/15 text-green-400'"
+                        x-text="skillData.disabled ? 'Enable' : 'Disable'"
+                      >
+                      </button>
+                      <button
+                        @click="deleteSkill(skillData.name).then(() => $store.mobile.closePopover())"
+                        class="text-xs px-3 py-1.5 rounded bg-red-500/15 text-red-400"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </template>
+
+                  <!-- Content -->
+                  <div
+                    class="prose prose-invert prose-sm max-w-none"
+                    x-html="renderMarkdown(skillData.body || '')"
+                  ></div>
+                </div>
+              </template>
+
+              <template x-if="!loading && !skillData">
+                <p class="text-sm text-tokyo-muted text-center py-8">
+                  Skill not found
+                </p>
+              </template>
             </div>
           </template>
 
