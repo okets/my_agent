@@ -21,7 +21,7 @@
 | **M6.7: Two-Agent Refactor** | Complete | 6/6 sprints, 28 E2E tests, pending CTO walkthrough |
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5 incl. S2.5, S3.5), 593 tests |
-| **M6.8: Skills Architecture**| Active   | S1-S3 complete, 641 tests |
+| **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
 | **M6.11: Headless App**     | Planned  | 4 sprints (integration tests, App extraction, chat decomposition, agent verification) |
 | **M6.10: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
@@ -447,7 +447,7 @@ Conversation Nina becomes a resumable long-lived session with a system prompt re
 
 ---
 
-### M6.8: Skills Architecture — ACTIVE
+### M6.8: Skills Architecture — COMPLETE
 
 Adopt the Agent Skills Standard and SDK native skill discovery. Skills become the primary mechanism for extending Nina's capabilities — conversation skills for the brain, worker skills for task agents.
 
@@ -471,7 +471,7 @@ Adopt the Agent Skills Standard and SDK native skill discovery. Skills become th
 | S3 | Seed Skills | Extract task-triage and knowledge-curation into SKILL.md files, ALWAYS_ON_SKILLS loading in assembleSystemPrompt(), three-level validation suite | Complete — [plan](sprints/m6.8-s3-seed-skills/plan.md) [review](sprints/m6.8-s3-seed-skills/review.md) |
 | S4 | Curated Library | Adapt Superpowers + BMAD skills, strip personas, keep procedures, `origin: curated` tier, hatching copies skills | Complete — [plan](sprints/m6.8-s4-curated-library/plan.md) [review](sprints/m6.8-s4-curated-library/review.md) |
 | S5 | Skill Management Tools | MCP tools (create/update/delete/list/get), validation (collisions, identity overrides, frontmatter), skill-filter re-run, description guidance, triage update + browser E2E | Complete — [plan](sprints/m6.8-s5-skill-management-tools/plan.md) [review](sprints/m6.8-s5-skill-management-tools/review.md) |
-| S6 | Dashboard UI + Validation | Notebook skills section (browse, view, edit, delete, toggle), full E2E validation of complete M6.8 system | Planned |
+| S6 | Dashboard UI + Validation | Notebook skills section (browse, view, edit, delete, toggle), full E2E validation of complete M6.8 system | Complete — [plan](sprints/m6.8-s6-dashboard-ui-validation/plan.md) [review](sprints/m6.8-s6-dashboard-ui-validation/review.md) |
 
 **Key design decisions (2026-03-04):**
 
