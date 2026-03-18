@@ -54,7 +54,9 @@ export async function registerSkillRoutes(
       const msg = err instanceof Error ? err.message : "Update failed";
       if (msg.includes("not found"))
         return reply.code(404).send({ error: msg });
-      if (msg.includes("identity"))
+      if (msg.includes("Cannot update") || msg.includes("Cannot delete"))
+        return reply.code(403).send({ error: msg });
+      if (msg.includes("override") || msg.includes("identity"))
         return reply.code(400).send({ error: msg });
       return reply.code(403).send({ error: msg });
     }
