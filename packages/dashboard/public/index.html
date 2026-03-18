@@ -416,6 +416,13 @@
                 >
                   Knowledge
                 </button>
+                <button
+                  @click="setNotebookTab('skills')"
+                  :class="notebookTab === 'skills' ? 'text-tokyo-blue border-b-2 border-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text'"
+                  class="flex-1 px-2 py-2 text-[11px] font-medium truncate transition-colors"
+                >
+                  Skills
+                </button>
               </div>
 
               <!-- Content area - file list per category -->
@@ -592,6 +599,69 @@
                           class="text-xs text-tokyo-text truncate"
                           x-text="file.name.replace('.md', '')"
                         ></span>
+                      </button>
+                    </template>
+                  </div>
+                </template>
+
+                <!-- Skills tab (M6.8-S6) -->
+                <template x-if="!notebookLoading && notebookTab === 'skills'">
+                  <div class="space-y-1">
+                    <template x-if="skillsLoading">
+                      <div
+                        class="flex items-center justify-center h-20 text-tokyo-muted text-xs"
+                      >
+                        Loading skills...
+                      </div>
+                    </template>
+                    <template
+                      x-if="!skillsLoading && skillsList.length === 0"
+                    >
+                      <p
+                        class="text-xs text-tokyo-muted/60 italic py-4 text-center"
+                      >
+                        No skills yet
+                      </p>
+                    </template>
+                    <template
+                      x-for="skill in skillsList"
+                      :key="skill.name"
+                    >
+                      <button
+                        @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name }) : viewSkill(skill.name)"
+                        class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-tokyo-purple/10 transition-colors group text-left"
+                        :class="skill.disabled ? 'opacity-50' : ''"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke-width="1.5"
+                          stroke="currentColor"
+                          class="w-3.5 h-3.5 text-tokyo-muted group-hover:text-tokyo-purple shrink-0"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
+                          />
+                        </svg>
+                        <span
+                          class="text-xs text-tokyo-text truncate flex-1"
+                          x-text="skill.name"
+                        ></span>
+                        <span
+                          x-show="skill.origin !== 'user'"
+                          class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400"
+                          x-text="skill.origin"
+                        >
+                        </span>
+                        <span
+                          x-show="skill.disabled"
+                          class="text-[9px] px-1 py-px rounded bg-orange-500/15 text-orange-400"
+                        >
+                          off
+                        </span>
                       </button>
                     </template>
                   </div>

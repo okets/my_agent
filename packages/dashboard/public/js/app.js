@@ -236,7 +236,7 @@ function chat() {
     memorySearching: false,
 
     // Notebook widget (homepage tabbed mini-notebook)
-    notebookTab: sessionStorage.getItem("notebookTab") || "orders", // orders | lists | daily | knowledge
+    notebookTab: sessionStorage.getItem("notebookTab") || "orders", // orders | lists | daily | knowledge | skills
     notebookWidgetContent: {
       orders: null, // standing-orders + external-communications content
       lists: null, // reminders + contacts content
@@ -245,12 +245,21 @@ function chat() {
     },
     notebookWidgetLoading: false,
 
+    // Skills (M6.8-S6)
+    skillsList: [], // Array of { name, description, origin, disabled }
+    skillsLoading: false,
+    selectedSkill: null, // Full skill object when viewing detail
+    skillEditMode: false, // true when editing a skill
+    skillEditDesc: "", // description field while editing
+    skillEditBody: "", // body field while editing
+
     // Notebook browser sections (collapsed/expanded state)
     notebookSections: {
       orders: true, // expanded by default
       lists: true,
       daily: false,
       knowledge: false,
+      skills: true, // expanded by default
     },
 
     // ─────────────────────────────────────────────────────────────────
@@ -468,6 +477,7 @@ function chat() {
 
       // Load memory data (M6-S3)
       this.loadNotebookTree();
+      this.loadSkills();
       this.loadMemoryStatus();
       this.loadPreferences();
       this.loadNotebookWidgetContent();
@@ -4970,6 +4980,102 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         this.notebookTree = [];
       } finally {
         this.notebookLoading = false;
+      }
+    },
+
+    /**
+     * Load skills list (M6.8-S6)
+     */
+    async loadSkills() {
+      this.skillsLoading = true;
+      try {
+        const res = await fetch("/api/skills");
+        if (res.ok) {
+          const data = await res.json();
+          this.skillsList = data.skills || [];
+        }
+      } catch (err) {
+        console.error("[App] Failed to load skills:", err);
+        this.skillsList = [];
+      } finally {
+        this.skillsLoading = false;
+      }
+    },
+
+    async toggleSkill(name) {
+      try {
+        const res = await fetch(
+          `/api/skills/${encodeURIComponent(name)}/toggle`,
+          { method: "POST" },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const skill = this.skillsList.find((s) => s.name === name);
+          if (skill) skill.disabled = data.disabled;
+          if (this.selectedSkill?.name === name)
+            this.selectedSkill.disabled = data.disabled;
+        }
+      } catch (err) {
+        console.error("[App] Failed to toggle skill:", err);
+      }
+    },
+
+    async deleteSkill(name) {
+      if (!confirm(`Delete skill "${name}"? This cannot be undone.`)) return;
+      try {
+        const res = await fetch(
+          `/api/skills/${encodeURIComponent(name)}`,
+          { method: "DELETE" },
+        );
+        if (res.ok) {
+          this.skillsList = this.skillsList.filter((s) => s.name !== name);
+          if (this.selectedSkill?.name === name) this.selectedSkill = null;
+        }
+      } catch (err) {
+        console.error("[App] Failed to delete skill:", err);
+      }
+    },
+
+    async viewSkill(name) {
+      try {
+        const res = await fetch(
+          `/api/skills/${encodeURIComponent(name)}`,
+        );
+        if (res.ok) {
+          this.selectedSkill = await res.json();
+          this.skillEditMode = false;
+          this.selectedNotebookFile = null;
+          if (this.activeTab !== "notebook-browser") {
+            this.openNotebookBrowser();
+          }
+        }
+      } catch (err) {
+        console.error("[App] Failed to load skill:", err);
+      }
+    },
+
+    async saveSkill(name, description, content) {
+      try {
+        const res = await fetch(
+          `/api/skills/${encodeURIComponent(name)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ description, content }),
+          },
+        );
+        if (res.ok) {
+          const updated = await res.json();
+          this.selectedSkill = updated;
+          this.skillEditMode = false;
+          const idx = this.skillsList.findIndex((s) => s.name === name);
+          if (idx >= 0) {
+            this.skillsList[idx].description = updated.description;
+            this.skillsList[idx].disabled = updated.disabled;
+          }
+        }
+      } catch (err) {
+        console.error("[App] Failed to save skill:", err);
       }
     },
 
