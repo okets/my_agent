@@ -462,7 +462,7 @@ Adopt the Agent Skills Standard and SDK native skill discovery. Skills become th
 **Pre-sprint validation tasks:**
 
 - [x] Validate `settingSources: ['project']` behavior with custom `systemPrompt` string — validated 2026-03-15
-- [ ] Verify hatching process creates proper personality files aligned with OpenAI's approach — personality defines HOW (tone, style), not WHAT (capabilities). Ensure guardrail against skill identity override is present.
+- [x] Verify hatching process creates proper personality files aligned with OpenAI's approach — personality defines HOW (tone, style), not WHAT (capabilities). Ensure guardrail against skill identity override is present. — validated 2026-03-18 (S5 implements identity-override detection in skill-validation.ts)
 
 | Sprint | Name | Scope | Status |
 |--------|------|-------|--------|
@@ -470,7 +470,7 @@ Adopt the Agent Skills Standard and SDK native skill discovery. Skills become th
 | S2 | SDK Skill Discovery | Enable `settingSources: ['project']`, `claudeMdExcludes`, `Skill` tool, `additionalDirectories`, migrate skills, startup health check, skill-tool filtering | Complete — [plan](sprints/m6.8-s2-sdk-skill-discovery/plan.md) [review](sprints/m6.8-s2-sdk-skill-discovery/review.md) |
 | S3 | Seed Skills | Extract task-triage and knowledge-curation into SKILL.md files, ALWAYS_ON_SKILLS loading in assembleSystemPrompt(), three-level validation suite | Complete — [plan](sprints/m6.8-s3-seed-skills/plan.md) [review](sprints/m6.8-s3-seed-skills/review.md) |
 | S4 | Curated Library | Adapt Superpowers + BMAD skills, strip personas, keep procedures, `origin: curated` tier, hatching copies skills | Complete — [plan](sprints/m6.8-s4-curated-library/plan.md) [review](sprints/m6.8-s4-curated-library/review.md) |
-| S5 | Skill Management Tools | MCP tools (create/update/delete/list/get), validation (collisions, identity overrides, frontmatter), skill-filter re-run, description guidance, triage update + behavioral tests | Planned |
+| S5 | Skill Management Tools | MCP tools (create/update/delete/list/get), validation (collisions, identity overrides, frontmatter), skill-filter re-run, description guidance, triage update + browser E2E | Complete — [plan](sprints/m6.8-s5-skill-management-tools/plan.md) [review](sprints/m6.8-s5-skill-management-tools/review.md) |
 | S6 | Dashboard UI + Validation | Notebook skills section (browse, view, edit, delete, toggle), full E2E validation of complete M6.8 system | Planned |
 
 **Key design decisions (2026-03-04):**
