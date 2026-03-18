@@ -2954,11 +2954,90 @@
                     </div>
                   </div>
                 </template>
+
+                  <!-- Skills section (M6.8-S6) -->
+                  <div class="mt-4">
+                    <button
+                      @click="notebookSections.skills = !notebookSections.skills"
+                      class="w-full flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.03] rounded-lg transition-colors"
+                    >
+                      <div class="flex items-center gap-2">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke-width="1.5"
+                          stroke="currentColor"
+                          class="w-4 h-4 text-tokyo-purple transition-transform"
+                          :class="notebookSections.skills ? 'rotate-90' : ''"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                          />
+                        </svg>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke-width="1.5"
+                          stroke="currentColor"
+                          class="w-4 h-4 text-tokyo-purple"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
+                          />
+                        </svg>
+                        <span class="text-sm font-medium">Skills</span>
+                      </div>
+                      <span
+                        class="text-xs text-tokyo-muted"
+                        x-text="skillsList.length + ' skills'"
+                      ></span>
+                    </button>
+                    <div
+                      x-show="notebookSections.skills"
+                      x-collapse
+                      class="pl-6 pr-2 space-y-0.5 mt-1"
+                    >
+                      <template
+                        x-for="skill in skillsList"
+                        :key="skill.name"
+                      >
+                        <button
+                          @click="viewSkill(skill.name)"
+                          class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
+                          :class="skill.disabled ? 'opacity-50' : ''"
+                        >
+                          <span
+                            class="text-sm text-tokyo-text truncate flex-1"
+                            x-text="skill.name"
+                          ></span>
+                          <span
+                            x-show="skill.origin !== 'user'"
+                            class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400"
+                            x-text="skill.origin"
+                          >
+                          </span>
+                        </button>
+                      </template>
+                      <template x-if="skillsList.length === 0">
+                        <p
+                          class="text-xs text-tokyo-muted/40 italic py-2 pl-3"
+                        >
+                          No skills
+                        </p>
+                      </template>
+                    </div>
+                  </div>
               </div>
 
               <!-- Preview panel (right) -->
               <div class="flex-1 overflow-auto p-6 bg-tokyo-bg/50">
-                <template x-if="!selectedNotebookFile">
+                <template x-if="!selectedNotebookFile && !selectedSkill">
                   <div
                     class="h-full flex items-center justify-center text-tokyo-muted"
                   >
@@ -3080,6 +3159,129 @@
                         ></textarea>
                       </template>
                     </div>
+                  </div>
+                </template>
+                <!-- Skill detail view (M6.8-S6) -->
+                <template x-if="selectedSkill && !selectedNotebookFile">
+                  <div class="flex-1 flex flex-col min-h-0">
+                    <!-- Header -->
+                    <div
+                      class="px-6 py-4 border-b border-white/5 flex items-center justify-between"
+                    >
+                      <div>
+                        <h2
+                          class="text-lg font-semibold"
+                          x-text="selectedSkill.name"
+                        ></h2>
+                        <p
+                          class="text-xs text-tokyo-muted mt-0.5"
+                          x-text="selectedSkill.description"
+                        ></p>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span
+                          class="text-[10px] px-1.5 py-0.5 rounded"
+                          :class="selectedSkill.origin === 'user' ? 'bg-green-500/15 text-green-400' : 'bg-violet-500/15 text-violet-400'"
+                          x-text="selectedSkill.origin"
+                        >
+                        </span>
+                        <!-- Toggle button (user skills only) -->
+                        <template x-if="selectedSkill.origin === 'user'">
+                          <button
+                            @click="toggleSkill(selectedSkill.name)"
+                            class="text-xs px-2 py-1 rounded transition-colors"
+                            :class="selectedSkill.disabled ? 'bg-orange-500/15 text-orange-400 hover:bg-orange-500/25' : 'bg-green-500/15 text-green-400 hover:bg-green-500/25'"
+                            x-text="selectedSkill.disabled ? 'Enable' : 'Disable'"
+                          >
+                          </button>
+                        </template>
+                        <!-- Edit button (user skills only) -->
+                        <template x-if="selectedSkill.origin === 'user'">
+                          <button
+                            @click="skillEditMode = true; skillEditDesc = selectedSkill.description; skillEditBody = selectedSkill.body"
+                            class="text-xs px-2 py-1 rounded bg-tokyo-blue/15 text-tokyo-blue hover:bg-tokyo-blue/25 transition-colors"
+                          >
+                            Edit
+                          </button>
+                        </template>
+                        <!-- Delete button (user skills only) -->
+                        <template x-if="selectedSkill.origin === 'user'">
+                          <button
+                            @click="deleteSkill(selectedSkill.name)"
+                            class="text-xs px-2 py-1 rounded bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </template>
+                        <!-- Close -->
+                        <button
+                          @click="selectedSkill = null; skillEditMode = false"
+                          class="text-tokyo-muted hover:text-tokyo-text ml-2"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="1.5"
+                            stroke="currentColor"
+                            class="w-4 h-4"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M6 18 18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <!-- Content: view mode -->
+                    <template x-if="!skillEditMode">
+                      <div
+                        class="flex-1 overflow-y-auto p-6 prose prose-invert prose-sm max-w-none"
+                        x-html="renderMarkdown(selectedSkill.body || '')"
+                      ></div>
+                    </template>
+                    <!-- Content: edit mode (user skills only) -->
+                    <template x-if="skillEditMode">
+                      <div class="flex-1 overflow-y-auto p-6 space-y-3">
+                        <div>
+                          <label
+                            class="text-xs text-tokyo-muted mb-1 block"
+                            >Description</label
+                          >
+                          <input
+                            type="text"
+                            x-model="skillEditDesc"
+                            class="w-full bg-[#1e1e2e] border border-white/15 rounded px-3 py-1.5 text-sm text-tokyo-text focus:border-white/35 outline-none"
+                          />
+                        </div>
+                        <div class="flex-1">
+                          <label
+                            class="text-xs text-tokyo-muted mb-1 block"
+                            >Content (markdown)</label
+                          >
+                          <textarea
+                            x-model="skillEditBody"
+                            class="w-full h-[300px] bg-[#1e1e2e] border border-white/15 rounded px-3 py-2 text-sm text-tokyo-text font-mono focus:border-white/35 outline-none resize-y"
+                          ></textarea>
+                        </div>
+                        <div class="flex gap-2">
+                          <button
+                            @click="saveSkill(selectedSkill.name, skillEditDesc, skillEditBody)"
+                            class="text-xs px-3 py-1.5 rounded bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors"
+                          >
+                            Save
+                          </button>
+                          <button
+                            @click="skillEditMode = false"
+                            class="text-xs px-3 py-1.5 rounded bg-white/5 text-tokyo-muted hover:bg-white/10 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </template>
                   </div>
                 </template>
               </div>
