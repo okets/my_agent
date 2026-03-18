@@ -48,7 +48,8 @@ describe("skill lifecycle — create → get → update → list → delete", ()
       {
         name: "report-generator",
         description: "Generate formatted PDF reports from data with charts",
-        content: "## Steps\n\n1. Gather data\n2. Generate charts\n3. Format as PDF",
+        content:
+          "## Steps\n\n1. Gather data\n2. Generate charts\n3. Format as PDF",
       },
       testDir,
     );

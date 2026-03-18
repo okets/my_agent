@@ -235,9 +235,7 @@ export async function handleDeleteSkill(
   };
 }
 
-export async function handleListSkills(
-  agentDir: string,
-): Promise<ToolResult> {
+export async function handleListSkills(agentDir: string): Promise<ToolResult> {
   const dir = skillsDir(agentDir);
 
   if (!existsSync(dir)) {
@@ -306,9 +304,7 @@ export function createSkillServer(deps: SkillServerDeps) {
     "create_skill",
     "Create a new capability skill. Use when the user wants to teach you something reusable — a procedure, format, or technique.",
     {
-      name: z
-        .string()
-        .describe("Kebab-case skill name (e.g. 'weekly-report')"),
+      name: z.string().describe("Kebab-case skill name (e.g. 'weekly-report')"),
       description: z
         .string()
         .describe(

@@ -234,10 +234,7 @@ describe("skill MCP tools", () => {
         "---\nname: task-triage\ndescription: triage\norigin: system\n---\n",
       );
 
-      const result = await handleDeleteSkill(
-        { name: "task-triage" },
-        testDir,
-      );
+      const result = await handleDeleteSkill({ name: "task-triage" }, testDir);
       expect(result.isError).toBe(true);
     });
 
