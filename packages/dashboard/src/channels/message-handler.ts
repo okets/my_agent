@@ -80,6 +80,7 @@ export class ChannelMessageHandler {
     this.configWriter = new ConfigWriter(deps.agentDir);
 
     // Initialize routing components with persistent token manager
+    console.log(`[E2E] ChannelMessageHandler init — ${initialBindings.length} initial bindings: ${JSON.stringify(initialBindings.map(b => ({ id: b.id, transport: b.transport, owner: b.ownerIdentity })))}`);
     this.tokenManager = new TokenManager(deps.agentDir, {
       onExpired: (transportId) => this.handleTokenExpiry(transportId),
     });
@@ -96,7 +97,10 @@ export class ChannelMessageHandler {
    * Uses crypto.randomInt() (CSPRNG) and persists SHA-256 hash to disk.
    */
   generateToken(transportId: string): string {
-    return this.tokenManager.generateToken(transportId);
+    const token = this.tokenManager.generateToken(transportId);
+    console.log(`[E2E] generateToken("${transportId}") → token generated (6 chars)`);
+    console.log(`[E2E] Current bindings: ${JSON.stringify(this.router.getBindingForTransport(transportId) ?? "none")}`);
+    return token;
   }
 
   /**
@@ -184,14 +188,23 @@ export class ChannelMessageHandler {
 
     const first = messages[0];
 
+    console.log(`[E2E] handleMessages("${transportId}") — from="${first.from}", content="${first.content.substring(0, 30)}..."`);
+
     // Step 1: Authorization gate — check for pending token
+    console.log(`[E2E] Step 1: checking authorization gate...`);
     const handled = await this.gate.checkMessage(transportId, first);
-    if (handled) return;
+    if (handled) {
+      console.log(`[E2E] Step 1: token matched! Authorization handled.`);
+      return;
+    }
+    console.log(`[E2E] Step 1: no token match, continuing to routing.`);
 
     // Step 2: Message router — check channel bindings
     const decision = this.router.route(transportId, first.from);
+    console.log(`[E2E] Step 2: route decision = "${decision.type}"`);
 
     if (decision.type === "owner") {
+      console.log(`[E2E] Routing as OWNER message → brain`);
       await this.handleOwnerMessage(transportId, messages);
     } else if (decision.type === "suspended") {
       // Channel is suspended during re-authorization — drop message silently
@@ -215,8 +228,9 @@ export class ChannelMessageHandler {
     const bindingId = `${transportId}_binding`;
 
     console.log(
-      `[ChannelMessageHandler] Token authorization successful for "${transportId}" — owner: ${senderJid}`,
+      `[E2E][Auth] Token authorization successful for "${transportId}"`,
     );
+    console.log(`[E2E][Auth] senderJid="${senderJid}", normalizedJid="${normalizedJid}", bindingId="${bindingId}"`);
 
     // Create channel binding
     const binding: ChannelBinding = {
@@ -228,8 +242,10 @@ export class ChannelMessageHandler {
 
     // Update router with new binding
     this.router.addBinding(binding);
+    console.log(`[E2E][Auth] Binding added to router: ${JSON.stringify(binding)}`);
 
     // Persist binding to config.yaml
+    console.log(`[E2E][Auth] Persisting binding to config.yaml...`);
     try {
       await this.configWriter.saveChannelBinding(bindingId, {
         transport: transportId,

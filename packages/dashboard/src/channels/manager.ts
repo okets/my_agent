@@ -411,6 +411,9 @@ export class TransportManager {
       await (entry.plugin as { clearAuth: () => Promise<void> }).clearAuth();
     }
 
+    // Clear phone pairing suppression from any previous attempt
+    this.phonePairingTransports.delete(id);
+
     // ALWAYS enter pairing mode when connecting a non-connected transport.
     // This suppresses reconnect logic during QR display. If the transport has
     // valid credentials, it will connect immediately and clear this flag.

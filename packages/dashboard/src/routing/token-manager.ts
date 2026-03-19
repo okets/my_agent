@@ -108,6 +108,7 @@ export class TokenManager implements TokenStore {
    */
   validateToken(transportId: string, input: string): boolean {
     const cached = this.cache.get(transportId);
+    console.log(`[E2E][TokenMgr] validateToken("${transportId}") — cached=${cached ? "yes" : "no"}, input="${input.substring(0, 10)}"`);
     if (!cached) return false;
 
     // Check expiry

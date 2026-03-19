@@ -80,6 +80,7 @@ export class AuthorizationGate {
     msg: IncomingMessage,
   ): Promise<boolean> {
     const pending = this.tokenStore.getPendingToken(transportId);
+    console.log(`[E2E][Gate] checkMessage("${transportId}") — pending=${pending ? "yes" : "no"}, content="${msg.content.trim().substring(0, 10)}"`);
     if (!pending) return false;
 
     const content = msg.content.trim();
@@ -95,13 +96,17 @@ export class AuthorizationGate {
         new Date() < pending.expiresAt;
     }
 
+    console.log(`[E2E][Gate] validation result: ${isValid}`);
+
     if (isValid) {
       this.tokenStore.clearToken(transportId);
+      console.log(`[E2E][Gate] Token VALID — calling onAuthorized`);
       await this.deps.onAuthorized(transportId, msg);
       return true;
     }
 
     // No match — not a token attempt, continue to routing
+    console.log(`[E2E][Gate] Token NOT valid — continuing to router`);
     return false;
   }
 }

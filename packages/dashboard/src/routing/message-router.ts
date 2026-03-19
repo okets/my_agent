@@ -63,6 +63,7 @@ export class MessageRouter {
    */
   route(transportId: string, senderIdentity: string): RouteDecision {
     const binding = this.getBindingForTransport(transportId);
+    console.log(`[E2E][Router] route("${transportId}", "${senderIdentity}") — binding=${binding ? JSON.stringify({ id: binding.id, ownerIdentity: binding.ownerIdentity, previousOwner: binding.previousOwner }) : "none"}`);
 
     if (!binding) {
       // No binding = no owner = all messages are external
