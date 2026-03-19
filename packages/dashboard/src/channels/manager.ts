@@ -606,6 +606,11 @@ export class ChannelManager {
     // Update last message timestamp
     entry.status.lastMessageAt = new Date();
 
+    // Reset reconnect attempts on real message receipt.
+    // This ensures the 50-attempt cap is only reset by genuine activity,
+    // not by a successful reconnect (which could enable infinite reconnect loops).
+    entry.status.reconnectAttempts = 0;
+
     // Handle debouncing
     if (entry.debouncer) {
       // Determine if message should bypass debouncing
@@ -709,7 +714,6 @@ export class ChannelManager {
         clearTimeout(entry.reconnectTimer);
         entry.reconnectTimer = null;
       }
-      entry.status.reconnectAttempts = 0;
       entry.pairing = false;
       this.phonePairingChannels.delete(channelId);
       console.log(
