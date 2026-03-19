@@ -75,6 +75,137 @@ import {
 import { createTaskToolsServer } from "./mcp/task-tools-server.js";
 import { createSkillServer } from "./mcp/skill-server.js";
 import { ConnectionRegistry } from "./ws/connection-registry.js";
+import type { Task, CreateTaskInput } from "@my-agent/core";
+import type { Conversation } from "./conversations/types.js";
+
+// ─── Service Namespaces ──────────────────────────────────────────────────────
+// Thin wrappers that delegate reads and emit App events on mutations.
+// These are the ONLY way external code should mutate state.
+
+type TaskUpdateChanges = Parameters<TaskManager["update"]>[1];
+
+export class AppTaskService {
+  constructor(
+    private manager: TaskManager,
+    private app: App,
+  ) {}
+
+  // Read-through
+  list(filter?: Parameters<TaskManager["list"]>[0]) {
+    return this.manager.list(filter);
+  }
+  findById(id: string) {
+    return this.manager.findById(id);
+  }
+  getRunningTasksForConversation(convId: string) {
+    return this.manager.getRunningTasksForConversation(convId);
+  }
+  getTasksForConversation(convId: string) {
+    return this.manager.getTasksForConversation(convId);
+  }
+
+  // Mutations — emit events
+  create(input: CreateTaskInput): Task {
+    const task = this.manager.create(input);
+    this.app.emit("task:created", task);
+    return task;
+  }
+
+  update(id: string, changes: TaskUpdateChanges): void {
+    this.manager.update(id, changes);
+    const task = this.manager.findById(id);
+    if (task) this.app.emit("task:updated", task);
+  }
+
+  delete(id: string): void {
+    this.manager.delete(id);
+    this.app.emit("task:deleted", id);
+  }
+
+  linkTaskToConversation(taskId: string, conversationId: string): void {
+    this.manager.linkTaskToConversation(taskId, conversationId);
+    const task = this.manager.findById(taskId);
+    if (task) this.app.emit("task:updated", task);
+  }
+}
+
+export class AppConversationService {
+  constructor(
+    private manager: ConversationManager,
+    private app: App,
+  ) {}
+
+  // Read-through
+  list(opts?: Parameters<ConversationManager["list"]>[0]) {
+    return this.manager.list(opts);
+  }
+  get(id: string) {
+    return this.manager.get(id);
+  }
+  getDb(): ReturnType<ConversationManager["getDb"]> {
+    return this.manager.getDb();
+  }
+  getConversationDb(): ReturnType<ConversationManager["getConversationDb"]> {
+    return this.manager.getConversationDb();
+  }
+  close() {
+    return this.manager.close();
+  }
+
+  // Mutations — emit events
+  async create(
+    opts?: Parameters<ConversationManager["create"]>[0],
+  ): Promise<Conversation> {
+    const conv = await this.manager.create(opts);
+    this.app.emit("conversation:created", conv);
+    return conv;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.manager.delete(id);
+    this.app.emit("conversation:deleted", id);
+  }
+
+  async makeCurrent(id: string): Promise<void> {
+    await this.manager.makeCurrent(id);
+    this.app.emit("conversation:updated", id);
+  }
+
+  async unpin(id: string): Promise<void> {
+    await this.manager.unpin(id);
+    this.app.emit("conversation:updated", id);
+  }
+
+  // Delegate properties
+  get onConversationInactive() {
+    return this.manager.onConversationInactive;
+  }
+  set onConversationInactive(
+    cb: ((oldConvId: string) => void) | undefined,
+  ) {
+    this.manager.onConversationInactive = cb;
+  }
+}
+
+export class AppCalendarService {
+  constructor(private app: App) {}
+
+  /** Emit after any calendar mutation (create/update/delete via CalDAV client) */
+  emitChanged(): void {
+    this.app.emit("calendar:changed");
+  }
+}
+
+export class AppMemoryService {
+  constructor(private app: App) {}
+
+  /** Emit after any memory state change (plugin activation, sync, etc.) */
+  emitChanged(): void {
+    this.app.emit("memory:changed");
+  }
+}
+
+// ─── App ─────────────────────────────────────────────────────────────────────
 
 export interface AppOptions {
   agentDir: string;
@@ -88,6 +219,12 @@ export interface AppOptions {
 export class App extends EventEmitter {
   readonly agentDir: string;
   readonly isHatched: boolean;
+
+  // Service namespaces (event-emitting wrappers)
+  tasks!: AppTaskService;
+  conversations!: AppConversationService;
+  calendar!: AppCalendarService;
+  memory!: AppMemoryService;
 
   // Core services
   conversationManager!: ConversationManager;
@@ -884,6 +1021,14 @@ export class App extends EventEmitter {
       await app.healthMonitor.start();
       console.log("HealthMonitor started");
     }
+
+    // ── Service namespaces (event-emitting wrappers) ──
+    if (app.taskManager) {
+      app.tasks = new AppTaskService(app.taskManager, app);
+    }
+    app.conversations = new AppConversationService(app.conversationManager, app);
+    app.calendar = new AppCalendarService(app);
+    app.memory = new AppMemoryService(app);
 
     return app;
   }
