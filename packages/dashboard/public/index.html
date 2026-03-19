@@ -7175,7 +7175,7 @@
 
           <!-- Notebook Browser popover (M6-S3) - 4 category organization -->
           <template x-if="$store.mobile.popover?.type === 'notebook-browser'">
-            <div class="space-y-3">
+            <div class="flex flex-col gap-3 h-full">
               <div class="flex items-center justify-between">
                 <h2
                   class="text-lg font-bold text-tokyo-text flex items-center gap-2"
@@ -7214,7 +7214,7 @@
                 </div>
               </template>
               <template x-if="!notebookLoading && notebookTree.length > 0">
-                <div class="space-y-2 max-h-[60vh] overflow-auto">
+                <div class="space-y-2 flex-1 overflow-auto">
                   <!-- Operations -->
                   <div x-data="{ expanded: true }">
                     <button
