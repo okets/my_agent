@@ -1,7 +1,7 @@
 import type {
-  ChannelPlugin,
-  ChannelInstanceConfig,
-  ChannelStatus,
+  TransportPlugin,
+  TransportConfig,
+  TransportStatus,
   IncomingMessage,
   OutgoingMessage,
   HealthResult,
@@ -9,18 +9,18 @@ import type {
 } from "@my-agent/core";
 import { initialStatus } from "@my-agent/core";
 
-export class MockChannelPlugin implements ChannelPlugin {
+export class MockTransportPlugin implements TransportPlugin {
   readonly id = "mock";
   readonly name = "mock";
-  readonly type = "channel" as const;
+  readonly type = "transport" as const;
   readonly icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
 
-  private config: ChannelInstanceConfig | null = null;
-  private _status: ChannelStatus;
+  private config: TransportConfig | null = null;
+  private _status: TransportStatus;
   private handlers: {
     message: Array<(msg: IncomingMessage) => void>;
     error: Array<(err: Error) => void>;
-    status: Array<(status: ChannelStatus) => void>;
+    status: Array<(status: TransportStatus) => void>;
   } = { message: [], error: [], status: [] };
 
   /** Sent messages are captured here for testing */
@@ -30,7 +30,7 @@ export class MockChannelPlugin implements ChannelPlugin {
     this._status = initialStatus();
   }
 
-  async init(config: ChannelInstanceConfig): Promise<void> {
+  async init(config: TransportConfig): Promise<void> {
     this.config = config;
   }
 
@@ -61,7 +61,7 @@ export class MockChannelPlugin implements ChannelPlugin {
 
   on(event: "message", handler: (msg: IncomingMessage) => void): void;
   on(event: "error", handler: (err: Error) => void): void;
-  on(event: "status", handler: (status: ChannelStatus) => void): void;
+  on(event: "status", handler: (status: TransportStatus) => void): void;
   on(event: "qr", handler: (qrDataUrl: string) => void): void;
   on(event: string, handler: (...args: any[]) => void): void {
     if (event === "message") this.handlers.message.push(handler as any);
@@ -69,7 +69,7 @@ export class MockChannelPlugin implements ChannelPlugin {
     else if (event === "status") this.handlers.status.push(handler as any);
   }
 
-  channelStatus(): ChannelStatus {
+  transportStatus(): TransportStatus {
     return { ...this._status };
   }
 

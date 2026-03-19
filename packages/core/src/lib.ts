@@ -43,8 +43,8 @@ export {
   loadAgentName,
   loadAgentNickname,
   loadAgentFullName,
-  saveChannelToConfig,
-  removeChannelFromConfig,
+  saveTransportToConfig,
+  removeTransportFromConfig,
   loadEmbeddingsConfig,
   saveEmbeddingsConfig,
   loadPreferences,
@@ -52,6 +52,8 @@ export {
   DEFAULT_MODELS,
 } from './config.js'
 export type { YamlEmbeddingsConfig, UserPreferences, DebriefPreferences, ModelDefaults } from './config.js'
+export { migrateConfig } from './config-migration.js'
+export { ConfigWriter } from './config-writer.js'
 export type { BrainConfig, HealthConfig } from './types.js'
 
 export { assembleSystemPrompt, loadProperties } from './prompt.js'
@@ -77,21 +79,24 @@ export {
 } from './hatching/logic.js'
 export type { IdentityData, PersonalityOption, OperatingRulesData } from './hatching/logic.js'
 
-// Channel types
-export { toDisplayStatus, initialStatus } from './channels/index.js'
+// Transport types
+export { toDisplayStatus, initialStatus } from './transports/index.js'
 export type {
-  ChannelDisplayStatus,
-  ChannelStatus,
+  TransportDisplayStatus,
+  TransportStatus,
   ReconnectPolicy,
-  WatchdogConfig,
   IncomingMessage,
   OutgoingMessage,
-  ChannelAttachment,
-  ChannelInstanceConfig,
-  ChannelPlugin,
-  PluginFactory,
-  ChannelInfo,
-} from './channels/index.js'
+  TransportAttachment,
+  TransportConfig,
+  TransportPlugin,
+  TransportPluginFactory,
+  TransportInfo,
+} from './transports/index.js'
+
+// Channel binding types (Phase 2)
+export { loadChannelBindings } from './channels/index.js'
+export type { ChannelBinding } from './channels/index.js'
 
 // Env utility
 export { getEnvValue, setEnvValue, removeEnvValue, getAllSecrets } from './env.js'

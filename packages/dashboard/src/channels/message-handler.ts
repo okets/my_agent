@@ -1,20 +1,21 @@
 /**
  * Channel Message Handler
  *
- * Routes incoming channel messages based on sender identity:
- * - Token messages → authorize sender as owner
- * - Owner messages → conversation flow (brain routing)
- * - External messages → stored for S3 trust tier system
+ * Routes incoming transport messages through:
+ * 1. AuthorizationGate — token validation
+ * 2. MessageRouter — channel binding lookup (owner vs external)
+ * 3. Owner messages → conversation flow (brain routing)
+ * 4. External messages → stored for S3 trust tier system
  *
- * Dedup and debounce are handled by ChannelManager before messages reach here.
+ * Dedup and debounce are handled by TransportManager before messages reach here.
  */
 
 import type {
   IncomingMessage,
   OutgoingMessage,
-  ChannelInstanceConfig,
+  ChannelBinding,
 } from "@my-agent/core";
-import { saveChannelToConfig, loadModels } from "@my-agent/core";
+import { loadModels, ConfigWriter } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
 import { SessionRegistry } from "../agent/session-registry.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
@@ -25,6 +26,9 @@ import {
   type AttachmentMeta,
 } from "../conversations/attachments.js";
 import { ResponseTimer } from "./response-timer.js";
+import { AuthorizationGate } from "../routing/authorization-gate.js";
+import { TokenManager } from "../routing/token-manager.js";
+import { MessageRouter, normalizeIdentity } from "../routing/message-router.js";
 
 /** Content block types for Agent SDK (images + text) */
 type ContentBlock =
@@ -38,17 +42,12 @@ interface MessageHandlerDeps {
   conversationManager: ConversationManager;
   sessionRegistry: SessionRegistry;
   connectionRegistry: ConnectionRegistry;
-  sendViaChannel: (
-    channelId: string,
+  sendViaTransport: (
+    transportId: string,
     to: string,
     message: OutgoingMessage,
   ) => Promise<void>;
-  sendTypingIndicator: (channelId: string, to: string) => Promise<void>;
-  getChannelConfig: (channelId: string) => ChannelInstanceConfig | undefined;
-  updateChannelConfig: (
-    channelId: string,
-    update: Partial<ChannelInstanceConfig>,
-  ) => void;
+  sendTypingIndicator: (transportId: string, to: string) => Promise<void>;
   agentDir: string;
   statePublisher?: { publishConversations: () => void } | null;
   postResponseHooks?: {
@@ -60,176 +59,216 @@ interface MessageHandlerDeps {
   } | null;
 }
 
-/**
- * Strip platform-specific suffixes and normalise to digits + optional leading +.
- * Handles WhatsApp JIDs: @s.whatsapp.net, @lid, @g.us
- */
-function normalizeIdentity(identity: string): string {
-  let normalized = identity.replace(/@(s\.whatsapp\.net|lid|g\.us)$/, "");
-  normalized = normalized.replace(/[^\d+]/g, "");
-  return normalized;
-}
-
-function isOwnerMessage(
-  config: ChannelInstanceConfig | undefined,
-  senderIdentity: string,
-): boolean {
-  if (!config?.ownerIdentities?.length) {
-    // WARNING: LID JIDs (e.g., 169969@lid) cannot be matched to phone numbers
-    // without a contact store lookup. Owner detection will fail for LID senders.
-    // TODO: Implement LID resolution via Baileys store in S3.
-    return false;
-  }
-  const normalizedSender = normalizeIdentity(senderIdentity);
-  return config.ownerIdentities.some(
-    (owner) => normalizeIdentity(owner) === normalizedSender,
-  );
-}
-
-/** Pending authorization token for a channel */
-interface PendingToken {
-  token: string;
-  channelId: string;
-  expiresAt: Date;
-}
-
 export class ChannelMessageHandler {
   private deps: MessageHandlerDeps;
   private externalStore: ExternalMessageStore;
   private attachmentService: AttachmentService;
-  private warnedMissingOwner = new Set<string>();
-  private pendingTokens = new Map<string, PendingToken>();
+  private gate: AuthorizationGate;
+  private router: MessageRouter;
+  private tokenManager: TokenManager;
+  private configWriter: ConfigWriter;
 
-  constructor(deps: MessageHandlerDeps) {
+  constructor(
+    deps: MessageHandlerDeps,
+    initialBindings: ChannelBinding[],
+  ) {
     this.deps = deps;
     this.externalStore = new ExternalMessageStore(
       deps.conversationManager.getDb(),
     );
     this.attachmentService = new AttachmentService(deps.agentDir);
+    this.configWriter = new ConfigWriter(deps.agentDir);
+
+    // Initialize routing components with persistent token manager
+    console.log(`[E2E] ChannelMessageHandler init — ${initialBindings.length} initial bindings: ${JSON.stringify(initialBindings.map(b => ({ id: b.id, transport: b.transport, owner: b.ownerIdentity })))}`);
+    this.tokenManager = new TokenManager(deps.agentDir, {
+      onExpired: (transportId) => this.handleTokenExpiry(transportId),
+    });
+    this.router = new MessageRouter(initialBindings);
+    this.gate = new AuthorizationGate(this.tokenManager, {
+      onAuthorized: (transportId, msg) =>
+        this.handleTokenAuthorization(transportId, msg),
+    });
   }
 
   /**
-   * Generate an authorization token for a channel.
+   * Generate an authorization token for a transport.
    * User sends this token via WhatsApp to prove ownership.
+   * Uses crypto.randomInt() (CSPRNG) and persists SHA-256 hash to disk.
    */
-  generateToken(channelId: string): string {
-    // 6-char alphanumeric token (easy to type on phone)
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 to avoid confusion
-    let token = "";
-    for (let i = 0; i < 6; i++) {
-      token += chars[Math.floor(Math.random() * chars.length)];
-    }
-
-    this.pendingTokens.set(channelId, {
-      token,
-      channelId,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-    });
-
+  generateToken(transportId: string): string {
+    const token = this.tokenManager.generateToken(transportId);
+    console.log(`[E2E] generateToken("${transportId}") → token generated (6 chars)`);
+    console.log(`[E2E] Current bindings: ${JSON.stringify(this.router.getBindingForTransport(transportId) ?? "none")}`);
     return token;
   }
 
   /**
-   * Handle incoming messages from a channel (already deduped + debounced).
+   * Start re-authorization flow for a transport.
+   * Suspends the existing channel binding and generates a new token.
+   * Returns the plaintext token for dashboard display.
+   */
+  async startReauthorization(transportId: string): Promise<string> {
+    const binding = this.router.getBindingForTransport(transportId);
+    if (!binding) {
+      throw new Error(`No channel binding exists for transport "${transportId}"`);
+    }
+
+    // Suspend: set previousOwner on the binding
+    const suspendedBinding: ChannelBinding = {
+      ...binding,
+      previousOwner: binding.ownerIdentity,
+    };
+    this.router.addBinding(suspendedBinding);
+
+    // Persist suspended state
+    await this.configWriter.saveChannelBinding(binding.id, {
+      transport: binding.transport,
+      ownerIdentity: binding.ownerIdentity,
+      ownerJid: binding.ownerJid,
+      previousOwner: binding.ownerIdentity,
+    });
+
+    // Send warning to previous owner
+    try {
+      await this.deps.sendViaTransport(transportId, binding.ownerJid, {
+        content:
+          "I'm in re-authorization mode. Messages won't be processed until verification completes.",
+      });
+    } catch {
+      // Best effort — owner may not be reachable
+    }
+
+    // Generate new token
+    return this.tokenManager.generateToken(transportId);
+  }
+
+  /**
+   * Handle token expiry — if this was a re-auth, revert to previous owner.
+   */
+  private handleTokenExpiry(transportId: string): void {
+    const binding = this.router.getBindingForTransport(transportId);
+    if (!binding?.previousOwner) return;
+
+    console.log(
+      `[ChannelMessageHandler] Re-auth token expired for "${transportId}" — reverting to previous owner`,
+    );
+
+    // Revert: clear previousOwner, restore normal routing
+    const revertedBinding: ChannelBinding = {
+      ...binding,
+      previousOwner: undefined,
+    };
+    this.router.addBinding(revertedBinding);
+
+    // Persist reverted state
+    this.configWriter
+      .saveChannelBinding(binding.id, {
+        transport: binding.transport,
+        ownerIdentity: binding.ownerIdentity,
+        ownerJid: binding.ownerJid,
+      })
+      .catch((err) => {
+        console.error(
+          `[ChannelMessageHandler] Failed to persist re-auth revert:`,
+          err,
+        );
+      });
+  }
+
+  /**
+   * Handle incoming messages from a transport (already deduped + debounced).
    * Messages array may have 1+ messages if debounced together.
    */
   async handleMessages(
-    channelId: string,
+    transportId: string,
     messages: IncomingMessage[],
   ): Promise<void> {
     if (messages.length === 0) return;
 
     const first = messages[0];
 
-    // Check for authorization token BEFORE owner check
-    const pending = this.pendingTokens.get(channelId);
-    if (pending) {
-      const content = first.content.trim().toUpperCase();
-      if (content === pending.token && new Date() < pending.expiresAt) {
-        await this.handleTokenAuthorization(channelId, first);
-        return;
-      }
+    console.log(`[E2E] handleMessages("${transportId}") — from="${first.from}", content="${first.content.substring(0, 30)}..."`);
+
+    // Step 1: Authorization gate — check for pending token
+    console.log(`[E2E] Step 1: checking authorization gate...`);
+    const handled = await this.gate.checkMessage(transportId, first);
+    if (handled) {
+      console.log(`[E2E] Step 1: token matched! Authorization handled.`);
+      return;
     }
+    console.log(`[E2E] Step 1: no token match, continuing to routing.`);
 
-    const channelConfig = this.deps.getChannelConfig(channelId);
+    // Step 2: Message router — check channel bindings
+    const decision = this.router.route(transportId, first.from);
+    console.log(`[E2E] Step 2: route decision = "${decision.type}"`);
 
-    // Warn once per channel if ownerIdentities is missing (all messages treated as external)
-    if (
-      !channelConfig?.ownerIdentities?.length &&
-      !this.warnedMissingOwner.has(channelId)
-    ) {
-      this.warnedMissingOwner.add(channelId);
-      console.warn(
-        `[ChannelMessageHandler] Channel "${channelId}" has no ownerIdentities configured — all messages will be treated as external.`,
+    if (decision.type === "owner") {
+      console.log(`[E2E] Routing as OWNER message → brain`);
+      await this.handleOwnerMessage(transportId, messages);
+    } else if (decision.type === "suspended") {
+      // Channel is suspended during re-authorization — drop message silently
+      console.log(
+        `[ChannelMessageHandler] Message dropped — channel suspended for re-authorization on "${transportId}"`,
       );
-    }
-
-    const senderNormalized = normalizeIdentity(first.from);
-    const isOwner = isOwnerMessage(channelConfig, first.from);
-    console.log(
-      `[ChannelMessageHandler] Message from "${first.from}" (normalized: "${senderNormalized}"), ` +
-        `ownerIdentities: ${JSON.stringify(channelConfig?.ownerIdentities)}, isOwner: ${isOwner}`,
-    );
-
-    if (isOwner) {
-      // Owner message → conversation flow
-      await this.handleOwnerMessage(channelId, messages);
     } else {
-      // External party → store for S3 trust tier system
-      await this.handleExternalMessage(channelId, messages);
+      await this.handleExternalMessage(transportId, messages);
     }
   }
 
   /**
-   * Handle a valid authorization token — register sender as channel owner.
+   * Handle a valid authorization token — create channel binding.
    */
   private async handleTokenAuthorization(
-    channelId: string,
+    transportId: string,
     msg: IncomingMessage,
   ): Promise<void> {
     const senderJid = msg.from;
     const normalizedJid = normalizeIdentity(senderJid);
+    const bindingId = `${transportId}_binding`;
 
     console.log(
-      `[ChannelMessageHandler] Token authorization successful for channel "${channelId}" — owner JID: ${senderJid}`,
+      `[E2E][Auth] Token authorization successful for "${transportId}"`,
     );
+    console.log(`[E2E][Auth] senderJid="${senderJid}", normalizedJid="${normalizedJid}", bindingId="${bindingId}"`);
 
-    // Update runtime config
-    // ownerIdentities: normalized digits for identity matching
-    // ownerJid: full JID for outbound messaging (preserves @s.whatsapp.net suffix)
-    this.deps.updateChannelConfig(channelId, {
-      ownerIdentities: [normalizedJid],
+    // Create channel binding
+    const binding: ChannelBinding = {
+      id: bindingId,
+      transport: transportId,
+      ownerIdentity: normalizedJid,
       ownerJid: senderJid,
-    });
+    };
 
-    // Persist to config.yaml
+    // Update router with new binding
+    this.router.addBinding(binding);
+    console.log(`[E2E][Auth] Binding added to router: ${JSON.stringify(binding)}`);
+
+    // Persist binding to config.yaml
+    console.log(`[E2E][Auth] Persisting binding to config.yaml...`);
     try {
-      saveChannelToConfig(
-        channelId,
-        { owner_identities: [normalizedJid], owner_jid: senderJid },
-        this.deps.agentDir,
-      );
+      await this.configWriter.saveChannelBinding(bindingId, {
+        transport: transportId,
+        ownerIdentity: normalizedJid,
+        ownerJid: senderJid,
+      });
     } catch (err) {
       console.error(
-        `[ChannelMessageHandler] Failed to persist owner identity:`,
+        `[ChannelMessageHandler] Failed to persist channel binding:`,
         err,
       );
     }
 
-    // Clear the pending token
-    this.pendingTokens.delete(channelId);
-    this.warnedMissingOwner.delete(channelId);
-
     // Send confirmation via WhatsApp
     const name = msg.senderName ?? "there";
-    await this.deps.sendViaChannel(channelId, senderJid, {
+    await this.deps.sendViaTransport(transportId, senderJid, {
       content: `Hi ${name}! You're now authorized as my owner on this channel. Send me anything and I'll respond!`,
     });
 
     // Broadcast to dashboard
     this.deps.connectionRegistry.broadcastToAll({
-      type: "channel_authorized",
-      channelId,
+      type: "transport_authorized",
+      transportId,
       ownerJid: normalizedJid,
       ownerName: msg.senderName ?? null,
     });
@@ -301,7 +340,7 @@ export class ChannelMessageHandler {
       });
 
       // Send confirmation via channel
-      await this.deps.sendViaChannel(channelId, replyTo, {
+      await this.deps.sendViaTransport(channelId, replyTo, {
         content: "Starting fresh! How can I help?",
       });
 
@@ -342,7 +381,7 @@ export class ChannelMessageHandler {
             ? "Haiku"
             : "Sonnet";
 
-        await this.deps.sendViaChannel(channelId, replyTo, {
+        await this.deps.sendViaTransport(channelId, replyTo, {
           content: `Current model: ${modelName}\n\nAvailable: /model opus, /model sonnet, /model haiku`,
         });
         return;
@@ -358,14 +397,14 @@ export class ChannelMessageHandler {
 
       const newModelId = modelMap[modelArg];
       if (!newModelId) {
-        await this.deps.sendViaChannel(channelId, replyTo, {
+        await this.deps.sendViaTransport(channelId, replyTo, {
           content: `Unknown model "${modelArg}". Available: opus, sonnet, haiku`,
         });
         return;
       }
 
       if (!existingConversation) {
-        await this.deps.sendViaChannel(channelId, replyTo, {
+        await this.deps.sendViaTransport(channelId, replyTo, {
           content: `No active conversation. Send a message first to start one.`,
         });
         return;
@@ -378,7 +417,7 @@ export class ChannelMessageHandler {
       );
 
       const modelName = modelArg.charAt(0).toUpperCase() + modelArg.slice(1);
-      await this.deps.sendViaChannel(channelId, replyTo, {
+      await this.deps.sendViaTransport(channelId, replyTo, {
         content: `Switched to ${modelName}.`,
       });
 
@@ -528,7 +567,7 @@ export class ChannelMessageHandler {
       sendTyping: () => this.deps.sendTypingIndicator(channelId, replyTo),
       sendInterim: async (message) => {
         // Send as real WhatsApp message (ephemeral, not saved to transcript)
-        await this.deps.sendViaChannel(channelId, replyTo, {
+        await this.deps.sendViaTransport(channelId, replyTo, {
           content: message,
         });
         // Also broadcast to web dashboard
@@ -596,7 +635,7 @@ export class ChannelMessageHandler {
 
       // Send response back via channel (use group JID for groups, sender JID for DMs)
       const replyTo = first.groupId ?? first.from;
-      await this.deps.sendViaChannel(channelId, replyTo, {
+      await this.deps.sendViaTransport(channelId, replyTo, {
         content: assistantContent,
       });
 

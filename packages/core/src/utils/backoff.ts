@@ -4,7 +4,7 @@
  * Computes delay for reconnection attempts with jitter.
  */
 
-import type { ReconnectPolicy } from '../channels/types.js'
+import type { ReconnectPolicy } from '../transports/types.js'
 
 /** Default reconnect policy */
 export const DEFAULT_BACKOFF: ReconnectPolicy = {

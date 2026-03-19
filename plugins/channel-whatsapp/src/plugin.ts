@@ -9,12 +9,12 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import { pino } from "pino";
 import type {
-  ChannelPlugin,
-  ChannelInstanceConfig,
-  ChannelStatus,
+  TransportPlugin,
+  TransportConfig,
+  TransportStatus,
   IncomingMessage,
   OutgoingMessage,
-  ChannelAttachment,
+  TransportAttachment,
   HealthResult,
   PluginStatus,
 } from "@my-agent/core";
@@ -28,7 +28,7 @@ import { qrToDataUrl } from "./qr.js";
 
 type MessageHandler = (msg: IncomingMessage) => void;
 type ErrorHandler = (err: Error) => void;
-type StatusHandler = (status: ChannelStatus) => void;
+type StatusHandler = (status: TransportStatus) => void;
 type QrHandler = (qr: string) => void;
 
 interface EventHandlers {
@@ -105,15 +105,15 @@ async function getWaVersion(): Promise<[number, number, number]> {
 // Plugin class
 // ─────────────────────────────────────────────────────────────────
 
-export class BaileysPlugin implements ChannelPlugin {
+export class BaileysPlugin implements TransportPlugin {
   readonly id: string;
   readonly name = "baileys";
-  readonly type = "channel" as const;
+  readonly type = "transport" as const;
   readonly icon = WHATSAPP_ICON;
 
-  private config: ChannelInstanceConfig | null = null;
+  private config: TransportConfig | null = null;
   private sock: WASocket | null = null;
-  private _status: ChannelStatus;
+  private _status: TransportStatus;
   private saveQueue = new CredentialSaveQueue();
   private messageCache = new Map<string, CachedMessage>();
   // Promise that resolves when the socket is ready for pairing code request
@@ -126,7 +126,7 @@ export class BaileysPlugin implements ChannelPlugin {
     qr: [],
   };
 
-  constructor(config: ChannelInstanceConfig) {
+  constructor(config: TransportConfig) {
     this.id = config.id;
     this.config = config;
     this._status = initialStatus();
@@ -134,7 +134,7 @@ export class BaileysPlugin implements ChannelPlugin {
 
   // ── Lifecycle ──────────────────────────────────────────────────
 
-  async init(config: ChannelInstanceConfig): Promise<void> {
+  async init(config: TransportConfig): Promise<void> {
     this.config = config;
   }
 
@@ -433,7 +433,7 @@ export class BaileysPlugin implements ChannelPlugin {
             "";
 
           // Build attachments array for images
-          const attachments: ChannelAttachment[] = [];
+          const attachments: TransportAttachment[] = [];
           if (imageMsg) {
             try {
               const buffer = (await downloadMediaMessage(
@@ -498,6 +498,12 @@ export class BaileysPlugin implements ChannelPlugin {
   }
 
   async disconnect(): Promise<void> {
+    // Flush any pending credential saves before closing the socket.
+    // Without this, a systemctl restart can lose in-flight credential writes.
+    // The saveQueue is already flushed in connect() (line 164) before creating
+    // a new socket — this mirrors that pattern for disconnect.
+    await this.saveQueue.flush();
+
     if (this.sock) {
       this.sock.end(undefined);
       this.sock = null;
@@ -638,7 +644,7 @@ export class BaileysPlugin implements ChannelPlugin {
 
   // ── Status ─────────────────────────────────────────────────────
 
-  channelStatus(): ChannelStatus {
+  transportStatus(): TransportStatus {
     return { ...this._status };
   }
 
@@ -704,7 +710,7 @@ export class BaileysPlugin implements ChannelPlugin {
 // ─────────────────────────────────────────────────────────────────
 
 export function createBaileysPlugin(
-  config: ChannelInstanceConfig,
+  config: TransportConfig,
 ): BaileysPlugin {
   return new BaileysPlugin(config);
 }

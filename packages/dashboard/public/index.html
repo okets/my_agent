@@ -277,7 +277,6 @@
 
         <!-- Content area -->
         <div class="flex-1 overflow-auto" id="main-scroll">
-
           <!-- ======================================================== -->
           <!-- Home Tab                                                 -->
           <!-- ======================================================== -->
@@ -290,10 +289,10 @@
             <div class="flex items-center justify-between mb-6">
               <h1 class="text-2xl font-bold">Dashboard</h1>
               <div class="flex items-center gap-3 text-xs text-tokyo-muted">
-                <!-- Channel status icons with notification dot -->
+                <!-- Transport status icons with notification dot -->
                 <template x-for="channel in channels" :key="channel.id">
                   <button
-                    @click="openSettingsSection('settings-channels')"
+                    @click="openSettingsSection('settings-transports')"
                     class="relative w-5 h-5 text-tokyo-muted cursor-pointer"
                     :title="channel.id + ': ' + channel.status"
                   >
@@ -572,9 +571,7 @@
                         Loading skills...
                       </div>
                     </template>
-                    <template
-                      x-if="!skillsLoading && skillsList.length === 0"
-                    >
+                    <template x-if="!skillsLoading && skillsList.length === 0">
                       <p
                         class="text-xs text-tokyo-muted/60 italic py-4 text-center"
                       >
@@ -584,22 +581,44 @@
                     <!-- User skills -->
                     <template x-if="userSkills.length > 0">
                       <div>
-                        <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-2.5 py-1">Your skills</div>
-                        <template
-                          x-for="skill in userSkills"
-                          :key="skill.name"
+                        <div
+                          class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-2.5 py-1"
                         >
+                          Your skills
+                        </div>
+                        <template x-for="skill in userSkills" :key="skill.name">
                           <button
                             @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name }) : viewSkill(skill.name)"
                             class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-tokyo-purple/10 transition-colors group text-left"
                             :class="skill.disabled ? 'opacity-50' : ''"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-tokyo-muted group-hover:text-tokyo-purple shrink-0">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke-width="1.5"
+                              stroke="currentColor"
+                              class="w-3.5 h-3.5 text-tokyo-muted group-hover:text-tokyo-purple shrink-0"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
+                              />
                             </svg>
-                            <span class="text-xs text-tokyo-text truncate flex-1" x-text="skill.name"></span>
-                            <span x-show="skill.disabled" class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400">off</span>
-                            <span class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400">user</span>
+                            <span
+                              class="text-xs text-tokyo-text truncate flex-1"
+                              x-text="skill.name"
+                            ></span>
+                            <span
+                              x-show="skill.disabled"
+                              class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400"
+                              >off</span
+                            >
+                            <span
+                              class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400"
+                              >user</span
+                            >
                           </button>
                         </template>
                       </div>
@@ -607,7 +626,10 @@
                     <!-- System/curated skills -->
                     <template x-if="systemSkills.length > 0">
                       <div>
-                        <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-2.5 py-1" x-text="userSkills.length > 0 ? 'System' : ''"></div>
+                        <div
+                          class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-2.5 py-1"
+                          x-text="userSkills.length > 0 ? 'System' : ''"
+                        ></div>
                         <template
                           x-for="skill in systemSkills"
                           :key="skill.name"
@@ -616,12 +638,34 @@
                             @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name }) : viewSkill(skill.name)"
                             class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-tokyo-purple/10 transition-colors group text-left"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-tokyo-muted group-hover:text-tokyo-purple shrink-0">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke-width="1.5"
+                              stroke="currentColor"
+                              class="w-3.5 h-3.5 text-tokyo-muted group-hover:text-tokyo-purple shrink-0"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
+                              />
                             </svg>
-                            <span class="text-xs text-tokyo-text truncate flex-1" x-text="skill.name"></span>
-                            <span x-show="skill.audience === 'worker'" class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400">worker</span>
-                            <span x-show="skill.audience === 'conversation'" class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400">conversation</span>
+                            <span
+                              class="text-xs text-tokyo-text truncate flex-1"
+                              x-text="skill.name"
+                            ></span>
+                            <span
+                              x-show="skill.audience === 'worker'"
+                              class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400"
+                              >worker</span
+                            >
+                            <span
+                              x-show="skill.audience === 'conversation'"
+                              class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400"
+                              >conversation</span
+                            >
                           </button>
                         </template>
                       </div>
@@ -1141,7 +1185,7 @@
               <div>
                 <h2 class="text-lg font-semibold text-tokyo-text">Settings</h2>
                 <p class="text-sm text-tokyo-muted mt-1">
-                  Manage appearance and channels
+                  Manage appearance and transports
                 </p>
               </div>
 
@@ -1183,8 +1227,8 @@
                 </div>
               </div>
 
-              <!-- Channels section -->
-              <div id="settings-channels" class="glass-strong rounded-xl p-5">
+              <!-- Transports section -->
+              <div id="settings-transports" class="glass-strong rounded-xl p-5">
                 <h3
                   class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
                 >
@@ -1201,10 +1245,10 @@
                       d="M14 6c.762 0 1.52.02 2.271.062C17.226 6.175 18 7.049 18 8.068v2.652c0 1.02-.773 1.893-1.729 2.006A40.88 40.88 0 0 1 14 12.798v2.452a.75.75 0 0 1-1.28.53l-1.92-1.92A40.56 40.56 0 0 1 9 13.563c-.34 0-.68.005-1.017.016-.14-.122-.27-.254-.39-.394A3.59 3.59 0 0 1 6.5 11.238v-2.24C6.5 7.205 8.24 5.672 10.353 5.564 11.545 5.505 12.76 5.46 14 5.46V6Z"
                     />
                   </svg>
-                  Channels
+                  Transports
                 </h3>
 
-                <!-- Add Channel button -->
+                <!-- Add Transport button -->
                 <div class="flex justify-end mb-3" x-show="!showAddChannel">
                   <button
                     @click="showAddChannel = true"
@@ -1228,20 +1272,20 @@
                   </button>
                 </div>
 
-                <!-- Add Channel form -->
+                <!-- Add Transport form -->
                 <div
                   x-show="showAddChannel"
                   x-transition
                   class="bg-tokyo-card/50 rounded-lg p-4 border border-white/5 mb-3"
                 >
                   <h4 class="text-xs font-semibold text-tokyo-text mb-3">
-                    New WhatsApp Channel
+                    New WhatsApp Transport
                   </h4>
                   <div class="space-y-3">
                     <div>
                       <label
                         class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
-                        >Channel Name</label
+                        >Transport Name</label
                       >
                       <input
                         type="text"
@@ -1330,7 +1374,7 @@
                         style="background: #e07a5f; color: white"
                         :style="(!newChannel.id || addingChannel) ? {} : { boxShadow: '0 0 12px rgba(224,122,95,0.3)' }"
                       >
-                        <span x-show="!addingChannel">Create Channel</span>
+                        <span x-show="!addingChannel">Create Transport</span>
                         <span x-show="addingChannel">Creating...</span>
                       </button>
                       <button
@@ -1348,33 +1392,33 @@
                   </div>
                 </div>
 
-                <!-- No channels state -->
+                <!-- No transports state -->
                 <template x-if="channels.length === 0 && !showAddChannel">
                   <p class="text-sm text-tokyo-muted">
-                    No channels configured yet.
+                    No transports configured yet.
                   </p>
                 </template>
 
-                <!-- Channel cards -->
+                <!-- Transport cards -->
                 <div class="space-y-3">
                   <template x-for="ch in channels" :key="ch.id">
                     <div
                       class="bg-tokyo-card/50 rounded-lg border border-white/5"
                       :class="{ 'border-red-500/30': ch.status === 'error' }"
                     >
-                      <!-- Channel header (always visible) -->
+                      <!-- Transport header (always visible) -->
                       <div
                         class="flex items-center gap-3 p-4"
                         :class="{ 'cursor-pointer hover:bg-white/5': ch.status === 'error' }"
                         @click="ch.status === 'error' && toggleChannelError(ch.id)"
                       >
-                        <!-- Channel icon -->
+                        <!-- Transport icon -->
                         <div
                           class="w-8 h-8 rounded-lg bg-tokyo-panel flex items-center justify-center text-tokyo-muted shrink-0 channel-icon"
                           x-html="ch.icon"
                         ></div>
 
-                        <!-- Channel info -->
+                        <!-- Transport info -->
                         <div class="flex-1 min-w-0">
                           <div class="flex items-center gap-2">
                             <span
@@ -1518,10 +1562,10 @@
                         </div>
                       </template>
 
-                      <!-- Channel actions (for non-error states) -->
+                      <!-- Transport actions (for non-error states) -->
                       <template x-if="ch.status !== 'error'">
                         <div class="px-4 pb-4 pt-0">
-                          <!-- Connect/Pair options (for disconnected/logged_out channels) -->
+                          <!-- Connect/Pair options (for disconnected/logged_out transports) -->
                           <template
                             x-if="ch.status !== 'connected' && ch.status !== 'connecting' && !pairingCodes[ch.id]"
                           >
@@ -1542,25 +1586,43 @@
                             </div>
                           </template>
 
-                          <!-- Verify Owner button (dedicated channels, no owner, no pending token) -->
+                          <!-- Authorize Owner button (connected, no binding, no pending token) -->
                           <template
-                            x-if="ch.status === 'connected' && !authTokens[ch.id] && !ch.hasOwner && ch.role === 'dedicated'"
+                            x-if="ch.status === 'connected' && !authTokens[ch.id] && !getBinding(ch.id)"
                           >
                             <button
                               @click="requestAuthToken(ch.id)"
-                              class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-[rgba(224,122,95,0.15)] text-[#e07a5f] hover:bg-[rgba(224,122,95,0.25)]"
+                              class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors border border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
                             >
-                              Verify Owner
+                              Authorize Owner
                             </button>
                           </template>
 
-                          <!-- Connected channel: owner badge + action buttons -->
+                          <!-- Connected transport: authorized badge + action buttons -->
                           <template
                             x-if="ch.status === 'connected' && !authTokens[ch.id]"
                           >
                             <div class="flex flex-wrap items-center gap-2">
-                              <!-- Owner status badge -->
-                              <template x-if="ch.hasOwner">
+                              <!-- Authorized badge (from channel binding) -->
+                              <template x-if="getBinding(ch.id)">
+                                <span
+                                  class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-green-500/20 text-green-400 border border-green-500/20"
+                                >
+                                  <span
+                                    class="w-1.5 h-1.5 rounded-full bg-green-400"
+                                  ></span>
+                                  Authorized
+                                  <span
+                                    class="text-green-400/70"
+                                    x-text="getBinding(ch.id)?.ownerJid ? '(' + getBinding(ch.id).ownerJid.split('@')[0] + ')' : ''"
+                                  ></span>
+                                </span>
+                              </template>
+
+                              <!-- Legacy owner badge (for transports without binding but with owner) -->
+                              <template
+                                x-if="!getBinding(ch.id) && ch.hasOwner"
+                              >
                                 <span
                                   class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20"
                                 >
@@ -1587,7 +1649,18 @@
                               <div
                                 class="flex flex-wrap items-center gap-1 ml-auto"
                               >
-                                <template x-if="ch.hasOwner">
+                                <!-- Re-authorize button (when binding exists) -->
+                                <template x-if="getBinding(ch.id)">
+                                  <button
+                                    @click="reauthorizeTransport(ch.id)"
+                                    class="text-[11px] px-2.5 py-1 rounded-md font-medium bg-white/5 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/20 transition-colors border border-white/5"
+                                  >
+                                    Re-authorize
+                                  </button>
+                                </template>
+                                <template
+                                  x-if="!getBinding(ch.id) && ch.hasOwner"
+                                >
                                   <button
                                     @click="removeOwner(ch.id)"
                                     class="text-[11px] px-2.5 py-1 rounded-md font-medium bg-white/5 text-tokyo-muted hover:text-tokyo-text hover:bg-white/10 transition-colors border border-white/5"
@@ -1708,7 +1781,7 @@
                         </div>
                       </template>
 
-                      <!-- QR Code display (shown when pairing is active or channel is connecting with QR available, but NOT when phone pairing code is active) -->
+                      <!-- QR Code display (shown when pairing is active or transport is connecting with QR available, but NOT when phone pairing code is active) -->
                       <template
                         x-if="!pairingCodes[ch.id] && ((pairingChannelId === ch.id && qrCodeDataUrl) || (ch.status === 'connecting' && channelQrCodes[ch.id]))"
                       >
@@ -1755,7 +1828,7 @@
                         </div>
                       </template>
 
-                      <!-- Authorization token (shown after pairing, before owner is verified) -->
+                      <!-- Authorization token (shown after authorize/re-authorize) -->
                       <template
                         x-if="authTokens[ch.id] && ch.status === 'connected'"
                       >
@@ -1771,11 +1844,11 @@
                             </p>
                           </div>
                           <p class="text-xs text-tokyo-muted text-center">
-                            Send this code to the agent's WhatsApp number to
-                            verify you're the owner:
+                            Send this code via WhatsApp to authorize:
                           </p>
                           <div
-                            class="px-6 py-3 rounded-lg bg-white/5 border border-white/10 font-mono text-2xl tracking-[0.3em] text-tokyo-text text-center select-all"
+                            class="px-8 py-4 rounded-lg bg-amber-500/5 border border-amber-500/20 font-mono text-3xl tracking-[0.3em] text-amber-400 text-center select-all animate-pulse"
+                            style="animation-duration: 3s"
                             x-text="authTokens[ch.id]"
                           ></div>
                           <p class="text-[10px] text-tokyo-muted">
@@ -2986,97 +3059,129 @@
                   </div>
                 </template>
 
-                  <!-- Skills section (M6.8-S6) -->
-                  <div class="mt-4">
-                    <button
-                      @click="notebookSections.skills = !notebookSections.skills"
-                      class="w-full flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.03] rounded-lg transition-colors"
-                    >
-                      <div class="flex items-center gap-2">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke-width="1.5"
-                          stroke="currentColor"
-                          class="w-4 h-4 text-tokyo-purple transition-transform"
-                          :class="notebookSections.skills ? 'rotate-90' : ''"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="m8.25 4.5 7.5 7.5-7.5 7.5"
-                          />
-                        </svg>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke-width="1.5"
-                          stroke="currentColor"
-                          class="w-4 h-4 text-tokyo-purple"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
-                          />
-                        </svg>
-                        <span class="text-sm font-medium">Skills</span>
-                      </div>
-                      <span
-                        class="text-xs text-tokyo-muted"
-                        x-text="skillsList.length + ' skills'"
-                      ></span>
-                    </button>
-                    <div
-                      x-show="notebookSections.skills"
-                      x-collapse
-                      class="pl-6 pr-2 space-y-0.5 mt-1"
-                    >
-                      <!-- User skills -->
-                      <template x-if="userSkills.length > 0">
-                        <div>
-                          <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1">Your skills</div>
-                          <template x-for="skill in userSkills" :key="skill.name">
-                            <button
-                              @click="viewSkill(skill.name)"
-                              class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
-                              :class="skill.disabled ? 'opacity-50' : ''"
-                            >
-                              <span class="text-sm text-tokyo-text truncate flex-1" x-text="skill.name"></span>
-                              <span x-show="skill.disabled" class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400">off</span>
-                              <span class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400">user</span>
-                            </button>
-                          </template>
-                        </div>
-                      </template>
-                      <!-- System/curated skills -->
-                      <template x-if="systemSkills.length > 0">
-                        <div>
-                          <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1" x-text="userSkills.length > 0 ? 'System' : ''"></div>
-                          <template x-for="skill in systemSkills" :key="skill.name">
-                            <button
-                              @click="viewSkill(skill.name)"
-                              class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
-                            >
-                              <span class="text-sm text-tokyo-text truncate flex-1" x-text="skill.name"></span>
-                              <span x-show="skill.audience === 'worker'" class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400">worker</span>
-                              <span x-show="skill.audience === 'conversation'" class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400">conversation</span>
-                              <span class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400" x-text="skill.origin"></span>
-                            </button>
-                          </template>
-                        </div>
-                      </template>
-                      <template x-if="skillsList.length === 0">
-                        <p
-                          class="text-xs text-tokyo-muted/40 italic py-2 pl-3"
-                        >
-                          No skills
-                        </p>
-                      </template>
+                <!-- Skills section (M6.8-S6) -->
+                <div class="mt-4">
+                  <button
+                    @click="notebookSections.skills = !notebookSections.skills"
+                    class="w-full flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.03] rounded-lg transition-colors"
+                  >
+                    <div class="flex items-center gap-2">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="w-4 h-4 text-tokyo-purple transition-transform"
+                        :class="notebookSections.skills ? 'rotate-90' : ''"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                        />
+                      </svg>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        class="w-4 h-4 text-tokyo-purple"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
+                        />
+                      </svg>
+                      <span class="text-sm font-medium">Skills</span>
                     </div>
+                    <span
+                      class="text-xs text-tokyo-muted"
+                      x-text="skillsList.length + ' skills'"
+                    ></span>
+                  </button>
+                  <div
+                    x-show="notebookSections.skills"
+                    x-collapse
+                    class="pl-6 pr-2 space-y-0.5 mt-1"
+                  >
+                    <!-- User skills -->
+                    <template x-if="userSkills.length > 0">
+                      <div>
+                        <div
+                          class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1"
+                        >
+                          Your skills
+                        </div>
+                        <template x-for="skill in userSkills" :key="skill.name">
+                          <button
+                            @click="viewSkill(skill.name)"
+                            class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
+                            :class="skill.disabled ? 'opacity-50' : ''"
+                          >
+                            <span
+                              class="text-sm text-tokyo-text truncate flex-1"
+                              x-text="skill.name"
+                            ></span>
+                            <span
+                              x-show="skill.disabled"
+                              class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400"
+                              >off</span
+                            >
+                            <span
+                              class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400"
+                              >user</span
+                            >
+                          </button>
+                        </template>
+                      </div>
+                    </template>
+                    <!-- System/curated skills -->
+                    <template x-if="systemSkills.length > 0">
+                      <div>
+                        <div
+                          class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1"
+                          x-text="userSkills.length > 0 ? 'System' : ''"
+                        ></div>
+                        <template
+                          x-for="skill in systemSkills"
+                          :key="skill.name"
+                        >
+                          <button
+                            @click="viewSkill(skill.name)"
+                            class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
+                          >
+                            <span
+                              class="text-sm text-tokyo-text truncate flex-1"
+                              x-text="skill.name"
+                            ></span>
+                            <span
+                              x-show="skill.audience === 'worker'"
+                              class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400"
+                              >worker</span
+                            >
+                            <span
+                              x-show="skill.audience === 'conversation'"
+                              class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400"
+                              >conversation</span
+                            >
+                            <span
+                              class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400"
+                              x-text="skill.origin"
+                            ></span>
+                          </button>
+                        </template>
+                      </div>
+                    </template>
+                    <template x-if="skillsList.length === 0">
+                      <p class="text-xs text-tokyo-muted/40 italic py-2 pl-3">
+                        No skills
+                      </p>
+                    </template>
                   </div>
+                </div>
               </div>
 
               <!-- Preview panel (right) -->
@@ -3236,8 +3341,7 @@
                             class="text-xs px-2 py-1 rounded transition-colors"
                             :class="selectedSkill.disabled ? 'bg-orange-500/15 text-orange-400 hover:bg-orange-500/25' : 'bg-green-500/15 text-green-400 hover:bg-green-500/25'"
                             x-text="selectedSkill.disabled ? 'Enable' : 'Disable'"
-                          >
-                          </button>
+                          ></button>
                         </template>
                         <!-- Edit button (user skills only) -->
                         <template x-if="selectedSkill.origin === 'user'">
@@ -3290,8 +3394,7 @@
                     <template x-if="skillEditMode">
                       <div class="flex-1 overflow-y-auto p-6 space-y-3">
                         <div>
-                          <label
-                            class="text-xs text-tokyo-muted mb-1 block"
+                          <label class="text-xs text-tokyo-muted mb-1 block"
                             >Description</label
                           >
                           <input
@@ -3301,8 +3404,7 @@
                           />
                         </div>
                         <div class="flex-1">
-                          <label
-                            class="text-xs text-tokyo-muted mb-1 block"
+                          <label class="text-xs text-tokyo-muted mb-1 block"
                             >Content (markdown)</label
                           >
                           <textarea
@@ -6122,12 +6224,12 @@
                 </div>
               </div>
               <div
-                id="mobile-settings-channels"
+                id="mobile-settings-transports"
                 class="glass-strong rounded-xl p-4"
               >
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="text-sm font-semibold text-tokyo-text">
-                    Channels
+                    Transports
                   </h3>
                   <button
                     x-show="!showAddChannel"
@@ -6147,7 +6249,7 @@
                   </button>
                 </div>
 
-                <!-- Add Channel form (mobile) -->
+                <!-- Add Transport form (mobile) -->
                 <div
                   x-show="showAddChannel"
                   x-transition
@@ -6156,7 +6258,7 @@
                   <div class="space-y-3">
                     <div>
                       <label class="block text-xs text-tokyo-muted mb-1"
-                        >Channel ID</label
+                        >Transport ID</label
                       >
                       <input
                         type="text"
@@ -6191,7 +6293,7 @@
                         :disabled="addingChannel || !newChannel.id"
                         class="flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)] disabled:opacity-40"
                       >
-                        <span x-show="!addingChannel">Create Channel</span>
+                        <span x-show="!addingChannel">Create Transport</span>
                         <span x-show="addingChannel">Creating...</span>
                       </button>
                       <button
@@ -6206,7 +6308,7 @@
 
                 <template x-if="channels.length === 0 && !showAddChannel">
                   <p class="text-sm text-tokyo-muted">
-                    No channels configured. Tap "+ Add" to get started.
+                    No transports configured. Tap "+ Add" to get started.
                   </p>
                 </template>
                 <div class="space-y-3">
@@ -6215,7 +6317,7 @@
                       class="rounded-lg bg-tokyo-card/30 border"
                       :class="channel.status === 'error' ? 'border-red-500/30' : 'border-white/5'"
                     >
-                      <!-- Channel header -->
+                      <!-- Transport header -->
                       <div
                         class="flex items-center gap-3 p-3"
                         :class="{ 'cursor-pointer active:bg-white/5': channel.status === 'error' }"
@@ -6470,57 +6572,45 @@
                         </div>
                       </template>
 
-                      <!-- Actions for connected channels (mobile) -->
+                      <!-- Actions for connected transports (mobile) -->
                       <template
                         x-if="channel.status === 'connected' && !authTokens[channel.id]"
                       >
                         <div class="px-3 pb-3 space-y-3">
-                          <!-- Verify Owner (dedicated, no owner) -->
+                          <!-- Authorize Owner (connected, no binding, dedicated) -->
                           <template
-                            x-if="!channel.hasOwner && channel.role === 'dedicated'"
+                            x-if="!getBinding(channel.id) && channel.role === 'dedicated'"
                           >
                             <button
                               @click="requestAuthToken(channel.id)"
-                              class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)]"
+                              class="text-xs px-3 py-1.5 rounded-lg font-medium border border-violet-500/30 text-violet-400 active:bg-violet-500/10"
                             >
-                              Verify Owner
+                              Authorize Owner
                             </button>
                           </template>
 
-                          <!-- Owner verified badge -->
-                          <template x-if="channel.hasOwner">
-                            <span
-                              class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20"
-                            >
-                              <svg
-                                class="w-3.5 h-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  stroke-linecap="round"
-                                  stroke-linejoin="round"
-                                  stroke-width="2"
-                                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                                />
-                              </svg>
+                          <!-- Authorized badge (binding exists) -->
+                          <template x-if="getBinding(channel.id)">
+                            <div class="space-y-2">
                               <span
-                                x-text="channel.ownerNumber ? channel.ownerNumber : 'Owner Verified'"
-                              ></span>
-                            </span>
+                                class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-green-500/20 text-green-400 border border-green-500/20"
+                              >
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                                <span
+                                  x-text="'Authorized: ' + getBinding(channel.id).ownerIdentity"
+                                ></span>
+                              </span>
+                              <button
+                                @click="reauthorizeTransport(channel.id)"
+                                class="text-[10px] px-2 py-1 rounded-md font-medium border border-orange-500/20 text-orange-400 active:bg-orange-500/10"
+                              >
+                                Re-authorize
+                              </button>
+                            </div>
                           </template>
 
                           <!-- Action buttons row -->
                           <div class="flex flex-wrap items-center gap-1.5">
-                            <template x-if="channel.hasOwner">
-                              <button
-                                @click="removeOwner(channel.id)"
-                                class="text-[11px] px-2.5 py-1.5 rounded-md font-medium bg-white/5 text-tokyo-muted active:text-tokyo-text active:bg-white/10 border border-white/5"
-                              >
-                                Unverify
-                              </button>
-                            </template>
                             <button
                               @click="disconnectChannel(channel.id)"
                               class="text-[11px] px-2.5 py-1.5 rounded-md font-medium bg-white/5 text-tokyo-muted active:text-amber-400 active:bg-amber-500/10 border border-white/5"
@@ -6537,7 +6627,7 @@
                         </div>
                       </template>
 
-                      <!-- Remove button for disconnected/logged_out channels (mobile) -->
+                      <!-- Remove button for disconnected/logged_out transports (mobile) -->
                       <template
                         x-if="channel.status === 'disconnected' || channel.status === 'logged_out'"
                       >
@@ -6546,7 +6636,7 @@
                             @click="removeChannel(channel.id)"
                             class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] active:bg-[rgba(247,118,142,0.25)]"
                           >
-                            Remove Channel
+                            Remove Transport
                           </button>
                         </div>
                       </template>
@@ -7582,19 +7672,47 @@
                       <!-- User skills -->
                       <template x-if="userSkills.length > 0">
                         <div>
-                          <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1">Your skills</div>
-                          <template x-for="skill in userSkills" :key="skill.name">
+                          <div
+                            class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1"
+                          >
+                            Your skills
+                          </div>
+                          <template
+                            x-for="skill in userSkills"
+                            :key="skill.name"
+                          >
                             <button
                               @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
                               class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-purple/10 transition-colors text-left"
                               :class="skill.disabled ? 'opacity-50' : ''"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-tokyo-purple">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke-width="1.5"
+                                stroke="currentColor"
+                                class="w-4 h-4 text-tokyo-purple"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
+                                />
                               </svg>
-                              <span class="text-sm truncate flex-1" x-text="skill.name"></span>
-                              <span x-show="skill.disabled" class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400">off</span>
-                              <span class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400">user</span>
+                              <span
+                                class="text-sm truncate flex-1"
+                                x-text="skill.name"
+                              ></span>
+                              <span
+                                x-show="skill.disabled"
+                                class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400"
+                                >off</span
+                              >
+                              <span
+                                class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400"
+                                >user</span
+                              >
                             </button>
                           </template>
                         </div>
@@ -7602,26 +7720,52 @@
                       <!-- System/curated skills -->
                       <template x-if="systemSkills.length > 0">
                         <div>
-                          <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1" x-text="userSkills.length > 0 ? 'System' : ''"></div>
-                          <template x-for="skill in systemSkills" :key="skill.name">
+                          <div
+                            class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1"
+                            x-text="userSkills.length > 0 ? 'System' : ''"
+                          ></div>
+                          <template
+                            x-for="skill in systemSkills"
+                            :key="skill.name"
+                          >
                             <button
                               @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
                               class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-purple/10 transition-colors text-left"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-tokyo-purple">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke-width="1.5"
+                                stroke="currentColor"
+                                class="w-4 h-4 text-tokyo-purple"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
+                                />
                               </svg>
-                              <span class="text-sm truncate flex-1" x-text="skill.name"></span>
-                              <span x-show="skill.audience === 'worker'" class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400">worker</span>
-                              <span x-show="skill.audience === 'conversation'" class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400">conversation</span>
+                              <span
+                                class="text-sm truncate flex-1"
+                                x-text="skill.name"
+                              ></span>
+                              <span
+                                x-show="skill.audience === 'worker'"
+                                class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400"
+                                >worker</span
+                              >
+                              <span
+                                x-show="skill.audience === 'conversation'"
+                                class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400"
+                                >conversation</span
+                              >
                             </button>
                           </template>
                         </div>
                       </template>
                       <template x-if="skillsList.length === 0">
-                        <p
-                          class="text-xs text-tokyo-muted/50 px-3 py-2 italic"
-                        >
+                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">
                           No skills yet
                         </p>
                       </template>
@@ -7660,9 +7804,7 @@
           </template>
 
           <!-- Skill detail popover (M6.8-S6) -->
-          <template
-            x-if="$store.mobile.popover?.type === 'skill-detail'"
-          >
+          <template x-if="$store.mobile.popover?.type === 'skill-detail'">
             <div
               class="p-4"
               x-data="{ skillData: null, loading: true }"
@@ -7704,8 +7846,7 @@
                         class="text-xs px-3 py-1.5 rounded transition-colors"
                         :class="skillData.disabled ? 'bg-orange-500/15 text-orange-400' : 'bg-green-500/15 text-green-400'"
                         x-text="skillData.disabled ? 'Enable' : 'Disable'"
-                      >
-                      </button>
+                      ></button>
                       <button
                         @click="deleteSkill(skillData.name).then(() => $store.mobile.closePopover())"
                         class="text-xs px-3 py-1.5 rounded bg-red-500/15 text-red-400"

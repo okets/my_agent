@@ -30,20 +30,20 @@ export interface SessionFactory {
 }
 
 /**
- * Minimal channel manager interface for sending messages.
+ * Minimal transport manager interface for sending messages.
  */
-export interface ChannelManagerLike {
+export interface TransportManagerLike {
   send(
-    channelId: string,
+    transportId: string,
     to: string,
     message: { content: string },
   ): Promise<void>;
 
-  /** Get channel config to look up ownerJid */
-  getChannelConfig(id: string): { ownerJid?: string } | undefined;
+  /** Get transport config to look up ownerJid */
+  getTransportConfig(id: string): { ownerJid?: string } | undefined;
 
-  /** Get channel info to check connection status */
-  getChannelInfos(): Array<{
+  /** Get transport info to check connection status */
+  getTransportInfos(): Array<{
     id: string;
     plugin?: string;
     statusDetail?: { connected: boolean };
@@ -53,7 +53,7 @@ export interface ChannelManagerLike {
 export interface ConversationInitiatorOptions {
   conversationManager: ConversationManager;
   sessionFactory: SessionFactory;
-  channelManager: ChannelManagerLike;
+  channelManager: TransportManagerLike;
   getOutboundChannel: () => string;
   activityThresholdMinutes?: number;
 }
@@ -63,7 +63,7 @@ const DEFAULT_THRESHOLD_MINUTES = 15;
 export class ConversationInitiator {
   private conversationManager: ConversationManager;
   private sessionFactory: SessionFactory;
-  private channelManager: ChannelManagerLike;
+  private channelManager: TransportManagerLike;
   private getOutboundChannel: () => string;
   private thresholdMinutes: number;
 
@@ -195,7 +195,7 @@ export class ConversationInitiator {
       // channelId from preferences is a type like "whatsapp", but actual channel
       // IDs are instance names like "ninas_dedicated_whatsapp". Match by plugin type
       // first, fall back to exact ID match.
-      const channels = this.channelManager.getChannelInfos();
+      const channels = this.channelManager.getTransportInfos();
       // Map preference names to plugin names (e.g. "whatsapp" → "baileys")
       const PLUGIN_MAP: Record<string, string> = { whatsapp: "baileys" };
       const pluginName = PLUGIN_MAP[channelId] || channelId;
@@ -211,7 +211,7 @@ export class ConversationInitiator {
 
       // Get owner JID for outbound messaging
       const resolvedId = channel.id;
-      const config = this.channelManager.getChannelConfig(resolvedId);
+      const config = this.channelManager.getTransportConfig(resolvedId);
       const ownerJid = config?.ownerJid;
       if (!ownerJid) {
         console.warn(

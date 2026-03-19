@@ -93,6 +93,8 @@ function chat() {
 
     // Authorization tokens: { channelId: "TOKEN" }
     authTokens: {},
+    // Channel bindings from /api/channels: [{ id, transport, ownerIdentity, ownerJid, previousOwner? }]
+    channelBindings: [],
     // Phone number pairing state
     pairingPhoneNumber: {}, // { channelId: "entered number" }
     pairingCodes: {}, // { channelId: "ABCD-1234" }
@@ -216,7 +218,7 @@ function chat() {
     briefOutboundChannel: "web",
     savingPreferences: false,
     preferencesStatus: null, // null | "saved" | "error"
-    availableChannels: [], // populated from /api/channels
+    availableChannels: [], // populated from /api/transports
 
     // Model configuration
     configuredModels: {
@@ -392,8 +394,9 @@ function chat() {
         })
         .catch(() => {});
 
-      // Load channels
+      // Load channels and channel bindings
       this.fetchChannels();
+      this.fetchChannelBindings();
 
       // Load calendar config and events
       this.loadCalendarConfig();
@@ -505,8 +508,9 @@ function chat() {
           this.currentThinkingText = "";
           this.isThinking = false;
           this.needsAuth = false;
-          // Refresh channels on reconnect to get current status
+          // Refresh channels + bindings on reconnect to get current status
           this.fetchChannels();
+          this.fetchChannelBindings();
         },
         onClose: () => {
           console.log("[App] WebSocket disconnected");
@@ -1252,26 +1256,26 @@ function chat() {
           }
           break;
 
-        case "channel_status_changed": {
+        case "transport_status_changed": {
           // Update channel status dot in real-time
-          const ch = this.channels.find((c) => c.id === data.channelId);
+          const ch = this.channels.find((c) => c.id === data.transportId);
           if (ch) {
             ch.status = data.status;
             ch.reconnectAttempts = data.reconnectAttempts;
 
             // Manage connecting timer
             if (data.status === "connecting") {
-              this.startConnectingTimer(data.channelId);
+              this.startConnectingTimer(data.transportId);
             } else {
               // Clear timer when no longer connecting (connected, error, stopped)
-              this.clearConnectingTimer(data.channelId);
+              this.clearConnectingTimer(data.transportId);
             }
 
             // Clear QR state if channel connected
             if (data.status === "connected") {
-              delete this.channelQrCodes[data.channelId];
-              this.clearQrCountdown(data.channelId);
-              if (this.pairingChannelId === data.channelId) {
+              delete this.channelQrCodes[data.transportId];
+              this.clearQrCountdown(data.transportId);
+              if (this.pairingChannelId === data.transportId) {
                 this.pairingChannelId = null;
                 this.qrCodeDataUrl = null;
               }
@@ -1280,64 +1284,66 @@ function chat() {
           break;
         }
 
-        case "channel_qr_code": {
+        case "transport_qr_code": {
           // QR code received from server during pairing
           // Ignore QR codes if we're in phone pairing mode
           if (
-            this.pairingByPhone[data.channelId] ||
-            this.pairingCodes[data.channelId]
+            this.pairingByPhone[data.transportId] ||
+            this.pairingCodes[data.transportId]
           ) {
             console.log(
-              `[App] Ignoring QR code for ${data.channelId} - phone pairing active`,
+              `[App] Ignoring QR code for ${data.transportId} - phone pairing active`,
             );
             break;
           }
           // Store per-channel for auto-display when connecting
-          this.channelQrCodes[data.channelId] = data.qrDataUrl;
+          this.channelQrCodes[data.transportId] = data.qrDataUrl;
           // Start/reset countdown timer (QR codes expire in ~20 seconds)
-          this.startQrCountdown(data.channelId, 20);
+          this.startQrCountdown(data.transportId, 20);
           // Also update legacy single QR if explicitly pairing this channel
-          if (data.channelId === this.pairingChannelId) {
+          if (data.transportId === this.pairingChannelId) {
             this.qrCodeDataUrl = data.qrDataUrl;
           }
           break;
         }
 
-        case "channel_paired": {
+        case "transport_paired": {
           // Channel successfully paired — clear all pairing state
-          if (data.channelId === this.pairingChannelId) {
+          if (data.transportId === this.pairingChannelId) {
             this.pairingChannelId = null;
             this.qrCodeDataUrl = null;
           }
-          this.resetPairingState(data.channelId);
-          this.clearQrCountdown(data.channelId);
+          this.resetPairingState(data.transportId);
+          this.clearQrCountdown(data.transportId);
           // Refresh channel list to get updated status
           this.fetchChannels();
           // Auto-trigger auth token for dedicated channels
-          const pairedCh = this.channels.find((c) => c.id === data.channelId);
+          const pairedCh = this.channels.find((c) => c.id === data.transportId);
           if (pairedCh && pairedCh.role === "dedicated") {
-            setTimeout(() => this.requestAuthToken(data.channelId), 500);
+            setTimeout(() => this.requestAuthToken(data.transportId), 500);
           }
           break;
         }
 
-        case "channel_pairing_code": {
+        case "transport_pairing_code": {
           // Phone number pairing code received via WebSocket
-          this.pairingCodes[data.channelId] = data.pairingCode;
-          this.pairingByPhone[data.channelId] = true;
+          this.pairingCodes[data.transportId] = data.pairingCode;
+          this.pairingByPhone[data.transportId] = true;
           break;
         }
 
-        case "channel_owner_removed": {
-          // Owner was removed — refresh channels
+        case "transport_owner_removed": {
+          // Owner was removed — refresh channels + bindings
           this.fetchChannels();
+          this.fetchChannelBindings();
           break;
         }
 
-        case "channel_authorized": {
-          // Owner verified via token — clear token, refresh channels
-          delete this.authTokens[data.channelId];
+        case "transport_authorized": {
+          // Owner verified via token — clear token, refresh channels + bindings
+          delete this.authTokens[data.transportId];
           this.fetchChannels();
+          this.fetchChannelBindings();
           break;
         }
 
@@ -2395,7 +2401,7 @@ function chat() {
     // ─────────────────────────────────────────────────────────────────
 
     fetchChannels() {
-      fetch("/api/channels")
+      fetch("/api/transports")
         .then((r) => r.json())
         .then((data) => {
           if (Array.isArray(data)) {
@@ -2578,7 +2584,7 @@ function chat() {
 
     async loadChannels() {
       try {
-        const res = await fetch("/api/channels");
+        const res = await fetch("/api/transports");
         if (!res.ok) return;
         const channels = await res.json();
         // Use channel ID as both value and label — these are user-defined names
@@ -2758,7 +2764,7 @@ function chat() {
       this.addChannelError = null;
 
       try {
-        const res = await fetch("/api/channels", {
+        const res = await fetch("/api/transports", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -2770,7 +2776,7 @@ function chat() {
 
         const data = await res.json();
         if (!res.ok) {
-          this.addChannelError = data.error || "Failed to create channel";
+          this.addChannelError = data.error || "Failed to create transport";
           return;
         }
 
@@ -2795,7 +2801,7 @@ function chat() {
 
       try {
         const body = phoneNumber ? { phoneNumber } : undefined;
-        const res = await fetch(`/api/channels/${channelId}/pair`, {
+        const res = await fetch(`/api/transports/${channelId}/pair`, {
           method: "POST",
           ...(body && {
             headers: { "Content-Type": "application/json" },
@@ -3005,9 +3011,27 @@ function chat() {
       delete this.connectingTimers[channelId];
     },
 
+    fetchChannelBindings() {
+      fetch("/api/channels")
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            this.channelBindings = data;
+          }
+        })
+        .catch(() => {});
+    },
+
+    /**
+     * Get the channel binding for a transport (if any)
+     */
+    getBinding(transportId) {
+      return this.channelBindings.find((b) => b.transport === transportId);
+    },
+
     async requestAuthToken(channelId) {
       try {
-        const res = await fetch(`/api/channels/${channelId}/authorize`, {
+        const res = await fetch(`/api/transports/${channelId}/authorize`, {
           method: "POST",
         });
         if (res.ok) {
@@ -3019,9 +3043,26 @@ function chat() {
       }
     },
 
+    async reauthorizeTransport(channelId) {
+      if (!confirm("This will suspend the current owner. Continue?")) {
+        return;
+      }
+      try {
+        const res = await fetch(`/api/transports/${channelId}/reauthorize`, {
+          method: "POST",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          this.authTokens[channelId] = data.token;
+        }
+      } catch (err) {
+        console.error("[App] Re-authorize failed:", err);
+      }
+    },
+
     async removeOwner(channelId) {
       try {
-        const res = await fetch(`/api/channels/${channelId}/remove-owner`, {
+        const res = await fetch(`/api/transports/${channelId}/remove-owner`, {
           method: "POST",
         });
         if (!res.ok) {
@@ -3035,7 +3076,7 @@ function chat() {
 
     async disconnectChannel(channelId) {
       try {
-        const res = await fetch(`/api/channels/${channelId}/disconnect`, {
+        const res = await fetch(`/api/transports/${channelId}/disconnect`, {
           method: "POST",
         });
         if (!res.ok) {
@@ -3053,14 +3094,14 @@ function chat() {
     async removeChannel(channelId) {
       if (
         !confirm(
-          `Remove channel "${channelId}"? This will delete all auth data.`,
+          `Remove transport "${channelId}"? This will delete all auth data.`,
         )
       ) {
         return;
       }
 
       try {
-        const res = await fetch(`/api/channels/${channelId}`, {
+        const res = await fetch(`/api/transports/${channelId}`, {
           method: "DELETE",
         });
         if (!res.ok) {
@@ -5010,10 +5051,9 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     async deleteSkill(name) {
       if (!confirm(`Delete skill "${name}"? This cannot be undone.`)) return;
       try {
-        const res = await fetch(
-          `/api/skills/${encodeURIComponent(name)}`,
-          { method: "DELETE" },
-        );
+        const res = await fetch(`/api/skills/${encodeURIComponent(name)}`, {
+          method: "DELETE",
+        });
         if (res.ok) {
           this.skillsList = this.skillsList.filter((s) => s.name !== name);
           if (this.selectedSkill?.name === name) this.selectedSkill = null;
@@ -5025,9 +5065,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
     async viewSkill(name) {
       try {
-        const res = await fetch(
-          `/api/skills/${encodeURIComponent(name)}`,
-        );
+        const res = await fetch(`/api/skills/${encodeURIComponent(name)}`);
         if (res.ok) {
           this.selectedSkill = await res.json();
           this.skillEditMode = false;
@@ -5043,14 +5081,11 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
     async saveSkill(name, description, content) {
       try {
-        const res = await fetch(
-          `/api/skills/${encodeURIComponent(name)}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ description, content }),
-          },
-        );
+        const res = await fetch(`/api/skills/${encodeURIComponent(name)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description, content }),
+        });
         if (res.ok) {
           const updated = await res.json();
           this.selectedSkill = updated;

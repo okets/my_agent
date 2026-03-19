@@ -1,294 +1,31 @@
-import { join } from "node:path";
+/**
+ * Channel Binding Routes
+ *
+ * Manage channel bindings (owner → transport mappings).
+ * Separate from transport routes which handle infrastructure.
+ */
+
 import type { FastifyInstance } from "fastify";
-import { saveChannelToConfig, removeChannelFromConfig } from "@my-agent/core";
-import type { ChannelInstanceConfig } from "@my-agent/core";
-import { connectionRegistry } from "../ws/chat-handler.js";
+import { loadChannelBindings, ConfigWriter } from "@my-agent/core";
 
 export async function registerChannelRoutes(
   fastify: FastifyInstance,
 ): Promise<void> {
-  // POST /api/channels — add a new channel
-  fastify.post<{
-    Body: {
-      id: string;
-      plugin: string;
-      identity?: string;
-      role?: "dedicated" | "personal";
-    };
-  }>("/api/channels", async (request, reply) => {
-    const { id, plugin, identity, role } = request.body ?? {};
-    if (!id || !plugin) {
-      return reply
-        .code(400)
-        .send({ error: "Missing required fields: id, plugin" });
-    }
-
-    // Validate ID format (alphanumeric + underscores/hyphens)
-    if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
-      return reply.code(400).send({
-        error:
-          "Invalid channel ID. Use only letters, numbers, hyphens, and underscores.",
-      });
-    }
-
-    // Validate role if provided
-    const channelRole = role === "personal" ? "personal" : "dedicated";
-
-    // Check for duplicates
-    const channelManager = fastify.channelManager;
-    if (channelManager?.getChannelInfo(id)) {
-      return reply.code(409).send({ error: `Channel "${id}" already exists` });
-    }
-
-    // Build channel config for YAML persistence
-    const channelData: Record<string, unknown> = {
-      plugin,
-      role: channelRole,
-      processing: "immediate",
-      auth_dir: join(fastify.agentDir, "auth", id),
-    };
-    if (identity) channelData.identity = identity;
-
-    // Persist to config.yaml
-    try {
-      saveChannelToConfig(id, channelData, fastify.agentDir);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return reply
-        .code(500)
-        .send({ error: `Failed to save config: ${message}` });
-    }
-
-    // Build full ChannelInstanceConfig for runtime registration
-    const authDir = join(fastify.agentDir, "auth", id);
-    const config: ChannelInstanceConfig = {
-      id,
-      plugin,
-      role: channelRole,
-      identity: identity ?? "",
-      processing: "immediate",
-      authDir,
-      ownerIdentities: undefined,
-      reconnect: {
-        initialMs: 2000,
-        maxMs: 30000,
-        factor: 1.8,
-        jitter: 0.25,
-        maxAttempts: 50,
-      },
-      watchdog: { enabled: true, checkIntervalMs: 60000, timeoutMs: 1800000 },
-      debounceMs: 0,
-    };
-
-    // Register at runtime if channelManager exists
-    // Skip auto-connect — let user choose pairing method (QR or phone number)
-    if (channelManager) {
-      try {
-        const info = await channelManager.addChannel(config, {
-          skipConnect: true,
-        });
-        return reply.send(info);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return reply.code(500).send({ error: message });
-      }
-    }
-
-    // No channel manager (agent not hatched) — config saved, will be picked up on restart
-    return reply.send({
-      id,
-      plugin,
-      role: channelRole,
-      identity: identity ?? "",
-      status: "disconnected",
-      statusDetail: {},
-      icon: "",
-      note: "Channel saved. Restart the dashboard to activate.",
-    });
-  });
-
-  // GET /api/channels — list all channels with status
+  // GET /api/channels — list all channel bindings
   fastify.get("/api/channels", async (_request, reply) => {
-    const channelManager = fastify.channelManager;
-    if (!channelManager) {
-      return reply.send([]);
-    }
-    return reply.send(channelManager.getChannelInfos());
+    const bindings = loadChannelBindings(fastify.agentDir);
+    return reply.send(bindings);
   });
 
-  // GET /api/channels/:id/status — single channel status
-  fastify.get<{ Params: { id: string } }>(
-    "/api/channels/:id/status",
-    async (request, reply) => {
-      const channelManager = fastify.channelManager;
-      if (!channelManager) {
-        return reply.code(404).send({ error: "No channels configured" });
-      }
-      const info = channelManager.getChannelInfo(request.params.id);
-      if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
-      }
-      return reply.send(info);
-    },
-  );
-
-  // GET /api/channels/:id/icon — SVG icon for channel plugin
-  fastify.get<{ Params: { id: string } }>(
-    "/api/channels/:id/icon",
-    async (request, reply) => {
-      const channelManager = fastify.channelManager;
-      if (!channelManager) {
-        return reply.code(404).send({ error: "No channels configured" });
-      }
-      const info = channelManager.getChannelInfo(request.params.id);
-      if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
-      }
-      return reply.type("image/svg+xml").send(info.icon);
-    },
-  );
-
-  // POST /api/channels/:id/pair — trigger QR or phone number pairing
-  // If channel is in error/logged_out state, clears auth to force fresh pairing
-  fastify.post<{ Params: { id: string }; Body: { phoneNumber?: string } }>(
-    "/api/channels/:id/pair",
-    async (request, reply) => {
-      const channelManager = fastify.channelManager;
-      if (!channelManager) {
-        return reply.code(404).send({ error: "No channels configured" });
-      }
-      const info = channelManager.getChannelInfo(request.params.id);
-      if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
-      }
-      if (info.statusDetail.connected) {
-        return reply.code(409).send({ error: "Channel already connected" });
-      }
-      try {
-        // Clear auth for fresh pairing if channel is in error/logged_out state
-        const needsFreshAuth =
-          info.status === "error" || info.status === "logged_out";
-
-        // If phone number provided, suppress QR codes BEFORE connecting
-        const phoneNumber = request.body?.phoneNumber;
-        if (phoneNumber) {
-          channelManager.suppressQrForChannel(request.params.id);
-        }
-
-        await channelManager.connectChannel(request.params.id, needsFreshAuth);
-
-        // If phone number provided, fire-and-forget pairing code request.
-        // The code will arrive via WebSocket `channel_pairing_code` event.
-        if (phoneNumber) {
-          // Don't await — let it run async, code delivered via WS
-          channelManager.requestPairingCode(request.params.id, phoneNumber);
-        }
-        // Without phone number, QR code arrives via WebSocket `channel_qr_code`
-
-        return reply.send({ ok: true });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return reply.code(500).send({ error: message });
-      }
-    },
-  );
-
-  // POST /api/channels/:id/authorize — generate owner authorization token
-  fastify.post<{ Params: { id: string } }>(
-    "/api/channels/:id/authorize",
-    async (request, reply) => {
-      const handler = fastify.channelMessageHandler;
-      if (!handler) {
-        return reply.code(503).send({ error: "Channel system not ready" });
-      }
-      const channelManager = fastify.channelManager;
-      if (!channelManager?.getChannelInfo(request.params.id)) {
-        return reply.code(404).send({ error: "Channel not found" });
-      }
-      const token = handler.generateToken(request.params.id);
-      return reply.send({ token });
-    },
-  );
-
-  // POST /api/channels/:id/remove-owner — clear owner identity
-  fastify.post<{ Params: { id: string } }>(
-    "/api/channels/:id/remove-owner",
-    async (request, reply) => {
-      const channelManager = fastify.channelManager;
-      if (!channelManager) {
-        return reply.code(404).send({ error: "No channels configured" });
-      }
-      const info = channelManager.getChannelInfo(request.params.id);
-      if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
-      }
-
-      // Clear owner from runtime config
-      channelManager.updateChannelConfig(request.params.id, {
-        ownerIdentities: undefined,
-        ownerJid: undefined,
-      });
-
-      // Persist to config.yaml
-      try {
-        saveChannelToConfig(
-          request.params.id,
-          { owner_identities: null, owner_jid: null },
-          fastify.agentDir,
-        );
-      } catch (err) {
-        console.error("[channels] Failed to persist owner removal:", err);
-      }
-
-      // Broadcast to all connected clients
-      connectionRegistry.broadcastToAll({
-        type: "channel_owner_removed",
-        channelId: request.params.id,
-      });
-
-      return reply.send({ ok: true });
-    },
-  );
-
-  // POST /api/channels/:id/disconnect — disconnect a channel
-  fastify.post<{ Params: { id: string } }>(
-    "/api/channels/:id/disconnect",
-    async (request, reply) => {
-      const channelManager = fastify.channelManager;
-      if (!channelManager) {
-        return reply.code(404).send({ error: "No channels configured" });
-      }
-      const info = channelManager.getChannelInfo(request.params.id);
-      if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
-      }
-      try {
-        await channelManager.disconnectChannel(request.params.id);
-        return reply.send({ ok: true });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return reply.code(500).send({ error: message });
-      }
-    },
-  );
-
-  // DELETE /api/channels/:id — remove a channel entirely
+  // DELETE /api/channels/:id — remove a channel binding
   fastify.delete<{ Params: { id: string } }>(
     "/api/channels/:id",
     async (request, reply) => {
-      const channelManager = fastify.channelManager;
-      if (!channelManager) {
-        return reply.code(404).send({ error: "No channels configured" });
-      }
-      const info = channelManager.getChannelInfo(request.params.id);
-      if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
-      }
+      const { id } = request.params;
+      const writer = new ConfigWriter(fastify.agentDir);
+
       try {
-        // Remove from runtime
-        await channelManager.removeChannel(request.params.id);
-        // Remove from config.yaml
-        removeChannelFromConfig(request.params.id, fastify.agentDir);
+        await writer.removeChannelBinding(id);
         return reply.send({ ok: true });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
