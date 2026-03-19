@@ -111,11 +111,12 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 
 First external channel. Agent owns a phone number, responds immediately.
 
-| Sprint | Name                      | Status   | Plan                                                 | Review                                            |
-| ------ | ------------------------- | -------- | ---------------------------------------------------- | ------------------------------------------------- |
-| S1     | Channel Infrastructure    | Complete | [plan](sprints/m3-s1-channel-infrastructure/plan.md) | —                                                 |
-| S2     | WhatsApp Plugin + Routing | Complete | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)        | [review](sprints/m3-s2-whatsapp-plugin/review.md) |
-| S3     | Slash Commands            | Complete | [plan](sprints/m3-s3-slash-commands/plan.md)         | [review](sprints/m3-s3-slash-commands/review.md)  |
+| Sprint | Name                      | Status   | Plan                                                           | Review                                            |
+| ------ | ------------------------- | -------- | -------------------------------------------------------------- | ------------------------------------------------- |
+| S1     | Channel Infrastructure    | Complete | [plan](sprints/m3-s1-channel-infrastructure/plan.md)           | —                                                 |
+| S2     | WhatsApp Plugin + Routing | Complete | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)                  | [review](sprints/m3-s2-whatsapp-plugin/review.md) |
+| S3     | Slash Commands            | Complete | [plan](sprints/m3-s3-slash-commands/plan.md)                   | [review](sprints/m3-s3-slash-commands/review.md)  |
+| S5     | Connection Stability      | Complete | [plan](sprints/m3-s5-connection-stability/plan.md)             | —                                                 |
 
 **Design references:**
 
@@ -126,10 +127,13 @@ First external channel. Agent owns a phone number, responds immediately.
 - _(S1)_ Channel plugin interface, manager with resilience (reconnection, dedup, debounce, watchdog), mock plugin
 - _(S2)_ Baileys WhatsApp plugin, QR pairing, identity-based routing, owner conversations, settings view
 - _(S3)_ Slash commands: `/new` (conversation reset with pinning), `/model` (model switching) — works on web + WhatsApp
+- _(S5)_ Correction sprint: watchdog death loop fix, credential flush on shutdown, reconnect guard. Full investigation and diagnostics in [sprint docs](sprints/m3-s5-connection-stability/).
 
 **Dependencies:** M2 (chat infra)
 
 **Note:** External communications (personal channel role, ruleset model, approval flow) deferred to M10.
+
+**Troubleshooting:** For future WhatsApp connectivity issues, see the [M3-S5 sprint docs](sprints/m3-s5-connection-stability/) — contains root cause analysis, log evidence, Baileys internals investigation, and the full fix rationale.
 
 ---
 
