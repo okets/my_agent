@@ -9,8 +9,11 @@
  * - Work loop scheduler
  * - MCP servers
  * - SystemPromptBuilder / session manager
+ *
+ * M6.10-S2: Added App-style event emission via service namespaces.
  */
 
+import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -22,10 +25,17 @@ import {
   initNotebook,
 } from "@my-agent/core";
 import type { ServerMessage } from "../../src/ws/protocol.js";
+import type { AppEventMap } from "../../src/app-events.js";
 import { ConversationManager } from "../../src/conversations/index.js";
 import { TaskManager, TaskLogStorage } from "../../src/tasks/index.js";
 import { ConnectionRegistry } from "../../src/ws/connection-registry.js";
 import { StatePublisher } from "../../src/state/state-publisher.js";
+import {
+  AppTaskService,
+  AppConversationService,
+  AppCalendarService,
+  AppMemoryService,
+} from "../../src/app.js";
 
 export interface CapturedBroadcast {
   type: string;
@@ -37,8 +47,30 @@ export interface AppHarnessOptions {
   withMemory?: boolean;
 }
 
+/**
+ * Lightweight App-compatible EventEmitter for test harness.
+ * Allows AppTaskService/AppConversationService to emit typed events.
+ */
+class HarnessEmitter extends EventEmitter {
+  override emit<K extends keyof AppEventMap>(
+    event: K,
+    ...args: AppEventMap[K]
+  ): boolean {
+    return super.emit(event as string, ...args);
+  }
+
+  override on<K extends keyof AppEventMap>(
+    event: K,
+    listener: (...args: AppEventMap[K]) => void,
+  ): this {
+    return super.on(event as string, listener as (...args: unknown[]) => void);
+  }
+}
+
 export class AppHarness {
   readonly agentDir: string;
+
+  // Direct service access (backward compat for S1 tests)
   readonly conversationManager: ConversationManager;
   readonly taskManager: TaskManager;
   readonly logStorage: TaskLogStorage;
@@ -47,6 +79,13 @@ export class AppHarness {
   readonly statePublisher: StatePublisher;
   readonly broadcasts: CapturedBroadcast[] = [];
 
+  // App-style event emission (M6.10-S2)
+  readonly emitter: HarnessEmitter;
+  readonly tasks: AppTaskService;
+  readonly conversations: AppConversationService;
+  readonly calendar: AppCalendarService;
+  readonly memory: AppMemoryService;
+
   // Optional subsystems
   memoryDb: MemoryDb | null = null;
   syncService: SyncService | null = null;
@@ -54,6 +93,9 @@ export class AppHarness {
 
   private constructor(agentDir: string) {
     this.agentDir = agentDir;
+
+    // App-style event emitter
+    this.emitter = new HarnessEmitter();
 
     // Core services (same order as index.ts)
     this.conversationManager = new ConversationManager(agentDir);
@@ -74,6 +116,18 @@ export class AppHarness {
       conversationManager: this.conversationManager,
       getCalendarClient: () => null, // No calendar in tests
     });
+
+    // Service namespaces with event emission (uses emitter as App stand-in)
+    this.tasks = new AppTaskService(
+      this.taskManager,
+      this.emitter as any,
+    );
+    this.conversations = new AppConversationService(
+      this.conversationManager,
+      this.emitter as any,
+    );
+    this.calendar = new AppCalendarService(this.emitter as any);
+    this.memory = new AppMemoryService(this.emitter as any);
 
     // Intercept all broadcasts for assertion
     const originalBroadcast =
