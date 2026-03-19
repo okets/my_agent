@@ -107,7 +107,7 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 
 ---
 
-### M3: WhatsApp Channel — COMPLETE
+### M3: WhatsApp Channel — IN PROGRESS (S6 blocking)
 
 First external channel. Agent owns a phone number, responds immediately.
 
