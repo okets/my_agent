@@ -93,6 +93,9 @@ export type {
   TransportInfo,
 } from './transports/index.js'
 
+// Channel binding types (Phase 2)
+export { loadChannelBindings } from './channels/index.js'
+export type { ChannelBinding } from './channels/index.js'
 
 // Env utility
 export { getEnvValue, setEnvValue, removeEnvValue, getAllSecrets } from './env.js'

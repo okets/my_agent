@@ -4,6 +4,7 @@ import { parse, stringify } from 'yaml'
 import type { BrainConfig } from './types.js'
 import type { TransportConfig, ReconnectPolicy } from './transports/types.js'
 import { migrateConfig } from './config-migration.js'
+import { loadChannelBindings } from './channels/config.js'
 
 /**
  * Default model IDs — versionless, always resolve to latest.
@@ -245,6 +246,7 @@ export function loadConfig(): BrainConfig {
       process.env.MY_AGENT_BRAIN_DIR ??
       (yaml?.brain?.dir ? path.resolve(agentDir, yaml.brain.dir) : path.join(agentDir, 'brain')),
     transports: loadTransportConfigs(yaml),
+    channels: loadChannelBindings(agentDir),
     health: yaml?.health,
   }
 }
