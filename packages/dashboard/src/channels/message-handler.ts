@@ -228,8 +228,8 @@ export class ChannelMessageHandler {
 
     // Broadcast to dashboard
     this.deps.connectionRegistry.broadcastToAll({
-      type: "channel_authorized",
-      channelId,
+      type: "transport_authorized",
+      transportId: channelId,
       ownerJid: normalizedJid,
       ownerName: msg.senderName ?? null,
     });

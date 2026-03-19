@@ -177,12 +177,12 @@ export async function registerTransportRoutes(
         await transportManager.connectTransport(request.params.id, needsFreshAuth);
 
         // If phone number provided, fire-and-forget pairing code request.
-        // The code will arrive via WebSocket `channel_pairing_code` event.
+        // The code will arrive via WebSocket `transport_pairing_code` event.
         if (phoneNumber) {
           // Don't await — let it run async, code delivered via WS
           transportManager.requestPairingCode(request.params.id, phoneNumber);
         }
-        // Without phone number, QR code arrives via WebSocket `channel_qr_code`
+        // Without phone number, QR code arrives via WebSocket `transport_qr_code`
 
         return reply.send({ ok: true });
       } catch (err) {
@@ -241,8 +241,8 @@ export async function registerTransportRoutes(
 
       // Broadcast to all connected clients
       connectionRegistry.broadcastToAll({
-        type: "channel_owner_removed",
-        channelId: request.params.id,
+        type: "transport_owner_removed",
+        transportId: request.params.id,
       });
 
       return reply.send({ ok: true });

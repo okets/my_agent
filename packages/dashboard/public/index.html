@@ -290,10 +290,10 @@
             <div class="flex items-center justify-between mb-6">
               <h1 class="text-2xl font-bold">Dashboard</h1>
               <div class="flex items-center gap-3 text-xs text-tokyo-muted">
-                <!-- Channel status icons with notification dot -->
+                <!-- Transport status icons with notification dot -->
                 <template x-for="channel in channels" :key="channel.id">
                   <button
-                    @click="openSettingsSection('settings-channels')"
+                    @click="openSettingsSection('settings-transports')"
                     class="relative w-5 h-5 text-tokyo-muted cursor-pointer"
                     :title="channel.id + ': ' + channel.status"
                   >
@@ -1141,7 +1141,7 @@
               <div>
                 <h2 class="text-lg font-semibold text-tokyo-text">Settings</h2>
                 <p class="text-sm text-tokyo-muted mt-1">
-                  Manage appearance and channels
+                  Manage appearance and transports
                 </p>
               </div>
 
@@ -1183,8 +1183,8 @@
                 </div>
               </div>
 
-              <!-- Channels section -->
-              <div id="settings-channels" class="glass-strong rounded-xl p-5">
+              <!-- Transports section -->
+              <div id="settings-transports" class="glass-strong rounded-xl p-5">
                 <h3
                   class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
                 >
@@ -1201,10 +1201,10 @@
                       d="M14 6c.762 0 1.52.02 2.271.062C17.226 6.175 18 7.049 18 8.068v2.652c0 1.02-.773 1.893-1.729 2.006A40.88 40.88 0 0 1 14 12.798v2.452a.75.75 0 0 1-1.28.53l-1.92-1.92A40.56 40.56 0 0 1 9 13.563c-.34 0-.68.005-1.017.016-.14-.122-.27-.254-.39-.394A3.59 3.59 0 0 1 6.5 11.238v-2.24C6.5 7.205 8.24 5.672 10.353 5.564 11.545 5.505 12.76 5.46 14 5.46V6Z"
                     />
                   </svg>
-                  Channels
+                  Transports
                 </h3>
 
-                <!-- Add Channel button -->
+                <!-- Add Transport button -->
                 <div class="flex justify-end mb-3" x-show="!showAddChannel">
                   <button
                     @click="showAddChannel = true"
@@ -1228,20 +1228,20 @@
                   </button>
                 </div>
 
-                <!-- Add Channel form -->
+                <!-- Add Transport form -->
                 <div
                   x-show="showAddChannel"
                   x-transition
                   class="bg-tokyo-card/50 rounded-lg p-4 border border-white/5 mb-3"
                 >
                   <h4 class="text-xs font-semibold text-tokyo-text mb-3">
-                    New WhatsApp Channel
+                    New WhatsApp Transport
                   </h4>
                   <div class="space-y-3">
                     <div>
                       <label
                         class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
-                        >Channel Name</label
+                        >Transport Name</label
                       >
                       <input
                         type="text"
@@ -1330,7 +1330,7 @@
                         style="background: #e07a5f; color: white"
                         :style="(!newChannel.id || addingChannel) ? {} : { boxShadow: '0 0 12px rgba(224,122,95,0.3)' }"
                       >
-                        <span x-show="!addingChannel">Create Channel</span>
+                        <span x-show="!addingChannel">Create Transport</span>
                         <span x-show="addingChannel">Creating...</span>
                       </button>
                       <button
@@ -1348,33 +1348,33 @@
                   </div>
                 </div>
 
-                <!-- No channels state -->
+                <!-- No transports state -->
                 <template x-if="channels.length === 0 && !showAddChannel">
                   <p class="text-sm text-tokyo-muted">
-                    No channels configured yet.
+                    No transports configured yet.
                   </p>
                 </template>
 
-                <!-- Channel cards -->
+                <!-- Transport cards -->
                 <div class="space-y-3">
                   <template x-for="ch in channels" :key="ch.id">
                     <div
                       class="bg-tokyo-card/50 rounded-lg border border-white/5"
                       :class="{ 'border-red-500/30': ch.status === 'error' }"
                     >
-                      <!-- Channel header (always visible) -->
+                      <!-- Transport header (always visible) -->
                       <div
                         class="flex items-center gap-3 p-4"
                         :class="{ 'cursor-pointer hover:bg-white/5': ch.status === 'error' }"
                         @click="ch.status === 'error' && toggleChannelError(ch.id)"
                       >
-                        <!-- Channel icon -->
+                        <!-- Transport icon -->
                         <div
                           class="w-8 h-8 rounded-lg bg-tokyo-panel flex items-center justify-center text-tokyo-muted shrink-0 channel-icon"
                           x-html="ch.icon"
                         ></div>
 
-                        <!-- Channel info -->
+                        <!-- Transport info -->
                         <div class="flex-1 min-w-0">
                           <div class="flex items-center gap-2">
                             <span
@@ -1518,10 +1518,10 @@
                         </div>
                       </template>
 
-                      <!-- Channel actions (for non-error states) -->
+                      <!-- Transport actions (for non-error states) -->
                       <template x-if="ch.status !== 'error'">
                         <div class="px-4 pb-4 pt-0">
-                          <!-- Connect/Pair options (for disconnected/logged_out channels) -->
+                          <!-- Connect/Pair options (for disconnected/logged_out transports) -->
                           <template
                             x-if="ch.status !== 'connected' && ch.status !== 'connecting' && !pairingCodes[ch.id]"
                           >
@@ -1542,7 +1542,7 @@
                             </div>
                           </template>
 
-                          <!-- Verify Owner button (dedicated channels, no owner, no pending token) -->
+                          <!-- Verify Owner button (dedicated transports, no owner, no pending token) -->
                           <template
                             x-if="ch.status === 'connected' && !authTokens[ch.id] && !ch.hasOwner && ch.role === 'dedicated'"
                           >
@@ -1554,7 +1554,7 @@
                             </button>
                           </template>
 
-                          <!-- Connected channel: owner badge + action buttons -->
+                          <!-- Connected transport: owner badge + action buttons -->
                           <template
                             x-if="ch.status === 'connected' && !authTokens[ch.id]"
                           >
@@ -1708,7 +1708,7 @@
                         </div>
                       </template>
 
-                      <!-- QR Code display (shown when pairing is active or channel is connecting with QR available, but NOT when phone pairing code is active) -->
+                      <!-- QR Code display (shown when pairing is active or transport is connecting with QR available, but NOT when phone pairing code is active) -->
                       <template
                         x-if="!pairingCodes[ch.id] && ((pairingChannelId === ch.id && qrCodeDataUrl) || (ch.status === 'connecting' && channelQrCodes[ch.id]))"
                       >
@@ -6122,12 +6122,12 @@
                 </div>
               </div>
               <div
-                id="mobile-settings-channels"
+                id="mobile-settings-transports"
                 class="glass-strong rounded-xl p-4"
               >
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="text-sm font-semibold text-tokyo-text">
-                    Channels
+                    Transports
                   </h3>
                   <button
                     x-show="!showAddChannel"
@@ -6147,7 +6147,7 @@
                   </button>
                 </div>
 
-                <!-- Add Channel form (mobile) -->
+                <!-- Add Transport form (mobile) -->
                 <div
                   x-show="showAddChannel"
                   x-transition
@@ -6156,7 +6156,7 @@
                   <div class="space-y-3">
                     <div>
                       <label class="block text-xs text-tokyo-muted mb-1"
-                        >Channel ID</label
+                        >Transport ID</label
                       >
                       <input
                         type="text"
@@ -6191,7 +6191,7 @@
                         :disabled="addingChannel || !newChannel.id"
                         class="flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-[rgba(224,122,95,0.15)] text-[#e07a5f] active:bg-[rgba(224,122,95,0.25)] disabled:opacity-40"
                       >
-                        <span x-show="!addingChannel">Create Channel</span>
+                        <span x-show="!addingChannel">Create Transport</span>
                         <span x-show="addingChannel">Creating...</span>
                       </button>
                       <button
@@ -6206,7 +6206,7 @@
 
                 <template x-if="channels.length === 0 && !showAddChannel">
                   <p class="text-sm text-tokyo-muted">
-                    No channels configured. Tap "+ Add" to get started.
+                    No transports configured. Tap "+ Add" to get started.
                   </p>
                 </template>
                 <div class="space-y-3">
@@ -6215,7 +6215,7 @@
                       class="rounded-lg bg-tokyo-card/30 border"
                       :class="channel.status === 'error' ? 'border-red-500/30' : 'border-white/5'"
                     >
-                      <!-- Channel header -->
+                      <!-- Transport header -->
                       <div
                         class="flex items-center gap-3 p-3"
                         :class="{ 'cursor-pointer active:bg-white/5': channel.status === 'error' }"
@@ -6470,7 +6470,7 @@
                         </div>
                       </template>
 
-                      <!-- Actions for connected channels (mobile) -->
+                      <!-- Actions for connected transports (mobile) -->
                       <template
                         x-if="channel.status === 'connected' && !authTokens[channel.id]"
                       >
@@ -6537,7 +6537,7 @@
                         </div>
                       </template>
 
-                      <!-- Remove button for disconnected/logged_out channels (mobile) -->
+                      <!-- Remove button for disconnected/logged_out transports (mobile) -->
                       <template
                         x-if="channel.status === 'disconnected' || channel.status === 'logged_out'"
                       >
@@ -6546,7 +6546,7 @@
                             @click="removeChannel(channel.id)"
                             class="text-xs px-3 py-1.5 rounded-lg font-medium bg-[rgba(247,118,142,0.15)] text-[#f7768e] active:bg-[rgba(247,118,142,0.25)]"
                           >
-                            Remove Channel
+                            Remove Transport
                           </button>
                         </div>
                       </template>

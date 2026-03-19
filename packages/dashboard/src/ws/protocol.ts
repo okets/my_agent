@@ -143,18 +143,18 @@ export type ServerMessage =
   | { type: "turns_loaded"; turns: Turn[]; hasMore: boolean }
   | { type: "conversation_deleted"; conversationId: string }
   | {
-      type: "channel_status_changed";
-      channelId: string;
+      type: "transport_status_changed";
+      transportId: string;
       status: string;
       reconnectAttempts: number;
     }
-  | { type: "channel_qr_code"; channelId: string; qrDataUrl: string }
-  | { type: "channel_paired"; channelId: string }
-  | { type: "channel_pairing_code"; channelId: string; pairingCode: string }
-  | { type: "channel_owner_removed"; channelId: string }
+  | { type: "transport_qr_code"; transportId: string; qrDataUrl: string }
+  | { type: "transport_paired"; transportId: string }
+  | { type: "transport_pairing_code"; transportId: string; pairingCode: string }
+  | { type: "transport_owner_removed"; transportId: string }
   | {
-      type: "channel_authorized";
-      channelId: string;
+      type: "transport_authorized";
+      transportId: string;
       ownerJid: string;
       ownerName: string | null;
     }

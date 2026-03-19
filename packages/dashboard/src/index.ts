@@ -233,8 +233,8 @@ async function main() {
     // Wire status change → WS broadcast
     transportManager.onStatusChange((transportId, status) => {
       connectionRegistry.broadcastToAll({
-        type: "channel_status_changed",
-        channelId: transportId,
+        type: "transport_status_changed",
+        transportId,
         status: toDisplayStatus(status),
         reconnectAttempts: status.reconnectAttempts,
       });
@@ -243,8 +243,8 @@ async function main() {
     // Wire QR code → WS broadcast
     transportManager.onQrCode((transportId, qrDataUrl) => {
       connectionRegistry.broadcastToAll({
-        type: "channel_qr_code",
-        channelId: transportId,
+        type: "transport_qr_code",
+        transportId,
         qrDataUrl,
       });
     });
@@ -252,8 +252,8 @@ async function main() {
     // Phone number pairing code → broadcast to all WS clients
     transportManager.onPairingCode((transportId, pairingCode) => {
       connectionRegistry.broadcastToAll({
-        type: "channel_pairing_code",
-        channelId: transportId,
+        type: "transport_pairing_code",
+        transportId,
         pairingCode,
       });
     });
@@ -261,8 +261,8 @@ async function main() {
     // Wire pairing success → WS broadcast
     transportManager.onPaired((transportId) => {
       connectionRegistry.broadcastToAll({
-        type: "channel_paired",
-        channelId: transportId,
+        type: "transport_paired",
+        transportId,
       });
     });
 
