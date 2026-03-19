@@ -487,7 +487,7 @@ export async function registerCalendarRoutes(
       );
 
       // Broadcast updated calendar state
-      fastify.statePublisher?.publishCalendar();
+      fastify.app!.calendar.emitChanged();
 
       const cal = calendars.find((c: Calendar) => c.id === targetCalendarId);
       return toFullCalendarEvent(updated, cal?.color ?? "blue");
@@ -548,7 +548,7 @@ export async function registerCalendarRoutes(
       await client.deleteEvent(targetCalendarId, uid, editMode);
 
       // Broadcast updated calendar state
-      fastify.statePublisher?.publishCalendar();
+      fastify.app!.calendar.emitChanged();
 
       return { success: true };
     } catch (err) {
