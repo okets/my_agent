@@ -93,6 +93,8 @@ function chat() {
 
     // Authorization tokens: { channelId: "TOKEN" }
     authTokens: {},
+    // Channel bindings from /api/channels: [{ id, transport, ownerIdentity, ownerJid, previousOwner? }]
+    channelBindings: [],
     // Phone number pairing state
     pairingPhoneNumber: {}, // { channelId: "entered number" }
     pairingCodes: {}, // { channelId: "ABCD-1234" }
@@ -392,8 +394,9 @@ function chat() {
         })
         .catch(() => {});
 
-      // Load channels
+      // Load channels and channel bindings
       this.fetchChannels();
+      this.fetchChannelBindings();
 
       // Load calendar config and events
       this.loadCalendarConfig();
@@ -505,8 +508,9 @@ function chat() {
           this.currentThinkingText = "";
           this.isThinking = false;
           this.needsAuth = false;
-          // Refresh channels on reconnect to get current status
+          // Refresh channels + bindings on reconnect to get current status
           this.fetchChannels();
+          this.fetchChannelBindings();
         },
         onClose: () => {
           console.log("[App] WebSocket disconnected");
@@ -1329,15 +1333,17 @@ function chat() {
         }
 
         case "transport_owner_removed": {
-          // Owner was removed — refresh channels
+          // Owner was removed — refresh channels + bindings
           this.fetchChannels();
+          this.fetchChannelBindings();
           break;
         }
 
         case "transport_authorized": {
-          // Owner verified via token — clear token, refresh channels
+          // Owner verified via token — clear token, refresh channels + bindings
           delete this.authTokens[data.transportId];
           this.fetchChannels();
+          this.fetchChannelBindings();
           break;
         }
 
@@ -3005,6 +3011,24 @@ function chat() {
       delete this.connectingTimers[channelId];
     },
 
+    fetchChannelBindings() {
+      fetch("/api/channels")
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            this.channelBindings = data;
+          }
+        })
+        .catch(() => {});
+    },
+
+    /**
+     * Get the channel binding for a transport (if any)
+     */
+    getBinding(transportId) {
+      return this.channelBindings.find((b) => b.transport === transportId);
+    },
+
     async requestAuthToken(channelId) {
       try {
         const res = await fetch(`/api/transports/${channelId}/authorize`, {
@@ -3016,6 +3040,23 @@ function chat() {
         }
       } catch (err) {
         console.error("[App] Auth token request failed:", err);
+      }
+    },
+
+    async reauthorizeTransport(channelId) {
+      if (!confirm("This will suspend the current owner. Continue?")) {
+        return;
+      }
+      try {
+        const res = await fetch(`/api/transports/${channelId}/reauthorize`, {
+          method: "POST",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          this.authTokens[channelId] = data.token;
+        }
+      } catch (err) {
+        console.error("[App] Re-authorize failed:", err);
       }
     },
 
@@ -5010,10 +5051,9 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     async deleteSkill(name) {
       if (!confirm(`Delete skill "${name}"? This cannot be undone.`)) return;
       try {
-        const res = await fetch(
-          `/api/skills/${encodeURIComponent(name)}`,
-          { method: "DELETE" },
-        );
+        const res = await fetch(`/api/skills/${encodeURIComponent(name)}`, {
+          method: "DELETE",
+        });
         if (res.ok) {
           this.skillsList = this.skillsList.filter((s) => s.name !== name);
           if (this.selectedSkill?.name === name) this.selectedSkill = null;
@@ -5025,9 +5065,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
     async viewSkill(name) {
       try {
-        const res = await fetch(
-          `/api/skills/${encodeURIComponent(name)}`,
-        );
+        const res = await fetch(`/api/skills/${encodeURIComponent(name)}`);
         if (res.ok) {
           this.selectedSkill = await res.json();
           this.skillEditMode = false;
@@ -5043,14 +5081,11 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
     async saveSkill(name, description, content) {
       try {
-        const res = await fetch(
-          `/api/skills/${encodeURIComponent(name)}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ description, content }),
-          },
-        );
+        const res = await fetch(`/api/skills/${encodeURIComponent(name)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description, content }),
+        });
         if (res.ok) {
           const updated = await res.json();
           this.selectedSkill = updated;
