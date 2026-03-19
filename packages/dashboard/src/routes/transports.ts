@@ -192,7 +192,7 @@ export async function registerTransportRoutes(
     },
   );
 
-  // POST /api/channels/:id/authorize — generate owner authorization token
+  // POST /api/transports/:id/authorize — generate owner authorization token
   fastify.post<{ Params: { id: string } }>(
     "/api/transports/:id/authorize",
     async (request, reply) => {
@@ -209,7 +209,31 @@ export async function registerTransportRoutes(
     },
   );
 
-  // POST /api/channels/:id/remove-owner — clear owner identity
+  // POST /api/transports/:id/reauthorize — start re-authorization flow
+  fastify.post<{ Params: { id: string } }>(
+    "/api/transports/:id/reauthorize",
+    async (request, reply) => {
+      const handler = fastify.channelMessageHandler;
+      if (!handler) {
+        return reply.code(503).send({ error: "Transport system not ready" });
+      }
+      const transportManager = fastify.transportManager;
+      if (!transportManager?.getTransportInfo(request.params.id)) {
+        return reply.code(404).send({ error: "Transport not found" });
+      }
+
+      // Start re-auth: suspend channel, generate new token
+      try {
+        const token = await handler.startReauthorization(request.params.id);
+        return reply.send({ token });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return reply.code(400).send({ error: message });
+      }
+    },
+  );
+
+  // POST /api/transports/:id/remove-owner — clear owner identity
   fastify.post<{ Params: { id: string } }>(
     "/api/transports/:id/remove-owner",
     async (request, reply) => {

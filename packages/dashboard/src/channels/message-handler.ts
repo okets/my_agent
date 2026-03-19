@@ -98,6 +98,46 @@ export class ChannelMessageHandler {
   }
 
   /**
+   * Start re-authorization flow for a transport.
+   * Suspends the existing channel binding and generates a new token.
+   * Returns the plaintext token for dashboard display.
+   */
+  async startReauthorization(transportId: string): Promise<string> {
+    const binding = this.router.getBindingForTransport(transportId);
+    if (!binding) {
+      throw new Error(`No channel binding exists for transport "${transportId}"`);
+    }
+
+    // Suspend: set previousOwner on the binding
+    const suspendedBinding: ChannelBinding = {
+      ...binding,
+      previousOwner: binding.ownerIdentity,
+    };
+    this.router.addBinding(suspendedBinding);
+
+    // Persist suspended state
+    await this.configWriter.saveChannelBinding(binding.id, {
+      transport: binding.transport,
+      ownerIdentity: binding.ownerIdentity,
+      ownerJid: binding.ownerJid,
+      previousOwner: binding.ownerIdentity,
+    });
+
+    // Send warning to previous owner
+    try {
+      await this.deps.sendViaTransport(transportId, binding.ownerJid, {
+        content:
+          "I'm in re-authorization mode. Messages won't be processed until verification completes.",
+      });
+    } catch {
+      // Best effort — owner may not be reachable
+    }
+
+    // Generate new token
+    return this.tokenManager.generateToken(transportId);
+  }
+
+  /**
    * Handle incoming messages from a transport (already deduped + debounced).
    * Messages array may have 1+ messages if debounced together.
    */
