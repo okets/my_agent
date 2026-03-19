@@ -117,6 +117,31 @@ export class StatePublisher {
   }
 
   /**
+   * Subscribe to App events for automatic state publishing.
+   * Replaces all imperative publishX() calls from routes/handlers.
+   */
+  subscribeToApp(app: import("../app.js").App): void {
+    app.on("task:created", () => this.publishTasks());
+    app.on("task:updated", () => this.publishTasks());
+    app.on("task:deleted", () => this.publishTasks());
+
+    app.on("conversation:created", () => this.publishConversations());
+    app.on("conversation:updated", () => this.publishConversations());
+    app.on("conversation:deleted", () => this.publishConversations());
+
+    app.on("calendar:changed", () => this.publishCalendar());
+
+    app.on("memory:changed", () => this.publishMemory());
+
+    app.on("skills:changed", () => {
+      this.registry.broadcastToAll({
+        type: "state:skills",
+        timestamp: Date.now(),
+      });
+    });
+  }
+
+  /**
    * Set memory services after initialization.
    * Called after memory system is initialized in index.ts.
    */

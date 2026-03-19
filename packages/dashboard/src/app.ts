@@ -624,6 +624,7 @@ export class App extends EventEmitter {
           }
         },
       });
+      app.statePublisher.subscribeToApp(app);
       console.log("StatePublisher initialized");
     }
 
