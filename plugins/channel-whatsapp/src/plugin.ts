@@ -498,6 +498,12 @@ export class BaileysPlugin implements ChannelPlugin {
   }
 
   async disconnect(): Promise<void> {
+    // Flush any pending credential saves before closing the socket.
+    // Without this, a systemctl restart can lose in-flight credential writes.
+    // The saveQueue is already flushed in connect() (line 164) before creating
+    // a new socket — this mirrors that pattern for disconnect.
+    await this.saveQueue.flush();
+
     if (this.sock) {
       this.sock.end(undefined);
       this.sock = null;
