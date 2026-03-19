@@ -83,7 +83,6 @@ export type {
   ChannelDisplayStatus,
   ChannelStatus,
   ReconnectPolicy,
-  WatchdogConfig,
   IncomingMessage,
   OutgoingMessage,
   ChannelAttachment,

@@ -2,7 +2,7 @@ import * as path from 'node:path'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { parse, stringify } from 'yaml'
 import type { BrainConfig } from './types.js'
-import type { ChannelInstanceConfig, ReconnectPolicy, WatchdogConfig } from './channels/types.js'
+import type { ChannelInstanceConfig, ReconnectPolicy } from './channels/types.js'
 
 /**
  * Default model IDs — versionless, always resolve to latest.
@@ -28,12 +28,6 @@ const DEFAULT_RECONNECT: ReconnectPolicy = {
   factor: 1.8,
   jitter: 0.25,
   maxAttempts: 50,
-}
-
-const DEFAULT_WATCHDOG: WatchdogConfig = {
-  enabled: true,
-  checkIntervalMs: 60000,
-  timeoutMs: 1800000,
 }
 
 const DEFAULT_DEBOUNCE_MS = 0
@@ -73,7 +67,6 @@ interface YamlConfig {
   channels?: {
     defaults?: {
       reconnect?: Partial<ReconnectPolicy>
-      watchdog?: Partial<WatchdogConfig>
       debounceMs?: number
     }
     [key: string]: unknown
@@ -129,7 +122,6 @@ function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInst
   const defaultsOverride = channelsSection.defaults as
     | {
         reconnect?: Partial<ReconnectPolicy>
-        watchdog?: Partial<WatchdogConfig>
         debounceMs?: number
       }
     | undefined
@@ -137,10 +129,6 @@ function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInst
   const mergedReconnect: ReconnectPolicy = {
     ...DEFAULT_RECONNECT,
     ...(defaultsOverride?.reconnect ?? {}),
-  }
-  const mergedWatchdog: WatchdogConfig = {
-    ...DEFAULT_WATCHDOG,
-    ...(defaultsOverride?.watchdog ?? {}),
   }
   const mergedDebounce = defaultsOverride?.debounceMs ?? DEFAULT_DEBOUNCE_MS
 
@@ -165,10 +153,6 @@ function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInst
         ...mergedReconnect,
         ...((channelYaml.reconnect as Partial<ReconnectPolicy>) ?? {}),
       },
-      watchdog: {
-        ...mergedWatchdog,
-        ...((channelYaml.watchdog as Partial<WatchdogConfig>) ?? {}),
-      },
       debounceMs: (channelYaml.debounceMs ?? channelYaml.debounce_ms ?? mergedDebounce) as number,
       ownerIdentities: (channelYaml.ownerIdentities ?? channelYaml.owner_identities) as
         | string[]
@@ -188,7 +172,6 @@ function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInst
       'authDir',
       'auth_dir',
       'reconnect',
-      'watchdog',
       'debounceMs',
       'debounce_ms',
       'ownerIdentities',

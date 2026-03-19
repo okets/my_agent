@@ -72,13 +72,6 @@ export interface ReconnectPolicy {
   maxAttempts: number
 }
 
-/** Watchdog timer configuration */
-export interface WatchdogConfig {
-  enabled: boolean
-  checkIntervalMs: number
-  timeoutMs: number
-}
-
 // ─────────────────────────────────────────────────────────────────
 // Messages
 // ─────────────────────────────────────────────────────────────────
@@ -156,8 +149,6 @@ export interface ChannelInstanceConfig {
   authDir?: string
   /** Reconnect policy overrides */
   reconnect?: Partial<ReconnectPolicy>
-  /** Watchdog config overrides */
-  watchdog?: Partial<WatchdogConfig>
   /** Message debounce window in ms (0 = disabled) */
   debounceMs?: number
   /** Owner identities — normalized IDs for matching incoming messages */
