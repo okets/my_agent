@@ -24,6 +24,7 @@ Extract a headless `App` class from the dashboard so the application can be driv
 | 5 | **Fastify adapter is thin** | Routes do `app.tasks.list()`, not business logic. WS handler subscribes to App events and forwards as JSON. No logic in the adapter layer. |
 | 6 | **Existing 476 tests must pass throughout** | Service-level tests are the safety net. They must stay green at every commit. Any red is a stop-the-line event. |
 | 7 | **Chat handler decomposition** | The 900-line `chat-handler.ts` splits into App-owned chat logic (streaming state machine, skill expansion, conversation switching) and a WS transport adapter. The streaming state machine is the highest-risk extraction. |
+| 8 | **Mutations go through App, live updates are structural** | Every state mutation goes through an App method. Every App method emits an event after mutating. Adapters subscribe to events and push to clients. No route or service can mutate state without triggering a live update — it's architecturally impossible, not a convention to remember. StatePublisher becomes a subscriber of App events, not a manually-called service. |
 
 ---
 
@@ -139,6 +140,94 @@ app.on('channel:paired', (channelId) => {})
 
 ---
 
+## Live Update Guarantee
+
+### The Problem Today
+
+Live updates are opt-in. After mutating state, the developer must remember to call `statePublisher.publishTasks()` or `connectionRegistry.broadcastToAll()`. Forget it, and the UI is stale until the next page load. This has caused bugs repeatedly — new features ship without live update wiring, existing mutations get refactored and lose their publish call.
+
+### The Structural Fix
+
+**Mutations only happen through App methods. App methods always emit.**
+
+```typescript
+// App.tasks — the ONLY way to mutate tasks
+class TaskService {
+  async create(input: CreateTaskInput): Promise<Task> {
+    const task = await this.taskManager.create(input);
+    this.app.emit('task:created', task);       // always fires
+    return task;
+  }
+
+  async update(id: string, patch: TaskPatch): Promise<Task> {
+    const task = await this.taskManager.update(id, patch);
+    this.app.emit('task:updated', task);       // always fires
+    return task;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.taskManager.delete(id);
+    this.app.emit('task:deleted', id);         // always fires
+  }
+}
+```
+
+No route, no agent, no test can update a task without the event firing. The event is in the mutation path, not a separate step someone has to remember.
+
+### StatePublisher Becomes a Subscriber
+
+Today, StatePublisher is called imperatively:
+
+```typescript
+// Current: caller must remember to publish
+taskManager.update(id, patch);
+statePublisher.publishTasks();  // forget this → stale UI
+```
+
+After extraction, StatePublisher subscribes to App events and debounces snapshots:
+
+```typescript
+// Adapter wiring (once, at startup)
+app.on('task:created',  () => debouncedPublish('tasks'));
+app.on('task:updated',  () => debouncedPublish('tasks'));
+app.on('task:deleted',  () => debouncedPublish('tasks'));
+app.on('conversation:created', () => debouncedPublish('conversations'));
+app.on('conversation:updated', () => debouncedPublish('conversations'));
+// ... every entity type
+```
+
+New entity types get live updates by adding one `app.emit()` call in the App method. The adapter picks it up automatically.
+
+### What This Means for New Features
+
+Before (convention — breaks silently):
+1. Add route
+2. Call service method
+3. **Remember** to call `statePublisher.publishX()` ← easy to forget
+
+After (structural — can't break):
+1. Add App method that calls service + emits event
+2. Add route that calls App method
+3. Live update happens automatically
+
+### Audit: Current State Mutations
+
+Every mutation path must go through the App after extraction. Known mutation points to migrate:
+
+| Entity | Mutation Sources | Live Update Today? |
+|--------|------------------|--------------------|
+| Tasks | REST routes, TaskProcessor, TaskScheduler, MCP tools | Partial — `onTaskMutated` callback, but not all paths |
+| Conversations | Chat handler, channel handler, REST routes | Partial — some paths broadcast, some don't |
+| Calendar | CalendarScheduler, REST routes | Yes — via cache invalidation + publish |
+| Memory | SyncService, notebook write tools | Yes — SyncService emits `sync` event |
+| Skills | MCP skill tools, hatching | Partial — `onSkillChanged` callback, but only in skill-server |
+| Notifications | TaskProcessor, NotificationService | Yes — NotificationService emits events |
+| Channels | TransportManager status changes | Yes — all wired in index.ts |
+
+The "Partial" entries are the ones that have caused stale UI bugs. After extraction, all entries become "Yes — structural."
+
+---
+
 ## Coupling Points to Break
 
 Three places where business logic currently calls directly into WebSocket transport:
@@ -183,23 +272,27 @@ Three places where business logic currently calls directly into WebSocket transp
   - Channel message flow: simulate inbound → verify conversation created → verify response routed back
   - Memory sync: write notebook file → verify indexed → verify searchable
   - State publishing: mutate task → verify state snapshot emitted
+  - **Live update audit:** for every entity in the audit table, mutate via each known path → verify event fires. These tests become the structural proof that live updates can't regress.
 - **Success criterion:** All integration tests pass. Existing 476 tests still pass.
 
-**Why first:** These tests define the contract. Every subsequent sprint is verified against them.
+**Why first:** These tests define the contract. Every subsequent sprint is verified against them. The live update audit tests specifically will catch any mutation path that bypasses the App after S2.
 
-### S2: Extract App Class
+### S2: Extract App Class + Live Update Guarantee
 
-**Goal:** Move service ownership from Fastify decorators to `App` class. `index.ts` becomes: create App → create Fastify → wire adapter → listen.
+**Goal:** Move service ownership from Fastify decorators to `App` class. All mutations go through App methods that emit events. Live updates become structural. `index.ts` becomes: create App → create Fastify → wire adapter → listen.
 
 **Scope:**
 - Create `src/app.ts` with `App.create()` factory
 - Move all service instantiation and wiring from `index.ts:main()` into `App.create()`
 - App exposes service namespaces (`.tasks`, `.conversations`, `.chat`, etc.)
 - App exposes `EventEmitter` interface
+- **Every App service method that mutates state emits an event after the mutation** — this is the live update guarantee
 - Break the three broadcast coupling points (channels, notifications, state publisher) — replace with `app.emit()`
+- **StatePublisher becomes a subscriber** of App events with debounced snapshot publishing, not a manually-called service
+- Audit all mutation paths (see Live Update Guarantee table) and route through App methods — no direct service calls from routes
 - Move `sessionRegistry` and `connectionRegistry` from module singletons to App-owned (connectionRegistry stays in adapter since it's transport-specific; sessionRegistry moves to App since it's business state)
 - `index.ts` becomes ~50 lines: create App, create Fastify adapter, listen
-- **Success criterion:** S1 integration tests pass on App directly. Existing 476 tests pass. Dashboard works identically in browser.
+- **Success criterion:** S1 integration tests pass on App directly. Existing 476 tests pass. Dashboard works identically in browser. Every mutation in the audit table emits an event (verified by integration test that subscribes to events and asserts they fire).
 
 ### S3: Chat Handler Decomposition
 
