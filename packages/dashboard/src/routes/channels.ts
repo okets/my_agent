@@ -76,7 +76,6 @@ export async function registerChannelRoutes(
         jitter: 0.25,
         maxAttempts: 50,
       },
-      watchdog: { enabled: true, checkIntervalMs: 60000, timeoutMs: 1800000 },
       debounceMs: 0,
     };
 

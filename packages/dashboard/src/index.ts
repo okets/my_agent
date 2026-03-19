@@ -983,7 +983,7 @@ async function main() {
         console.log("Calendar scheduler stopped.");
       }
 
-      // Disconnect all channels first (clears reconnect + watchdog timers)
+      // Disconnect all channels first (clears reconnect timers)
       if (channelManager) {
         await channelManager.disconnectAll();
       }

@@ -2,7 +2,7 @@
  * Channel Manager
  *
  * Central registry for channel plugins with lifecycle management,
- * resilience features (reconnection, watchdog, dedup, debounce),
+ * resilience features (reconnection, dedup, debounce),
  * and message routing.
  */
 
@@ -16,7 +16,6 @@ import type {
   IncomingMessage,
   OutgoingMessage,
   ReconnectPolicy,
-  WatchdogConfig,
 } from "@my-agent/core";
 import {
   toDisplayStatus,
@@ -27,20 +26,12 @@ import {
   MessageDebouncer,
 } from "@my-agent/core";
 
-/** Default watchdog configuration */
-const DEFAULT_WATCHDOG: WatchdogConfig = {
-  enabled: true,
-  checkIntervalMs: 60000, // 1 minute
-  timeoutMs: 1800000, // 30 minutes
-};
-
 /** Internal channel entry */
 interface ChannelEntry {
   config: ChannelInstanceConfig;
   plugin: ChannelPlugin;
   status: ChannelStatus;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
-  watchdogTimer: ReturnType<typeof setInterval> | null;
   debouncer: MessageDebouncer<IncomingMessage> | null;
   /** Flag to suppress reconnects during QR pairing */
   pairing: boolean;
@@ -178,7 +169,6 @@ export class ChannelManager {
       plugin,
       status: initialStatus(),
       reconnectTimer: null,
-      watchdogTimer: null,
       debouncer: null,
       pairing: false,
     };
@@ -257,14 +247,6 @@ export class ChannelManager {
         };
         // Notify handlers of the initial disconnected status
         this.handlePluginStatus(id, entry.status);
-      }
-    }
-
-    // Start watchdog if applicable
-    if (config.role === "dedicated" && config.processing === "immediate") {
-      const watchdogConfig = this.getWatchdogConfig(config);
-      if (watchdogConfig.enabled) {
-        this.startWatchdog(id, watchdogConfig);
       }
     }
 
@@ -521,12 +503,6 @@ export class ChannelManager {
       entry.reconnectTimer = null;
     }
 
-    // Stop watchdog
-    if (entry.watchdogTimer) {
-      clearInterval(entry.watchdogTimer);
-      entry.watchdogTimer = null;
-    }
-
     // Disconnect and clear auth
     try {
       await entry.plugin.disconnect();
@@ -586,12 +562,6 @@ export class ChannelManager {
       if (entry.reconnectTimer) {
         clearTimeout(entry.reconnectTimer);
         entry.reconnectTimer = null;
-      }
-
-      // Clear watchdog timer
-      if (entry.watchdogTimer) {
-        clearInterval(entry.watchdogTimer);
-        entry.watchdogTimer = null;
       }
 
       // Flush and clear debouncer
@@ -804,58 +774,12 @@ export class ChannelManager {
   }
 
   /**
-   * Start watchdog timer for a channel.
-   */
-  private startWatchdog(channelId: string, config: WatchdogConfig): void {
-    const entry = this.channels.get(channelId);
-    if (!entry) return;
-
-    console.log(
-      `[ChannelManager] Starting watchdog for ${channelId} (timeout: ${config.timeoutMs}ms)`,
-    );
-
-    entry.watchdogTimer = setInterval(() => {
-      const status = entry.status;
-
-      // Only check if connected
-      if (!status.connected) return;
-
-      // Check if last message is too old
-      if (status.lastMessageAt) {
-        const age = Date.now() - status.lastMessageAt.getTime();
-        if (age > config.timeoutMs) {
-          console.warn(
-            `[ChannelManager] Watchdog timeout for ${channelId} (${age}ms since last message)`,
-          );
-          // Force disconnect (will trigger reconnection)
-          entry.plugin.disconnect().catch((err) => {
-            console.error(
-              `[ChannelManager] Watchdog disconnect failed for ${channelId}:`,
-              err,
-            );
-          });
-        }
-      }
-    }, config.checkIntervalMs);
-  }
-
-  /**
    * Get merged reconnect policy for a channel.
    */
   private getReconnectPolicy(config: ChannelInstanceConfig): ReconnectPolicy {
     return {
       ...DEFAULT_BACKOFF,
       ...config.reconnect,
-    };
-  }
-
-  /**
-   * Get merged watchdog config for a channel.
-   */
-  private getWatchdogConfig(config: ChannelInstanceConfig): WatchdogConfig {
-    return {
-      ...DEFAULT_WATCHDOG,
-      ...config.watchdog,
     };
   }
 }
