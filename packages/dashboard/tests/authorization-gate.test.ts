@@ -31,11 +31,10 @@ describe("AuthorizationGate", () => {
     const onAuthorized = vi.fn();
     const gate = new AuthorizationGate(store, { onAuthorized });
 
-    const token = gate.generateToken("whatsapp_main");
-    const result = await gate.checkMessage(
-      "whatsapp_main",
-      makeMsg(token),
-    );
+    const token = "ABC123";
+    store.set("whatsapp_main", token, new Date(Date.now() + 600_000));
+
+    const result = await gate.checkMessage("whatsapp_main", makeMsg(token));
 
     expect(result).toBe(true);
     expect(onAuthorized).toHaveBeenCalledOnce();
@@ -50,7 +49,8 @@ describe("AuthorizationGate", () => {
     const onAuthorized = vi.fn();
     const gate = new AuthorizationGate(store, { onAuthorized });
 
-    const token = gate.generateToken("whatsapp_main");
+    const token = "ABC123";
+    store.set("whatsapp_main", token, new Date(Date.now() + 600_000));
     await gate.checkMessage("whatsapp_main", makeMsg(token));
 
     // Second attempt should return false (token cleared)
@@ -64,9 +64,7 @@ describe("AuthorizationGate", () => {
     const onAuthorized = vi.fn();
     const gate = new AuthorizationGate(store, { onAuthorized });
 
-    const token = gate.generateToken("whatsapp_main");
-
-    // Manually expire the token
+    const token = "ABC123";
     store.set("whatsapp_main", token, new Date(Date.now() - 1000));
 
     const result = await gate.checkMessage("whatsapp_main", makeMsg(token));
@@ -79,7 +77,7 @@ describe("AuthorizationGate", () => {
     const onAuthorized = vi.fn();
     const gate = new AuthorizationGate(store, { onAuthorized });
 
-    gate.generateToken("whatsapp_main");
+    store.set("whatsapp_main", "ABC123", new Date(Date.now() + 600_000));
 
     const result = await gate.checkMessage(
       "whatsapp_main",
@@ -94,7 +92,9 @@ describe("AuthorizationGate", () => {
     const onAuthorized = vi.fn();
     const gate = new AuthorizationGate(store, { onAuthorized });
 
-    const token = gate.generateToken("whatsapp_main");
+    const token = "ABC123";
+    store.set("whatsapp_main", token, new Date(Date.now() + 600_000));
+
     const result = await gate.checkMessage(
       "whatsapp_main",
       makeMsg(token.toLowerCase()),

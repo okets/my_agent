@@ -10,15 +10,17 @@
 
 import type { IncomingMessage } from "@my-agent/core";
 
-/** Interface for token storage — swappable in Phase 3 */
+/** Interface for token storage — swappable between in-memory and persistent */
 export interface TokenStore {
   getPendingToken(
     transportId: string,
   ): { token: string; expiresAt: Date } | null;
   clearToken(transportId: string): void;
+  /** Validate a token attempt. Returns true if the token is correct. */
+  validateToken?(transportId: string, input: string): boolean;
 }
 
-/** In-memory token store (Phase 2) */
+/** In-memory token store (for tests) */
 export class InMemoryTokenStore implements TokenStore {
   private tokens = new Map<string, { token: string; expiresAt: Date }>();
 
@@ -34,6 +36,13 @@ export class InMemoryTokenStore implements TokenStore {
 
   clearToken(transportId: string): void {
     this.tokens.delete(transportId);
+  }
+
+  validateToken(transportId: string, input: string): boolean {
+    const pending = this.tokens.get(transportId);
+    if (!pending) return false;
+    if (new Date() >= pending.expiresAt) return false;
+    return input.trim().toUpperCase() === pending.token;
   }
 }
 
@@ -62,31 +71,9 @@ export class AuthorizationGate {
   }
 
   /**
-   * Generate a 6-character authorization token for a transport.
-   * Returns the plaintext token to display in the dashboard.
-   */
-  generateToken(transportId: string): string {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1
-    let token = "";
-    for (let i = 0; i < 6; i++) {
-      token += chars[Math.floor(Math.random() * chars.length)];
-    }
-
-    if (this.tokenStore instanceof InMemoryTokenStore) {
-      (this.tokenStore as InMemoryTokenStore).set(
-        transportId,
-        token,
-        new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-      );
-    }
-
-    return token;
-  }
-
-  /**
    * Check if an incoming message is an authorization token.
-   * Returns true if the message was handled (token matched or rejected).
-   * Returns false if no pending token — message should continue to routing.
+   * Returns true if the message was handled (token matched).
+   * Returns false if no pending token or no match — message continues to routing.
    */
   async checkMessage(
     transportId: string,
@@ -95,15 +82,26 @@ export class AuthorizationGate {
     const pending = this.tokenStore.getPendingToken(transportId);
     if (!pending) return false;
 
-    const content = msg.content.trim().toUpperCase();
+    const content = msg.content.trim();
 
-    if (content === pending.token && new Date() < pending.expiresAt) {
+    // Use validateToken if available (TokenManager with hashing)
+    // Fall back to plaintext comparison (InMemoryTokenStore for tests)
+    let isValid: boolean;
+    if (this.tokenStore.validateToken) {
+      isValid = this.tokenStore.validateToken(transportId, content);
+    } else {
+      isValid =
+        content.toUpperCase() === pending.token &&
+        new Date() < pending.expiresAt;
+    }
+
+    if (isValid) {
       this.tokenStore.clearToken(transportId);
       await this.deps.onAuthorized(transportId, msg);
       return true;
     }
 
-    // Message exists but doesn't match — not a token attempt, continue routing
+    // No match — not a token attempt, continue to routing
     return false;
   }
 }

@@ -26,10 +26,8 @@ import {
   type AttachmentMeta,
 } from "../conversations/attachments.js";
 import { ResponseTimer } from "./response-timer.js";
-import {
-  AuthorizationGate,
-  InMemoryTokenStore,
-} from "../routing/authorization-gate.js";
+import { AuthorizationGate } from "../routing/authorization-gate.js";
+import { TokenManager } from "../routing/token-manager.js";
 import { MessageRouter, normalizeIdentity } from "../routing/message-router.js";
 
 /** Content block types for Agent SDK (images + text) */
@@ -67,7 +65,7 @@ export class ChannelMessageHandler {
   private attachmentService: AttachmentService;
   private gate: AuthorizationGate;
   private router: MessageRouter;
-  private tokenStore: InMemoryTokenStore;
+  private tokenManager: TokenManager;
   private configWriter: ConfigWriter;
 
   constructor(
@@ -81,10 +79,10 @@ export class ChannelMessageHandler {
     this.attachmentService = new AttachmentService(deps.agentDir);
     this.configWriter = new ConfigWriter(deps.agentDir);
 
-    // Initialize routing components
-    this.tokenStore = new InMemoryTokenStore();
+    // Initialize routing components with persistent token manager
+    this.tokenManager = new TokenManager(deps.agentDir);
     this.router = new MessageRouter(initialBindings);
-    this.gate = new AuthorizationGate(this.tokenStore, {
+    this.gate = new AuthorizationGate(this.tokenManager, {
       onAuthorized: (transportId, msg) =>
         this.handleTokenAuthorization(transportId, msg),
     });
@@ -93,9 +91,10 @@ export class ChannelMessageHandler {
   /**
    * Generate an authorization token for a transport.
    * User sends this token via WhatsApp to prove ownership.
+   * Uses crypto.randomInt() (CSPRNG) and persists SHA-256 hash to disk.
    */
   generateToken(transportId: string): string {
-    return this.gate.generateToken(transportId);
+    return this.tokenManager.generateToken(transportId);
   }
 
   /**
