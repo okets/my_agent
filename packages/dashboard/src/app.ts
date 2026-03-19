@@ -418,7 +418,7 @@ export class App extends EventEmitter {
 
       // Transport events → App events (coupling point #1 — broken)
       app.transportManager.onStatusChange((transportId, status) => {
-        app.emit("channel:status_changed", transportId, status, status.reconnectAttempts);
+        app.emit("channel:status_changed", transportId, status);
       });
       app.transportManager.onQrCode((transportId, qrDataUrl) => {
         app.emit("channel:qr_code", transportId, qrDataUrl);

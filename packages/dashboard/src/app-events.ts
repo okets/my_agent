@@ -7,6 +7,7 @@
 
 import type { Task } from "@my-agent/core";
 import type { AnyNotification } from "@my-agent/core";
+import type { TransportStatus } from "@my-agent/core";
 import type { Conversation } from "./conversations/types.js";
 
 export interface AppEventMap {
@@ -32,8 +33,7 @@ export interface AppEventMap {
   // Channel events (forwarded from TransportManager)
   "channel:status_changed": [
     transportId: string,
-    status: unknown,
-    reconnectAttempts?: number,
+    status: TransportStatus,
   ];
   "channel:qr_code": [transportId: string, qrDataUrl: string];
   "channel:pairing_code": [transportId: string, pairingCode: string];
