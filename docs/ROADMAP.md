@@ -22,7 +22,7 @@
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5 incl. S2.5, S3.5), 593 tests |
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
-| **M6.10: Headless App**     | Planned  | 4 sprints (integration tests, App extraction, chat decomposition, agent verification) |
+| **M6.10: Headless App**     | **In Progress** | 1/4 sprints (S1 complete: 33 integration tests, AppHarness) |
 | **M6.11: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -547,7 +547,7 @@ Skills come from:
 
 ---
 
-### M6.10: Headless App — PLANNED
+### M6.10: Headless App — IN PROGRESS
 
 Extract a headless `App` class from the dashboard so the application can be driven programmatically — by agents, tests, or future interfaces (mobile) — without HTTP or WebSocket transport. The web dashboard becomes a thin adapter. Business behavior gets integration tests for the first time.
 
@@ -555,8 +555,8 @@ Extract a headless `App` class from the dashboard so the application can be driv
 
 | Sprint | Name | Scope | Status |
 |--------|------|-------|--------|
-| S1 | Business Layer Integration Tests | `AppHarness` + integration tests for core flows (conversation, task, channel, memory, state publishing). Capture behavior before extraction. | Planned |
-| S2 | Extract App Class | Move service ownership from Fastify decorators to `App.create()`. Break broadcast coupling. `index.ts` becomes ~50 lines. | Planned |
+| S1 | Business Layer Integration Tests | `AppHarness` + integration tests for core flows (conversation, task, channel, memory, state publishing). Capture behavior before extraction. | Complete — [plan](sprints/m6.10-s1-business-layer-integration-tests/plan.md) [review](sprints/m6.10-s1-business-layer-integration-tests/review.md) |
+| S2 | Extract App Class + Live Update Guarantee | Move service ownership from Fastify decorators to `App.create()`. All mutations emit events — live updates become structural, not opt-in. StatePublisher subscribes to App events. `index.ts` becomes ~50 lines. | Planned |
 | S3 | Chat Handler Decomposition | Split 900-line `chat-handler.ts` into App-owned `ChatService` + thin WS adapter. Streaming state machine extraction. | Planned |
 | S4 | Agent-Driven Verification | Agent-style test scenarios driving App directly. Prove QA agents can operate headlessly. Document headless API. | Planned |
 
@@ -568,8 +568,9 @@ Extract a headless `App` class from the dashboard so the application can be driv
 4. **Module singletons → App-owned** — `sessionRegistry` moves to App. `connectionRegistry` stays in WS adapter (transport-specific).
 5. **No behavior changes** — purely structural. REST, WebSocket, and frontend are identical after extraction.
 6. **`app.conversations.active()`** — ConversationService must expose a simple accessor for the currently active conversation. External consumers (Claude Code, agents, tests) should not need raw DB queries to find it.
+7. **Live updates are structural** — every App mutation method emits an event. Adapters subscribe. No manual `publishX()` calls. New features get live updates by default. Solves recurring stale-UI bugs.
 
-**Baseline:** 50 test files, 476 tests (2 skipped) as of 2026-03-16.
+**Baseline:** 67 test files, 608 tests (2 skipped) as of 2026-03-19 (post-S1).
 
 **Dependencies:** M6.8 (skills architecture — completes before this starts)
 
@@ -832,7 +833,7 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
 
 **M6.8 complete.** Skills architecture delivers SDK-native skill discovery, curated skill library, skill management tools (MCP CRUD), dashboard UI (browse/view/edit/delete/toggle with grouping and live refresh), interview-first triage for skill creation, and audience-based skill routing between Conversation Nina and Worker Nina.
 
-**M6.10 is next.** Headless App extraction — move service ownership from Fastify decorators to `App.create()`, break broadcast coupling, add `app.conversations.active()` accessor. Tests first, extract second.
+**M6.10 is in progress.** S1 complete (33 integration tests, AppHarness). Next: S2 — Headless App extraction — move service ownership from Fastify decorators to `App.create()`, break broadcast coupling, add `app.conversations.active()` accessor. Tests first, extract second.
 
 **M6.11 follows M6.10.** Multimodal capabilities (rich input, rich output, voice mode). Conversation/worker split clarified by M6.8 skill routing.
 
