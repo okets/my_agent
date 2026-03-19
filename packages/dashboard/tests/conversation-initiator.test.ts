@@ -188,10 +188,10 @@ function createMockChannelManager(
     ) {
       sent.push({ channelId, to, content: message.content });
     },
-    getChannelConfig(_id: string) {
+    getTransportConfig(_id: string) {
       return connected ? { ownerJid: "1234567890@s.whatsapp.net" } : undefined;
     },
-    getChannelInfos() {
+    getTransportInfos() {
       return connected
         ? [{ id: "whatsapp", statusDetail: { connected: true } }]
         : [{ id: "whatsapp", statusDetail: { connected: false } }];

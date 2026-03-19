@@ -1,4 +1,4 @@
-export { ChannelManager } from "./manager.js";
-export { MockChannelPlugin } from "./mock-plugin.js";
+export { TransportManager } from "./manager.js";
+export { MockTransportPlugin } from "./mock-plugin.js";
 export { ChannelMessageHandler } from "./message-handler.js";
 export { ExternalMessageStore } from "./external-store.js";

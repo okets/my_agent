@@ -426,13 +426,13 @@ export async function registerAdminRoutes(
         .send({ error: "Channel message handler not initialized" });
     }
 
-    const channelManager = fastify.channelManager;
-    if (!channelManager) {
+    const transportManager = fastify.transportManager;
+    if (!transportManager) {
       return reply.code(503).send({ error: "Channel manager not initialized" });
     }
 
     // Check if channel exists
-    const channels = channelManager.getChannelInfos();
+    const channels = transportManager.getTransportInfos();
     const channel = channels.find((c) => c.id === id);
     if (!channel) {
       return reply.code(404).send({ error: `Channel not found: ${id}` });
@@ -487,13 +487,13 @@ export async function registerAdminRoutes(
       return reply.code(400).send({ error: "to and content are required" });
     }
 
-    const channelManager = fastify.channelManager;
-    if (!channelManager) {
+    const transportManager = fastify.transportManager;
+    if (!transportManager) {
       return reply.code(503).send({ error: "Channel manager not initialized" });
     }
 
     // Check channel exists
-    const channels = channelManager.getChannelInfos();
+    const channels = transportManager.getTransportInfos();
     const channelInfo = channels.find((c) => c.id === id);
     if (!channelInfo) {
       return reply.code(404).send({ error: `Channel not found: ${id}` });
@@ -501,7 +501,7 @@ export async function registerAdminRoutes(
 
     try {
       // Send via channel manager
-      await channelManager.send(id, to, { content });
+      await transportManager.send(id, to, { content });
       fastify.log.info(`[Admin] Sent message to ${to} via channel ${id}`);
 
       return { ok: true, channelId: id, to };

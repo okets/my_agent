@@ -12,7 +12,7 @@ import type { TaskExecutor, ExecutionResult } from "./task-executor.js";
 import type { ConversationManager } from "../conversations/index.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import type { TranscriptTurn } from "../conversations/types.js";
-import type { ChannelManager } from "../channels/index.js";
+import type { TransportManager } from "../channels/index.js";
 import { DeliveryExecutor } from "./delivery-executor.js";
 
 export interface TaskProcessorConfig {
@@ -20,7 +20,7 @@ export interface TaskProcessorConfig {
   executor: TaskExecutor;
   conversationManager: ConversationManager;
   connectionRegistry: ConnectionRegistry;
-  channelManager?: ChannelManager | null;
+  transportManager?: TransportManager | null;
   notificationService?: NotificationService | null;
   /** Optional callback fired after any task status mutation (for state publishing) */
   onTaskMutated?: () => void;
@@ -50,7 +50,7 @@ export class TaskProcessor {
     this.conversationManager = config.conversationManager;
     this.connectionRegistry = config.connectionRegistry;
     this.deliveryExecutor = new DeliveryExecutor(
-      config.channelManager ?? null,
+      config.transportManager ?? null,
       config.conversationManager,
     );
     this.notificationService = config.notificationService ?? null;

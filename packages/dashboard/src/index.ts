@@ -38,8 +38,8 @@ import {
   ConversationSearchService,
 } from "./conversations/index.js";
 import {
-  ChannelManager,
-  MockChannelPlugin,
+  TransportManager,
+  MockTransportPlugin,
   ChannelMessageHandler,
 } from "./channels/index.js";
 import {
@@ -184,33 +184,33 @@ async function main() {
   server.conversationManager = conversationManager;
   server.abbreviationQueue = abbreviationQueue;
 
-  // Initialize channel system (always when hatched, even with no channels yet)
-  let channelManager: ChannelManager | null = null;
+  // Initialize transport system (always when hatched, even with no transports yet)
+  let transportManager: TransportManager | null = null;
   const config = loadConfig();
 
   if (hatched) {
-    channelManager = new ChannelManager();
+    transportManager = new TransportManager();
 
     // Register built-in plugin factories
-    channelManager.registerPlugin("mock", (cfg) => {
-      const plugin = new MockChannelPlugin();
+    transportManager.registerPlugin("mock", (cfg) => {
+      const plugin = new MockTransportPlugin();
       return plugin;
     });
-    channelManager.registerPlugin("baileys", (cfg) => createBaileysPlugin(cfg));
+    transportManager.registerPlugin("baileys", (cfg) => createBaileysPlugin(cfg));
 
     // Wire message handler
     const messageHandler = new ChannelMessageHandler({
       conversationManager,
       sessionRegistry,
       connectionRegistry,
-      sendViaChannel: (channelId, to, message) =>
-        channelManager!.send(channelId, to, message),
-      sendTypingIndicator: (channelId, to) =>
-        channelManager!.sendTypingIndicator(channelId, to),
-      getChannelConfig: (channelId) =>
-        channelManager!.getChannelConfig(channelId),
-      updateChannelConfig: (channelId, update) =>
-        channelManager!.updateChannelConfig(channelId, update),
+      sendViaTransport: (transportId, to, message) =>
+        transportManager!.send(transportId, to, message),
+      sendTypingIndicator: (transportId, to) =>
+        transportManager!.sendTypingIndicator(transportId, to),
+      getTransportConfig: (transportId) =>
+        transportManager!.getTransportConfig(transportId),
+      updateTransportConfig: (transportId, update) =>
+        transportManager!.updateTransportConfig(transportId, update),
       agentDir,
       statePublisher: {
         publishConversations: () =>
@@ -221,61 +221,61 @@ async function main() {
       },
     });
 
-    channelManager.onMessage((channelId, messages) => {
-      messageHandler.handleMessages(channelId, messages).catch((err) => {
+    transportManager.onMessage((transportId, messages) => {
+      messageHandler.handleMessages(transportId, messages).catch((err) => {
         console.error(
-          `[Channels] Error handling messages from ${channelId}:`,
+          `[Transports] Error handling messages from ${transportId}:`,
           err,
         );
       });
     });
 
     // Wire status change → WS broadcast
-    channelManager.onStatusChange((channelId, status) => {
+    transportManager.onStatusChange((transportId, status) => {
       connectionRegistry.broadcastToAll({
         type: "channel_status_changed",
-        channelId,
+        channelId: transportId,
         status: toDisplayStatus(status),
         reconnectAttempts: status.reconnectAttempts,
       });
     });
 
     // Wire QR code → WS broadcast
-    channelManager.onQrCode((channelId, qrDataUrl) => {
+    transportManager.onQrCode((transportId, qrDataUrl) => {
       connectionRegistry.broadcastToAll({
         type: "channel_qr_code",
-        channelId,
+        channelId: transportId,
         qrDataUrl,
       });
     });
 
     // Phone number pairing code → broadcast to all WS clients
-    channelManager.onPairingCode((channelId, pairingCode) => {
+    transportManager.onPairingCode((transportId, pairingCode) => {
       connectionRegistry.broadcastToAll({
         type: "channel_pairing_code",
-        channelId,
+        channelId: transportId,
         pairingCode,
       });
     });
 
     // Wire pairing success → WS broadcast
-    channelManager.onPaired((channelId) => {
+    transportManager.onPaired((transportId) => {
       connectionRegistry.broadcastToAll({
         type: "channel_paired",
-        channelId,
+        channelId: transportId,
       });
     });
 
-    // Initialize any pre-configured channels
-    const channelCount = Object.keys(config.channels).length;
-    if (channelCount > 0) {
-      await channelManager.initAll(config.channels);
-      console.log(`Channel system initialized with ${channelCount} channel(s)`);
+    // Initialize any pre-configured transports
+    const transportCount = Object.keys(config.transports).length;
+    if (transportCount > 0) {
+      await transportManager.initAll(config.transports);
+      console.log(`Transport system initialized with ${transportCount} transport(s)`);
     } else {
-      console.log("Channel system ready (no channels configured yet)");
+      console.log("Transport system ready (no transports configured yet)");
     }
 
-    server.channelManager = channelManager;
+    server.transportManager = transportManager;
     server.channelMessageHandler = messageHandler;
   }
 
@@ -317,7 +317,7 @@ async function main() {
       executor: taskExecutor,
       conversationManager,
       connectionRegistry,
-      channelManager,
+      transportManager,
       notificationService,
       onTaskMutated: () => server.statePublisher?.publishTasks(),
       get conversationInitiator() {
@@ -426,7 +426,7 @@ async function main() {
   // Bridge: Working Agent produces artifacts → Conversation Agent presents them
   let conversationInitiator: ConversationInitiator | null = null;
 
-  if (hatched && channelManager) {
+  if (hatched && transportManager) {
     const convDb = conversationManager.getConversationDb();
     conversationInitiator = new ConversationInitiator({
       conversationManager,
@@ -445,14 +445,14 @@ async function main() {
         },
       },
       channelManager: {
-        async send(channelId, to, message) {
-          await channelManager!.send(channelId, to, message);
+        async send(transportId, to, message) {
+          await transportManager!.send(transportId, to, message);
         },
-        getChannelConfig(id) {
-          return channelManager!.getChannelConfig(id);
+        getTransportConfig(id) {
+          return transportManager!.getTransportConfig(id);
         },
-        getChannelInfos() {
-          return channelManager!.getChannelInfos();
+        getTransportInfos() {
+          return transportManager!.getTransportInfos();
         },
       },
       getOutboundChannel: () => loadPreferences(agentDir).outboundChannel,
@@ -875,9 +875,9 @@ async function main() {
       healthMonitor.register(plugin);
     }
 
-    // Register channel plugins
-    if (channelManager) {
-      for (const plugin of channelManager.getPlugins()) {
+    // Register transport plugins
+    if (transportManager) {
+      for (const plugin of transportManager.getPlugins()) {
         healthMonitor.register(plugin);
       }
     }
@@ -983,9 +983,9 @@ async function main() {
         console.log("Calendar scheduler stopped.");
       }
 
-      // Disconnect all channels first (clears reconnect timers)
-      if (channelManager) {
-        await channelManager.disconnectAll();
+      // Disconnect all transports first (clears reconnect timers)
+      if (transportManager) {
+        await transportManager.disconnectAll();
       }
 
       // Drain abbreviation queue

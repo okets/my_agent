@@ -24,7 +24,7 @@ import { registerSkillRoutes } from "./routes/skills.js";
 import { SkillService } from "./services/skill-service.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
-import type { ChannelManager } from "./channels/index.js";
+import type { TransportManager } from "./channels/index.js";
 import type { ChannelMessageHandler } from "./channels/message-handler.js";
 import type {
   TaskManager,
@@ -55,7 +55,7 @@ declare module "fastify" {
     isHatched: boolean;
     conversationManager: ConversationManager | null;
     abbreviationQueue: AbbreviationQueue | null;
-    channelManager: ChannelManager | null;
+    transportManager: TransportManager | null;
     channelMessageHandler: ChannelMessageHandler | null;
     taskManager: TaskManager | null;
     logStorage: TaskLogStorage | null;
@@ -157,7 +157,7 @@ export async function createServer(
   fastify.decorate("isHatched", false); // Will be set by index.ts after checking
   fastify.decorate("conversationManager", null);
   fastify.decorate("abbreviationQueue", null);
-  fastify.decorate("channelManager", null);
+  fastify.decorate("transportManager", null);
   fastify.decorate("channelMessageHandler", null);
   fastify.decorate("taskManager", null);
   fastify.decorate("logStorage", null);

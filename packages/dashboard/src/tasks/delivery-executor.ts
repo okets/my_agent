@@ -6,7 +6,7 @@
  */
 
 import type { Task, DeliveryAction } from "@my-agent/core";
-import type { ChannelManager } from "../channels/index.js";
+import type { TransportManager } from "../channels/index.js";
 import type { ConversationManager } from "../conversations/index.js";
 
 export interface DeliveryActionResult {
@@ -24,14 +24,14 @@ export interface DeliveryResult {
  * DeliveryExecutor — sends deliverable content to channels
  */
 export class DeliveryExecutor {
-  private channelManager: ChannelManager | null;
+  private transportManager: TransportManager | null;
   private conversationManager: ConversationManager | null;
 
   constructor(
-    channelManager: ChannelManager | null,
+    transportManager: TransportManager | null,
     conversationManager?: ConversationManager | null,
   ) {
-    this.channelManager = channelManager;
+    this.transportManager = transportManager;
     this.conversationManager = conversationManager ?? null;
   }
 
@@ -95,7 +95,7 @@ export class DeliveryExecutor {
     content: string,
     task: Task,
   ): Promise<DeliveryActionResult> {
-    if (!this.channelManager) {
+    if (!this.transportManager) {
       return {
         channel: "whatsapp",
         success: false,
@@ -104,7 +104,7 @@ export class DeliveryExecutor {
     }
 
     // Find a WhatsApp channel (first one with baileys plugin)
-    const channelInfos = this.channelManager.getChannelInfos();
+    const channelInfos = this.transportManager.getTransportInfos();
     let whatsappChannelId: string | null = null;
 
     for (const info of channelInfos) {
@@ -123,7 +123,7 @@ export class DeliveryExecutor {
     }
 
     // Get owner JID from channel config
-    const config = this.channelManager.getChannelConfig(whatsappChannelId);
+    const config = this.transportManager.getTransportConfig(whatsappChannelId);
     const ownerJid = config?.ownerJid;
 
     if (!ownerJid) {
@@ -136,7 +136,7 @@ export class DeliveryExecutor {
     }
 
     try {
-      await this.channelManager.send(whatsappChannelId, ownerJid, {
+      await this.transportManager.send(whatsappChannelId, ownerJid, {
         content,
       });
 

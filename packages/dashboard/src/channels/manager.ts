@@ -1,18 +1,18 @@
 /**
- * Channel Manager
+ * Transport Manager
  *
- * Central registry for channel plugins with lifecycle management,
+ * Central registry for transport plugins with lifecycle management,
  * resilience features (reconnection, dedup, debounce),
  * and message routing.
  */
 
 import type {
   Plugin,
-  ChannelPlugin,
-  PluginFactory,
-  ChannelInstanceConfig,
-  ChannelStatus,
-  ChannelInfo,
+  TransportPlugin,
+  TransportPluginFactory,
+  TransportConfig,
+  TransportStatus,
+  TransportInfo,
   IncomingMessage,
   OutgoingMessage,
   ReconnectPolicy,
@@ -26,11 +26,11 @@ import {
   MessageDebouncer,
 } from "@my-agent/core";
 
-/** Internal channel entry */
-interface ChannelEntry {
-  config: ChannelInstanceConfig;
-  plugin: ChannelPlugin;
-  status: ChannelStatus;
+/** Internal transport entry */
+interface TransportEntry {
+  config: TransportConfig;
+  plugin: TransportPlugin;
+  status: TransportStatus;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   debouncer: MessageDebouncer<IncomingMessage> | null;
   /** Flag to suppress reconnects during QR pairing */
@@ -38,35 +38,35 @@ interface ChannelEntry {
 }
 
 /** Message handler signature */
-type MessageHandler = (channelId: string, messages: IncomingMessage[]) => void;
+type MessageHandler = (transportId: string, messages: IncomingMessage[]) => void;
 
 /** Status change handler signature */
-type StatusChangeHandler = (channelId: string, status: ChannelStatus) => void;
+type StatusChangeHandler = (transportId: string, status: TransportStatus) => void;
 
 /** QR code handler signature */
-type QrCodeHandler = (channelId: string, qrDataUrl: string) => void;
+type QrCodeHandler = (transportId: string, qrDataUrl: string) => void;
 
 /** Pairing success handler signature */
-type PairedHandler = (channelId: string) => void;
+type PairedHandler = (transportId: string) => void;
 
 /** Pairing code handler signature (phone number pairing) */
-type PairingCodeHandler = (channelId: string, pairingCode: string) => void;
+type PairingCodeHandler = (transportId: string, pairingCode: string) => void;
 
-export class ChannelManager {
-  private channels = new Map<string, ChannelEntry>();
-  private pluginFactories = new Map<string, PluginFactory>();
+export class TransportManager {
+  private transports = new Map<string, TransportEntry>();
+  private pluginFactories = new Map<string, TransportPluginFactory>();
   private dedup = new DedupCache();
   private messageHandler: MessageHandler | null = null;
   private statusChangeHandlers: StatusChangeHandler[] = [];
   private qrCodeHandler: QrCodeHandler | null = null;
   private pairingHandler: PairedHandler | null = null;
   private pairingCodeHandler: PairingCodeHandler | null = null;
-  private phonePairingChannels = new Set<string>();
+  private phonePairingTransports = new Set<string>();
 
   /**
    * Register a plugin factory by name.
    */
-  registerPlugin(name: string, factory: PluginFactory): void {
+  registerPlugin(name: string, factory: TransportPluginFactory): void {
     this.pluginFactories.set(name, factory);
   }
 
@@ -92,7 +92,7 @@ export class ChannelManager {
   }
 
   /**
-   * Register a pairing success handler (called when a channel transitions to connected).
+   * Register a pairing success handler (called when a transport transitions to connected).
    */
   onPaired(handler: PairedHandler): void {
     this.pairingHandler = handler;
@@ -106,55 +106,55 @@ export class ChannelManager {
   }
 
   /**
-   * Suppress QR code emissions for a channel (used during phone number pairing).
+   * Suppress QR code emissions for a transport (used during phone number pairing).
    */
-  suppressQrForChannel(channelId: string): void {
-    this.phonePairingChannels.add(channelId);
+  suppressQrForTransport(transportId: string): void {
+    this.phonePairingTransports.add(transportId);
   }
 
   /**
-   * Add and initialize a single channel at runtime.
-   * Returns the ChannelInfo for the newly created channel.
+   * Add and initialize a single transport at runtime.
+   * Returns the TransportInfo for the newly created transport.
    */
-  async addChannel(
-    config: ChannelInstanceConfig,
+  async addTransport(
+    config: TransportConfig,
     options?: { skipConnect?: boolean },
-  ): Promise<ChannelInfo> {
+  ): Promise<TransportInfo> {
     const id = config.id;
-    if (this.channels.has(id)) {
-      throw new Error(`Channel already exists: ${id}`);
+    if (this.transports.has(id)) {
+      throw new Error(`Transport already exists: ${id}`);
     }
 
-    await this.initChannel(id, config, options?.skipConnect);
+    await this.initTransport(id, config, options?.skipConnect);
 
-    const info = this.getChannelInfo(id);
-    if (!info) throw new Error(`Failed to get info for channel: ${id}`);
+    const info = this.getTransportInfo(id);
+    if (!info) throw new Error(`Failed to get info for transport: ${id}`);
     return info;
   }
 
   /**
-   * Initialize all channels from config.
+   * Initialize all transports from config.
    */
-  async initAll(configs: Record<string, ChannelInstanceConfig>): Promise<void> {
+  async initAll(configs: Record<string, TransportConfig>): Promise<void> {
     for (const [id, config] of Object.entries(configs)) {
       if (!config.id) config.id = id;
       try {
-        await this.initChannel(id, config);
+        await this.initTransport(id, config);
       } catch (err) {
         console.error(
-          `[ChannelManager] Plugin factory not found: ${config.plugin} for channel ${id}`,
+          `[TransportManager] Plugin factory not found: ${config.plugin} for transport ${id}`,
         );
       }
     }
   }
 
   /**
-   * Initialize a single channel: create plugin, wire events, connect if immediate.
-   * @param skipConnect - If true, skip auto-connect (for newly created channels that need explicit pairing)
+   * Initialize a single transport: create plugin, wire events, connect if immediate.
+   * @param skipConnect - If true, skip auto-connect (for newly created transports that need explicit pairing)
    */
-  private async initChannel(
+  private async initTransport(
     id: string,
-    config: ChannelInstanceConfig,
+    config: TransportConfig,
     skipConnect?: boolean,
   ): Promise<void> {
     const factory = this.pluginFactories.get(config.plugin);
@@ -164,7 +164,7 @@ export class ChannelManager {
 
     const plugin = factory(config);
 
-    const entry: ChannelEntry = {
+    const entry: TransportEntry = {
       config,
       plugin,
       status: initialStatus(),
@@ -176,7 +176,7 @@ export class ChannelManager {
     // Wire up event handlers
     plugin.on("message", (msg) => this.handlePluginMessage(id, msg));
     plugin.on("error", (err) => {
-      console.error(`[ChannelManager] Error from ${id}:`, err);
+      console.error(`[TransportManager] Error from ${id}:`, err);
       entry.status.lastError = err.message;
     });
     plugin.on("status", (status) => this.handlePluginStatus(id, status));
@@ -184,33 +184,33 @@ export class ChannelManager {
       // Set pairing flag to suppress reconnects while waiting for QR scan
       entry.pairing = true;
       // Suppress QR codes during phone number pairing
-      if (this.phonePairingChannels.has(id)) {
+      if (this.phonePairingTransports.has(id)) {
         console.log(
-          `[ChannelManager] QR suppressed for ${id} — phone pairing active`,
+          `[TransportManager] QR suppressed for ${id} — phone pairing active`,
         );
         return;
       }
       console.log(
-        `[ChannelManager] QR received for ${id}, entering pairing mode`,
+        `[TransportManager] QR received for ${id}, entering pairing mode`,
       );
       if (this.qrCodeHandler) {
         this.qrCodeHandler(id, qrDataUrl);
       }
     });
 
-    this.channels.set(id, entry);
+    this.transports.set(id, entry);
 
     try {
       await plugin.init(config);
-      console.log(`[ChannelManager] Initialized channel: ${id}`);
+      console.log(`[TransportManager] Initialized transport: ${id}`);
     } catch (err) {
-      console.error(`[ChannelManager] Failed to initialize ${id}:`, err);
+      console.error(`[TransportManager] Failed to initialize ${id}:`, err);
       entry.status.lastError = err instanceof Error ? err.message : String(err);
       return;
     }
 
     // Auto-connect on startup ONLY if credentials exist
-    // Skip auto-connect for newly created channels or channels without credentials
+    // Skip auto-connect for newly created transports or transports without credentials
     if (config.processing === "immediate" && !skipConnect) {
       // Check if plugin has valid credentials before auto-connecting
       const hasCredentials =
@@ -225,20 +225,20 @@ export class ChannelManager {
         // Enter pairing mode before connect to suppress reconnect loops during QR display.
         entry.pairing = true;
         console.log(
-          `[ChannelManager] Auto-connecting ${id} (credentials found)`,
+          `[TransportManager] Auto-connecting ${id} (credentials found)`,
         );
         try {
           await plugin.connect();
-          console.log(`[ChannelManager] Connected channel: ${id}`);
+          console.log(`[TransportManager] Connected transport: ${id}`);
         } catch (err) {
-          console.error(`[ChannelManager] Failed to connect ${id}:`, err);
+          console.error(`[TransportManager] Failed to connect ${id}:`, err);
           entry.status.lastError =
             err instanceof Error ? err.message : String(err);
         }
       } else {
         // No credentials — wait for user to choose pairing method
         console.log(
-          `[ChannelManager] Channel ${id} needs pairing (no credentials)`,
+          `[TransportManager] Transport ${id} needs pairing (no credentials)`,
         );
         entry.status = {
           ...entry.status,
@@ -264,30 +264,30 @@ export class ChannelManager {
   }
 
   /**
-   * Send a message through a channel.
+   * Send a message through a transport.
    */
   async send(
-    channelId: string,
+    transportId: string,
     to: string,
     message: OutgoingMessage,
   ): Promise<void> {
-    const entry = this.channels.get(channelId);
+    const entry = this.transports.get(transportId);
     if (!entry) {
-      throw new Error(`Channel not found: ${channelId}`);
+      throw new Error(`Transport not found: ${transportId}`);
     }
 
     if (!entry.status.connected) {
-      throw new Error(`Channel not connected: ${channelId}`);
+      throw new Error(`Transport not connected: ${transportId}`);
     }
 
     await entry.plugin.send(to, message);
   }
 
   /**
-   * Send typing indicator through a channel (if supported by the plugin).
+   * Send typing indicator through a transport (if supported by the plugin).
    */
-  async sendTypingIndicator(channelId: string, to: string): Promise<void> {
-    const entry = this.channels.get(channelId);
+  async sendTypingIndicator(transportId: string, to: string): Promise<void> {
+    const entry = this.transports.get(transportId);
     if (!entry?.status.connected) return;
     if ("sendTypingIndicator" in entry.plugin) {
       await (entry.plugin as any).sendTypingIndicator(to);
@@ -313,11 +313,11 @@ export class ChannelManager {
   }
 
   /**
-   * Get all channel infos for REST API.
+   * Get all transport infos for REST API.
    */
-  getChannelInfos(): ChannelInfo[] {
-    const infos: ChannelInfo[] = [];
-    for (const [id, entry] of this.channels.entries()) {
+  getTransportInfos(): TransportInfo[] {
+    const infos: TransportInfo[] = [];
+    for (const [id, entry] of this.transports.entries()) {
       const hasOwner = !!(
         entry.config.ownerIdentities && entry.config.ownerIdentities.length > 0
       );
@@ -338,10 +338,10 @@ export class ChannelManager {
   }
 
   /**
-   * Get single channel info.
+   * Get single transport info.
    */
-  getChannelInfo(id: string): ChannelInfo | null {
-    const entry = this.channels.get(id);
+  getTransportInfo(id: string): TransportInfo | null {
+    const entry = this.transports.get(id);
     if (!entry) return null;
 
     const hasOwner = !!(
@@ -362,61 +362,61 @@ export class ChannelManager {
   }
 
   /**
-   * Get raw channel config (used by routing to look up ownerIdentities).
+   * Get raw transport config (used by routing to look up ownerIdentities).
    */
-  getChannelConfig(id: string): ChannelInstanceConfig | undefined {
-    return this.channels.get(id)?.config;
+  getTransportConfig(id: string): TransportConfig | undefined {
+    return this.transports.get(id)?.config;
   }
 
   /**
-   * Get all channel plugin instances (for HealthMonitor registration).
+   * Get all transport plugin instances (for HealthMonitor registration).
    */
   getPlugins(): Plugin[] {
-    return Array.from(this.channels.values()).map((entry) => entry.plugin);
+    return Array.from(this.transports.values()).map((entry) => entry.plugin);
   }
 
   /**
-   * Update a channel's runtime config (e.g., adding ownerIdentities after token auth).
+   * Update a transport's runtime config (e.g., adding ownerIdentities after token auth).
    */
-  updateChannelConfig(
+  updateTransportConfig(
     id: string,
-    update: Partial<ChannelInstanceConfig>,
+    update: Partial<TransportConfig>,
   ): void {
-    const entry = this.channels.get(id);
+    const entry = this.transports.get(id);
     if (!entry) return;
     Object.assign(entry.config, update);
   }
 
   /**
-   * Initiate connection for a single channel (triggers QR pairing flow for WhatsApp).
+   * Initiate connection for a single transport (triggers QR pairing flow for WhatsApp).
    * Clears any pending reconnect timer first.
    * If clearAuth is true, clears stored credentials to force fresh QR pairing.
    */
-  async connectChannel(id: string, clearAuth = false): Promise<void> {
-    const entry = this.channels.get(id);
-    if (!entry) throw new Error(`Channel not found: ${id}`);
+  async connectTransport(id: string, clearAuth = false): Promise<void> {
+    const entry = this.transports.get(id);
+    if (!entry) throw new Error(`Transport not found: ${id}`);
     if (entry.status.connected)
-      throw new Error(`Channel already connected: ${id}`);
+      throw new Error(`Transport already connected: ${id}`);
 
     // Clear any pending reconnect timer to avoid conflicts
     if (entry.reconnectTimer) {
       clearTimeout(entry.reconnectTimer);
       entry.reconnectTimer = null;
-      console.log(`[ChannelManager] Cleared reconnect timer for ${id}`);
+      console.log(`[TransportManager] Cleared reconnect timer for ${id}`);
     }
 
     // Clear auth if requested (for fresh QR pairing)
     if (clearAuth && "clearAuth" in entry.plugin) {
-      console.log(`[ChannelManager] Clearing auth for ${id}`);
+      console.log(`[TransportManager] Clearing auth for ${id}`);
       await (entry.plugin as { clearAuth: () => Promise<void> }).clearAuth();
     }
 
-    // ALWAYS enter pairing mode when connecting a non-connected channel.
-    // This suppresses reconnect logic during QR display. If the channel has
+    // ALWAYS enter pairing mode when connecting a non-connected transport.
+    // This suppresses reconnect logic during QR display. If the transport has
     // valid credentials, it will connect immediately and clear this flag.
     // If it needs QR pairing, this prevents rapid reconnect loops.
     entry.pairing = true;
-    console.log(`[ChannelManager] Entering pairing mode for ${id}`);
+    console.log(`[TransportManager] Entering pairing mode for ${id}`);
 
     // Reset reconnect attempts for fresh pairing
     entry.status.reconnectAttempts = 0;
@@ -426,7 +426,7 @@ export class ChannelManager {
   }
 
   /**
-   * Request a phone number pairing code for a channel.
+   * Request a phone number pairing code for a transport.
    * Connects the socket, waits for readiness, requests the code,
    * and emits it via the pairing code handler.
    *
@@ -434,44 +434,44 @@ export class ChannelManager {
    * the pairing code is delivered via the pairingCodeHandler (WebSocket broadcast).
    */
   async requestPairingCode(
-    channelId: string,
+    transportId: string,
     phoneNumber: string,
   ): Promise<void> {
-    const entry = this.channels.get(channelId);
-    if (!entry) throw new Error(`Channel not found: ${channelId}`);
+    const entry = this.transports.get(transportId);
+    if (!entry) throw new Error(`Transport not found: ${transportId}`);
 
     if (!("requestPairingCode" in entry.plugin)) {
-      throw new Error(`Channel plugin does not support phone number pairing`);
+      throw new Error(`Transport plugin does not support phone number pairing`);
     }
 
     try {
       const code = await (entry.plugin as any).requestPairingCode(phoneNumber);
       if (this.pairingCodeHandler) {
-        this.pairingCodeHandler(channelId, code);
+        this.pairingCodeHandler(transportId, code);
       }
     } catch (err) {
       console.error(
-        `[ChannelManager] requestPairingCode failed for ${channelId}:`,
+        `[TransportManager] requestPairingCode failed for ${transportId}:`,
         err,
       );
       // Emit status change with error so frontend can show it
       entry.status.lastError = err instanceof Error ? err.message : String(err);
       for (const handler of this.statusChangeHandlers) {
-        handler(channelId, entry.status);
+        handler(transportId, entry.status);
       }
     } finally {
-      // Keep suppression until pairing completes or channel connects
+      // Keep suppression until pairing completes or transport connects
       // (cleared on successful connect via status change)
     }
   }
 
   /**
-   * Disconnect a single channel and clear its reconnect timer.
+   * Disconnect a single transport and clear its reconnect timer.
    * If clearAuth is true (default), clears stored credentials so re-pairing is required.
    */
-  async disconnectChannel(id: string, clearAuth = true): Promise<void> {
-    const entry = this.channels.get(id);
-    if (!entry) throw new Error(`Channel not found: ${id}`);
+  async disconnectTransport(id: string, clearAuth = true): Promise<void> {
+    const entry = this.transports.get(id);
+    if (!entry) throw new Error(`Transport not found: ${id}`);
 
     // Clear any pending reconnect timer
     if (entry.reconnectTimer) {
@@ -484,18 +484,18 @@ export class ChannelManager {
 
     // Clear auth credentials if requested (default: yes)
     if (clearAuth && "clearAuth" in entry.plugin) {
-      console.log(`[ChannelManager] Clearing auth for ${id}`);
+      console.log(`[TransportManager] Clearing auth for ${id}`);
       await (entry.plugin as { clearAuth: () => Promise<void> }).clearAuth();
     }
   }
 
   /**
-   * Remove a channel entirely (disconnect + clear auth + remove from manager).
+   * Remove a transport entirely (disconnect + clear auth + remove from manager).
    * Does NOT remove from config.yaml — caller should do that separately.
    */
-  async removeChannel(id: string): Promise<void> {
-    const entry = this.channels.get(id);
-    if (!entry) throw new Error(`Channel not found: ${id}`);
+  async removeTransport(id: string): Promise<void> {
+    const entry = this.transports.get(id);
+    if (!entry) throw new Error(`Transport not found: ${id}`);
 
     // Clear reconnect timer
     if (entry.reconnectTimer) {
@@ -514,15 +514,15 @@ export class ChannelManager {
     }
 
     // Remove from internal map
-    this.channels.delete(id);
-    console.log(`[ChannelManager] Removed channel: ${id}`);
+    this.transports.delete(id);
+    console.log(`[TransportManager] Removed transport: ${id}`);
   }
 
   /**
-   * Active liveness probe for a single channel.
+   * Active liveness probe for a single transport.
    */
-  async checkHealth(channelId: string): Promise<boolean> {
-    const entry = this.channels.get(channelId);
+  async checkHealth(transportId: string): Promise<boolean> {
+    const entry = this.transports.get(transportId);
     if (!entry) return false;
 
     try {
@@ -534,11 +534,11 @@ export class ChannelManager {
   }
 
   /**
-   * Active liveness probe for all channels (parallel).
-   * Returns a map of channelId → healthy (boolean).
+   * Active liveness probe for all transports (parallel).
+   * Returns a map of transportId → healthy (boolean).
    */
   async checkAllHealth(): Promise<Map<string, boolean>> {
-    const ids = Array.from(this.channels.keys());
+    const ids = Array.from(this.transports.keys());
     const checks = ids.map(async (id) => {
       const healthy = await this.checkHealth(id);
       return [id, healthy] as const;
@@ -554,10 +554,10 @@ export class ChannelManager {
   }
 
   /**
-   * Disconnect all channels and clear timers.
+   * Disconnect all transports and clear timers.
    */
   async disconnectAll(): Promise<void> {
-    for (const [id, entry] of this.channels.entries()) {
+    for (const [id, entry] of this.transports.entries()) {
       // Clear reconnect timer
       if (entry.reconnectTimer) {
         clearTimeout(entry.reconnectTimer);
@@ -573,9 +573,9 @@ export class ChannelManager {
       // Disconnect plugin
       try {
         await entry.plugin.disconnect();
-        console.log(`[ChannelManager] Disconnected channel: ${id}`);
+        console.log(`[TransportManager] Disconnected transport: ${id}`);
       } catch (err) {
-        console.error(`[ChannelManager] Error disconnecting ${id}:`, err);
+        console.error(`[TransportManager] Error disconnecting ${id}:`, err);
       }
     }
   }
@@ -583,22 +583,22 @@ export class ChannelManager {
   /**
    * Handle incoming message from a plugin (dedup → debounce → handler).
    */
-  private handlePluginMessage(channelId: string, msg: IncomingMessage): void {
-    const entry = this.channels.get(channelId);
+  private handlePluginMessage(transportId: string, msg: IncomingMessage): void {
+    const entry = this.transports.get(transportId);
     if (!entry) {
       console.warn(
-        `[ChannelManager] Received message for unknown channel: ${channelId}`,
+        `[TransportManager] Received message for unknown transport: ${transportId}`,
       );
       return;
     }
 
     // Build dedup key
-    const dedupKey = `${channelId}:${msg.from}:${msg.id}`;
+    const dedupKey = `${transportId}:${msg.from}:${msg.id}`;
 
     // Check for duplicate
     if (this.dedup.isDuplicate(dedupKey)) {
       console.log(
-        `[ChannelManager] Duplicate message filtered: ${msg.id} from ${msg.from}`,
+        `[TransportManager] Duplicate message filtered: ${msg.id} from ${msg.from}`,
       );
       return;
     }
@@ -622,12 +622,12 @@ export class ChannelManager {
       entry.debouncer.add({
         message: msg,
         bypass,
-        key: `${channelId}:${msg.from}`,
+        key: `${transportId}:${msg.from}`,
       });
     } else {
       // No debouncer — deliver immediately
       if (this.messageHandler) {
-        this.messageHandler(channelId, [msg]);
+        this.messageHandler(transportId, [msg]);
       }
     }
   }
@@ -636,13 +636,13 @@ export class ChannelManager {
    * Handle status change from a plugin.
    */
   private handlePluginStatus(
-    channelId: string,
-    newStatus: ChannelStatus,
+    transportId: string,
+    newStatus: TransportStatus,
   ): void {
-    const entry = this.channels.get(channelId);
+    const entry = this.transports.get(transportId);
     if (!entry) {
       console.warn(
-        `[ChannelManager] Status update for unknown channel: ${channelId}`,
+        `[TransportManager] Status update for unknown transport: ${transportId}`,
       );
       return;
     }
@@ -653,9 +653,9 @@ export class ChannelManager {
     // Notify all status change handlers
     for (const handler of this.statusChangeHandlers) {
       try {
-        handler(channelId, newStatus);
+        handler(transportId, newStatus);
       } catch (err) {
-        console.error(`[ChannelManager] Error in status change handler:`, err);
+        console.error(`[TransportManager] Error in status change handler:`, err);
       }
     }
 
@@ -671,7 +671,7 @@ export class ChannelManager {
       // Check if it's a logout (should NOT reconnect)
       if (newStatus.lastDisconnect.loggedOut) {
         console.log(
-          `[ChannelManager] Channel ${channelId} logged out — not reconnecting`,
+          `[TransportManager] Transport ${transportId} logged out — not reconnecting`,
         );
         entry.pairing = false;
         return;
@@ -691,7 +691,7 @@ export class ChannelManager {
         if (isRestartRequired) {
           // Pairing succeeded - clear flag and reconnect to establish session
           console.log(
-            `[ChannelManager] Channel ${channelId} pairing complete (restartRequired), reconnecting...`,
+            `[TransportManager] Transport ${transportId} pairing complete (restartRequired), reconnecting...`,
           );
           entry.pairing = false;
           // Fall through to start reconnection
@@ -700,14 +700,14 @@ export class ChannelManager {
           // Let Baileys handle the QR refresh internally - don't trigger our reconnect logic.
           // The plugin will emit a new QR code when ready.
           console.log(
-            `[ChannelManager] Channel ${channelId} disconnect during pairing (likely QR refresh), waiting for new QR...`,
+            `[TransportManager] Transport ${transportId} disconnect during pairing (likely QR refresh), waiting for new QR...`,
           );
           return;
         }
       }
 
       // Start reconnection
-      this.startReconnect(channelId);
+      this.startReconnect(transportId);
     } else if (newStatus.connected) {
       // Successfully connected — reset reconnect state and pairing flag
       if (entry.reconnectTimer) {
@@ -715,14 +715,14 @@ export class ChannelManager {
         entry.reconnectTimer = null;
       }
       entry.pairing = false;
-      this.phonePairingChannels.delete(channelId);
+      this.phonePairingTransports.delete(transportId);
       console.log(
-        `[ChannelManager] Channel ${channelId} connected successfully`,
+        `[TransportManager] Transport ${transportId} connected successfully`,
       );
 
       // Notify pairing success handler
       if (this.pairingHandler) {
-        this.pairingHandler(channelId);
+        this.pairingHandler(transportId);
       }
     }
   }
@@ -730,8 +730,8 @@ export class ChannelManager {
   /**
    * Start reconnection loop with exponential backoff.
    */
-  private startReconnect(channelId: string): void {
-    const entry = this.channels.get(channelId);
+  private startReconnect(transportId: string): void {
+    const entry = this.transports.get(transportId);
     if (!entry) return;
 
     // Clear any existing timer
@@ -748,7 +748,7 @@ export class ChannelManager {
 
     if (delay === null) {
       console.log(
-        `[ChannelManager] Max reconnect attempts reached for ${channelId}`,
+        `[TransportManager] Max reconnect attempts reached for ${transportId}`,
       );
       return;
     }
@@ -757,17 +757,17 @@ export class ChannelManager {
     entry.status.reconnectAttempts++;
 
     console.log(
-      `[ChannelManager] Reconnecting ${channelId} in ${delay}ms (attempt ${entry.status.reconnectAttempts})`,
+      `[TransportManager] Reconnecting ${transportId} in ${delay}ms (attempt ${entry.status.reconnectAttempts})`,
     );
 
     // Schedule reconnection
     entry.reconnectTimer = setTimeout(async () => {
       try {
-        console.log(`[ChannelManager] Attempting reconnect for ${channelId}`);
+        console.log(`[TransportManager] Attempting reconnect for ${transportId}`);
         await entry.plugin.connect();
       } catch (err) {
         console.error(
-          `[ChannelManager] Reconnect failed for ${channelId}:`,
+          `[TransportManager] Reconnect failed for ${transportId}:`,
           err,
         );
         entry.status.lastError =
@@ -778,9 +778,9 @@ export class ChannelManager {
   }
 
   /**
-   * Get merged reconnect policy for a channel.
+   * Get merged reconnect policy for a transport.
    */
-  private getReconnectPolicy(config: ChannelInstanceConfig): ReconnectPolicy {
+  private getReconnectPolicy(config: TransportConfig): ReconnectPolicy {
     return {
       ...DEFAULT_BACKOFF,
       ...config.reconnect,

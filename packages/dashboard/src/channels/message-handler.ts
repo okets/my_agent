@@ -6,15 +6,15 @@
  * - Owner messages → conversation flow (brain routing)
  * - External messages → stored for S3 trust tier system
  *
- * Dedup and debounce are handled by ChannelManager before messages reach here.
+ * Dedup and debounce are handled by TransportManager before messages reach here.
  */
 
 import type {
   IncomingMessage,
   OutgoingMessage,
-  ChannelInstanceConfig,
+  TransportConfig,
 } from "@my-agent/core";
-import { saveChannelToConfig, loadModels } from "@my-agent/core";
+import { saveTransportToConfig, loadModels } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
 import { SessionRegistry } from "../agent/session-registry.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
@@ -38,16 +38,16 @@ interface MessageHandlerDeps {
   conversationManager: ConversationManager;
   sessionRegistry: SessionRegistry;
   connectionRegistry: ConnectionRegistry;
-  sendViaChannel: (
+  sendViaTransport: (
     channelId: string,
     to: string,
     message: OutgoingMessage,
   ) => Promise<void>;
   sendTypingIndicator: (channelId: string, to: string) => Promise<void>;
-  getChannelConfig: (channelId: string) => ChannelInstanceConfig | undefined;
-  updateChannelConfig: (
+  getTransportConfig: (channelId: string) => TransportConfig | undefined;
+  updateTransportConfig: (
     channelId: string,
-    update: Partial<ChannelInstanceConfig>,
+    update: Partial<TransportConfig>,
   ) => void;
   agentDir: string;
   statePublisher?: { publishConversations: () => void } | null;
@@ -71,7 +71,7 @@ function normalizeIdentity(identity: string): string {
 }
 
 function isOwnerMessage(
-  config: ChannelInstanceConfig | undefined,
+  config: TransportConfig | undefined,
   senderIdentity: string,
 ): boolean {
   if (!config?.ownerIdentities?.length) {
@@ -151,7 +151,7 @@ export class ChannelMessageHandler {
       }
     }
 
-    const channelConfig = this.deps.getChannelConfig(channelId);
+    const channelConfig = this.deps.getTransportConfig(channelId);
 
     // Warn once per channel if ownerIdentities is missing (all messages treated as external)
     if (
@@ -197,14 +197,14 @@ export class ChannelMessageHandler {
     // Update runtime config
     // ownerIdentities: normalized digits for identity matching
     // ownerJid: full JID for outbound messaging (preserves @s.whatsapp.net suffix)
-    this.deps.updateChannelConfig(channelId, {
+    this.deps.updateTransportConfig(channelId, {
       ownerIdentities: [normalizedJid],
       ownerJid: senderJid,
     });
 
     // Persist to config.yaml
     try {
-      saveChannelToConfig(
+      saveTransportToConfig(
         channelId,
         { owner_identities: [normalizedJid], owner_jid: senderJid },
         this.deps.agentDir,
@@ -222,7 +222,7 @@ export class ChannelMessageHandler {
 
     // Send confirmation via WhatsApp
     const name = msg.senderName ?? "there";
-    await this.deps.sendViaChannel(channelId, senderJid, {
+    await this.deps.sendViaTransport(channelId, senderJid, {
       content: `Hi ${name}! You're now authorized as my owner on this channel. Send me anything and I'll respond!`,
     });
 
@@ -301,7 +301,7 @@ export class ChannelMessageHandler {
       });
 
       // Send confirmation via channel
-      await this.deps.sendViaChannel(channelId, replyTo, {
+      await this.deps.sendViaTransport(channelId, replyTo, {
         content: "Starting fresh! How can I help?",
       });
 
@@ -342,7 +342,7 @@ export class ChannelMessageHandler {
             ? "Haiku"
             : "Sonnet";
 
-        await this.deps.sendViaChannel(channelId, replyTo, {
+        await this.deps.sendViaTransport(channelId, replyTo, {
           content: `Current model: ${modelName}\n\nAvailable: /model opus, /model sonnet, /model haiku`,
         });
         return;
@@ -358,14 +358,14 @@ export class ChannelMessageHandler {
 
       const newModelId = modelMap[modelArg];
       if (!newModelId) {
-        await this.deps.sendViaChannel(channelId, replyTo, {
+        await this.deps.sendViaTransport(channelId, replyTo, {
           content: `Unknown model "${modelArg}". Available: opus, sonnet, haiku`,
         });
         return;
       }
 
       if (!existingConversation) {
-        await this.deps.sendViaChannel(channelId, replyTo, {
+        await this.deps.sendViaTransport(channelId, replyTo, {
           content: `No active conversation. Send a message first to start one.`,
         });
         return;
@@ -378,7 +378,7 @@ export class ChannelMessageHandler {
       );
 
       const modelName = modelArg.charAt(0).toUpperCase() + modelArg.slice(1);
-      await this.deps.sendViaChannel(channelId, replyTo, {
+      await this.deps.sendViaTransport(channelId, replyTo, {
         content: `Switched to ${modelName}.`,
       });
 
@@ -528,7 +528,7 @@ export class ChannelMessageHandler {
       sendTyping: () => this.deps.sendTypingIndicator(channelId, replyTo),
       sendInterim: async (message) => {
         // Send as real WhatsApp message (ephemeral, not saved to transcript)
-        await this.deps.sendViaChannel(channelId, replyTo, {
+        await this.deps.sendViaTransport(channelId, replyTo, {
           content: message,
         });
         // Also broadcast to web dashboard
@@ -596,7 +596,7 @@ export class ChannelMessageHandler {
 
       // Send response back via channel (use group JID for groups, sender JID for DMs)
       const replyTo = first.groupId ?? first.from;
-      await this.deps.sendViaChannel(channelId, replyTo, {
+      await this.deps.sendViaTransport(channelId, replyTo, {
         content: assistantContent,
       });
 
