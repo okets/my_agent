@@ -198,28 +198,27 @@ async function main() {
     });
     transportManager.registerPlugin("baileys", (cfg) => createBaileysPlugin(cfg));
 
-    // Wire message handler
-    const messageHandler = new ChannelMessageHandler({
-      conversationManager,
-      sessionRegistry,
-      connectionRegistry,
-      sendViaTransport: (transportId, to, message) =>
-        transportManager!.send(transportId, to, message),
-      sendTypingIndicator: (transportId, to) =>
-        transportManager!.sendTypingIndicator(transportId, to),
-      getTransportConfig: (transportId) =>
-        transportManager!.getTransportConfig(transportId),
-      updateTransportConfig: (transportId, update) =>
-        transportManager!.updateTransportConfig(transportId, update),
-      agentDir,
-      statePublisher: {
-        publishConversations: () =>
-          server.statePublisher?.publishConversations(),
+    // Wire message handler with channel bindings from config
+    const messageHandler = new ChannelMessageHandler(
+      {
+        conversationManager,
+        sessionRegistry,
+        connectionRegistry,
+        sendViaTransport: (transportId, to, message) =>
+          transportManager!.send(transportId, to, message),
+        sendTypingIndicator: (transportId, to) =>
+          transportManager!.sendTypingIndicator(transportId, to),
+        agentDir,
+        statePublisher: {
+          publishConversations: () =>
+            server.statePublisher?.publishConversations(),
+        },
+        get postResponseHooks() {
+          return server.postResponseHooks;
+        },
       },
-      get postResponseHooks() {
-        return server.postResponseHooks;
-      },
-    });
+      config.channels, // ChannelBinding[] from loadConfig()
+    );
 
     transportManager.onMessage((transportId, messages) => {
       messageHandler.handleMessages(transportId, messages).catch((err) => {

@@ -1,10 +1,11 @@
 /**
  * Channel Message Handler
  *
- * Routes incoming channel messages based on sender identity:
- * - Token messages → authorize sender as owner
- * - Owner messages → conversation flow (brain routing)
- * - External messages → stored for S3 trust tier system
+ * Routes incoming transport messages through:
+ * 1. AuthorizationGate — token validation
+ * 2. MessageRouter — channel binding lookup (owner vs external)
+ * 3. Owner messages → conversation flow (brain routing)
+ * 4. External messages → stored for S3 trust tier system
  *
  * Dedup and debounce are handled by TransportManager before messages reach here.
  */
@@ -12,9 +13,9 @@
 import type {
   IncomingMessage,
   OutgoingMessage,
-  TransportConfig,
+  ChannelBinding,
 } from "@my-agent/core";
-import { saveTransportToConfig, loadModels } from "@my-agent/core";
+import { loadModels, ConfigWriter } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
 import { SessionRegistry } from "../agent/session-registry.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
@@ -25,6 +26,11 @@ import {
   type AttachmentMeta,
 } from "../conversations/attachments.js";
 import { ResponseTimer } from "./response-timer.js";
+import {
+  AuthorizationGate,
+  InMemoryTokenStore,
+} from "../routing/authorization-gate.js";
+import { MessageRouter, normalizeIdentity } from "../routing/message-router.js";
 
 /** Content block types for Agent SDK (images + text) */
 type ContentBlock =
@@ -39,16 +45,11 @@ interface MessageHandlerDeps {
   sessionRegistry: SessionRegistry;
   connectionRegistry: ConnectionRegistry;
   sendViaTransport: (
-    channelId: string,
+    transportId: string,
     to: string,
     message: OutgoingMessage,
   ) => Promise<void>;
-  sendTypingIndicator: (channelId: string, to: string) => Promise<void>;
-  getTransportConfig: (channelId: string) => TransportConfig | undefined;
-  updateTransportConfig: (
-    channelId: string,
-    update: Partial<TransportConfig>,
-  ) => void;
+  sendTypingIndicator: (transportId: string, to: string) => Promise<void>;
   agentDir: string;
   statePublisher?: { publishConversations: () => void } | null;
   postResponseHooks?: {
@@ -60,176 +61,119 @@ interface MessageHandlerDeps {
   } | null;
 }
 
-/**
- * Strip platform-specific suffixes and normalise to digits + optional leading +.
- * Handles WhatsApp JIDs: @s.whatsapp.net, @lid, @g.us
- */
-function normalizeIdentity(identity: string): string {
-  let normalized = identity.replace(/@(s\.whatsapp\.net|lid|g\.us)$/, "");
-  normalized = normalized.replace(/[^\d+]/g, "");
-  return normalized;
-}
-
-function isOwnerMessage(
-  config: TransportConfig | undefined,
-  senderIdentity: string,
-): boolean {
-  if (!config?.ownerIdentities?.length) {
-    // WARNING: LID JIDs (e.g., 169969@lid) cannot be matched to phone numbers
-    // without a contact store lookup. Owner detection will fail for LID senders.
-    // TODO: Implement LID resolution via Baileys store in S3.
-    return false;
-  }
-  const normalizedSender = normalizeIdentity(senderIdentity);
-  return config.ownerIdentities.some(
-    (owner) => normalizeIdentity(owner) === normalizedSender,
-  );
-}
-
-/** Pending authorization token for a channel */
-interface PendingToken {
-  token: string;
-  channelId: string;
-  expiresAt: Date;
-}
-
 export class ChannelMessageHandler {
   private deps: MessageHandlerDeps;
   private externalStore: ExternalMessageStore;
   private attachmentService: AttachmentService;
-  private warnedMissingOwner = new Set<string>();
-  private pendingTokens = new Map<string, PendingToken>();
+  private gate: AuthorizationGate;
+  private router: MessageRouter;
+  private tokenStore: InMemoryTokenStore;
+  private configWriter: ConfigWriter;
 
-  constructor(deps: MessageHandlerDeps) {
+  constructor(
+    deps: MessageHandlerDeps,
+    initialBindings: ChannelBinding[],
+  ) {
     this.deps = deps;
     this.externalStore = new ExternalMessageStore(
       deps.conversationManager.getDb(),
     );
     this.attachmentService = new AttachmentService(deps.agentDir);
+    this.configWriter = new ConfigWriter(deps.agentDir);
+
+    // Initialize routing components
+    this.tokenStore = new InMemoryTokenStore();
+    this.router = new MessageRouter(initialBindings);
+    this.gate = new AuthorizationGate(this.tokenStore, {
+      onAuthorized: (transportId, msg) =>
+        this.handleTokenAuthorization(transportId, msg),
+    });
   }
 
   /**
-   * Generate an authorization token for a channel.
+   * Generate an authorization token for a transport.
    * User sends this token via WhatsApp to prove ownership.
    */
-  generateToken(channelId: string): string {
-    // 6-char alphanumeric token (easy to type on phone)
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 to avoid confusion
-    let token = "";
-    for (let i = 0; i < 6; i++) {
-      token += chars[Math.floor(Math.random() * chars.length)];
-    }
-
-    this.pendingTokens.set(channelId, {
-      token,
-      channelId,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-    });
-
-    return token;
+  generateToken(transportId: string): string {
+    return this.gate.generateToken(transportId);
   }
 
   /**
-   * Handle incoming messages from a channel (already deduped + debounced).
+   * Handle incoming messages from a transport (already deduped + debounced).
    * Messages array may have 1+ messages if debounced together.
    */
   async handleMessages(
-    channelId: string,
+    transportId: string,
     messages: IncomingMessage[],
   ): Promise<void> {
     if (messages.length === 0) return;
 
     const first = messages[0];
 
-    // Check for authorization token BEFORE owner check
-    const pending = this.pendingTokens.get(channelId);
-    if (pending) {
-      const content = first.content.trim().toUpperCase();
-      if (content === pending.token && new Date() < pending.expiresAt) {
-        await this.handleTokenAuthorization(channelId, first);
-        return;
-      }
-    }
+    // Step 1: Authorization gate — check for pending token
+    const handled = await this.gate.checkMessage(transportId, first);
+    if (handled) return;
 
-    const channelConfig = this.deps.getTransportConfig(channelId);
+    // Step 2: Message router — check channel bindings
+    const decision = this.router.route(transportId, first.from);
 
-    // Warn once per channel if ownerIdentities is missing (all messages treated as external)
-    if (
-      !channelConfig?.ownerIdentities?.length &&
-      !this.warnedMissingOwner.has(channelId)
-    ) {
-      this.warnedMissingOwner.add(channelId);
-      console.warn(
-        `[ChannelMessageHandler] Channel "${channelId}" has no ownerIdentities configured — all messages will be treated as external.`,
-      );
-    }
-
-    const senderNormalized = normalizeIdentity(first.from);
-    const isOwner = isOwnerMessage(channelConfig, first.from);
-    console.log(
-      `[ChannelMessageHandler] Message from "${first.from}" (normalized: "${senderNormalized}"), ` +
-        `ownerIdentities: ${JSON.stringify(channelConfig?.ownerIdentities)}, isOwner: ${isOwner}`,
-    );
-
-    if (isOwner) {
-      // Owner message → conversation flow
-      await this.handleOwnerMessage(channelId, messages);
+    if (decision.type === "owner") {
+      await this.handleOwnerMessage(transportId, messages);
     } else {
-      // External party → store for S3 trust tier system
-      await this.handleExternalMessage(channelId, messages);
+      await this.handleExternalMessage(transportId, messages);
     }
   }
 
   /**
-   * Handle a valid authorization token — register sender as channel owner.
+   * Handle a valid authorization token — create channel binding.
    */
   private async handleTokenAuthorization(
-    channelId: string,
+    transportId: string,
     msg: IncomingMessage,
   ): Promise<void> {
     const senderJid = msg.from;
     const normalizedJid = normalizeIdentity(senderJid);
+    const bindingId = `${transportId}_binding`;
 
     console.log(
-      `[ChannelMessageHandler] Token authorization successful for channel "${channelId}" — owner JID: ${senderJid}`,
+      `[ChannelMessageHandler] Token authorization successful for "${transportId}" — owner: ${senderJid}`,
     );
 
-    // Update runtime config
-    // ownerIdentities: normalized digits for identity matching
-    // ownerJid: full JID for outbound messaging (preserves @s.whatsapp.net suffix)
-    this.deps.updateTransportConfig(channelId, {
-      ownerIdentities: [normalizedJid],
+    // Create channel binding
+    const binding: ChannelBinding = {
+      id: bindingId,
+      transport: transportId,
+      ownerIdentity: normalizedJid,
       ownerJid: senderJid,
-    });
+    };
 
-    // Persist to config.yaml
+    // Update router with new binding
+    this.router.addBinding(binding);
+
+    // Persist binding to config.yaml
     try {
-      saveTransportToConfig(
-        channelId,
-        { owner_identities: [normalizedJid], owner_jid: senderJid },
-        this.deps.agentDir,
-      );
+      await this.configWriter.saveChannelBinding(bindingId, {
+        transport: transportId,
+        ownerIdentity: normalizedJid,
+        ownerJid: senderJid,
+      });
     } catch (err) {
       console.error(
-        `[ChannelMessageHandler] Failed to persist owner identity:`,
+        `[ChannelMessageHandler] Failed to persist channel binding:`,
         err,
       );
     }
 
-    // Clear the pending token
-    this.pendingTokens.delete(channelId);
-    this.warnedMissingOwner.delete(channelId);
-
     // Send confirmation via WhatsApp
     const name = msg.senderName ?? "there";
-    await this.deps.sendViaTransport(channelId, senderJid, {
+    await this.deps.sendViaTransport(transportId, senderJid, {
       content: `Hi ${name}! You're now authorized as my owner on this channel. Send me anything and I'll respond!`,
     });
 
     // Broadcast to dashboard
     this.deps.connectionRegistry.broadcastToAll({
       type: "transport_authorized",
-      transportId: channelId,
+      transportId,
       ownerJid: normalizedJid,
       ownerName: msg.senderName ?? null,
     });
