@@ -1,14 +1,14 @@
 export { toDisplayStatus, initialStatus } from './types.js'
 
 export type {
-  ChannelDisplayStatus,
-  ChannelStatus,
+  TransportDisplayStatus,
+  TransportStatus,
   ReconnectPolicy,
   IncomingMessage,
   OutgoingMessage,
-  ChannelAttachment,
-  ChannelInstanceConfig,
-  ChannelPlugin,
-  PluginFactory,
-  ChannelInfo,
+  TransportAttachment,
+  TransportConfig,
+  TransportPlugin,
+  TransportPluginFactory,
+  TransportInfo,
 } from './types.js'

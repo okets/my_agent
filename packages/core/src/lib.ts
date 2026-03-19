@@ -43,7 +43,9 @@ export {
   loadAgentName,
   loadAgentNickname,
   loadAgentFullName,
+  saveTransportToConfig,
   saveChannelToConfig,
+  removeTransportFromConfig,
   removeChannelFromConfig,
   loadEmbeddingsConfig,
   saveEmbeddingsConfig,
@@ -77,20 +79,36 @@ export {
 } from './hatching/logic.js'
 export type { IdentityData, PersonalityOption, OperatingRulesData } from './hatching/logic.js'
 
-// Channel types
-export { toDisplayStatus, initialStatus } from './channels/index.js'
+// Transport types
+export { toDisplayStatus, initialStatus } from './transports/index.js'
 export type {
-  ChannelDisplayStatus,
-  ChannelStatus,
+  TransportDisplayStatus,
+  TransportStatus,
   ReconnectPolicy,
   IncomingMessage,
   OutgoingMessage,
-  ChannelAttachment,
-  ChannelInstanceConfig,
-  ChannelPlugin,
-  PluginFactory,
-  ChannelInfo,
-} from './channels/index.js'
+  TransportAttachment,
+  TransportConfig,
+  TransportPlugin,
+  TransportPluginFactory,
+  TransportInfo,
+} from './transports/index.js'
+
+// Deprecated aliases — removed in Task 8 after all consumers are updated
+/** @deprecated Use TransportDisplayStatus */
+export type { TransportDisplayStatus as ChannelDisplayStatus } from './transports/index.js'
+/** @deprecated Use TransportStatus */
+export type { TransportStatus as ChannelStatus } from './transports/index.js'
+/** @deprecated Use TransportAttachment */
+export type { TransportAttachment as ChannelAttachment } from './transports/index.js'
+/** @deprecated Use TransportConfig */
+export type { TransportConfig as ChannelInstanceConfig } from './transports/index.js'
+/** @deprecated Use TransportPlugin */
+export type { TransportPlugin as ChannelPlugin } from './transports/index.js'
+/** @deprecated Use TransportPluginFactory */
+export type { TransportPluginFactory as PluginFactory } from './transports/index.js'
+/** @deprecated Use TransportInfo */
+export type { TransportInfo as ChannelInfo } from './transports/index.js'
 
 // Env utility
 export { getEnvValue, setEnvValue, removeEnvValue, getAllSecrets } from './env.js'

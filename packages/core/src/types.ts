@@ -1,4 +1,4 @@
-import type { ChannelInstanceConfig } from './channels/types.js'
+import type { TransportConfig } from './transports/types.js'
 
 export interface HealthConfig {
   defaults?: { intervalMs?: number }
@@ -8,6 +8,6 @@ export interface HealthConfig {
 export interface BrainConfig {
   model: string
   brainDir: string
-  channels: Record<string, ChannelInstanceConfig>
+  transports: Record<string, TransportConfig>
   health?: HealthConfig
 }

@@ -1,7 +1,7 @@
 /**
- * Channel System — Type Definitions
+ * Transport System — Type Definitions
  *
- * Core types for the channel plugin interface, message routing,
+ * Core types for the transport plugin interface, message routing,
  * and resilience configuration.
  */
 
@@ -12,7 +12,7 @@ import type { Plugin, HealthResult, PluginStatus } from '../plugin/types.js'
 // ─────────────────────────────────────────────────────────────────
 
 /** Simple display status for UI rendering */
-export type ChannelDisplayStatus =
+export type TransportDisplayStatus =
   | 'disconnected'
   | 'connecting'
   | 'connected'
@@ -20,14 +20,14 @@ export type ChannelDisplayStatus =
   | 'logged_out'
 
 /** Rich status object emitted by plugins and tracked by manager */
-export interface ChannelStatus {
+export interface TransportStatus {
   running: boolean
   connected: boolean
   reconnectAttempts: number
   lastConnectedAt: Date | null
   lastDisconnect: {
     at: Date
-    status: ChannelDisplayStatus
+    status: TransportDisplayStatus
     error?: string
     loggedOut?: boolean
   } | null
@@ -37,7 +37,7 @@ export interface ChannelStatus {
 }
 
 /** Convert rich status to display status for UI */
-export function toDisplayStatus(status: ChannelStatus): ChannelDisplayStatus {
+export function toDisplayStatus(status: TransportStatus): TransportDisplayStatus {
   if (status.lastDisconnect?.loggedOut) return 'logged_out'
   if (status.lastError && !status.connected) return 'error'
   if (status.connected) return 'connected'
@@ -46,7 +46,7 @@ export function toDisplayStatus(status: ChannelStatus): ChannelDisplayStatus {
 }
 
 /** Create a fresh initial status */
-export function initialStatus(): ChannelStatus {
+export function initialStatus(): TransportStatus {
   return {
     running: false,
     connected: false,
@@ -76,7 +76,7 @@ export interface ReconnectPolicy {
 // Messages
 // ─────────────────────────────────────────────────────────────────
 
-/** Incoming message from an external channel */
+/** Incoming message from an external transport */
 export interface IncomingMessage {
   /** Unique message ID (from the platform) */
   id: string
@@ -86,14 +86,14 @@ export interface IncomingMessage {
   content: string
   /** When the message was sent */
   timestamp: Date
-  /** Channel instance ID */
+  /** Transport instance ID */
   channelId: string
   /** Thread ID for email threading */
   threadId?: string
   /** Group ID for group chats */
   groupId?: string
   /** File attachments */
-  attachments?: ChannelAttachment[]
+  attachments?: TransportAttachment[]
   /** Display name of the sender */
   senderName?: string
   /** Display name of the group */
@@ -106,18 +106,18 @@ export interface IncomingMessage {
   }
 }
 
-/** Outgoing message to an external channel */
+/** Outgoing message to an external transport */
 export interface OutgoingMessage {
   /** Message text content */
   content: string
   /** Message ID to reply to */
   replyTo?: string
   /** File attachments */
-  attachments?: ChannelAttachment[]
+  attachments?: TransportAttachment[]
 }
 
-/** File attachment in channel messages */
-export interface ChannelAttachment {
+/** File attachment in transport messages */
+export interface TransportAttachment {
   filename: string
   mimeType: string
   data: Buffer
@@ -127,23 +127,23 @@ export interface ChannelAttachment {
 // Plugin Interface
 // ─────────────────────────────────────────────────────────────────
 
-/** Configuration for a channel instance */
-export interface ChannelInstanceConfig {
+/** Configuration for a transport instance */
+export interface TransportConfig {
   /** Instance ID (e.g., "baileys_agent_main") */
   id: string
   /** Plugin name (e.g., "baileys", "mock") */
   plugin: string
-  /** Channel role */
+  /** Transport role */
   role: 'dedicated' | 'personal'
   /** Display identity (phone, email, etc.) */
   identity: string
   /** Message processing mode */
   processing: 'immediate' | 'on_demand'
-  /** Owner for personal channels */
+  /** Owner for personal transports */
   owner?: string
   /** Escalation policy name (S3) */
   escalation?: string
-  /** Permissions for personal channels (S3) */
+  /** Permissions for personal transports (S3) */
   permissions?: string[]
   /** Plugin-specific auth directory */
   authDir?: string
@@ -159,11 +159,11 @@ export interface ChannelInstanceConfig {
   [key: string]: unknown
 }
 
-/** Channel plugin interface — implemented by each channel type */
-export interface ChannelPlugin extends Plugin {
-  readonly type: 'channel'
+/** Transport plugin interface — implemented by each transport type */
+export interface TransportPlugin extends Plugin {
+  readonly type: 'transport'
   /** Initialize plugin with instance config */
-  init(config: ChannelInstanceConfig): Promise<void>
+  init(config: TransportConfig): Promise<void>
   /** Connect to the external service */
   connect(): Promise<void>
   /** Disconnect from the external service */
@@ -173,36 +173,36 @@ export interface ChannelPlugin extends Plugin {
   /** Register event handlers */
   on(event: 'message', handler: (msg: IncomingMessage) => void): void
   on(event: 'error', handler: (err: Error) => void): void
-  on(event: 'status', handler: (status: ChannelStatus) => void): void
+  on(event: 'status', handler: (status: TransportStatus) => void): void
   on(event: 'qr', handler: (qrDataUrl: string) => void): void
-  /** Get channel-specific rich status (internal detail) */
-  channelStatus(): ChannelStatus
+  /** Get transport-specific rich status (internal detail) */
+  transportStatus(): TransportStatus
 }
 
 /** Factory function to create a plugin instance */
-export type PluginFactory = (config: ChannelInstanceConfig) => ChannelPlugin
+export type TransportPluginFactory = (config: TransportConfig) => TransportPlugin
 
 // ─────────────────────────────────────────────────────────────────
-// Channel Info (exposed to frontend)
+// Transport Info (exposed to frontend)
 // ─────────────────────────────────────────────────────────────────
 
-/** Channel info for REST API and WebSocket broadcasts */
-export interface ChannelInfo {
+/** Transport info for REST API and WebSocket broadcasts */
+export interface TransportInfo {
   /** Instance ID */
   id: string
   /** Plugin name */
   plugin: string
-  /** Channel role */
+  /** Transport role */
   role: 'dedicated' | 'personal'
   /** Display identity */
   identity: string
   /** Simple display status */
-  status: ChannelDisplayStatus
+  status: TransportDisplayStatus
   /** Rich status detail */
-  statusDetail: ChannelStatus
+  statusDetail: TransportStatus
   /** SVG icon string */
   icon: string
-  /** Whether channel has authorized owner(s) */
+  /** Whether transport has authorized owner(s) */
   hasOwner: boolean
   /** Owner's phone number (if available from JID) */
   ownerNumber?: string

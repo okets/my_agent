@@ -2,7 +2,7 @@ import * as path from 'node:path'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { parse, stringify } from 'yaml'
 import type { BrainConfig } from './types.js'
-import type { ChannelInstanceConfig, ReconnectPolicy } from './channels/types.js'
+import type { TransportConfig, ReconnectPolicy } from './transports/types.js'
 
 /**
  * Default model IDs — versionless, always resolve to latest.
@@ -113,7 +113,7 @@ function loadYamlConfig(agentDir: string): YamlConfig | null {
   }
 }
 
-function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInstanceConfig> {
+function loadTransportConfigs(yaml: YamlConfig | null): Record<string, TransportConfig> {
   if (!yaml?.channels) {
     return {}
   }
@@ -132,32 +132,32 @@ function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInst
   }
   const mergedDebounce = defaultsOverride?.debounceMs ?? DEFAULT_DEBOUNCE_MS
 
-  const result: Record<string, ChannelInstanceConfig> = {}
+  const result: Record<string, TransportConfig> = {}
 
   for (const [key, value] of Object.entries(channelsSection)) {
     if (key === 'defaults') continue
 
-    const channelYaml = value as Record<string, unknown>
+    const entryYaml = value as Record<string, unknown>
 
-    const config: ChannelInstanceConfig = {
+    const config: TransportConfig = {
       id: key,
-      plugin: (channelYaml.plugin as string) ?? '',
-      role: (channelYaml.role as 'dedicated' | 'personal') ?? 'dedicated',
-      identity: (channelYaml.identity as string) ?? '',
-      processing: (channelYaml.processing as 'immediate' | 'on_demand') ?? 'immediate',
-      owner: channelYaml.owner as string | undefined,
-      escalation: channelYaml.escalation as string | undefined,
-      permissions: channelYaml.permissions as string[] | undefined,
-      authDir: (channelYaml.authDir ?? channelYaml.auth_dir) as string | undefined,
+      plugin: (entryYaml.plugin as string) ?? '',
+      role: (entryYaml.role as 'dedicated' | 'personal') ?? 'dedicated',
+      identity: (entryYaml.identity as string) ?? '',
+      processing: (entryYaml.processing as 'immediate' | 'on_demand') ?? 'immediate',
+      owner: entryYaml.owner as string | undefined,
+      escalation: entryYaml.escalation as string | undefined,
+      permissions: entryYaml.permissions as string[] | undefined,
+      authDir: (entryYaml.authDir ?? entryYaml.auth_dir) as string | undefined,
       reconnect: {
         ...mergedReconnect,
-        ...((channelYaml.reconnect as Partial<ReconnectPolicy>) ?? {}),
+        ...((entryYaml.reconnect as Partial<ReconnectPolicy>) ?? {}),
       },
-      debounceMs: (channelYaml.debounceMs ?? channelYaml.debounce_ms ?? mergedDebounce) as number,
-      ownerIdentities: (channelYaml.ownerIdentities ?? channelYaml.owner_identities) as
+      debounceMs: (entryYaml.debounceMs ?? entryYaml.debounce_ms ?? mergedDebounce) as number,
+      ownerIdentities: (entryYaml.ownerIdentities ?? entryYaml.owner_identities) as
         | string[]
         | undefined,
-      ownerJid: (channelYaml.ownerJid ?? channelYaml.owner_jid) as string | undefined,
+      ownerJid: (entryYaml.ownerJid ?? entryYaml.owner_jid) as string | undefined,
     }
 
     const knownKeys = new Set([
@@ -180,7 +180,7 @@ function loadChannelConfigs(yaml: YamlConfig | null): Record<string, ChannelInst
       'owner_jid',
     ])
 
-    for (const [k, v] of Object.entries(channelYaml)) {
+    for (const [k, v] of Object.entries(entryYaml)) {
       if (!knownKeys.has(k)) {
         config[k] = v
       }
@@ -229,7 +229,7 @@ export function loadConfig(): BrainConfig {
     brainDir:
       process.env.MY_AGENT_BRAIN_DIR ??
       (yaml?.brain?.dir ? path.resolve(agentDir, yaml.brain.dir) : path.join(agentDir, 'brain')),
-    channels: loadChannelConfigs(yaml),
+    transports: loadTransportConfigs(yaml),
     health: yaml?.health,
   }
 }
@@ -286,13 +286,13 @@ export function saveEmbeddingsConfig(embeddings: YamlEmbeddingsConfig, agentDir?
 }
 
 /**
- * Save channel config to config.yaml.
- * Merges channelData into the existing channel entry (if any),
- * preserving fields not present in channelData.
+ * Save transport config to config.yaml.
+ * Merges data into the existing transport entry (if any),
+ * preserving fields not present in data.
  */
-export function saveChannelToConfig(
-  channelId: string,
-  channelData: Record<string, unknown>,
+export function saveTransportToConfig(
+  transportId: string,
+  data: Record<string, unknown>,
   agentDir?: string,
 ): void {
   const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
@@ -307,16 +307,20 @@ export function saveChannelToConfig(
     }
   }
 
+  // Still writes to 'channels' YAML key — config migration (Task 6) will change to 'transports'
   if (!yaml.channels || typeof yaml.channels !== 'object') {
     yaml.channels = {}
   }
 
   const channels = yaml.channels as Record<string, unknown>
-  const existing = (channels[channelId] as Record<string, unknown>) ?? {}
-  channels[channelId] = { ...existing, ...channelData }
+  const existing = (channels[transportId] as Record<string, unknown>) ?? {}
+  channels[transportId] = { ...existing, ...data }
 
   writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
 }
+
+/** @deprecated Use saveTransportToConfig */
+export const saveChannelToConfig = saveTransportToConfig
 
 export interface DebriefPreferences {
   time: string
@@ -374,10 +378,10 @@ export function loadModels(agentDir?: string): ModelDefaults {
 }
 
 /**
- * Remove a channel from config.yaml
+ * Remove a transport from config.yaml
  */
-export function removeChannelFromConfig(
-  channelId: string,
+export function removeTransportFromConfig(
+  transportId: string,
   agentDir?: string,
 ): void {
   const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
@@ -394,12 +398,16 @@ export function removeChannelFromConfig(
     return
   }
 
+  // Still uses 'channels' YAML key — config migration (Task 6) will change to 'transports'
   if (!yaml.channels || typeof yaml.channels !== 'object') {
     return
   }
 
   const channels = yaml.channels as Record<string, unknown>
-  delete channels[channelId]
+  delete channels[transportId]
 
   writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
 }
+
+/** @deprecated Use removeTransportFromConfig */
+export const removeChannelFromConfig = removeTransportFromConfig
