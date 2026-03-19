@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { parse, stringify } from 'yaml'
 import type { BrainConfig } from './types.js'
 import type { TransportConfig, ReconnectPolicy } from './transports/types.js'
+import { migrateConfig } from './config-migration.js'
 
 /**
  * Default model IDs — versionless, always resolve to latest.
@@ -71,6 +72,13 @@ interface YamlConfig {
     }
     [key: string]: unknown
   }
+  transports?: {
+    defaults?: {
+      reconnect?: Partial<ReconnectPolicy>
+      debounceMs?: number
+    }
+    [key: string]: unknown
+  }
   health?: {
     defaults?: { intervalMs?: number }
     plugins?: Record<string, { intervalMs?: number }>
@@ -114,11 +122,14 @@ function loadYamlConfig(agentDir: string): YamlConfig | null {
 }
 
 function loadTransportConfigs(yaml: YamlConfig | null): Record<string, TransportConfig> {
-  if (!yaml?.channels) {
+  // After migration, transports are in the 'transports:' section.
+  // Fall back to 'channels:' for backward compatibility (pre-migration configs).
+  const section = (yaml as any)?.transports ?? yaml?.channels
+  if (!section) {
     return {}
   }
 
-  const channelsSection = yaml.channels
+  const channelsSection = section
   const defaultsOverride = channelsSection.defaults as
     | {
         reconnect?: Partial<ReconnectPolicy>
@@ -222,6 +233,10 @@ export function loadAgentName(agentDir?: string): string {
 
 export function loadConfig(): BrainConfig {
   const agentDir = process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
+
+  // Run config migration before loading (channels → transports)
+  migrateConfig(agentDir)
+
   const yaml = loadYamlConfig(agentDir)
 
   return {
@@ -307,14 +322,13 @@ export function saveTransportToConfig(
     }
   }
 
-  // Still writes to 'channels' YAML key — config migration (Task 6) will change to 'transports'
-  if (!yaml.channels || typeof yaml.channels !== 'object') {
-    yaml.channels = {}
+  if (!yaml.transports || typeof yaml.transports !== 'object') {
+    yaml.transports = {}
   }
 
-  const channels = yaml.channels as Record<string, unknown>
-  const existing = (channels[transportId] as Record<string, unknown>) ?? {}
-  channels[transportId] = { ...existing, ...data }
+  const transports = yaml.transports as Record<string, unknown>
+  const existing = (transports[transportId] as Record<string, unknown>) ?? {}
+  transports[transportId] = { ...existing, ...data }
 
   writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
 }
@@ -398,13 +412,12 @@ export function removeTransportFromConfig(
     return
   }
 
-  // Still uses 'channels' YAML key — config migration (Task 6) will change to 'transports'
-  if (!yaml.channels || typeof yaml.channels !== 'object') {
+  if (!yaml.transports || typeof yaml.transports !== 'object') {
     return
   }
 
-  const channels = yaml.channels as Record<string, unknown>
-  delete channels[transportId]
+  const transports = yaml.transports as Record<string, unknown>
+  delete transports[transportId]
 
   writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
 }
