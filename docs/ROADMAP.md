@@ -107,7 +107,7 @@ Browser-based interface replacing CLI. Chat + hatching wizard.
 
 ---
 
-### M3: WhatsApp Channel — IN PROGRESS (S6 blocking)
+### M3: WhatsApp Channel — COMPLETE
 
 First external channel. Agent owns a phone number, responds immediately.
 
@@ -117,7 +117,7 @@ First external channel. Agent owns a phone number, responds immediately.
 | S2     | WhatsApp Plugin + Routing | Complete | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)                  | [review](sprints/m3-s2-whatsapp-plugin/review.md) |
 | S3     | Slash Commands            | Complete | [plan](sprints/m3-s3-slash-commands/plan.md)                   | [review](sprints/m3-s3-slash-commands/review.md)  |
 | S5     | Connection Stability      | Complete | [plan](sprints/m3-s5-connection-stability/plan.md)             | —                                                 |
-| S6     | Transport / Channel Split | Planned  | [plan](sprints/m3-s6-transport-channel-split/plan.md)          | —                                                 |
+| S6     | Transport / Channel Split | Complete | [plan](sprints/m3-s6-transport-channel-split/plan.md)          | —                                                 |
 
 **Design references:**
 

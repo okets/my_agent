@@ -1,6 +1,6 @@
 # M3-S6: Transport / Channel Split — Sprint Plan
 
-> **Status:** Planned
+> **Status:** Complete
 > **Date:** 2026-03-19
 > **Branch:** `refactor/m3-s6-transport-channel-split`
 > **Depends on:** M3-S5 (Connection Stability — complete)
