@@ -14,11 +14,24 @@ import {
   PROTECTED_ORIGINS,
 } from "../mcp/skill-validation.js";
 
+/** Tools available to Conversation Nina — skills requiring other tools are worker-only */
+const CONVERSATION_TOOLS = new Set([
+  "Read",
+  "Glob",
+  "Grep",
+  "WebSearch",
+  "WebFetch",
+  "Skill",
+]);
+
+export type SkillAudience = "conversation" | "worker" | "both";
+
 export interface SkillMeta {
   name: string;
   description: string;
   origin: string;
   disabled: boolean;
+  audience: SkillAudience;
 }
 
 export interface SkillFull extends SkillMeta {
@@ -31,6 +44,22 @@ export class SkillService {
 
   constructor(agentDir: string) {
     this.skillsDir = join(agentDir, ".claude", "skills");
+  }
+
+  /** Determine audience from allowed-tools */
+  private static computeAudience(
+    allowedTools: string[] | undefined,
+  ): SkillAudience {
+    if (!allowedTools || allowedTools.length === 0) return "both";
+    const needsWorkerTools = allowedTools.some(
+      (t) => !CONVERSATION_TOOLS.has(t),
+    );
+    const needsConversationTools = allowedTools.some((t) =>
+      CONVERSATION_TOOLS.has(t),
+    );
+    if (needsWorkerTools && needsConversationTools) return "worker";
+    if (needsWorkerTools) return "worker";
+    return "conversation";
   }
 
   /** List all skills with metadata */
@@ -61,11 +90,14 @@ export class SkillService {
     const fm = this.parseFrontmatter(content);
     if (!fm) return null;
 
+    const allowedTools = fm.data["allowed-tools"] as string[] | undefined;
+    const audience = SkillService.computeAudience(allowedTools);
     return {
       name: (fm.data.name as string) || name,
       description: (fm.data.description as string) || "",
       origin: (fm.data.origin as string) || "user",
       disabled: fm.data["disable-model-invocation"] === true,
+      audience,
       content,
       body: fm.body,
     };
@@ -157,11 +189,13 @@ export class SkillService {
       const fm = this.parseFrontmatter(content);
       if (!fm) return null;
 
+      const allowedTools = fm.data["allowed-tools"] as string[] | undefined;
       return {
         name: (fm.data.name as string) || name,
         description: (fm.data.description as string) || "(no description)",
         origin: (fm.data.origin as string) || "user",
         disabled: fm.data["disable-model-invocation"] === true,
+        audience: SkillService.computeAudience(allowedTools),
       };
     } catch {
       return null;

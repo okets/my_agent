@@ -630,7 +630,6 @@
                       <button
                         @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name }) : viewSkill(skill.name)"
                         class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-tokyo-purple/10 transition-colors group text-left"
-                        :class="skill.disabled ? 'opacity-50' : ''"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -651,17 +650,13 @@
                           x-text="skill.name"
                         ></span>
                         <span
-                          x-show="skill.origin !== 'user'"
-                          class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400"
-                          x-text="skill.origin"
-                        >
-                        </span>
+                          x-show="skill.audience === 'worker'"
+                          class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400"
+                        >worker</span>
                         <span
-                          x-show="skill.disabled"
-                          class="text-[9px] px-1 py-px rounded bg-orange-500/15 text-orange-400"
-                        >
-                          off
-                        </span>
+                          x-show="skill.audience === 'conversation'"
+                          class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400"
+                        >conversation</span>
                       </button>
                     </template>
                   </div>
@@ -3010,12 +3005,19 @@
                         <button
                           @click="viewSkill(skill.name)"
                           class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
-                          :class="skill.disabled ? 'opacity-50' : ''"
                         >
                           <span
                             class="text-sm text-tokyo-text truncate flex-1"
                             x-text="skill.name"
                           ></span>
+                          <span
+                            x-show="skill.audience === 'worker'"
+                            class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400"
+                          >worker</span>
+                          <span
+                            x-show="skill.audience === 'conversation'"
+                            class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400"
+                          >conversation</span>
                           <span
                             x-show="skill.origin !== 'user'"
                             class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400"
@@ -7542,7 +7544,6 @@
                         <button
                           @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
                           class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-purple/10 transition-colors text-left"
-                          :class="skill.disabled ? 'opacity-50' : ''"
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -7563,16 +7564,13 @@
                             x-text="skill.name"
                           ></span>
                           <span
-                            x-show="skill.origin !== 'user'"
-                            class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400"
-                            x-text="skill.origin"
-                          >
-                          </span>
+                            x-show="skill.audience === 'worker'"
+                            class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400"
+                          >worker</span>
                           <span
-                            x-show="skill.disabled"
-                            class="text-[9px] px-1 py-px rounded bg-orange-500/15 text-orange-400"
-                            >off</span
-                          >
+                            x-show="skill.audience === 'conversation'"
+                            class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400"
+                          >conversation</span>
                         </button>
                       </template>
                       <template x-if="skillsList.length === 0">
