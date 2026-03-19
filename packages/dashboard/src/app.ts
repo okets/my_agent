@@ -9,12 +9,48 @@
  */
 
 import { EventEmitter } from "node:events";
+import { join } from "node:path";
 import type { AppEventMap } from "./app-events.js";
 
-// Service types — these will be filled in as we move init into App.create()
-import type { ConversationManager } from "./conversations/index.js";
-import type { AbbreviationQueue } from "./conversations/abbreviation.js";
-import type {
+import {
+  resolveAuth,
+  isHatched,
+  loadConfig,
+  loadPreferences,
+  loadEmbeddingsConfig,
+  CalendarScheduler,
+  createCalDAVClient,
+  loadCalendarConfig,
+  loadCalendarCredentials,
+  NotificationService,
+  HealthMonitor,
+  createHooks,
+  MemoryDb,
+  SyncService,
+  SearchService,
+  PluginRegistry,
+  LocalEmbeddingsPlugin,
+  OllamaEmbeddingsPlugin,
+  initNotebook,
+  migrateToNotebook,
+  needsMigration,
+  checkSkillsHealth,
+  filterSkillsByTools,
+} from "@my-agent/core";
+import type { HealthChangedEvent } from "@my-agent/core";
+import { createBaileysPlugin } from "@my-agent/channel-whatsapp";
+import {
+  ConversationManager,
+  AbbreviationQueue,
+  ConversationSearchDB,
+  ConversationSearchService,
+} from "./conversations/index.js";
+import {
+  TransportManager,
+  MockTransportPlugin,
+  ChannelMessageHandler,
+} from "./channels/index.js";
+import {
   TaskManager,
   TaskLogStorage,
   TaskExecutor,
@@ -22,26 +58,31 @@ import type {
   TaskScheduler,
   TaskSearchService,
 } from "./tasks/index.js";
-import type { TransportManager } from "./channels/index.js";
-import type { ChannelMessageHandler } from "./channels/message-handler.js";
-import type {
-  CalendarScheduler,
-  NotificationService,
-  MemoryDb,
-  SyncService,
-  SearchService,
-  PluginRegistry,
-  HealthMonitor,
-} from "@my-agent/core";
-import type { StatePublisher } from "./state/state-publisher.js";
-import type { ConversationSearchService } from "./conversations/search-service.js";
-import type { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
-import type { ConversationInitiator } from "./agent/conversation-initiator.js";
-import type { PostResponseHooks } from "./conversations/post-response-hooks.js";
-import type { SessionRegistry } from "./agent/session-registry.js";
+import { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
+import { ConversationInitiator } from "./agent/conversation-initiator.js";
+import { PostResponseHooks } from "./conversations/post-response-hooks.js";
+import { SessionRegistry } from "./agent/session-registry.js";
+import { StatePublisher } from "./state/state-publisher.js";
+import { createEventHandler } from "./scheduler/event-handler.js";
+import {
+  initMcpServers,
+  initPromptBuilder,
+  getPromptBuilder,
+  getSharedMcpServers,
+  addMcpServer,
+  setRunningTasksChecker,
+} from "./agent/session-manager.js";
+import { createTaskToolsServer } from "./mcp/task-tools-server.js";
+import { createSkillServer } from "./mcp/skill-server.js";
+import { ConnectionRegistry } from "./ws/connection-registry.js";
 
 export interface AppOptions {
   agentDir: string;
+  /**
+   * Connection registry for WS broadcasts (adapter-layer dependency).
+   * If omitted, StatePublisher is not created.
+   */
+  connectionRegistry?: ConnectionRegistry;
 }
 
 export class App extends EventEmitter {
@@ -49,67 +90,800 @@ export class App extends EventEmitter {
   readonly isHatched: boolean;
 
   // Core services
-  readonly conversationManager!: ConversationManager;
-  readonly sessionRegistry!: SessionRegistry;
+  conversationManager!: ConversationManager;
+  sessionRegistry!: SessionRegistry;
 
   // Task system
-  readonly taskManager: TaskManager | null = null;
-  readonly logStorage: TaskLogStorage | null = null;
-  readonly taskExecutor: TaskExecutor | null = null;
-  readonly taskProcessor: TaskProcessor | null = null;
-  readonly taskScheduler: TaskScheduler | null = null;
-  readonly taskSearchService: TaskSearchService | null = null;
+  taskManager: TaskManager | null = null;
+  logStorage: TaskLogStorage | null = null;
+  taskExecutor: TaskExecutor | null = null;
+  taskProcessor: TaskProcessor | null = null;
+  taskScheduler: TaskScheduler | null = null;
+  taskSearchService: TaskSearchService | null = null;
 
   // Channels
-  readonly transportManager: TransportManager | null = null;
-  readonly channelMessageHandler: ChannelMessageHandler | null = null;
+  transportManager: TransportManager | null = null;
+  channelMessageHandler: ChannelMessageHandler | null = null;
 
   // Calendar
-  readonly calendarScheduler: CalendarScheduler | null = null;
+  calendarScheduler: CalendarScheduler | null = null;
 
   // Notifications
-  readonly notificationService: NotificationService | null = null;
+  notificationService: NotificationService | null = null;
 
   // Work loop
-  readonly workLoopScheduler: WorkLoopScheduler | null = null;
+  workLoopScheduler: WorkLoopScheduler | null = null;
 
   // Memory
-  readonly memoryDb: MemoryDb | null = null;
-  readonly syncService: SyncService | null = null;
-  readonly searchService: SearchService | null = null;
-  readonly pluginRegistry: PluginRegistry | null = null;
+  memoryDb: MemoryDb | null = null;
+  syncService: SyncService | null = null;
+  searchService: SearchService | null = null;
+  pluginRegistry: PluginRegistry | null = null;
 
   // Conversations (advanced)
-  readonly conversationSearchService: ConversationSearchService | null = null;
-  readonly abbreviationQueue: AbbreviationQueue | null = null;
-  readonly conversationInitiator: ConversationInitiator | null = null;
+  conversationSearchService: ConversationSearchService | null = null;
+  conversationSearchDb: ConversationSearchDB | null = null;
+  abbreviationQueue: AbbreviationQueue | null = null;
+  conversationInitiator: ConversationInitiator | null = null;
 
   // Post-processing
-  readonly postResponseHooks: PostResponseHooks | null = null;
+  postResponseHooks: PostResponseHooks | null = null;
 
   // State publishing
-  readonly statePublisher: StatePublisher | null = null;
+  statePublisher: StatePublisher | null = null;
 
   // Health
-  readonly healthMonitor: HealthMonitor | null = null;
+  healthMonitor: HealthMonitor | null = null;
 
   private constructor(agentDir: string, isHatched: boolean) {
     super();
     this.agentDir = agentDir;
     this.isHatched = isHatched;
+    this.sessionRegistry = new SessionRegistry(5);
   }
 
   /**
    * Create a fully initialized App instance.
-   * Mirrors the initialization sequence from the original index.ts:main().
+   * Preserves the exact initialization order from the original index.ts:main().
    */
   static async create(options: AppOptions): Promise<App> {
-    const { agentDir } = options;
-    const { isHatched } = await import("@my-agent/core");
+    const { agentDir, connectionRegistry } = options;
     const hatched = isHatched(agentDir);
     const app = new App(agentDir, hatched);
 
-    // Service initialization will be added in Task 3
+    // ── Auth ──
+    if (hatched) {
+      try {
+        resolveAuth(agentDir);
+        console.log("Authentication configured.");
+      } catch (err) {
+        console.warn(
+          "Warning: Authentication not configured. Use the hatching wizard to set up auth.",
+        );
+        console.warn(
+          "Error:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    } else {
+      console.log(
+        "Agent not hatched yet. Hatching wizard will be available in the web UI.",
+      );
+    }
+
+    // ── SystemPromptBuilder (M6.6-S1) ──
+    // Must happen before any SessionManager so all sessions share the same cache.
+    if (hatched) {
+      const brainDir = join(agentDir, "brain");
+      initPromptBuilder(brainDir, agentDir, {
+        getNotebookLastUpdated: () => {
+          try {
+            return app.memoryDb?.getStatus().lastSync ?? null;
+          } catch {
+            return null;
+          }
+        },
+      });
+    }
+
+    // ── ConversationManager ──
+    app.conversationManager = new ConversationManager(agentDir);
+
+    // Startup cleanup: delete any empty conversations left from previous runs
+    {
+      const allConvs = await app.conversationManager.list();
+      const emptyConvs = allConvs.filter((c) => c.turnCount === 0);
+      for (const conv of emptyConvs) {
+        await app.conversationManager.delete(conv.id);
+      }
+      if (emptyConvs.length > 0) {
+        console.log(
+          `Cleaned up ${emptyConvs.length} empty conversation(s) on startup`,
+        );
+      }
+    }
+
+    // ── AbbreviationQueue ──
+    if (hatched) {
+      try {
+        const apiKey =
+          process.env.ANTHROPIC_API_KEY ||
+          process.env.CLAUDE_CODE_OAUTH_TOKEN ||
+          "";
+
+        if (apiKey) {
+          app.abbreviationQueue = new AbbreviationQueue(
+            app.conversationManager,
+            apiKey,
+            agentDir,
+          );
+          await app.abbreviationQueue.retryPending();
+
+          const queue = app.abbreviationQueue;
+          app.conversationManager.onConversationInactive = (oldConvId) => {
+            queue.enqueue(oldConvId);
+          };
+        } else {
+          console.warn(
+            "No API key available - abbreviation queue will not start",
+          );
+        }
+      } catch (err) {
+        console.warn("Failed to initialize abbreviation queue:", err);
+      }
+    }
+
+    // ── Transport system ──
+    const config = loadConfig();
+
+    if (hatched) {
+      app.transportManager = new TransportManager();
+
+      app.transportManager.registerPlugin("mock", () => {
+        return new MockTransportPlugin();
+      });
+      app.transportManager.registerPlugin("baileys", (cfg) =>
+        createBaileysPlugin(cfg),
+      );
+
+      // ChannelMessageHandler needs connectionRegistry + sessionRegistry.
+      // sessionRegistry is App-owned. connectionRegistry comes from adapter.
+      if (connectionRegistry) {
+        app.channelMessageHandler = new ChannelMessageHandler(
+          {
+            conversationManager: app.conversationManager,
+            sessionRegistry: app.sessionRegistry,
+            connectionRegistry,
+            sendViaTransport: (transportId, to, message) =>
+              app.transportManager!.send(transportId, to, message),
+            sendTypingIndicator: (transportId, to) =>
+              app.transportManager!.sendTypingIndicator(transportId, to),
+            agentDir,
+            statePublisher: {
+              publishConversations: () =>
+                app.statePublisher?.publishConversations(),
+            },
+            get postResponseHooks() {
+              return app.postResponseHooks;
+            },
+          },
+          config.channels,
+        );
+
+        app.transportManager.onMessage((transportId, messages) => {
+          app.channelMessageHandler!.handleMessages(transportId, messages).catch(
+            (err) => {
+              console.error(
+                `[Transports] Error handling messages from ${transportId}:`,
+                err,
+              );
+            },
+          );
+        });
+      }
+
+      // Transport events → App events (coupling point #1 — broken)
+      app.transportManager.onStatusChange((transportId, status) => {
+        app.emit("channel:status_changed", transportId, status, status.reconnectAttempts);
+      });
+      app.transportManager.onQrCode((transportId, qrDataUrl) => {
+        app.emit("channel:qr_code", transportId, qrDataUrl);
+      });
+      app.transportManager.onPairingCode((transportId, pairingCode) => {
+        app.emit("channel:pairing_code", transportId, pairingCode);
+      });
+      app.transportManager.onPaired((transportId) => {
+        app.emit("channel:paired", transportId);
+      });
+
+      // Initialize pre-configured transports
+      const transportCount = Object.keys(config.transports).length;
+      if (transportCount > 0) {
+        await app.transportManager.initAll(config.transports);
+        console.log(
+          `Transport system initialized with ${transportCount} transport(s)`,
+        );
+      } else {
+        console.log("Transport system ready (no transports configured yet)");
+      }
+    }
+
+    // ── Task system ──
+    if (hatched) {
+      const db = app.conversationManager.getDb();
+      app.taskManager = new TaskManager(db, agentDir);
+      app.logStorage = new TaskLogStorage(agentDir);
+
+      app.taskExecutor = new TaskExecutor({
+        taskManager: app.taskManager,
+        logStorage: app.logStorage,
+        agentDir,
+        db: app.conversationManager.getConversationDb(),
+        get mcpServers() {
+          return getSharedMcpServers() ?? undefined;
+        },
+        hooks: createHooks("task", { agentDir }),
+      });
+
+      app.notificationService = new NotificationService();
+
+      // TaskProcessor — onTaskMutated is lazy (statePublisher set later)
+      app.taskProcessor = new TaskProcessor({
+        taskManager: app.taskManager,
+        executor: app.taskExecutor,
+        conversationManager: app.conversationManager,
+        connectionRegistry: connectionRegistry ?? new ConnectionRegistry(),
+        transportManager: app.transportManager,
+        notificationService: app.notificationService,
+        onTaskMutated: () => app.statePublisher?.publishTasks(),
+        get conversationInitiator() {
+          return app.conversationInitiator ?? null;
+        },
+      });
+
+      app.taskScheduler = new TaskScheduler({
+        taskManager: app.taskManager,
+        processor: app.taskProcessor,
+        pollIntervalMs: 30_000,
+      });
+      app.taskScheduler.start();
+
+      // Notification events → App events (coupling point #2 — broken)
+      app.notificationService.on("notification", (event) => {
+        app.emit("notification:created", event.notification);
+      });
+
+      console.log("Task system initialized with processor and scheduler");
+
+      // Post-response hooks
+      app.postResponseHooks = new PostResponseHooks({
+        taskManager: app.taskManager,
+        log: (msg) => console.log(msg),
+        logError: (err, msg) => console.error(msg, err),
+      });
+    }
+
+    // ── Calendar scheduler ──
+    if (hatched && app.taskManager && app.logStorage) {
+      try {
+        const calConfig = loadCalendarConfig(agentDir);
+        const credentials = loadCalendarCredentials(agentDir);
+
+        if (calConfig && credentials) {
+          const caldavClient = createCalDAVClient(calConfig, credentials);
+
+          const eventHandler = createEventHandler({
+            conversationManager: app.conversationManager,
+            taskManager: app.taskManager,
+            logStorage: app.logStorage,
+            agentDir,
+            db: app.conversationManager.getConversationDb(),
+          });
+
+          app.calendarScheduler = new CalendarScheduler(caldavClient, {
+            pollIntervalMs: 60_000,
+            lookAheadMinutes: 5,
+            onEventFired: eventHandler,
+            firedEventsPath: `${agentDir}/runtime/fired-events.json`,
+          });
+
+          await app.calendarScheduler.start();
+          console.log("Calendar scheduler started (polling every 60s)");
+        } else {
+          console.log("Calendar not configured - scheduler not started");
+        }
+      } catch (err) {
+        console.warn(
+          "Failed to initialize calendar scheduler:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    // ── ConversationInitiator (M6.9-S3) ──
+    if (hatched && app.transportManager) {
+      const convDb = app.conversationManager.getConversationDb();
+      app.conversationInitiator = new ConversationInitiator({
+        conversationManager: app.conversationManager,
+        sessionFactory: {
+          async *injectSystemTurn(conversationId, prompt) {
+            const sdkSessionId = convDb.getSdkSessionId(conversationId);
+            const sm = await app.sessionRegistry.getOrCreate(
+              conversationId,
+              sdkSessionId,
+            );
+            yield* sm.injectSystemTurn(prompt);
+          },
+          async *streamNewConversation(conversationId, prompt) {
+            const sm = await app.sessionRegistry.getOrCreate(conversationId);
+            yield* sm.streamMessage(prompt || "");
+          },
+        },
+        channelManager: {
+          async send(transportId, to, message) {
+            await app.transportManager!.send(transportId, to, message);
+          },
+          getTransportConfig(id) {
+            return app.transportManager!.getTransportConfig(id);
+          },
+          getTransportInfos() {
+            return app.transportManager!.getTransportInfos();
+          },
+        },
+        getOutboundChannel: () => loadPreferences(agentDir).outboundChannel,
+      });
+      console.log("[ConversationInitiator] Initialized");
+    }
+
+    // ── WorkLoopScheduler (M6.6-S2) ──
+    if (hatched) {
+      try {
+        const db = app.conversationManager.getDb();
+        app.workLoopScheduler = new WorkLoopScheduler({
+          db,
+          agentDir,
+          pollIntervalMs: 60_000,
+          notificationService: app.notificationService ?? undefined,
+          conversationInitiator: app.conversationInitiator ?? undefined,
+          taskManager: app.taskManager ?? undefined,
+        });
+        await app.workLoopScheduler.start();
+        console.log("Work loop scheduler started");
+      } catch (err) {
+        console.warn(
+          "Failed to initialize work loop scheduler:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    // Wire fact extraction → work loop logging (M6.6-S3)
+    if (app.abbreviationQueue && app.workLoopScheduler) {
+      const scheduler = app.workLoopScheduler;
+      app.abbreviationQueue.onExtractionComplete = (result) => {
+        scheduler.logExternalRun(
+          "fact-extraction",
+          result.durationMs,
+          `Extracted ${result.newFactCount} new facts from conversation ${result.conversationId}`,
+          result.error,
+        );
+      };
+    }
+
+    // ── StatePublisher ──
+    if (hatched && connectionRegistry) {
+      app.statePublisher = new StatePublisher({
+        connectionRegistry,
+        taskManager: app.taskManager,
+        conversationManager: app.conversationManager,
+        getCalendarClient: () => {
+          try {
+            const calConfig = loadCalendarConfig(agentDir);
+            const credentials = loadCalendarCredentials(agentDir);
+            if (!calConfig || !credentials) return null;
+            return createCalDAVClient(calConfig, credentials);
+          } catch {
+            return null;
+          }
+        },
+      });
+      console.log("StatePublisher initialized");
+    }
+
+    // ── Memory system (M6-S2) ──
+    if (hatched) {
+      try {
+        await initNotebook(agentDir);
+
+        if (await needsMigration(agentDir)) {
+          const migrated = await migrateToNotebook(agentDir);
+          if (migrated.length > 0) {
+            console.log(`Migrated ${migrated.length} file(s) to notebook/`);
+          }
+        }
+
+        app.pluginRegistry = new PluginRegistry();
+        app.pluginRegistry.register(new LocalEmbeddingsPlugin(agentDir));
+
+        const embeddingsConfig = loadEmbeddingsConfig(agentDir);
+
+        const ollamaPlugin = new OllamaEmbeddingsPlugin({
+          host:
+            embeddingsConfig.plugin === "ollama"
+              ? (embeddingsConfig.host ?? "http://localhost:11434")
+              : "http://localhost:11434",
+          model: embeddingsConfig.model ?? "nomic-embed-text",
+          onDegraded: (health) => {
+            if (app.pluginRegistry) {
+              app.pluginRegistry.setDegraded(health);
+              app.emit("memory:changed");
+            }
+          },
+        });
+        app.pluginRegistry.register(ollamaPlugin);
+
+        if (
+          process.env.OLLAMA_HOST &&
+          embeddingsConfig.plugin === "ollama"
+        ) {
+          console.log(
+            `Using embeddings config: plugin=${embeddingsConfig.plugin}, host=${embeddingsConfig.host}`,
+          );
+        }
+
+        app.memoryDb = new MemoryDb(agentDir);
+
+        const notebookDir = join(agentDir, "notebook");
+        app.syncService = new SyncService({
+          notebookDir,
+          db: app.memoryDb,
+          getPlugin: () => app.pluginRegistry?.getActive() ?? null,
+          excludePatterns: ["knowledge/extracted/**"],
+        });
+
+        app.searchService = new SearchService({
+          db: app.memoryDb,
+          getPlugin: () => app.pluginRegistry?.getActive() ?? null,
+          getDegradedHealth: () =>
+            app.pluginRegistry?.getDegradedHealth() ?? null,
+        });
+
+        // Restore embeddings plugin
+        const configPluginId =
+          embeddingsConfig.plugin === "ollama"
+            ? "embeddings-ollama"
+            : "embeddings-local";
+
+        const indexMeta = app.memoryDb.getIndexMeta();
+        const savedPluginId = indexMeta.embeddingsPlugin ?? null;
+        const restorePluginId =
+          savedPluginId && savedPluginId !== configPluginId
+            ? configPluginId
+            : (savedPluginId ?? configPluginId);
+
+        if (savedPluginId && savedPluginId !== configPluginId) {
+          console.log(
+            `[Embeddings] Config changed: ${savedPluginId} → ${configPluginId}, switching plugin`,
+          );
+        }
+
+        if (restorePluginId) {
+          const savedPlugin = app.pluginRegistry.get(restorePluginId);
+          if (savedPlugin) {
+            try {
+              await savedPlugin.initialize();
+              const isReady = await savedPlugin.isReady();
+              if (isReady) {
+                await app.pluginRegistry.setActive(restorePluginId);
+                const dims = savedPlugin.getDimensions();
+                if (dims) {
+                  const { modelChanged } = app.memoryDb.resetVectorIndex(
+                    restorePluginId,
+                    savedPlugin.modelName,
+                    dims,
+                  );
+                  if (modelChanged) {
+                    console.log(
+                      `[Embeddings] Model changed — memory vector index reset (${dims} dims)`,
+                    );
+                  }
+                }
+                console.log(
+                  `Restored embeddings plugin: ${restorePluginId} (${savedPlugin.modelName})`,
+                );
+              } else {
+                app.pluginRegistry.setIntended(restorePluginId);
+                const health = await savedPlugin.healthCheck();
+                app.pluginRegistry.setDegraded(
+                  health.healthy
+                    ? {
+                        healthy: false,
+                        message: "Plugin not ready after initialization",
+                        since: new Date(),
+                      }
+                    : { ...health, since: health.since ?? new Date() },
+                );
+                if (indexMeta.dimensions) {
+                  app.memoryDb.initVectorTable(indexMeta.dimensions);
+                }
+                console.warn(
+                  `Embeddings plugin ${restorePluginId} not ready — entering degraded mode`,
+                );
+              }
+            } catch (err) {
+              const errMsg =
+                err instanceof Error ? err.message : String(err);
+              app.pluginRegistry.setIntended(restorePluginId);
+              app.pluginRegistry.setDegraded({
+                healthy: false,
+                message: errMsg,
+                resolution:
+                  errMsg.toLowerCase().includes("connect") ||
+                  errMsg.toLowerCase().includes("fetch failed")
+                    ? "Start the Ollama Docker container or check that the host is reachable."
+                    : "Check the embeddings plugin configuration.",
+                since: new Date(),
+              });
+              if (indexMeta.dimensions) {
+                app.memoryDb.initVectorTable(indexMeta.dimensions);
+              }
+              console.warn(
+                `Failed to restore embeddings plugin ${restorePluginId} — entering degraded mode: ${errMsg}`,
+              );
+            }
+          } else {
+            console.warn(
+              `Embeddings plugin ${restorePluginId} not found — continuing without embeddings`,
+            );
+          }
+        }
+
+        // Initial sync
+        const syncResult = await app.syncService.fullSync();
+        console.log(
+          `Memory system initialized (${syncResult.added} files indexed, ${syncResult.errors.length} errors)`,
+        );
+
+        // Start file watcher
+        app.syncService.startWatching();
+
+        // SyncService events → App events + cache invalidation
+        app.syncService.on("sync", () => {
+          app.emit("memory:changed");
+          getPromptBuilder()?.invalidateCache();
+          app.workLoopScheduler?.reloadPatterns().catch(() => {});
+        });
+
+        console.log("Memory file watcher started");
+      } catch (err) {
+        console.warn(
+          "Failed to initialize memory system:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    // ── Conversation Search (M6.7-S4) ──
+    if (app.conversationManager) {
+      try {
+        const rawDb = app.conversationManager.getDb();
+        app.conversationSearchDb = new ConversationSearchDB(rawDb);
+
+        const activePlugin = app.pluginRegistry?.getActive() ?? null;
+        if (activePlugin) {
+          const dims = activePlugin.getDimensions();
+          if (dims) {
+            app.conversationSearchDb.initVectorTable(dims);
+            console.log(
+              `[ConversationSearch] Vector table initialized (${dims} dims)`,
+            );
+          }
+        }
+
+        app.conversationSearchService = new ConversationSearchService({
+          searchDb: app.conversationSearchDb,
+          getPlugin: () => app.pluginRegistry?.getActive() ?? null,
+        });
+
+        console.log("[ConversationSearch] Service initialized");
+      } catch (err) {
+        console.warn(
+          "[ConversationSearch] Failed to initialize:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    // ── MCP servers ──
+    if (app.searchService) {
+      const notebookDir = join(agentDir, "notebook");
+      initMcpServers(
+        app.searchService,
+        notebookDir,
+        app.conversationSearchService ?? undefined,
+        app.conversationManager ?? undefined,
+        app.workLoopScheduler ?? undefined,
+      );
+    }
+
+    // Skills health check (M6.8-S2)
+    if (hatched) {
+      await checkSkillsHealth(agentDir);
+    }
+
+    // ── TaskSearch (M6.9-S5) ──
+    if (app.taskManager) {
+      try {
+        const rawDb = app.conversationManager.getDb();
+        app.taskSearchService = new TaskSearchService({
+          db: rawDb,
+          getPlugin: () => app.pluginRegistry?.getActive() ?? null,
+        });
+
+        const activePlugin = app.pluginRegistry?.getActive() ?? null;
+        if (activePlugin) {
+          const dims = activePlugin.getDimensions();
+          if (dims) {
+            app.taskSearchService.initVectorTable(dims);
+            console.log(
+              `[TaskSearch] Vector table initialized (${dims} dims)`,
+            );
+          }
+        }
+
+        const searchSvc = app.taskSearchService;
+        app.taskManager.onTaskCreated = (task) => {
+          searchSvc
+            .indexTask({
+              id: task.id,
+              title: task.title,
+              instructions: task.instructions,
+            })
+            .catch(() => {});
+        };
+
+        console.log("[TaskSearch] Service initialized");
+      } catch (err) {
+        console.warn(
+          "[TaskSearch] Failed to initialize:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    // ── Task-tools MCP server ──
+    if (app.taskManager && app.taskProcessor) {
+      const taskToolsServer = createTaskToolsServer({
+        taskManager: app.taskManager,
+        taskProcessor: app.taskProcessor,
+        agentDir,
+        taskSearchService: app.taskSearchService ?? undefined,
+      });
+      addMcpServer("task-tools", taskToolsServer);
+
+      setRunningTasksChecker((conversationId: string) => {
+        const running =
+          app.taskManager!.getRunningTasksForConversation(conversationId);
+        return running.map((t) => `"${t.title}" (${t.id})`);
+      });
+    }
+
+    // ── Skill MCP server (M6.8-S5) ──
+    {
+      const skillServer = createSkillServer({
+        agentDir,
+        onSkillCreated: async () => {
+          const conversationTools = [
+            "Read",
+            "Glob",
+            "Grep",
+            "WebSearch",
+            "WebFetch",
+            "Skill",
+          ];
+          await filterSkillsByTools(agentDir, conversationTools);
+        },
+        onSkillChanged: () => {
+          app.emit("skills:changed");
+        },
+      });
+      addMcpServer("skills", skillServer);
+    }
+
+    // Connect memory services to state publisher
+    if (app.statePublisher) {
+      app.statePublisher.setMemoryServices(
+        app.memoryDb,
+        app.pluginRegistry,
+      );
+    }
+
+    // ── HealthMonitor ──
+    if (app.pluginRegistry && app.memoryDb && app.syncService) {
+      app.healthMonitor = new HealthMonitor({
+        defaultIntervalMs: 60_000,
+        healthConfig: config.health,
+      });
+
+      for (const plugin of app.pluginRegistry.list()) {
+        app.healthMonitor.register(plugin);
+      }
+
+      if (app.transportManager) {
+        for (const plugin of app.transportManager.getPlugins()) {
+          app.healthMonitor.register(plugin);
+        }
+      }
+
+      app.healthMonitor.on(
+        "health_changed",
+        async (event: HealthChangedEvent) => {
+          if (event.pluginType === "embeddings") {
+            if (
+              event.current.healthy &&
+              event.previous &&
+              !event.previous.healthy
+            ) {
+              // Recovery: degraded → healthy
+              const intendedId = app.pluginRegistry!.getIntendedPluginId();
+              if (intendedId && intendedId === event.pluginId) {
+                const plugin = app.pluginRegistry!.get(intendedId);
+                if (plugin) {
+                  try {
+                    await plugin.initialize();
+                    const isReady = await plugin.isReady();
+                    if (isReady) {
+                      await app.pluginRegistry!.setActive(intendedId);
+                      const dims = plugin.getDimensions();
+                      if (dims && app.memoryDb) {
+                        app.memoryDb.initVectorTable(dims);
+                      }
+                      if (dims && app.conversationSearchDb) {
+                        app.conversationSearchDb.initVectorTable(dims);
+                      }
+                      console.log(
+                        `[HealthMonitor] Embeddings recovered: ${intendedId} (${plugin.modelName})`,
+                      );
+                      app.syncService!.fullSync().catch(() => {});
+                    }
+                  } catch {
+                    // Recovery attempt failed — will retry next poll
+                  }
+                }
+              }
+            } else if (
+              !event.current.healthy &&
+              (!event.previous || event.previous.healthy)
+            ) {
+              // Detection: healthy → degraded
+              const active = app.pluginRegistry!.getActive();
+              if (active && active.id === event.pluginId) {
+                app.pluginRegistry!.setIntended(active.id);
+                app.pluginRegistry!.setDegraded({
+                  ...event.current,
+                  since: event.current.since ?? new Date(),
+                });
+                console.warn(
+                  `[HealthMonitor] Embeddings plugin ${active.id} failed health check — entering degraded mode`,
+                );
+              }
+            }
+            app.emit("memory:changed");
+          }
+
+          if (event.pluginType === "channel") {
+            if (!event.current.healthy) {
+              console.warn(
+                `[HealthMonitor] Channel ${event.pluginId} health check failed: ${event.current.message ?? "unknown"}`,
+              );
+            }
+          }
+        },
+      );
+
+      await app.healthMonitor.start();
+      console.log("HealthMonitor started");
+    }
 
     return app;
   }
@@ -118,7 +892,37 @@ export class App extends EventEmitter {
    * Graceful shutdown — stop all services in reverse initialization order.
    */
   async shutdown(): Promise<void> {
-    // Will be filled in Task 3
+    if (this.workLoopScheduler) {
+      await this.workLoopScheduler.stop();
+      console.log("Work loop scheduler stopped.");
+    }
+    if (this.taskScheduler) {
+      this.taskScheduler.stop();
+      console.log("Task scheduler stopped.");
+    }
+    if (this.calendarScheduler) {
+      this.calendarScheduler.stop();
+      console.log("Calendar scheduler stopped.");
+    }
+    if (this.transportManager) {
+      await this.transportManager.disconnectAll();
+    }
+    if (this.abbreviationQueue) {
+      await this.abbreviationQueue.drain();
+    }
+    if (this.healthMonitor) {
+      this.healthMonitor.stop();
+      console.log("HealthMonitor stopped.");
+    }
+    if (this.syncService) {
+      this.syncService.stopWatching();
+      console.log("Memory file watcher stopped.");
+    }
+    if (this.memoryDb) {
+      this.memoryDb.close();
+      console.log("Memory database closed.");
+    }
+    this.conversationManager.close();
   }
 
   // ─── Typed EventEmitter overrides ──────────────────────────────────────────
