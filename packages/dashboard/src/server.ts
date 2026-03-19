@@ -52,6 +52,7 @@ export interface ServerOptions {
 // Augment Fastify types to include our custom decorators
 declare module "fastify" {
   interface FastifyInstance {
+    app: import("./app.js").App | null;
     agentDir: string;
     isHatched: boolean;
     conversationManager: ConversationManager | null;
@@ -153,7 +154,8 @@ export async function createServer(
     decorateReply: false, // Avoid conflict with first static plugin
   });
 
-  // Store agentDir and isHatched status as decorators for route handlers
+  // Store agentDir, app, and isHatched status as decorators for route handlers
+  fastify.decorate("app", null);
   fastify.decorate("agentDir", agentDir);
   fastify.decorate("isHatched", false); // Will be set by index.ts after checking
   fastify.decorate("conversationManager", null);

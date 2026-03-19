@@ -1092,15 +1092,13 @@ export async function registerDebugRoutes(
    * Used for testing live updates.
    */
   fastify.post("/memory/publish", async (request, reply) => {
-    const statePublisher = fastify.statePublisher;
-
-    if (!statePublisher) {
+    if (!fastify.app) {
       return reply.code(503).send({
-        error: "StatePublisher not initialized",
+        error: "App not initialized",
       });
     }
 
-    statePublisher.publishMemory();
+    fastify.app.memory.emitChanged();
 
     return {
       success: true,

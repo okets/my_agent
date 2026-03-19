@@ -40,7 +40,7 @@ async function tryLazyRecovery(fastify: FastifyInstance): Promise<void> {
       fastify.log.info(`[Memory] Lazy recovery succeeded: ${intendedId}`);
       // Re-embed files that arrived while degraded (non-blocking)
       fastify.syncService?.fullSync().catch(() => {});
-      fastify.statePublisher?.publishMemory();
+      fastify.app!.memory.emitChanged();
     }
   } catch {
     // Still degraded — leave state as-is, liveness loop will retry
@@ -243,7 +243,7 @@ export async function registerMemoryRoutes(
       const result = await syncService.rebuild();
 
       // Publish live update to all connected clients
-      fastify.statePublisher?.publishMemory();
+      fastify.app!.memory.emitChanged();
 
       const degraded = fastify.pluginRegistry?.getDegradedHealth();
       return {
@@ -286,7 +286,7 @@ export async function registerMemoryRoutes(
       const result = await syncService.fullSync();
 
       // Publish live update to all connected clients
-      fastify.statePublisher?.publishMemory();
+      fastify.app!.memory.emitChanged();
 
       const degraded = fastify.pluginRegistry?.getDegradedHealth();
       return {
@@ -432,7 +432,7 @@ export async function registerMemoryRoutes(
           dimensions: null,
         });
         fastify.log.info("[Memory] Disabled embeddings");
-        fastify.statePublisher?.publishMemory();
+        fastify.app!.memory.emitChanged();
         return { success: true, pluginId: null };
       }
 
@@ -486,7 +486,7 @@ export async function registerMemoryRoutes(
         fastify.log.info(`[Memory] Activated embeddings plugin: ${pluginId}`);
 
         // Publish live update to all connected clients
-        fastify.statePublisher?.publishMemory();
+        fastify.app!.memory.emitChanged();
 
         return {
           success: true,

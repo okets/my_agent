@@ -396,10 +396,7 @@ export class App extends EventEmitter {
             sendTypingIndicator: (transportId, to) =>
               app.transportManager!.sendTypingIndicator(transportId, to),
             agentDir,
-            statePublisher: {
-              publishConversations: () =>
-                app.statePublisher?.publishConversations(),
-            },
+            app,
             get postResponseHooks() {
               return app.postResponseHooks;
             },

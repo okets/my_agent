@@ -582,7 +582,7 @@ export async function registerChatWebSocket(
       if (!conversationId) return;
       const conv = await conversationManager.get(conversationId);
       if (conv && conv.turnCount === 0) {
-        await conversationManager.delete(conversationId);
+        await fastify.app!.conversations.delete(conversationId);
       }
     }
 
@@ -598,8 +598,8 @@ export async function registerChatWebSocket(
       // Queue abbreviation for the conversation we're leaving
       queueAbbreviationForCurrent();
 
-      // Create new conversation
-      const conversation = await conversationManager.create();
+      // Create new conversation (emits conversation:created event → StatePublisher)
+      const conversation = await fastify.app!.conversations.create();
 
       currentConversationId = conversation.id;
       currentTurnNumber = 0;
@@ -616,7 +616,7 @@ export async function registerChatWebSocket(
         conversation: toConversationMeta(conversation),
       });
 
-      // Broadcast to other sockets so their sidebar updates
+      // Broadcast to other sockets so their sidebars update
       connectionRegistry.broadcastToAll(
         {
           type: "conversation_created",
@@ -624,9 +624,6 @@ export async function registerChatWebSocket(
         },
         socket,
       );
-
-      // Broadcast updated conversation list as state snapshot
-      fastify.statePublisher?.publishConversations();
     }
 
     /**
@@ -653,11 +650,8 @@ export async function registerChatWebSocket(
         return;
       }
 
-      // Make this the current conversation
-      await conversationManager.makeCurrent(conversationId);
-
-      // Broadcast updated conversation state to all clients
-      fastify.statePublisher?.publishConversations();
+      // Make this the current conversation (emits conversation:updated → StatePublisher)
+      await fastify.app!.conversations.makeCurrent(conversationId);
 
       // Load turns
       const turns = await conversationManager.getTurns(conversation.id, {
@@ -783,8 +777,8 @@ export async function registerChatWebSocket(
         fastify.conversationSearchService.removeConversation(conversationId);
       }
 
-      // Delete from database + transcript
-      await conversationManager.delete(conversationId);
+      // Delete from database + transcript (emits conversation:deleted → StatePublisher)
+      await fastify.app!.conversations.delete(conversationId);
 
       fastify.log.info(`Deleted conversation ${conversationId}`);
 
@@ -793,9 +787,6 @@ export async function registerChatWebSocket(
         type: "conversation_deleted",
         conversationId,
       });
-
-      // Broadcast updated conversation list as state snapshot
-      fastify.statePublisher?.publishConversations();
     }
 
     /**
@@ -855,8 +846,8 @@ export async function registerChatWebSocket(
         // Queue abbreviation for the conversation we're leaving
         queueAbbreviationForCurrent();
 
-        // Create new conversation
-        const conversation = await conversationManager.create();
+        // Create new conversation (emits conversation:created → StatePublisher)
+        const conversation = await fastify.app!.conversations.create();
 
         currentConversationId = conversation.id;
         currentTurnNumber = 0;
@@ -898,9 +889,6 @@ export async function registerChatWebSocket(
           },
           socket,
         );
-
-        // Broadcast updated conversation list as state snapshot
-        fastify.statePublisher?.publishConversations();
 
         return;
       }
@@ -995,9 +983,9 @@ export async function registerChatWebSocket(
         fastify.log.info(`Expanded skill command in message`);
       }
 
-      // Create conversation if needed
+      // Create conversation if needed (emits conversation:created → StatePublisher)
       if (!currentConversationId) {
-        const conversation = await conversationManager.create();
+        const conversation = await fastify.app!.conversations.create();
         currentConversationId = conversation.id;
         currentTurnNumber = 0;
 
@@ -1022,9 +1010,6 @@ export async function registerChatWebSocket(
           },
           socket,
         );
-
-        // Broadcast updated conversation list as state snapshot
-        fastify.statePublisher?.publishConversations();
       }
 
       // Get or create session for this conversation (load stored SDK session ID for resumption)

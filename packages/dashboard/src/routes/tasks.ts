@@ -284,11 +284,11 @@ export async function registerTaskRoutes(
       scheduledFor: scheduledFor ? new Date(scheduledFor) : undefined,
     };
 
-    const task = taskManager.create(input);
+    const task = fastify.app!.tasks.create(input);
 
     // Link to conversation if provided
     if (conversationId) {
-      taskManager.linkTaskToConversation(task.id, conversationId);
+      fastify.app!.tasks.linkTaskToConversation(task.id, conversationId);
     }
 
     // Trigger task processor for immediate execution
@@ -297,9 +297,6 @@ export async function registerTaskRoutes(
       // Fire and forget - don't block the API response
       taskProcessor.onTaskCreated(task);
     }
-
-    // Broadcast updated task list
-    fastify.statePublisher?.publishTasks();
 
     return reply.code(201).send(toResponse(task));
   });
@@ -334,16 +331,13 @@ export async function registerTaskRoutes(
       if (task.status === "deleted") {
         return reply.code(400).send({ error: "Cannot update a deleted task" });
       }
-      taskManager.update(request.params.id, { status: status as any });
+      fastify.app!.tasks.update(request.params.id, { status: status as any });
     }
 
     // Link to conversation if provided
     if (conversationId) {
-      taskManager.linkTaskToConversation(request.params.id, conversationId);
+      fastify.app!.tasks.linkTaskToConversation(request.params.id, conversationId);
     }
-
-    // Broadcast updated task list
-    fastify.statePublisher?.publishTasks();
 
     const updated = taskManager.findById(request.params.id)!;
     return toResponse(updated);
@@ -368,7 +362,7 @@ export async function registerTaskRoutes(
       return reply.code(400).send({ error: "Cannot complete a deleted task" });
     }
 
-    taskManager.update(request.params.id, {
+    fastify.app!.tasks.update(request.params.id, {
       status: "completed",
       completedAt: new Date(),
     });
@@ -376,11 +370,8 @@ export async function registerTaskRoutes(
     // Link to conversation if provided
     const { conversationId } = request.body || {};
     if (conversationId) {
-      taskManager.linkTaskToConversation(request.params.id, conversationId);
+      fastify.app!.tasks.linkTaskToConversation(request.params.id, conversationId);
     }
-
-    // Broadcast updated task list
-    fastify.statePublisher?.publishTasks();
 
     const updated = taskManager.findById(request.params.id)!;
     return toResponse(updated);
@@ -408,13 +399,10 @@ export async function registerTaskRoutes(
     // Link to conversation if provided (before delete)
     const { conversationId } = request.body || {};
     if (conversationId) {
-      taskManager.linkTaskToConversation(request.params.id, conversationId);
+      fastify.app!.tasks.linkTaskToConversation(request.params.id, conversationId);
     }
 
-    taskManager.delete(request.params.id);
-
-    // Broadcast updated task list
-    fastify.statePublisher?.publishTasks();
+    fastify.app!.tasks.delete(request.params.id);
 
     return { success: true, message: "Task soft-deleted" };
   });

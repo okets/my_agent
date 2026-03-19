@@ -409,7 +409,7 @@ export async function registerCalendarRoutes(
         const cal = calendars.find((c: Calendar) => c.id === calendarId);
 
         // Broadcast updated calendar state
-        fastify.statePublisher?.publishCalendar();
+        fastify.app!.calendar.emitChanged();
 
         return toFullCalendarEvent(created, cal?.color ?? "blue");
       } catch (err) {
