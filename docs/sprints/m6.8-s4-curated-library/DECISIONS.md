@@ -36,10 +36,10 @@
 
 **Result:** The brainstorming skill orchestrates the full flow; technique libraries are invoked as enrichment during the process.
 
-## D5: Visual Companion deferred to M6.10
+## D5: Visual Companion deferred to M6.11
 
 **Decision:** Stripped the Visual Companion (browser-based mockup/diagram tool) from the brainstorming skill.
 
 **Context:** The superpowers version opens a local browser server for terminal-based visual brainstorming. Nina's dashboard chat is a different medium — showing rich content there requires dashboard-native rendering, not a separate browser server. This is a multimodal concern.
 
-**Result:** Brainstorming is text-only for now. Visual companion is an M6.10 enrichment.
+**Result:** Brainstorming is text-only for now. Visual companion is an M6.11 enrichment.

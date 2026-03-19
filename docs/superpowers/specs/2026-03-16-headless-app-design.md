@@ -1,4 +1,4 @@
-# M6.11 Headless App — Design Spec
+# M6.10 Headless App — Design Spec
 
 > **Status:** Draft
 > **Author:** CTO + Claude

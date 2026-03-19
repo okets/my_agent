@@ -190,7 +190,8 @@ export type ServerMessage =
       type: "state:memory";
       stats: MemoryStats;
       timestamp: number;
-    };
+    }
+  | { type: "state:skills"; timestamp: number };
 
 // ─── State Sync Messages ───────────────────────────────────────────────────
 //

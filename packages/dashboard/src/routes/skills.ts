@@ -1,4 +1,12 @@
 import type { FastifyInstance } from "fastify";
+import { connectionRegistry } from "../ws/chat-handler.js";
+
+function broadcastSkillsChanged(): void {
+  connectionRegistry.broadcastToAll({
+    type: "state:skills" as any,
+    timestamp: Date.now(),
+  });
+}
 
 export async function registerSkillRoutes(
   fastify: FastifyInstance,
@@ -26,6 +34,7 @@ export async function registerSkillRoutes(
     async (request, reply) => {
       try {
         const result = service.toggle(request.params.name);
+        broadcastSkillsChanged();
         return result;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Toggle failed";
@@ -49,6 +58,7 @@ export async function registerSkillRoutes(
     }
     try {
       const result = service.update(request.params.name, description, content);
+      broadcastSkillsChanged();
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Update failed";
@@ -68,6 +78,7 @@ export async function registerSkillRoutes(
     async (request, reply) => {
       try {
         service.delete(request.params.name);
+        broadcastSkillsChanged();
         return { success: true };
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Delete failed";

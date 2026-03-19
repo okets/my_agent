@@ -847,6 +847,12 @@ async function main() {
         ];
         await filterSkillsByTools(agentDir, conversationTools);
       },
+      onSkillChanged: () => {
+        connectionRegistry.broadcastToAll({
+          type: "state:skills",
+          timestamp: Date.now(),
+        });
+      },
     });
     addMcpServer("skills", skillServer);
   }

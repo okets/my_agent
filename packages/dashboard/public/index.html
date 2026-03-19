@@ -623,41 +623,50 @@
                         No skills yet
                       </p>
                     </template>
-                    <template
-                      x-for="skill in skillsList"
-                      :key="skill.name"
-                    >
-                      <button
-                        @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name }) : viewSkill(skill.name)"
-                        class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-tokyo-purple/10 transition-colors group text-left"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke-width="1.5"
-                          stroke="currentColor"
-                          class="w-3.5 h-3.5 text-tokyo-muted group-hover:text-tokyo-purple shrink-0"
+                    <!-- User skills -->
+                    <template x-if="userSkills.length > 0">
+                      <div>
+                        <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-2.5 py-1">Your skills</div>
+                        <template
+                          x-for="skill in userSkills"
+                          :key="skill.name"
                         >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
-                          />
-                        </svg>
-                        <span
-                          class="text-xs text-tokyo-text truncate flex-1"
-                          x-text="skill.name"
-                        ></span>
-                        <span
-                          x-show="skill.audience === 'worker'"
-                          class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400"
-                        >worker</span>
-                        <span
-                          x-show="skill.audience === 'conversation'"
-                          class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400"
-                        >conversation</span>
-                      </button>
+                          <button
+                            @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name }) : viewSkill(skill.name)"
+                            class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-tokyo-purple/10 transition-colors group text-left"
+                            :class="skill.disabled ? 'opacity-50' : ''"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-tokyo-muted group-hover:text-tokyo-purple shrink-0">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                            </svg>
+                            <span class="text-xs text-tokyo-text truncate flex-1" x-text="skill.name"></span>
+                            <span x-show="skill.disabled" class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400">off</span>
+                            <span class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400">user</span>
+                          </button>
+                        </template>
+                      </div>
+                    </template>
+                    <!-- System/curated skills -->
+                    <template x-if="systemSkills.length > 0">
+                      <div>
+                        <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-2.5 py-1" x-text="userSkills.length > 0 ? 'System' : ''"></div>
+                        <template
+                          x-for="skill in systemSkills"
+                          :key="skill.name"
+                        >
+                          <button
+                            @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name }) : viewSkill(skill.name)"
+                            class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-tokyo-purple/10 transition-colors group text-left"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-tokyo-muted group-hover:text-tokyo-purple shrink-0">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                            </svg>
+                            <span class="text-xs text-tokyo-text truncate flex-1" x-text="skill.name"></span>
+                            <span x-show="skill.audience === 'worker'" class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400">worker</span>
+                            <span x-show="skill.audience === 'conversation'" class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400">conversation</span>
+                          </button>
+                        </template>
+                      </div>
                     </template>
                   </div>
                 </template>
@@ -2998,33 +3007,39 @@
                       x-collapse
                       class="pl-6 pr-2 space-y-0.5 mt-1"
                     >
-                      <template
-                        x-for="skill in skillsList"
-                        :key="skill.name"
-                      >
-                        <button
-                          @click="viewSkill(skill.name)"
-                          class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
-                        >
-                          <span
-                            class="text-sm text-tokyo-text truncate flex-1"
-                            x-text="skill.name"
-                          ></span>
-                          <span
-                            x-show="skill.audience === 'worker'"
-                            class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400"
-                          >worker</span>
-                          <span
-                            x-show="skill.audience === 'conversation'"
-                            class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400"
-                          >conversation</span>
-                          <span
-                            x-show="skill.origin !== 'user'"
-                            class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400"
-                            x-text="skill.origin"
-                          >
-                          </span>
-                        </button>
+                      <!-- User skills -->
+                      <template x-if="userSkills.length > 0">
+                        <div>
+                          <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1">Your skills</div>
+                          <template x-for="skill in userSkills" :key="skill.name">
+                            <button
+                              @click="viewSkill(skill.name)"
+                              class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
+                              :class="skill.disabled ? 'opacity-50' : ''"
+                            >
+                              <span class="text-sm text-tokyo-text truncate flex-1" x-text="skill.name"></span>
+                              <span x-show="skill.disabled" class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400">off</span>
+                              <span class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400">user</span>
+                            </button>
+                          </template>
+                        </div>
+                      </template>
+                      <!-- System/curated skills -->
+                      <template x-if="systemSkills.length > 0">
+                        <div>
+                          <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1" x-text="userSkills.length > 0 ? 'System' : ''"></div>
+                          <template x-for="skill in systemSkills" :key="skill.name">
+                            <button
+                              @click="viewSkill(skill.name)"
+                              class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
+                            >
+                              <span class="text-sm text-tokyo-text truncate flex-1" x-text="skill.name"></span>
+                              <span x-show="skill.audience === 'worker'" class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400">worker</span>
+                              <span x-show="skill.audience === 'conversation'" class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400">conversation</span>
+                              <span class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400" x-text="skill.origin"></span>
+                            </button>
+                          </template>
+                        </div>
                       </template>
                       <template x-if="skillsList.length === 0">
                         <p
@@ -7177,7 +7192,7 @@
 
           <!-- Notebook Browser popover (M6-S3) - 4 category organization -->
           <template x-if="$store.mobile.popover?.type === 'notebook-browser'">
-            <div class="flex flex-col gap-3 h-full">
+            <div class="flex flex-col gap-3">
               <div class="flex items-center justify-between">
                 <h2
                   class="text-lg font-bold text-tokyo-text flex items-center gap-2"
@@ -7216,7 +7231,7 @@
                 </div>
               </template>
               <template x-if="!notebookLoading && notebookTree.length > 0">
-                <div class="space-y-2 flex-1 overflow-auto">
+                <div class="space-y-2">
                   <!-- Operations -->
                   <div x-data="{ expanded: true }">
                     <button
@@ -7537,41 +7552,44 @@
                       x-collapse
                       class="pl-3 mt-1 space-y-1"
                     >
-                      <template
-                        x-for="skill in skillsList"
-                        :key="skill.name"
-                      >
-                        <button
-                          @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
-                          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-purple/10 transition-colors text-left"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke-width="1.5"
-                            stroke="currentColor"
-                            class="w-4 h-4 text-tokyo-purple"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
-                            />
-                          </svg>
-                          <span
-                            class="text-sm truncate flex-1"
-                            x-text="skill.name"
-                          ></span>
-                          <span
-                            x-show="skill.audience === 'worker'"
-                            class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400"
-                          >worker</span>
-                          <span
-                            x-show="skill.audience === 'conversation'"
-                            class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400"
-                          >conversation</span>
-                        </button>
+                      <!-- User skills -->
+                      <template x-if="userSkills.length > 0">
+                        <div>
+                          <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1">Your skills</div>
+                          <template x-for="skill in userSkills" :key="skill.name">
+                            <button
+                              @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
+                              class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-purple/10 transition-colors text-left"
+                              :class="skill.disabled ? 'opacity-50' : ''"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-tokyo-purple">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                              </svg>
+                              <span class="text-sm truncate flex-1" x-text="skill.name"></span>
+                              <span x-show="skill.disabled" class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400">off</span>
+                              <span class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400">user</span>
+                            </button>
+                          </template>
+                        </div>
+                      </template>
+                      <!-- System/curated skills -->
+                      <template x-if="systemSkills.length > 0">
+                        <div>
+                          <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1" x-text="userSkills.length > 0 ? 'System' : ''"></div>
+                          <template x-for="skill in systemSkills" :key="skill.name">
+                            <button
+                              @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
+                              class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-purple/10 transition-colors text-left"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-tokyo-purple">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
+                              </svg>
+                              <span class="text-sm truncate flex-1" x-text="skill.name"></span>
+                              <span x-show="skill.audience === 'worker'" class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400">worker</span>
+                              <span x-show="skill.audience === 'conversation'" class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400">conversation</span>
+                            </button>
+                          </template>
+                        </div>
                       </template>
                       <template x-if="skillsList.length === 0">
                         <p

@@ -336,7 +336,7 @@ Skills that work in any conversational/analytical context:
 
 | Skill | Adaptation needed |
 |-------|-------------------|
-| **brainstorming** | Minimal — strip visual companion (M6.10 concern), keep question flow |
+| **brainstorming** | Minimal — strip visual companion (M6.11 concern), keep question flow |
 | **systematic-debugging** | None — procedural, persona-free |
 | **writing-plans** | Minimal — adapt file paths |
 
@@ -444,7 +444,7 @@ SDK allocates 2% of context window (~20K chars) for skill descriptions. Not a co
 
 ### Not in scope
 
-- **Visual/rich output skills** — M6.10 (multimodal)
+- **Visual/rich output skills** — M6.11 (multimodal)
 - **Skill registry/marketplace** — future milestone if skill ecosystem grows
 - **Semantic search discovery** — not needed, SDK progressive disclosure handles scale
 - **Per-task skill filtering** — not needed, single pool with SDK relevance matching
@@ -521,7 +521,7 @@ From deep-dive analysis (roadmap expert + codebase expert, 2026-03-16).
 
 | Risk | Deferred to | Reason |
 |------|-------------|--------|
-| M6.10 needs multimodal routing hooks | M6.10 design phase | Frontmatter is extensible (YAML), add `output-type` field when needed |
+| M6.11 needs multimodal routing hooks | M6.11 design phase | Frontmatter is extensible (YAML), add `output-type` field when needed |
 | M7 needs per-task skill filtering | M7 design phase | Single pool works now, revisit when coding project skills are designed |
 | Community skill installation/validation | Future milestone | No ecosystem yet, premature to design |
 | Skill conflict detection (contradictory instructions) | Monitor | Not a problem at current skill count |

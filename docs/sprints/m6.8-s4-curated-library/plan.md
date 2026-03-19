@@ -33,7 +33,7 @@ Three-tier origin model:
 **Files:**
 - Create: `packages/core/skills/brainstorming/SKILL.md`
 
-Adapted from `superpowers:brainstorming`. Stripped: Visual Companion (M6.10), spec review loop (subagent not available in Nina context), superpowers-specific paths, TodoWrite task tracking, implementation handoff (Nina delegates via create_task). Kept: question flow, approach proposals, design presentation, YAGNI, one-question-at-a-time discipline.
+Adapted from `superpowers:brainstorming`. Stripped: Visual Companion (M6.11), spec review loop (subagent not available in Nina context), superpowers-specific paths, TodoWrite task tracking, implementation handoff (Nina delegates via create_task). Kept: question flow, approach proposals, design presentation, YAGNI, one-question-at-a-time discipline.
 
 - [ ] **Step 1: Create skill directory**
 

@@ -246,7 +246,13 @@ function chat() {
     notebookWidgetLoading: false,
 
     // Skills (M6.8-S6)
-    skillsList: [], // Array of { name, description, origin, disabled }
+    skillsList: [], // Array of { name, description, origin, disabled, audience }
+    get userSkills() {
+      return this.skillsList.filter((s) => s.origin === "user");
+    },
+    get systemSkills() {
+      return this.skillsList.filter((s) => s.origin !== "user");
+    },
     skillsLoading: false,
     selectedSkill: null, // Full skill object when viewing detail
     skillEditMode: false, // true when editing a skill
@@ -1414,6 +1420,11 @@ function chat() {
         case "state:conversations":
         case "state:memory":
           // Silently handled — state is already synced via Alpine stores
+          break;
+
+        case "state:skills":
+          // Skills changed (MCP create/update/delete or REST toggle/update/delete)
+          this.loadSkills();
           break;
 
         default:

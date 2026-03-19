@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-17 (M6.8-S3 Seed Skills complete)
+> **Updated:** 2026-03-19 (M6.8 Skills Architecture complete)
 
 ---
 
@@ -22,8 +22,8 @@
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5 incl. S2.5, S3.5), 593 tests |
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
-| **M6.11: Headless App**     | Planned  | 4 sprints (integration tests, App extraction, chat decomposition, agent verification) |
-| **M6.10: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
+| **M6.10: Headless App**     | Planned  | 4 sprints (integration tests, App extraction, chat decomposition, agent verification) |
+| **M6.11: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
 | **M9: Email Integration**    | Redesign | Redesign post-M6.7 (Working Agent routing) |
@@ -40,13 +40,13 @@
 M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory        M6.5 SDK
 [████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
    COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
-                                                                                                    M6.7 Two-Agent   M6.6 Lifecycle   M6.9 Knowledge   M6.8 Skills      M6.11 Headless
-                                                                                                    [████████████]   [████████████]   [████████████]   [██░░░░░░░░]   [░░░░░░░░░░]
-                                                                                                       COMPLETE         COMPLETE         COMPLETE          ACTIVE         PLANNED
+                                                                                                    M6.7 Two-Agent   M6.6 Lifecycle   M6.9 Knowledge   M6.8 Skills      M6.10 Headless
+                                                                                                    [████████████]   [████████████]   [████████████]   [████████████]   [░░░░░░░░░░]
+                                                                                                       COMPLETE         COMPLETE         COMPLETE         COMPLETE         PLANNED
                                                                                                                                                              │
                                                                                                                                                        ┌─────┴─────┐
                                                                                                                                                        ▼           ▼
-                                                                                                                                          M6.10 Multimodal   M7 (redesign)  M9 (redesign)
+                                                                                                                                          M6.11 Multimodal   M7 (redesign)  M9 (redesign)
                                                                                                                                                                [░░░░░░░░░░]
                                                                                                                                                                   PLANNED                      M10 (redesign)
 ```
@@ -540,7 +540,7 @@ Skills come from:
 
 ---
 
-### M6.11: Headless App — PLANNED
+### M6.10: Headless App — PLANNED
 
 Extract a headless `App` class from the dashboard so the application can be driven programmatically — by agents, tests, or future interfaces (mobile) — without HTTP or WebSocket transport. The web dashboard becomes a thin adapter. Business behavior gets integration tests for the first time.
 
@@ -560,6 +560,7 @@ Extract a headless `App` class from the dashboard so the application can be driv
 3. **EventEmitter for all output** — App emits events, adapters subscribe. No direct `broadcastToAll()` calls inside business logic.
 4. **Module singletons → App-owned** — `sessionRegistry` moves to App. `connectionRegistry` stays in WS adapter (transport-specific).
 5. **No behavior changes** — purely structural. REST, WebSocket, and frontend are identical after extraction.
+6. **`app.conversations.active()`** — ConversationService must expose a simple accessor for the currently active conversation. External consumers (Claude Code, agents, tests) should not need raw DB queries to find it.
 
 **Baseline:** 50 test files, 476 tests (2 skipped) as of 2026-03-16.
 
@@ -663,7 +664,7 @@ The knowledge system gets a lifecycle. Facts are classified at extraction (perma
 
 ---
 
-### M6.10: Multimodal — PLANNED
+### M6.11: Multimodal — PLANNED
 
 Nina goes beyond text — understanding images and voice messages, producing rich deliverables (images, artifacts, links), and speaking back via TTS.
 
@@ -692,7 +693,7 @@ Autonomous coding projects. Original design predates M6.7's two-agent architectu
 - Internal self-development projects are Working Agents spawned by the work loop
 - Session streaming and `/whats-next` deliverables are still valid
 
-**Dependencies:** M6.6 (agentic lifecycle — work loop powers autonomous project spawning), M6.10 (rich deliverables for code output)
+**Dependencies:** M6.6 (agentic lifecycle — work loop powers autonomous project spawning), M6.11 (rich deliverables for code output)
 
 ---
 
@@ -769,11 +770,12 @@ Design specs define architecture before implementation. Each spec should be comp
 | SDK Alignment        | Complete | M6.5        | Sprint plans in `sprints/m6.5-s*/plan.md`                        |
 | settingSources       | Revised  | M6.5, M6.8  | [design/settings-sources-evaluation.md](design/settings-sources-evaluation.md) |
 | Two-Agent Refactor   | Approved | M6.7        | [plans/2026-03-04-conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
-| Skills Architecture  | Idea     | M6.8        | TBD at [design/skills-architecture.md](design/skills-architecture.md) |
-| Multimodal           | Idea     | M6.10       | TBD — rich input/output, voice mode, asset serving |
+| Skills Architecture  | Complete | M6.8        | [superpowers/specs/2026-03-15-skills-architecture-design.md](superpowers/specs/2026-03-15-skills-architecture-design.md) |
+| Multimodal           | Idea     | M6.11       | TBD — rich input/output, voice mode, asset serving |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
 | Knowledge Lifecycle  | Approved | M6.9        | [sprints/m6.6-s6-knowledge-lifecycle/design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md) |
 | Trip Mode & Verification Pipeline | Complete | Process | [superpowers/specs/2026-03-12-trip-mode-verification-pipeline-design.md](superpowers/specs/2026-03-12-trip-mode-verification-pipeline-design.md) |
+| Headless App         | Approved | M6.10       | [superpowers/specs/2026-03-16-headless-app-design.md](superpowers/specs/2026-03-16-headless-app-design.md) |
 | Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
 | Operations Dashboard | Absorbed | ~~M8~~ → M6.6 | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
@@ -809,27 +811,25 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
                                                                ┌──────┴──────┐                          │
                                                                ▼             ▼                          │
                                                         M6.8 Skills       M9 Email ◄───────────────────┘
-                                                        Architecture        (needs redesign)
+                                                        (COMPLETE)          (needs redesign)
                                                                │              │
                                                                ▼              ▼
-                                                        M6.10 Multimodal  M10 External Comms
+                                                        M6.11 Multimodal  M10 External Comms
                                                                │            (needs redesign)
                                                                ▼
                                                         M7 Coding Projects
                                                           (needs redesign)
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9. All complete.
+**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8. All complete.
 
-**M6.7 delivers conversation architecture.** Unified resume+systemPrompt path, 6-layer system prompt with caching, conversation lifecycle (current/inactive), channel routing (owner → Nina, external → Working Agents), asymmetric channel switching. Removes context-builder.ts and the two-branch buildQuery bug. This is the foundation for all subsequent milestones.
+**M6.8 complete.** Skills architecture delivers SDK-native skill discovery, curated skill library, skill management tools (MCP CRUD), dashboard UI (browse/view/edit/delete/toggle with grouping and live refresh), interview-first triage for skill creation, and audience-based skill routing between Conversation Nina and Worker Nina.
 
-**M6.6 built on M6.7 only.** `current-state.md` injected via `loadNotebookOperations()`. `work-patterns.md` lives in `notebook/config/` (not prompt-injected). No M6.8 dependency.
+**M6.10 is next.** Headless App extraction — move service ownership from Fastify decorators to `App.create()`, break broadcast coupling, add `app.conversations.active()` accessor. Tests first, extract second.
 
-**M6.8 is next.** Skills architecture provides the general-purpose responsibility loading that M7 and M9 will eventually need. Also determines how multimodal capabilities route between conversation and worker agents.
+**M6.11 follows M6.10.** Multimodal capabilities (rich input, rich output, voice mode). Conversation/worker split clarified by M6.8 skill routing.
 
-**M6.10 follows M6.8.** Multimodal capabilities (rich input, rich output, voice mode). Conversation/worker split TBD after M6.8 clarifies skill routing.
-
-**M7 requires M6.6 + M6.10:** Autonomous coding projects are triggered by the work loop. Rich deliverables from M6.10 enable code output beyond text. M7 will extend the `work-patterns.md` schema to support dynamic responsibility spawning.
+**M7 requires M6.6 + M6.11:** Autonomous coding projects are triggered by the work loop. Rich deliverables from M6.11 enable code output beyond text. M7 will extend the `work-patterns.md` schema to support dynamic responsibility spawning.
 
 **M9 builds on M6.7 + M6.6.** Email integration uses M6.7's external contact routing and M6.6's work loop for email monitoring responsibilities.
 

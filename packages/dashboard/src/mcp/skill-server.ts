@@ -308,6 +308,7 @@ export async function handleListSkills(agentDir: string, skillService?: SkillSer
 export interface SkillServerDeps {
   agentDir: string;
   onSkillCreated?: () => void | Promise<void>;
+  onSkillChanged?: () => void;
   skillService?: SkillService;
 }
 
@@ -328,12 +329,15 @@ export function createSkillServer(deps: SkillServerDeps) {
     },
     async (args) => {
       const result = await handleCreateSkill(args, deps.agentDir);
-      if (!result.isError && deps.onSkillCreated) {
-        try {
-          await deps.onSkillCreated();
-        } catch {
-          // Non-fatal — skill was created, filtering just didn't re-run
+      if (!result.isError) {
+        if (deps.onSkillCreated) {
+          try {
+            await deps.onSkillCreated();
+          } catch {
+            // Non-fatal — skill was created, filtering just didn't re-run
+          }
         }
+        deps.onSkillChanged?.();
       }
       return result;
     },
@@ -358,12 +362,15 @@ export function createSkillServer(deps: SkillServerDeps) {
     },
     async (args) => {
       const result = await handleUpdateSkill(args, deps.agentDir);
-      if (!result.isError && deps.onSkillCreated) {
-        try {
-          await deps.onSkillCreated();
-        } catch {
-          // Non-fatal
+      if (!result.isError) {
+        if (deps.onSkillCreated) {
+          try {
+            await deps.onSkillCreated();
+          } catch {
+            // Non-fatal
+          }
         }
+        deps.onSkillChanged?.();
       }
       return result;
     },
@@ -375,7 +382,11 @@ export function createSkillServer(deps: SkillServerDeps) {
     {
       name: z.string().describe("Skill name to delete"),
     },
-    async (args) => handleDeleteSkill(args, deps.agentDir),
+    async (args) => {
+      const result = await handleDeleteSkill(args, deps.agentDir);
+      if (!result.isError) deps.onSkillChanged?.();
+      return result;
+    },
   );
 
   const listSkillsTool = tool(
