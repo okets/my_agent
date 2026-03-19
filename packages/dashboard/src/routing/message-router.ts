@@ -20,6 +20,7 @@ export function normalizeIdentity(identity: string): string {
 
 export type RouteDecision =
   | { type: "owner"; binding: ChannelBinding }
+  | { type: "suspended"; binding: ChannelBinding }
   | { type: "external" };
 
 /**
@@ -71,6 +72,19 @@ export class MessageRouter {
           `[MessageRouter] Transport "${transportId}" has no channel binding — all messages treated as external`,
         );
       }
+      return { type: "external" };
+    }
+
+    // Check for suspended state (re-authorization in progress)
+    if (binding.previousOwner) {
+      const normalizedSender = normalizeIdentity(senderIdentity);
+      const normalizedPrevOwner = normalizeIdentity(binding.previousOwner);
+
+      if (normalizedSender === normalizedPrevOwner) {
+        // Previous owner during re-auth — suspended, messages dropped
+        return { type: "suspended", binding };
+      }
+      // Other senders during re-auth — treat as external
       return { type: "external" };
     }
 

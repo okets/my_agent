@@ -80,7 +80,9 @@ export class ChannelMessageHandler {
     this.configWriter = new ConfigWriter(deps.agentDir);
 
     // Initialize routing components with persistent token manager
-    this.tokenManager = new TokenManager(deps.agentDir);
+    this.tokenManager = new TokenManager(deps.agentDir, {
+      onExpired: (transportId) => this.handleTokenExpiry(transportId),
+    });
     this.router = new MessageRouter(initialBindings);
     this.gate = new AuthorizationGate(this.tokenManager, {
       onAuthorized: (transportId, msg) =>
@@ -138,6 +140,39 @@ export class ChannelMessageHandler {
   }
 
   /**
+   * Handle token expiry — if this was a re-auth, revert to previous owner.
+   */
+  private handleTokenExpiry(transportId: string): void {
+    const binding = this.router.getBindingForTransport(transportId);
+    if (!binding?.previousOwner) return;
+
+    console.log(
+      `[ChannelMessageHandler] Re-auth token expired for "${transportId}" — reverting to previous owner`,
+    );
+
+    // Revert: clear previousOwner, restore normal routing
+    const revertedBinding: ChannelBinding = {
+      ...binding,
+      previousOwner: undefined,
+    };
+    this.router.addBinding(revertedBinding);
+
+    // Persist reverted state
+    this.configWriter
+      .saveChannelBinding(binding.id, {
+        transport: binding.transport,
+        ownerIdentity: binding.ownerIdentity,
+        ownerJid: binding.ownerJid,
+      })
+      .catch((err) => {
+        console.error(
+          `[ChannelMessageHandler] Failed to persist re-auth revert:`,
+          err,
+        );
+      });
+  }
+
+  /**
    * Handle incoming messages from a transport (already deduped + debounced).
    * Messages array may have 1+ messages if debounced together.
    */
@@ -158,6 +193,11 @@ export class ChannelMessageHandler {
 
     if (decision.type === "owner") {
       await this.handleOwnerMessage(transportId, messages);
+    } else if (decision.type === "suspended") {
+      // Channel is suspended during re-authorization — drop message silently
+      console.log(
+        `[ChannelMessageHandler] Message dropped — channel suspended for re-authorization on "${transportId}"`,
+      );
     } else {
       await this.handleExternalMessage(transportId, messages);
     }

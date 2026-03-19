@@ -49,9 +49,11 @@ export class TokenManager implements TokenStore {
   private agentDir: string;
   private cache = new Map<string, CachedToken>();
   private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private onExpired?: (transportId: string) => void;
 
-  constructor(agentDir: string) {
+  constructor(agentDir: string, options?: { onExpired?: (transportId: string) => void }) {
     this.agentDir = agentDir;
+    this.onExpired = options?.onExpired;
     this.loadPendingTokens();
   }
 
@@ -238,6 +240,7 @@ export class TokenManager implements TokenStore {
     const delay = Math.max(0, expiresAt.getTime() - Date.now());
     const timer = setTimeout(() => {
       this.clearToken(transportId);
+      this.onExpired?.(transportId);
     }, delay);
 
     // Unref so it doesn't prevent process exit
