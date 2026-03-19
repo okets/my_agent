@@ -1260,6 +1260,19 @@ button[title="Rename conversation"]:active {
   border-radius: var(--radius-lg);
   margin-left: 0;
   margin-right: 0;
+  overflow: clip !important;
+  overflow-x: clip !important;
+  overflow-y: clip !important;
+}
+
+/* Scroll-to-now shortcut button */
+.now-scroll-btn {
+  background: rgba(247, 118, 142, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.now-scroll-btn:hover {
+  background: rgba(247, 118, 142, 0.25);
 }
 
 /* Timeline header */

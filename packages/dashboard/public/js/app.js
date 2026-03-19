@@ -3165,30 +3165,9 @@ function chat() {
     },
 
     /**
-     * Computed style for the fixed-position "scroll to now" button.
-     * Positions it in the timeline's left margin area.
-     */
-    get nowScrollBtnStyle() {
-      if (!this.nowMarkerDirection) return "display: none;";
-      const scroll = document.getElementById("main-scroll");
-      const timeline = document.querySelector(".timeline-section");
-      if (!scroll || !timeline) return "display: none;";
-
-      const scrollRect = scroll.getBoundingClientRect();
-      const timelineRect = timeline.getBoundingClientRect();
-      // Position in the timeline's left padding area (px-4 = 16px)
-      const left = timelineRect.left + 2;
-
-      if (this.nowMarkerDirection === "up") {
-        return `left: ${left}px; top: ${scrollRect.top + 8}px;`;
-      } else {
-        return `left: ${left}px; top: ${scrollRect.bottom - 30}px;`;
-      }
-    },
-
-    /**
-     * Set up IntersectionObserver to track NOW marker visibility.
-     * Called via x-effect whenever timelineItems changes.
+     * Set up IntersectionObserver to track NOW marker visibility
+     * relative to the scroll container. Called via x-effect whenever
+     * timelineItems changes.
      */
     setupNowMarkerObserver() {
       if (this._nowObserver) {
@@ -3212,11 +3191,8 @@ function chat() {
             } else {
               const rect = entry.boundingClientRect;
               const rootBounds = entry.rootBounds;
-              if (rect.top < rootBounds.top) {
-                this.nowMarkerDirection = "up";
-              } else {
-                this.nowMarkerDirection = "down";
-              }
+              this.nowMarkerDirection =
+                rect.top < rootBounds.top ? "up" : "down";
             }
           }
         },
