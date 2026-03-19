@@ -4,7 +4,7 @@ import { saveTransportToConfig, removeTransportFromConfig } from "@my-agent/core
 import type { TransportConfig } from "@my-agent/core";
 import { connectionRegistry } from "../ws/chat-handler.js";
 
-export async function registerChannelRoutes(
+export async function registerTransportRoutes(
   fastify: FastifyInstance,
 ): Promise<void> {
   // POST /api/channels — add a new channel
@@ -15,7 +15,7 @@ export async function registerChannelRoutes(
       identity?: string;
       role?: "dedicated" | "personal";
     };
-  }>("/api/channels", async (request, reply) => {
+  }>("/api/transports", async (request, reply) => {
     const { id, plugin, identity, role } = request.body ?? {};
     if (!id || !plugin) {
       return reply
@@ -27,31 +27,31 @@ export async function registerChannelRoutes(
     if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
       return reply.code(400).send({
         error:
-          "Invalid channel ID. Use only letters, numbers, hyphens, and underscores.",
+          "Invalid transport ID. Use only letters, numbers, hyphens, and underscores.",
       });
     }
 
     // Validate role if provided
-    const channelRole = role === "personal" ? "personal" : "dedicated";
+    const transportRole = role === "personal" ? "personal" : "dedicated";
 
     // Check for duplicates
     const transportManager = fastify.transportManager;
     if (transportManager?.getTransportInfo(id)) {
-      return reply.code(409).send({ error: `Channel "${id}" already exists` });
+      return reply.code(409).send({ error: `Transport "${id}" already exists` });
     }
 
     // Build channel config for YAML persistence
-    const channelData: Record<string, unknown> = {
+    const transportData: Record<string, unknown> = {
       plugin,
-      role: channelRole,
+      role: transportRole,
       processing: "immediate",
       auth_dir: join(fastify.agentDir, "auth", id),
     };
-    if (identity) channelData.identity = identity;
+    if (identity) transportData.identity = identity;
 
     // Persist to config.yaml
     try {
-      saveTransportToConfig(id, channelData, fastify.agentDir);
+      saveTransportToConfig(id, transportData, fastify.agentDir);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return reply
@@ -64,7 +64,7 @@ export async function registerChannelRoutes(
     const config: TransportConfig = {
       id,
       plugin,
-      role: channelRole,
+      role: transportRole,
       identity: identity ?? "",
       processing: "immediate",
       authDir,
@@ -97,17 +97,17 @@ export async function registerChannelRoutes(
     return reply.send({
       id,
       plugin,
-      role: channelRole,
+      role: transportRole,
       identity: identity ?? "",
       status: "disconnected",
       statusDetail: {},
       icon: "",
-      note: "Channel saved. Restart the dashboard to activate.",
+      note: "Transport saved. Restart the dashboard to activate.",
     });
   });
 
   // GET /api/channels — list all channels with status
-  fastify.get("/api/channels", async (_request, reply) => {
+  fastify.get("/api/transports", async (_request, reply) => {
     const transportManager = fastify.transportManager;
     if (!transportManager) {
       return reply.send([]);
@@ -117,15 +117,15 @@ export async function registerChannelRoutes(
 
   // GET /api/channels/:id/status — single channel status
   fastify.get<{ Params: { id: string } }>(
-    "/api/channels/:id/status",
+    "/api/transports/:id/status",
     async (request, reply) => {
       const transportManager = fastify.transportManager;
       if (!transportManager) {
-        return reply.code(404).send({ error: "No channels configured" });
+        return reply.code(404).send({ error: "No transports configured" });
       }
       const info = transportManager.getTransportInfo(request.params.id);
       if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
+        return reply.code(404).send({ error: "Transport not found" });
       }
       return reply.send(info);
     },
@@ -133,15 +133,15 @@ export async function registerChannelRoutes(
 
   // GET /api/channels/:id/icon — SVG icon for channel plugin
   fastify.get<{ Params: { id: string } }>(
-    "/api/channels/:id/icon",
+    "/api/transports/:id/icon",
     async (request, reply) => {
       const transportManager = fastify.transportManager;
       if (!transportManager) {
-        return reply.code(404).send({ error: "No channels configured" });
+        return reply.code(404).send({ error: "No transports configured" });
       }
       const info = transportManager.getTransportInfo(request.params.id);
       if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
+        return reply.code(404).send({ error: "Transport not found" });
       }
       return reply.type("image/svg+xml").send(info.icon);
     },
@@ -150,18 +150,18 @@ export async function registerChannelRoutes(
   // POST /api/channels/:id/pair — trigger QR or phone number pairing
   // If channel is in error/logged_out state, clears auth to force fresh pairing
   fastify.post<{ Params: { id: string }; Body: { phoneNumber?: string } }>(
-    "/api/channels/:id/pair",
+    "/api/transports/:id/pair",
     async (request, reply) => {
       const transportManager = fastify.transportManager;
       if (!transportManager) {
-        return reply.code(404).send({ error: "No channels configured" });
+        return reply.code(404).send({ error: "No transports configured" });
       }
       const info = transportManager.getTransportInfo(request.params.id);
       if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
+        return reply.code(404).send({ error: "Transport not found" });
       }
       if (info.statusDetail.connected) {
-        return reply.code(409).send({ error: "Channel already connected" });
+        return reply.code(409).send({ error: "Transport already connected" });
       }
       try {
         // Clear auth for fresh pairing if channel is in error/logged_out state
@@ -194,15 +194,15 @@ export async function registerChannelRoutes(
 
   // POST /api/channels/:id/authorize — generate owner authorization token
   fastify.post<{ Params: { id: string } }>(
-    "/api/channels/:id/authorize",
+    "/api/transports/:id/authorize",
     async (request, reply) => {
       const handler = fastify.channelMessageHandler;
       if (!handler) {
-        return reply.code(503).send({ error: "Channel system not ready" });
+        return reply.code(503).send({ error: "Transport system not ready" });
       }
       const transportManager = fastify.transportManager;
       if (!transportManager?.getTransportInfo(request.params.id)) {
-        return reply.code(404).send({ error: "Channel not found" });
+        return reply.code(404).send({ error: "Transport not found" });
       }
       const token = handler.generateToken(request.params.id);
       return reply.send({ token });
@@ -211,15 +211,15 @@ export async function registerChannelRoutes(
 
   // POST /api/channels/:id/remove-owner — clear owner identity
   fastify.post<{ Params: { id: string } }>(
-    "/api/channels/:id/remove-owner",
+    "/api/transports/:id/remove-owner",
     async (request, reply) => {
       const transportManager = fastify.transportManager;
       if (!transportManager) {
-        return reply.code(404).send({ error: "No channels configured" });
+        return reply.code(404).send({ error: "No transports configured" });
       }
       const info = transportManager.getTransportInfo(request.params.id);
       if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
+        return reply.code(404).send({ error: "Transport not found" });
       }
 
       // Clear owner from runtime config
@@ -251,15 +251,15 @@ export async function registerChannelRoutes(
 
   // POST /api/channels/:id/disconnect — disconnect a channel
   fastify.post<{ Params: { id: string } }>(
-    "/api/channels/:id/disconnect",
+    "/api/transports/:id/disconnect",
     async (request, reply) => {
       const transportManager = fastify.transportManager;
       if (!transportManager) {
-        return reply.code(404).send({ error: "No channels configured" });
+        return reply.code(404).send({ error: "No transports configured" });
       }
       const info = transportManager.getTransportInfo(request.params.id);
       if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
+        return reply.code(404).send({ error: "Transport not found" });
       }
       try {
         await transportManager.disconnectTransport(request.params.id);
@@ -273,15 +273,15 @@ export async function registerChannelRoutes(
 
   // DELETE /api/channels/:id — remove a channel entirely
   fastify.delete<{ Params: { id: string } }>(
-    "/api/channels/:id",
+    "/api/transports/:id",
     async (request, reply) => {
       const transportManager = fastify.transportManager;
       if (!transportManager) {
-        return reply.code(404).send({ error: "No channels configured" });
+        return reply.code(404).send({ error: "No transports configured" });
       }
       const info = transportManager.getTransportInfo(request.params.id);
       if (!info) {
-        return reply.code(404).send({ error: "Channel not found" });
+        return reply.code(404).send({ error: "Transport not found" });
       }
       try {
         // Remove from runtime
@@ -295,4 +295,5 @@ export async function registerChannelRoutes(
       }
     },
   );
+
 }

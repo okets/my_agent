@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { registerChatWebSocket } from "./ws/chat-handler.js";
 import { registerHatchingRoutes } from "./routes/hatching.js";
-import { registerChannelRoutes } from "./routes/channels.js";
+import { registerTransportRoutes } from "./routes/transports.js";
 import { registerCalendarRoutes } from "./routes/calendar.js";
 import { registerDebugRoutes } from "./routes/debug.js";
 import { registerAdminRoutes } from "./routes/admin.js";
@@ -184,8 +184,8 @@ export async function createServer(
   // Register hatching routes
   await registerHatchingRoutes(fastify);
 
-  // Register channel routes
-  await registerChannelRoutes(fastify);
+  // Register transport routes
+  await registerTransportRoutes(fastify);
 
   // Register calendar routes
   await registerCalendarRoutes(fastify);
