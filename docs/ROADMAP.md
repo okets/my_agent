@@ -117,10 +117,12 @@ First external channel. Agent owns a phone number, responds immediately.
 | S2     | WhatsApp Plugin + Routing | Complete | [plan](sprints/m3-s2-whatsapp-plugin/plan.md)                  | [review](sprints/m3-s2-whatsapp-plugin/review.md) |
 | S3     | Slash Commands            | Complete | [plan](sprints/m3-s3-slash-commands/plan.md)                   | [review](sprints/m3-s3-slash-commands/review.md)  |
 | S5     | Connection Stability      | Complete | [plan](sprints/m3-s5-connection-stability/plan.md)             | —                                                 |
+| S6     | Transport / Channel Split | Planned  | [plan](sprints/m3-s6-transport-channel-split/plan.md)          | —                                                 |
 
 **Design references:**
 
 - [channels.md](design/channels.md) — channel architecture, identity-based routing, ruleset model
+- [transport-channel-split.md](design/transport-channel-split.md) — transport/channel separation, authorization flow
 
 **Deliverables:**
 
@@ -128,6 +130,7 @@ First external channel. Agent owns a phone number, responds immediately.
 - _(S2)_ Baileys WhatsApp plugin, QR pairing, identity-based routing, owner conversations, settings view
 - _(S3)_ Slash commands: `/new` (conversation reset with pinning), `/model` (model switching) — works on web + WhatsApp
 - _(S5)_ Correction sprint: watchdog death loop fix, credential flush on shutdown, reconnect guard. Full investigation and diagnostics in [sprint docs](sprints/m3-s5-connection-stability/).
+- _(S6)_ Refactor: split Channel into Transport (infrastructure) + Channel (owner binding). Token-based authorization with persistence, config migration, serialized config writes.
 
 **Dependencies:** M2 (chat infra)
 
