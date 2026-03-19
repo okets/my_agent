@@ -333,9 +333,6 @@ export function saveTransportToConfig(
   writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
 }
 
-/** @deprecated Use saveTransportToConfig */
-export const saveChannelToConfig = saveTransportToConfig
-
 export interface DebriefPreferences {
   time: string
   model: string
@@ -421,6 +418,3 @@ export function removeTransportFromConfig(
 
   writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), 'utf-8')
 }
-
-/** @deprecated Use removeTransportFromConfig */
-export const removeChannelFromConfig = removeTransportFromConfig
