@@ -1,5 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import { SessionRegistry } from "../agent/session-registry.js";
 import type { SessionManager } from "../agent/session-manager.js";
@@ -21,60 +20,7 @@ import type {
   ViewContext,
 } from "./protocol.js";
 
-// Skills directories: SDK skills (primary) + framework skills (fallback)
-function getSkillsDirs(agentDir: string): string[] {
-  return [
-    path.join(agentDir, ".claude", "skills"),
-    path.resolve(import.meta.dirname, "../../../core/skills"),
-  ];
-}
-
-/**
- * Load skill content for /my-agent:* commands
- * Searches SDK skills first, then framework skills
- */
-async function loadSkillContent(
-  skillName: string,
-  agentDir: string,
-): Promise<string | null> {
-  for (const dir of getSkillsDirs(agentDir)) {
-    const skillPath = path.join(dir, skillName, "SKILL.md");
-    try {
-      return await readFile(skillPath, "utf-8");
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
-
-/**
- * Expand /my-agent:* commands in message content
- * Returns expanded content with skill instructions prepended
- */
-async function expandSkillCommand(
-  content: string,
-  agentDir: string,
-): Promise<string> {
-  const match = content.match(/^\/my-agent:(\S+)/);
-  if (!match) return content;
-
-  const skillName = match[1];
-  const skillContent = await loadSkillContent(skillName, agentDir);
-
-  if (!skillContent) {
-    // Skill not found, return original
-    return content;
-  }
-
-  // Extract context (everything after the command line)
-  const lines = content.split("\n");
-  const contextLines = lines.slice(1); // Skip command line
-  const context = contextLines.join("\n").trim();
-
-  // Build expanded message: skill content + context
-  return `[SKILL: ${skillName}]\n\n${skillContent.trim()}\n\n---\n\n${context}`;
-}
+import { expandSkillCommand } from "../chat/skill-expander.js";
 
 const MAX_MESSAGE_LENGTH = 10000;
 const MAX_TITLE_LENGTH = 100;
