@@ -36,6 +36,8 @@ import {
   AppCalendarService,
   AppMemoryService,
 } from "../../src/app.js";
+import { AppChatService } from "../../src/chat/chat-service.js";
+import { SessionRegistry } from "../../src/agent/session-registry.js";
 
 export interface CapturedBroadcast {
   type: string;
@@ -85,6 +87,8 @@ export class AppHarness {
   readonly conversations: AppConversationService;
   readonly calendar: AppCalendarService;
   readonly memory: AppMemoryService;
+  readonly chat: AppChatService;
+  readonly sessionRegistry: SessionRegistry;
 
   // Optional subsystems
   memoryDb: MemoryDb | null = null;
@@ -128,6 +132,17 @@ export class AppHarness {
     );
     this.calendar = new AppCalendarService(this.emitter as any);
     this.memory = new AppMemoryService(this.emitter as any);
+    this.sessionRegistry = new SessionRegistry(5);
+
+    // ChatService needs an App-like object with conversationManager, sessionRegistry,
+    // conversations namespace, agentDir, and emit()
+    const appLike = Object.assign(this.emitter, {
+      conversationManager: this.conversationManager,
+      sessionRegistry: this.sessionRegistry,
+      conversations: this.conversations,
+      agentDir,
+    });
+    this.chat = new AppChatService(appLike as any);
 
     // Intercept all broadcasts for assertion
     const originalBroadcast =
