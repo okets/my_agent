@@ -24,6 +24,8 @@ export interface TaskProcessorConfig {
   notificationService?: NotificationService | null;
   /** Optional callback fired after any task status mutation (for state publishing) */
   onTaskMutated?: () => void;
+  /** Optional: route task updates through App.tasks.update() for event emission */
+  taskUpdater?: (id: string, changes: Parameters<TaskManager["update"]>[1]) => void;
   /** Optional ConversationInitiator for proactive task completion notifications */
   conversationInitiator?: {
     alert(prompt: string): Promise<boolean>;
@@ -42,6 +44,7 @@ export class TaskProcessor {
   private deliveryExecutor: DeliveryExecutor;
   private notificationService: NotificationService | null;
   private onTaskMutated: (() => void) | null;
+  private taskUpdater: ((id: string, changes: Parameters<TaskManager["update"]>[1]) => void) | null;
   private getConversationInitiator: () => TaskProcessorConfig["conversationInitiator"];
 
   constructor(config: TaskProcessorConfig) {
@@ -55,7 +58,21 @@ export class TaskProcessor {
     );
     this.notificationService = config.notificationService ?? null;
     this.onTaskMutated = config.onTaskMutated ?? null;
+    this.taskUpdater = config.taskUpdater ?? null;
     this.getConversationInitiator = () => config.conversationInitiator ?? null;
+  }
+
+  /**
+   * Update a task — routes through taskUpdater (App events) when available,
+   * falls back to direct taskManager.update() + onTaskMutated callback.
+   */
+  private updateTask(id: string, changes: Parameters<TaskManager["update"]>[1]): void {
+    if (this.taskUpdater) {
+      this.taskUpdater(id, changes);
+    } else {
+      this.taskManager.update(id, changes);
+      this.onTaskMutated?.();
+    }
   }
 
   /**
@@ -106,11 +123,10 @@ export class TaskProcessor {
       this.updateDeliveryStatuses(task.id, deliveryResult.results);
 
       // Mark task as completed
-      this.taskManager.update(task.id, {
+      this.updateTask(task.id, {
         status: "completed",
         completedAt: new Date(),
       });
-      this.onTaskMutated?.();
 
       await this.deliverResult(task, {
         success: true,
@@ -136,9 +152,8 @@ export class TaskProcessor {
         result.deliverable,
       );
 
-      // Update delivery action statuses
+      // Update delivery action statuses (updateTask emits event)
       this.updateDeliveryStatuses(task.id, deliveryResult.results);
-      this.onTaskMutated?.();
 
       // Log delivery results
       const successCount = deliveryResult.results.filter(
@@ -174,7 +189,7 @@ export class TaskProcessor {
       return action;
     });
 
-    this.taskManager.update(taskId, { delivery: updatedDelivery });
+    this.updateTask(taskId, { delivery: updatedDelivery });
   }
 
   /**

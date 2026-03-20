@@ -469,7 +469,7 @@ export class App extends EventEmitter {
         connectionRegistry: connectionRegistry ?? new ConnectionRegistry(),
         transportManager: app.transportManager,
         notificationService: app.notificationService,
-        onTaskMutated: () => app.statePublisher?.publishTasks(),
+        taskUpdater: (id, changes) => app.tasks?.update(id, changes),
         get conversationInitiator() {
           return app.conversationInitiator ?? null;
         },

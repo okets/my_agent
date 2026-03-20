@@ -49,10 +49,8 @@ interface MessageHandlerDeps {
   ) => Promise<void>;
   sendTypingIndicator: (transportId: string, to: string) => Promise<void>;
   agentDir: string;
-  /** App instance for event-emitting mutations. If set, mutations go through app. */
-  app?: import("../app.js").App | null;
-  /** @deprecated Use app instead — kept for backward compat during transition */
-  statePublisher?: { publishConversations: () => void } | null;
+  /** App instance for event-emitting mutations */
+  app: import("../app.js").App;
   postResponseHooks?: {
     run(
       conversationId: string,
@@ -325,11 +323,7 @@ export class ChannelMessageHandler {
 
       // Unpin current conversation if it exists
       if (existingConversation) {
-        if (this.deps.app) {
-          await this.deps.app.conversations.unpin(existingConversation.id);
-        } else {
-          await this.deps.conversationManager.unpin(existingConversation.id);
-        }
+        await this.deps.app!.conversations.unpin(existingConversation.id);
 
         // Broadcast unpin to dashboard
         this.deps.connectionRegistry.broadcastToAll({
@@ -340,17 +334,11 @@ export class ChannelMessageHandler {
 
       // Create new pinned conversation (inherits model)
       const title = first.senderName ?? first.groupName ?? undefined;
-      const newConversation = this.deps.app
-        ? await this.deps.app.conversations.create({
-            externalParty,
-            title,
-            model: currentModel,
-          })
-        : await this.deps.conversationManager.create({
-            externalParty,
-            title,
-            model: currentModel,
-          });
+      const newConversation = await this.deps.app!.conversations.create({
+        externalParty,
+        title,
+        model: currentModel,
+      });
 
       // Send confirmation via channel
       await this.deps.sendViaTransport(channelId, replyTo, {
@@ -373,11 +361,6 @@ export class ChannelMessageHandler {
           status: newConversation.status,
         },
       });
-
-      // State snapshot handled by App event subscription (if app is wired)
-      if (!this.deps.app) {
-        this.deps.statePublisher?.publishConversations();
-      }
 
       return; // Don't process as normal message
     }
@@ -454,26 +437,16 @@ export class ChannelMessageHandler {
 
     // Existing channel conversation receiving a message becomes current
     if (conversation && conversation.status !== "current") {
-      if (this.deps.app) {
-        await this.deps.app.conversations.makeCurrent(conversation.id);
-      } else {
-        await this.deps.conversationManager.makeCurrent(conversation.id);
-        this.deps.statePublisher?.publishConversations();
-      }
+      await this.deps.app!.conversations.makeCurrent(conversation.id);
     }
 
     if (!conversation) {
       // Create new conversation for this channel + party
       const title = first.senderName ?? first.groupName ?? undefined;
-      conversation = this.deps.app
-        ? await this.deps.app.conversations.create({
-            externalParty,
-            title,
-          })
-        : await this.deps.conversationManager.create({
-            externalParty,
-            title,
-          });
+      conversation = await this.deps.app!.conversations.create({
+        externalParty,
+        title,
+      });
 
       // Broadcast new conversation to WS clients
       this.deps.connectionRegistry.broadcastToAll({
@@ -491,11 +464,6 @@ export class ChannelMessageHandler {
           status: conversation.status,
         },
       });
-
-      // State snapshot handled by App event subscription
-      if (!this.deps.app) {
-        this.deps.statePublisher?.publishConversations();
-      }
     }
 
     // Combine message contents (if debounced, join with newlines)
