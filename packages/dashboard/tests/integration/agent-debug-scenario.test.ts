@@ -230,6 +230,34 @@ describe("Agent Debug Scenario (headless)", () => {
     });
   });
 
+  // ─── Full debug inspection (replaces browser-based QA) ──────────────────
+
+  describe("Full debug inspection (replaces browser-based QA)", () => {
+    it("agent can verify brain is not hatched in test env", async () => {
+      const status = await harness.debug.brainStatus();
+      expect(status.hatched).toBe(false);
+      expect(status.authSource).toBe("none");
+    });
+
+    it("agent can inspect system prompt components", async () => {
+      const prompt = await harness.debug.systemPrompt();
+      expect(prompt.components.personality).not.toBeNull();
+      expect(prompt.components.personality!.source).toBe("brain/AGENTS.md");
+      expect(prompt.components.personality!.chars).toBeGreaterThan(0);
+      expect(prompt.totalChars).toBeGreaterThan(0);
+    });
+
+    it("agent can list all brain files", async () => {
+      const files = await harness.debug.brainFiles();
+      expect(files.files.length).toBeGreaterThan(0);
+      for (const f of files.files) {
+        expect(f.path).toBeTruthy();
+        expect(typeof f.size).toBe("number");
+        expect(f.modified).toMatch(/\d{4}-\d{2}-\d{2}/);
+      }
+    });
+  });
+
   // ─── getSkills ─────────────────────────────────────────────────────────────
 
   describe("getSkills()", () => {
