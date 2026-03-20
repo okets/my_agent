@@ -11,7 +11,7 @@
 import { findAgentDir, toDisplayStatus } from "@my-agent/core";
 import { App } from "./app.js";
 import { createServer } from "./server.js";
-import { connectionRegistry } from "./ws/chat-handler.js";
+import { ConnectionRegistry } from "./ws/connection-registry.js";
 
 // Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
 delete process.env.CLAUDECODE;
@@ -28,12 +28,15 @@ process.on("unhandledRejection", (reason) => {
 async function main() {
   const agentDir = findAgentDir();
 
+  // Create connection registry (adapter-layer, shared between App and Fastify)
+  const connectionRegistry = new ConnectionRegistry();
+
   // Create headless App (owns all services, emits events on mutations)
   const app = await App.create({ agentDir, connectionRegistry });
 
   // Create Fastify adapter (HTTP + WebSocket transport)
   const port = parseInt(process.env.PORT ?? "4321", 10);
-  const server = await createServer({ agentDir });
+  const server = await createServer({ agentDir, connectionRegistry });
 
   // Wire App → Fastify
   server.app = app;

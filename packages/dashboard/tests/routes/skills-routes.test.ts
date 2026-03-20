@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import Fastify from "fastify";
 import { SkillService } from "../../src/services/skill-service.js";
+import { ConnectionRegistry } from "../../src/ws/connection-registry.js";
 
 const TEST_DIR = join(import.meta.dirname, "tmp-skills-routes-test");
 const SKILLS_DIR = join(TEST_DIR, ".claude", "skills");
@@ -22,6 +23,7 @@ async function buildApp() {
   const service = new SkillService(TEST_DIR);
   fastify.decorate("agentDir", TEST_DIR);
   fastify.decorate("skillService", service);
+  fastify.decorate("connectionRegistry", new ConnectionRegistry());
 
   const { registerSkillRoutes } = await import("../../src/routes/skills.js");
   await fastify.register(

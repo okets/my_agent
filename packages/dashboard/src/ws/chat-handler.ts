@@ -13,15 +13,12 @@ import { ScriptedHatchingEngine } from "../hatching/scripted-engine.js";
 import { createHatchingSession } from "../hatching/hatching-tools.js";
 import { resolveAuth, isAuthenticated, loadModels } from "@my-agent/core";
 import { IdleTimerManager } from "../conversations/idle-timer.js";
-import { ConnectionRegistry } from "./connection-registry.js";
+import type { ConnectionRegistry } from "./connection-registry.js";
 import { AttachmentService } from "../conversations/attachments.js";
 import { ResponseTimer } from "../channels/response-timer.js";
 import { isValidConversationId } from "../chat/chat-service.js";
 import type { ChatEvent, StartEffects } from "../chat/types.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
-
-// Global connection registry for multi-tab sync (exported for index.ts wiring)
-export const connectionRegistry = new ConnectionRegistry();
 
 // Lazily initialized on first WS connection
 let idleTimerManager: IdleTimerManager | null = null;
@@ -29,6 +26,7 @@ let attachmentService: AttachmentService | null = null;
 
 export async function registerChatWebSocket(
   fastify: FastifyInstance,
+  connectionRegistry: ConnectionRegistry,
 ): Promise<void> {
   fastify.get("/api/chat/ws", { websocket: true }, (socket, req) => {
     fastify.log.info("Chat WebSocket connected");

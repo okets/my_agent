@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { registerChatWebSocket } from "./ws/chat-handler.js";
+import type { ConnectionRegistry } from "./ws/connection-registry.js";
 import { registerHatchingRoutes } from "./routes/hatching.js";
 import { registerTransportRoutes } from "./routes/transports.js";
 import { registerChannelRoutes } from "./routes/channels.js";
@@ -47,6 +48,7 @@ import type { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
 
 export interface ServerOptions {
   agentDir: string;
+  connectionRegistry: ConnectionRegistry;
 }
 
 // Augment Fastify types to include our custom decorators
@@ -54,6 +56,7 @@ declare module "fastify" {
   interface FastifyInstance {
     app: import("./app.js").App | null;
     agentDir: string;
+    connectionRegistry: import("./ws/connection-registry.js").ConnectionRegistry;
     isHatched: boolean;
     conversationManager: ConversationManager | null;
     abbreviationQueue: AbbreviationQueue | null;
@@ -90,7 +93,7 @@ declare module "fastify" {
 export async function createServer(
   options: ServerOptions,
 ): Promise<FastifyInstance> {
-  const { agentDir } = options;
+  const { agentDir, connectionRegistry } = options;
 
   const fastify = Fastify({
     logger: {
@@ -157,6 +160,7 @@ export async function createServer(
   // Store agentDir, app, and isHatched status as decorators for route handlers
   fastify.decorate("app", null);
   fastify.decorate("agentDir", agentDir);
+  fastify.decorate("connectionRegistry", connectionRegistry);
   fastify.decorate("isHatched", false); // Will be set by index.ts after checking
   fastify.decorate("conversationManager", null);
   fastify.decorate("abbreviationQueue", null);
@@ -182,7 +186,7 @@ export async function createServer(
   fastify.decorate("skillService", new SkillService(agentDir));
 
   // Register WebSocket chat route
-  await registerChatWebSocket(fastify);
+  await registerChatWebSocket(fastify, connectionRegistry);
 
   // Register hatching routes
   await registerHatchingRoutes(fastify);
@@ -213,12 +217,11 @@ export async function createServer(
   // Register auth routes (accessible from any client)
   fastify.post("/api/auth/logout", async (_request, reply) => {
     const { clearAuth, removeEnvValue } = await import("@my-agent/core");
-    const { connectionRegistry } = await import("./ws/chat-handler.js");
     clearAuth();
     const envPath = resolve(import.meta.dirname, "../.env");
     removeEnvValue(envPath, "ANTHROPIC_API_KEY");
     removeEnvValue(envPath, "CLAUDE_CODE_OAUTH_TOKEN");
-    connectionRegistry.broadcastToAll({ type: "auth_required" });
+    fastify.connectionRegistry.broadcastToAll({ type: "auth_required" });
     fastify.log.info("[Auth] Logged out — credentials cleared");
     return reply.send({ ok: true });
   });

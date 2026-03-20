@@ -1,17 +1,16 @@
 import type { FastifyInstance } from "fastify";
-import { connectionRegistry } from "../ws/chat-handler.js";
-
-function broadcastSkillsChanged(): void {
-  connectionRegistry.broadcastToAll({
-    type: "state:skills" as any,
-    timestamp: Date.now(),
-  });
-}
 
 export async function registerSkillRoutes(
   fastify: FastifyInstance,
 ): Promise<void> {
   const service = fastify.skillService;
+
+  function broadcastSkillsChanged(): void {
+    fastify.connectionRegistry.broadcastToAll({
+      type: "state:skills" as any,
+      timestamp: Date.now(),
+    });
+  }
 
   /** GET /api/skills — list all skills */
   fastify.get("/", async () => {

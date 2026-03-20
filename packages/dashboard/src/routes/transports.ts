@@ -2,7 +2,6 @@ import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { saveTransportToConfig, removeTransportFromConfig } from "@my-agent/core";
 import type { TransportConfig } from "@my-agent/core";
-import { connectionRegistry } from "../ws/chat-handler.js";
 
 export async function registerTransportRoutes(
   fastify: FastifyInstance,
@@ -264,7 +263,7 @@ export async function registerTransportRoutes(
       }
 
       // Broadcast to all connected clients
-      connectionRegistry.broadcastToAll({
+      fastify.connectionRegistry.broadcastToAll({
         type: "transport_owner_removed",
         transportId: request.params.id,
       });
