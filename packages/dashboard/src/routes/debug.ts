@@ -9,7 +9,6 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { join } from "node:path";
-import { readFile, readdir, stat } from "node:fs/promises";
 import {
   assembleSystemPrompt,
   assembleCalendarContext,
@@ -17,10 +16,13 @@ import {
   loadCalendarCredentials,
   createCalDAVClient,
   CalDAVClient,
-  isHatched,
-  resolveAuth,
-  loadModels,
 } from "@my-agent/core";
+import {
+  getBrainStatus,
+  getBrainFiles,
+  getSkills,
+  getSystemPrompt,
+} from "../debug/debug-queries.js";
 
 // Cache state tracking (module-level for introspection)
 interface CacheStats {
@@ -53,79 +55,7 @@ function localhostOnly(
   done();
 }
 
-/**
- * Recursively list files in a directory
- */
-async function listFilesRecursive(
-  dir: string,
-  basePath: string = "",
-): Promise<Array<{ path: string; size: number; modified: string }>> {
-  const results: Array<{ path: string; size: number; modified: string }> = [];
-
-  try {
-    const entries = await readdir(dir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const fullPath = join(dir, entry.name);
-      const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name;
-
-      if (entry.isDirectory()) {
-        const subFiles = await listFilesRecursive(fullPath, relativePath);
-        results.push(...subFiles);
-      } else if (entry.isFile()) {
-        try {
-          const stats = await stat(fullPath);
-          results.push({
-            path: relativePath,
-            size: stats.size,
-            modified: stats.mtime.toISOString(),
-          });
-        } catch {
-          // Skip files we can't stat
-        }
-      }
-    }
-  } catch {
-    // Directory doesn't exist or can't be read
-  }
-
-  return results;
-}
-
-/**
- * Load skill descriptions from a directory
- */
-async function loadSkills(
-  dir: string,
-  type: string,
-): Promise<Array<{ name: string; path: string; description?: string }>> {
-  const skills: Array<{ name: string; path: string; description?: string }> =
-    [];
-
-  try {
-    const entries = await readdir(dir);
-    for (const entry of entries.sort()) {
-      const skillMdPath = join(dir, entry, "SKILL.md");
-      try {
-        const content = await readFile(skillMdPath, "utf-8");
-        const firstLine = content
-          .split("\n")
-          .find((l) => l.trim() && !l.trim().startsWith("#"));
-        skills.push({
-          name: entry,
-          path: join(dir, entry),
-          description: firstLine?.trim(),
-        });
-      } catch {
-        // No SKILL.md, skip
-      }
-    }
-  } catch {
-    // Directory doesn't exist
-  }
-
-  return skills;
-}
+// listFilesRecursive and loadSkills extracted to src/debug/debug-queries.ts
 
 /**
  * Register debug routes
@@ -142,41 +72,7 @@ export async function registerDebugRoutes(
    * Agent status overview: hatching, auth, model, brain directory
    */
   fastify.get("/brain/status", async () => {
-    const agentDir = fastify.agentDir;
-    const hatched = await isHatched(agentDir);
-
-    let authSource: string | null = null;
-    let authType: string | null = null;
-
-    try {
-      const auth = resolveAuth(agentDir);
-      authSource = auth.source;
-      authType = auth.type;
-    } catch {
-      authSource = "none";
-      authType = "none";
-    }
-
-    // Load model from config
-    let model = loadModels(agentDir).sonnet; // default
-    try {
-      const configPath = join(agentDir, "config.yaml");
-      const configContent = await readFile(configPath, "utf-8");
-      const modelMatch = configContent.match(/model:\s*(\S+)/);
-      if (modelMatch) {
-        model = modelMatch[1];
-      }
-    } catch {
-      // Config not found, use default
-    }
-
-    return {
-      hatched,
-      authSource,
-      authType,
-      model,
-      brainDir: agentDir,
-    };
+    return getBrainStatus(fastify.agentDir);
   });
 
   /**
@@ -186,7 +82,6 @@ export async function registerDebugRoutes(
    */
   fastify.get("/brain/prompt", async () => {
     const agentDir = fastify.agentDir;
-    const brainDir = join(agentDir, "brain");
 
     // Load calendar context (same pattern as SessionManager)
     let calendarContext: string | undefined;
@@ -216,110 +111,8 @@ export async function registerDebugRoutes(
       console.warn(`[Debug] Calendar context error: ${err}`);
     }
 
-    // Assemble full system prompt with calendar context
-    const systemPrompt = await assembleSystemPrompt(brainDir, {
-      calendarContext,
-    });
-
-    // Load individual components for breakdown
-    const components: Record<string, { source: string; chars: number } | null> =
-      {};
-
-    // Personality (AGENTS.md, with CLAUDE.md fallback for transition)
-    try {
-      let content: string;
-      try {
-        content = await readFile(join(brainDir, "AGENTS.md"), "utf-8");
-      } catch {
-        content = await readFile(join(brainDir, "CLAUDE.md"), "utf-8");
-      }
-      components.personality = {
-        source: "brain/AGENTS.md",
-        chars: content.length,
-      };
-    } catch {
-      components.personality = null;
-    }
-
-    // Identity
-    try {
-      const content = await readFile(
-        join(brainDir, "memory/core/identity.md"),
-        "utf-8",
-      );
-      components.identity = {
-        source: "brain/memory/core/identity.md",
-        chars: content.length,
-      };
-    } catch {
-      components.identity = null;
-    }
-
-    // Contacts
-    try {
-      const content = await readFile(
-        join(brainDir, "memory/core/contacts.md"),
-        "utf-8",
-      );
-      components.contacts = {
-        source: "brain/memory/core/contacts.md",
-        chars: content.length,
-      };
-    } catch {
-      components.contacts = null;
-    }
-
-    // Preferences
-    try {
-      const content = await readFile(
-        join(brainDir, "memory/core/preferences.md"),
-        "utf-8",
-      );
-      components.preferences = {
-        source: "brain/memory/core/preferences.md",
-        chars: content.length,
-      };
-    } catch {
-      components.preferences = null;
-    }
-
-    // Notebooks
-    const notebooks: Record<string, { chars: number }> = {};
-    for (const name of [
-      "external-communications",
-      "reminders",
-      "standing-orders",
-    ]) {
-      try {
-        const content = await readFile(
-          join(agentDir, "runtime", `${name}.md`),
-          "utf-8",
-        );
-        notebooks[name] = { chars: content.length };
-      } catch {
-        notebooks[name] = { chars: 0 };
-      }
-    }
-
-    // Skills count
-    const frameworkSkills = await loadSkills(
-      join(import.meta.dirname, "../../core/skills"),
-      "framework",
-    );
-    const userSkills = await loadSkills(join(brainDir, "skills"), "user");
-
-    return {
-      systemPrompt,
-      components: {
-        ...components,
-        notebooks,
-        skills: {
-          framework: frameworkSkills.length,
-          user: userSkills.length,
-        },
-      },
-      totalChars: systemPrompt.length,
-    };
+    // Delegate data assembly to pure function
+    return getSystemPrompt(agentDir, { calendarContext });
   });
 
   /**
@@ -362,15 +155,7 @@ export async function registerDebugRoutes(
    * List all brain files with metadata
    */
   fastify.get("/brain/files", async () => {
-    const agentDir = fastify.agentDir;
-    const brainDir = join(agentDir, "brain");
-
-    const files = await listFilesRecursive(brainDir);
-
-    return {
-      root: brainDir,
-      files: files.sort((a, b) => a.path.localeCompare(b.path)),
-    };
+    return getBrainFiles(fastify.agentDir);
   });
 
   /**
@@ -379,24 +164,7 @@ export async function registerDebugRoutes(
    * Skill inventory from framework and user directories
    */
   fastify.get("/brain/skills", async () => {
-    const agentDir = fastify.agentDir;
-    const brainDir = join(agentDir, "brain");
-
-    // Framework skills - relative to dashboard package
-    const frameworkSkillsDir = join(
-      import.meta.dirname,
-      "../../../core/skills",
-    );
-    const frameworkSkills = await loadSkills(frameworkSkillsDir, "framework");
-
-    // User skills
-    const sdkSkillsDir = join(agentDir, ".claude", "skills");
-    const userSkills = await loadSkills(sdkSkillsDir, "sdk");
-
-    return {
-      framework: frameworkSkills,
-      user: userSkills,
-    };
+    return getSkills(fastify.agentDir);
   });
 
   /**
