@@ -22,7 +22,7 @@
 | **M6.6: Agentic Lifecycle**  | Complete | 6/6 sprints, 265 tests (2 skipped SDK-only) |
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5 incl. S2.5, S3.5), 593 tests |
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
-| **M6.10: Headless App**     | **In Progress** | 1/4 sprints (S1 complete: 33 integration tests, AppHarness) |
+| **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M6.11: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
 | **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
 | ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
@@ -547,7 +547,7 @@ Skills come from:
 
 ---
 
-### M6.10: Headless App — IN PROGRESS
+### M6.10: Headless App — COMPLETE
 
 Extract a headless `App` class from the dashboard so the application can be driven programmatically — by agents, tests, or future interfaces (mobile) — without HTTP or WebSocket transport. The web dashboard becomes a thin adapter. Business behavior gets integration tests for the first time.
 
@@ -833,9 +833,9 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
 
 **M6.8 complete.** Skills architecture delivers SDK-native skill discovery, curated skill library, skill management tools (MCP CRUD), dashboard UI (browse/view/edit/delete/toggle with grouping and live refresh), interview-first triage for skill creation, and audience-based skill routing between Conversation Nina and Worker Nina.
 
-**M6.10 is in progress.** S1 complete (33 integration tests, AppHarness). Next: S2 — Headless App extraction — move service ownership from Fastify decorators to `App.create()`, break broadcast coupling, add `app.conversations.active()` accessor. Tests first, extract second.
+**M6.10 complete.** Headless App fully extracted: App class owns all services, EventEmitter for all mutations, ChatService decomposed, AppDebugService for agent introspection, mock SDK sessions for headless QA testing. 682 tests, 72 test files.
 
-**M6.11 follows M6.10.** Multimodal capabilities (rich input, rich output, voice mode). Conversation/worker split clarified by M6.8 skill routing.
+**M6.11 is next.** Multimodal capabilities (rich input, rich output, voice mode). Conversation/worker split clarified by M6.8 skill routing.
 
 **M7 requires M6.6 + M6.11:** Autonomous coding projects are triggered by the work loop. Rich deliverables from M6.11 enable code output beyond text. M7 will extend the `work-patterns.md` schema to support dynamic responsibility spawning.
 
