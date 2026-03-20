@@ -77,6 +77,7 @@ import { createSkillServer } from "./mcp/skill-server.js";
 import { ConnectionRegistry } from "./ws/connection-registry.js";
 import { AppChatService } from "./chat/chat-service.js";
 import { AppAuthService } from "./auth/auth-service.js";
+import { AppDebugService } from "./debug/app-debug-service.js";
 import type { Task, CreateTaskInput } from "@my-agent/core";
 import type { Conversation } from "./conversations/types.js";
 
@@ -229,6 +230,7 @@ export class App extends EventEmitter {
   memory!: AppMemoryService;
   chat!: AppChatService;
   auth!: AppAuthService;
+  debug!: AppDebugService;
 
   // Core services
   conversationManager!: ConversationManager;
@@ -1033,6 +1035,7 @@ export class App extends EventEmitter {
     app.memory = new AppMemoryService(app);
     app.chat = new AppChatService(app);
     app.auth = new AppAuthService(app);
+    app.debug = new AppDebugService(agentDir);
 
     return app;
   }

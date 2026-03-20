@@ -21,3 +21,5 @@ export type {
   ComponentInfo,
   SystemPromptResult,
 } from "./debug-queries.js";
+
+export { AppDebugService } from "./app-debug-service.js";

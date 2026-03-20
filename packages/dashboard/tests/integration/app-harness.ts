@@ -37,6 +37,7 @@ import {
   AppMemoryService,
 } from "../../src/app.js";
 import { AppChatService } from "../../src/chat/chat-service.js";
+import { AppDebugService } from "../../src/debug/app-debug-service.js";
 import { SessionRegistry } from "../../src/agent/session-registry.js";
 
 export interface CapturedBroadcast {
@@ -88,6 +89,7 @@ export class AppHarness {
   readonly calendar: AppCalendarService;
   readonly memory: AppMemoryService;
   readonly chat: AppChatService;
+  readonly debug: AppDebugService;
   readonly sessionRegistry: SessionRegistry;
 
   // Optional subsystems
@@ -143,6 +145,7 @@ export class AppHarness {
       agentDir,
     });
     this.chat = new AppChatService(appLike as any);
+    this.debug = new AppDebugService(agentDir);
 
     // Intercept all broadcasts for assertion
     const originalBroadcast =

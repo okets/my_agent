@@ -209,6 +209,27 @@ describe("Agent Debug Scenario (headless)", () => {
     });
   });
 
+  // ─── app.debug (via harness) ───────────────────────────────────────────────
+
+  describe("app.debug (via harness)", () => {
+    it("brainStatus() returns same data as standalone function", async () => {
+      const standalone = await getBrainStatus(harness.agentDir);
+      const viaApp = await harness.debug.brainStatus();
+      expect(viaApp).toEqual(standalone);
+    });
+
+    it("brainFiles() lists files", async () => {
+      const result = await harness.debug.brainFiles();
+      expect(result.files.some((f) => f.path === "AGENTS.md")).toBe(true);
+    });
+
+    it("systemPrompt() returns prompt with components", async () => {
+      const result = await harness.debug.systemPrompt();
+      expect(result.systemPrompt.length).toBeGreaterThan(0);
+      expect(result.components).toHaveProperty("personality");
+    });
+  });
+
   // ─── getSkills ─────────────────────────────────────────────────────────────
 
   describe("getSkills()", () => {
