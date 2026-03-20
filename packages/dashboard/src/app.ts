@@ -76,6 +76,7 @@ import { createTaskToolsServer } from "./mcp/task-tools-server.js";
 import { createSkillServer } from "./mcp/skill-server.js";
 import { ConnectionRegistry } from "./ws/connection-registry.js";
 import { AppChatService } from "./chat/chat-service.js";
+import { AppAuthService } from "./auth/auth-service.js";
 import type { Task, CreateTaskInput } from "@my-agent/core";
 import type { Conversation } from "./conversations/types.js";
 
@@ -227,6 +228,7 @@ export class App extends EventEmitter {
   calendar!: AppCalendarService;
   memory!: AppMemoryService;
   chat!: AppChatService;
+  auth!: AppAuthService;
 
   // Core services
   conversationManager!: ConversationManager;
@@ -1030,6 +1032,7 @@ export class App extends EventEmitter {
     app.calendar = new AppCalendarService(app);
     app.memory = new AppMemoryService(app);
     app.chat = new AppChatService(app);
+    app.auth = new AppAuthService(app);
 
     return app;
   }

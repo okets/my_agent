@@ -1,22 +1,20 @@
 /**
  * Chat WebSocket adapter — thin transport layer.
  *
- * Parses JSON → calls app.chat.* → sends results as JSON.
- * Business logic lives in AppChatService (src/chat/chat-service.ts).
+ * Parses JSON → calls app.chat.* / app.auth.* → sends results as JSON.
+ * Business logic lives in AppChatService and AppAuthService.
  *
  * M6.10-S3: Design spec §S3 (Chat Handler Decomposition)
  */
 
 import type { FastifyInstance } from "fastify";
-import * as path from "node:path";
-import { ScriptedHatchingEngine } from "../hatching/scripted-engine.js";
-import { createHatchingSession } from "../hatching/hatching-tools.js";
-import { resolveAuth, isAuthenticated, loadModels } from "@my-agent/core";
+import { loadModels } from "@my-agent/core";
 import { IdleTimerManager } from "../conversations/idle-timer.js";
 import type { ConnectionRegistry } from "./connection-registry.js";
 import { AttachmentService } from "../conversations/attachments.js";
 import { ResponseTimer } from "../channels/response-timer.js";
 import { isValidConversationId } from "../chat/chat-service.js";
+import type { AuthSession } from "../auth/auth-service.js";
 import type { ChatEvent, StartEffects } from "../chat/types.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
 
@@ -37,24 +35,15 @@ export async function registerChatWebSocket(
 
     const app = fastify.app!;
 
-    // Initialize attachment service once
     if (!attachmentService) {
       attachmentService = new AttachmentService(fastify.agentDir);
     }
 
-    // Wire ChatService deps once (idempotent)
     if (!idleTimerManager && fastify.abbreviationQueue) {
-      idleTimerManager = new IdleTimerManager(
-        fastify.abbreviationQueue,
-        connectionRegistry,
-      );
+      idleTimerManager = new IdleTimerManager(fastify.abbreviationQueue, connectionRegistry);
       if (!fastify.abbreviationQueue.onRenamed) {
         fastify.abbreviationQueue.onRenamed = (conversationId, title) => {
-          connectionRegistry.broadcastToAll({
-            type: "conversation_renamed",
-            conversationId,
-            title,
-          });
+          connectionRegistry.broadcastToAll({ type: "conversation_renamed", conversationId, title });
         };
       }
     }
@@ -74,83 +63,26 @@ export async function registerChatWebSocket(
     let currentTurnNumber = 0;
     let isStreaming = false;
 
-    // Hatching state
-    let scriptedEngine: ScriptedHatchingEngine | null = null;
-    let hatchingSession: ReturnType<typeof createHatchingSession> | null = null;
-    let isAuthCompleted = false;
-
     connectionRegistry.add(socket, null);
 
-    // ── Auth gate ───────────────────────────────────────────────────
+    // ── Auth gate (delegated to app.auth) ────────────────────────────
 
-    function startHatchingPhase2(): void {
-      try {
-        resolveAuth(fastify.agentDir);
-      } catch {}
-
-      hatchingSession = createHatchingSession(fastify.agentDir, {
-        send,
-        onComplete: (agentName) => {
-          hatchingSession = null;
-          fastify.isHatched = true;
-          send({ type: "hatching_complete", agentName });
-        },
-      });
-
-      (async () => {
-        try {
-          for await (const event of hatchingSession!.start()) {
-            // Events forwarded by session callbacks
-          }
-        } catch (err) {
-          fastify.log.error(err, "Phase 2 hatching error");
-          send({
-            type: "error",
-            message: err instanceof Error ? err.message : "Hatching error",
-          });
-        }
-      })();
-    }
-
-    function proceedAfterAuth(): void {
-      isAuthCompleted = true;
-      send({ type: "auth_ok" });
-
-      if (!fastify.isHatched) {
-        startHatchingPhase2();
-      } else {
+    const authSession: AuthSession = app.auth.createSession(send, {
+      onAuthCompleted: () => {
         (async () => {
           try {
             const result = await app.chat.connect(null);
             currentConversationId = result.conversation?.id ?? null;
-            currentTurnNumber =
-              result.conversation?.turnCount ?? 0;
+            currentTurnNumber = result.conversation?.turnCount ?? 0;
 
             if (currentConversationId) {
-              // Get/create session for resumption
-              const storedSid = app.conversationManager
-                .getConversationDb()
-                .getSdkSessionId(currentConversationId);
-              await app.sessionRegistry.getOrCreate(
-                currentConversationId,
-                storedSid,
-              );
-              connectionRegistry.switchConversation(
-                socket,
-                currentConversationId,
-              );
+              const storedSid = app.conversationManager.getConversationDb().getSdkSessionId(currentConversationId);
+              await app.sessionRegistry.getOrCreate(currentConversationId, storedSid);
+              connectionRegistry.switchConversation(socket, currentConversationId);
             }
 
-            send({
-              type: "conversation_loaded",
-              conversation: result.conversation,
-              turns: result.turns,
-              hasMore: result.hasMore,
-            });
-            send({
-              type: "conversation_list",
-              conversations: result.allConversations,
-            });
+            send({ type: "conversation_loaded", conversation: result.conversation, turns: result.turns, hasMore: result.hasMore });
+            send({ type: "conversation_list", conversations: result.allConversations });
 
             if (fastify.statePublisher) {
               await fastify.statePublisher.publishAllTo(socket);
@@ -160,23 +92,14 @@ export async function registerChatWebSocket(
             send({ type: "error", message: "Failed to load conversation history" });
           }
         })();
-      }
-    }
+      },
+      onHatchingCompleted: (agentName) => {
+        fastify.isHatched = true;
+        send({ type: "hatching_complete", agentName });
+      },
+    });
 
-    if (!isAuthenticated()) {
-      send({ type: "auth_required" });
-      const envPath = path.resolve(import.meta.dirname, "../../.env");
-      scriptedEngine = new ScriptedHatchingEngine(fastify.agentDir, envPath, {
-        send,
-        onComplete: () => {
-          scriptedEngine = null;
-          proceedAfterAuth();
-        },
-      });
-      scriptedEngine.start();
-    } else {
-      proceedAfterAuth();
-    }
+    authSession.start();
 
     // ── Message routing ─────────────────────────────────────────────
 
@@ -185,13 +108,7 @@ export async function registerChatWebSocket(
         const msg: ClientMessage = JSON.parse(raw.toString());
 
         if (msg.type === "abort") {
-          if (scriptedEngine) scriptedEngine = null;
-          if (hatchingSession) {
-            if (hatchingSession.query) await hatchingSession.query.interrupt();
-            hatchingSession.cleanup();
-            hatchingSession = null;
-          }
-          // Abort active session by removing it (remove() calls abort() internally)
+          await authSession.abort();
           if (currentConversationId && app.sessionRegistry.isWarm(currentConversationId)) {
             app.sessionRegistry.remove(currentConversationId);
           }
@@ -199,29 +116,22 @@ export async function registerChatWebSocket(
         }
 
         if (msg.type === "control_response") {
-          if (scriptedEngine) scriptedEngine.handleControlResponse(msg.controlId, msg.value);
-          else if (hatchingSession) hatchingSession.handleControlResponse(msg.controlId, msg.value);
+          authSession.handleControlResponse(msg.controlId, msg.value);
           return;
         }
 
-        if (!isAuthCompleted) {
+        if (!authSession.isCompleted) {
           send({ type: "error", message: "Authentication required" });
           return;
         }
 
-        if (msg.type === "message") {
-          if (scriptedEngine) { scriptedEngine.handleFreeText(msg.content); return; }
-          if (hatchingSession) {
-            if (!hatchingSession.handleFreeText(msg.content)) {
-              send({ type: "error", message: "Please wait for the question to finish loading" });
-            }
-            return;
-          }
+        if (msg.type === "message" && authSession.isActive) {
+          authSession.handleFreeText(msg.content);
+          return;
         }
 
         if (!fastify.isHatched) return;
 
-        // ── Conversation management ───────────────────────────────
         await handleMessage(msg);
       } catch {
         send({ type: "error", message: "Invalid message format" });
@@ -333,7 +243,6 @@ export async function registerChatWebSocket(
           if (!currentConversationId) { send({ type: "error", message: "No active conversation" }); return; }
           try {
             await app.chat.setModel(currentConversationId, msg.model);
-            fastify.log.info(`Set model for conversation ${currentConversationId}: ${msg.model}`);
           } catch (err) {
             send({ type: "error", message: err instanceof Error ? err.message : "Error" });
           }
@@ -383,7 +292,6 @@ export async function registerChatWebSocket(
     ): Promise<void> {
       const textContent = content.trim().toLowerCase();
 
-      // /new command
       if (textContent === "/new") {
         if (currentConversationId) {
           await app.chat.deleteIfEmpty(currentConversationId);
@@ -400,7 +308,6 @@ export async function registerChatWebSocket(
         return;
       }
 
-      // /model command
       const modelMatch = textContent.match(/^\/model(?:\s+(\w+))?$/);
       if (modelMatch) {
         for await (const event of app.chat.handleModelCommand(currentConversationId, modelMatch[1])) {
@@ -422,7 +329,6 @@ export async function registerChatWebSocket(
       isStreaming = true;
       currentTurnNumber++;
 
-      // Response timer (adapter-owned for interim status UX)
       const responseTimer = new ResponseTimer({
         sendTyping: async () => {},
         sendInterim: async (message) => send({ type: "interim_status", message }),
@@ -432,12 +338,9 @@ export async function registerChatWebSocket(
       try {
         let firstToken = true;
         for await (const event of app.chat.sendMessage(
-          currentConversationId,
-          content,
-          currentTurnNumber,
+          currentConversationId, content, currentTurnNumber,
           { reasoning, model, attachments, context },
         )) {
-          // Handle start effects
           if (event.type === "start" && event._effects) {
             const effects = event._effects as StartEffects;
             currentConversationId = effects.conversationId;
@@ -460,10 +363,6 @@ export async function registerChatWebSocket(
           }
           send(serverMsg);
         }
-
-        // Broadcast assistant turn to other tabs
-        // (The assistant content was saved by ChatService; we need the turn for broadcast)
-        // Naming broadcasts are handled via app events → StatePublisher
       } catch (err) {
         responseTimer.cancel();
         send({ type: "error", message: err instanceof Error ? err.message : "Unknown error" });
@@ -486,12 +385,7 @@ export async function registerChatWebSocket(
         fastify.abbreviationQueue.enqueue(currentConversationId);
       }
 
-      scriptedEngine = null;
-      if (hatchingSession) {
-        if (hatchingSession.query) await hatchingSession.query.interrupt();
-        hatchingSession.cleanup();
-        hatchingSession = null;
-      }
+      await authSession.cleanup();
     });
 
     // ── Send helper ─────────────────────────────────────────────────
