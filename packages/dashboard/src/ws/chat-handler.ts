@@ -1,50 +1,31 @@
+/**
+ * Chat WebSocket adapter — thin transport layer.
+ *
+ * Parses JSON → calls app.chat.* → sends results as JSON.
+ * Business logic lives in AppChatService (src/chat/chat-service.ts).
+ *
+ * M6.10-S3: Design spec §S3 (Chat Handler Decomposition)
+ */
+
 import type { FastifyInstance } from "fastify";
 import * as path from "node:path";
-import { SessionRegistry } from "../agent/session-registry.js";
-import type { SessionManager } from "../agent/session-manager.js";
 import { ScriptedHatchingEngine } from "../hatching/scripted-engine.js";
 import { createHatchingSession } from "../hatching/hatching-tools.js";
 import { resolveAuth, isAuthenticated, loadModels } from "@my-agent/core";
-import { IdleTimerManager, NamingService } from "../conversations/index.js";
-import type { ConversationManager } from "../conversations/index.js";
-import type { Conversation, TranscriptTurn } from "../conversations/types.js";
+import { IdleTimerManager } from "../conversations/idle-timer.js";
 import { ConnectionRegistry } from "./connection-registry.js";
 import { AttachmentService } from "../conversations/attachments.js";
 import { ResponseTimer } from "../channels/response-timer.js";
-import type {
-  Attachment,
-  ClientMessage,
-  ServerMessage,
-  ConversationMeta,
-  Turn,
-  ViewContext,
-} from "./protocol.js";
+import { isValidConversationId } from "../chat/chat-service.js";
+import type { ChatEvent, StartEffects } from "../chat/types.js";
+import type { ClientMessage, ServerMessage } from "./protocol.js";
 
-import { expandSkillCommand } from "../chat/skill-expander.js";
-
-const MAX_MESSAGE_LENGTH = 10000;
-const MAX_TITLE_LENGTH = 100;
-const TURNS_PER_PAGE = 50;
-const CONVERSATION_ID_RE = /^conv-[A-Z0-9]{26}$/;
-
-// Global connection registry for multi-tab sync (exported for channel wiring)
+// Global connection registry for multi-tab sync (exported for index.ts wiring)
 export const connectionRegistry = new ConnectionRegistry();
 
-// Global idle timer manager (lazily initialized on first WS connection)
+// Lazily initialized on first WS connection
 let idleTimerManager: IdleTimerManager | null = null;
-
-// Global naming service (lazily initialized when needed)
-let namingService: NamingService | null = null;
-
-// Global session registry for conversation-bound sessions (exported for channel wiring)
-export const sessionRegistry = new SessionRegistry(5); // Max 5 concurrent sessions
-
-// Attachment service (initialized per connection with agentDir)
 let attachmentService: AttachmentService | null = null;
-
-function isValidConversationId(id: string): boolean {
-  return CONVERSATION_ID_RE.test(id);
-}
 
 export async function registerChatWebSocket(
   fastify: FastifyInstance,
@@ -52,29 +33,23 @@ export async function registerChatWebSocket(
   fastify.get("/api/chat/ws", { websocket: true }, (socket, req) => {
     fastify.log.info("Chat WebSocket connected");
 
-    // Keepalive: ping every 30s to prevent idle timeouts
     const pingInterval = setInterval(() => {
-      if (socket.readyState === 1) {
-        socket.ping();
-      }
+      if (socket.readyState === 1) socket.ping();
     }, 30000);
 
-    // Use shared ConversationManager from fastify decorator
-    const conversationManager = fastify.conversationManager!;
+    const app = fastify.app!;
 
-    // Initialize attachment service if not already done
+    // Initialize attachment service once
     if (!attachmentService) {
       attachmentService = new AttachmentService(fastify.agentDir);
     }
 
-    // Lazily initialize IdleTimerManager on first WS connection
+    // Wire ChatService deps once (idempotent)
     if (!idleTimerManager && fastify.abbreviationQueue) {
       idleTimerManager = new IdleTimerManager(
         fastify.abbreviationQueue,
         connectionRegistry,
       );
-
-      // Wire rename callback so abbreviation-triggered renames broadcast to all clients
       if (!fastify.abbreviationQueue.onRenamed) {
         fastify.abbreviationQueue.onRenamed = (conversationId, title) => {
           connectionRegistry.broadcastToAll({
@@ -86,66 +61,51 @@ export async function registerChatWebSocket(
       }
     }
 
-    let sessionManager: SessionManager | null = null;
-    let isStreaming = false;
+    app.chat.setDeps({
+      abbreviationQueue: fastify.abbreviationQueue,
+      idleTimerManager,
+      attachmentService,
+      conversationSearchService: fastify.conversationSearchService,
+      postResponseHooks: fastify.postResponseHooks,
+      log: (msg) => fastify.log.info(msg),
+      logError: (err, msg) => fastify.log.error(err, msg),
+    });
+
+    // Per-connection state
     let currentConversationId: string | null = null;
     let currentTurnNumber = 0;
+    let isStreaming = false;
 
     // Hatching state
     let scriptedEngine: ScriptedHatchingEngine | null = null;
     let hatchingSession: ReturnType<typeof createHatchingSession> | null = null;
     let isAuthCompleted = false;
 
-    // Register connection
     connectionRegistry.add(socket, null);
 
-    // Helper: start Phase 2 hatching (LLM personality setup)
+    // ── Auth gate ───────────────────────────────────────────────────
+
     function startHatchingPhase2(): void {
-      // Resolve auth so the SDK can find the API key
       try {
         resolveAuth(fastify.agentDir);
-      } catch {
-        // Auth might not be ready yet if using env auth
-      }
+      } catch {}
 
       hatchingSession = createHatchingSession(fastify.agentDir, {
         send,
         onComplete: (agentName) => {
-          // Hatching complete
           hatchingSession = null;
           fastify.isHatched = true;
           send({ type: "hatching_complete", agentName });
         },
       });
 
-      // Verify auth is ready before starting
-      const authKey = process.env.ANTHROPIC_API_KEY;
-      const authOAuth = process.env.CLAUDE_CODE_OAUTH_TOKEN;
-      fastify.log.info(
-        `Phase 2 starting — API key set: ${!!authKey}, OAuth set: ${!!authOAuth}`,
-      );
-
-      // Start the LLM hatching session
       (async () => {
         try {
           for await (const event of hatchingSession!.start()) {
-            // Events are already forwarded by the session's callbacks
-            // We just need to consume the generator
+            // Events forwarded by session callbacks
           }
         } catch (err) {
-          // Log full error details to server console
           fastify.log.error(err, "Phase 2 hatching error");
-          if (err instanceof Error) {
-            fastify.log.error(
-              `Error details — name: ${err.name}, message: ${err.message}`,
-            );
-            if ("stderr" in err)
-              fastify.log.error(`stderr: ${(err as any).stderr}`);
-            if ("stdout" in err)
-              fastify.log.error(`stdout: ${(err as any).stdout}`);
-            if (err.cause)
-              fastify.log.error(`cause: ${JSON.stringify(err.cause)}`);
-          }
           send({
             type: "error",
             message: err instanceof Error ? err.message : "Hatching error",
@@ -154,1191 +114,410 @@ export async function registerChatWebSocket(
       })();
     }
 
-    // Helper: proceed after auth is confirmed
     function proceedAfterAuth(): void {
       isAuthCompleted = true;
       send({ type: "auth_ok" });
 
       if (!fastify.isHatched) {
-        // Need hatching Phase 2 (personality setup)
         startHatchingPhase2();
       } else {
-        // Already hatched, send conversation state on connect
         (async () => {
           try {
-            await handleConnect(null);
-            // Push full entity snapshots to the newly connected client
+            const result = await app.chat.connect(null);
+            currentConversationId = result.conversation?.id ?? null;
+            currentTurnNumber =
+              result.conversation?.turnCount ?? 0;
+
+            if (currentConversationId) {
+              // Get/create session for resumption
+              const storedSid = app.conversationManager
+                .getConversationDb()
+                .getSdkSessionId(currentConversationId);
+              await app.sessionRegistry.getOrCreate(
+                currentConversationId,
+                storedSid,
+              );
+              connectionRegistry.switchConversation(
+                socket,
+                currentConversationId,
+              );
+            }
+
+            send({
+              type: "conversation_loaded",
+              conversation: result.conversation,
+              turns: result.turns,
+              hasMore: result.hasMore,
+            });
+            send({
+              type: "conversation_list",
+              conversations: result.allConversations,
+            });
+
             if (fastify.statePublisher) {
               await fastify.statePublisher.publishAllTo(socket);
             }
           } catch (err) {
             fastify.log.error(err, "Error loading conversation on connect");
-            send({
-              type: "error",
-              message: "Failed to load conversation history",
-            });
+            send({ type: "error", message: "Failed to load conversation history" });
           }
         })();
       }
     }
 
-    // Auth gate: check authentication before anything else
     if (!isAuthenticated()) {
       send({ type: "auth_required" });
-
       const envPath = path.resolve(import.meta.dirname, "../../.env");
       scriptedEngine = new ScriptedHatchingEngine(fastify.agentDir, envPath, {
         send,
         onComplete: () => {
-          // Auth phase complete
           scriptedEngine = null;
           proceedAfterAuth();
         },
       });
-
       scriptedEngine.start();
     } else {
       proceedAfterAuth();
     }
 
+    // ── Message routing ─────────────────────────────────────────────
+
     socket.on("message", async (raw: Buffer) => {
       try {
         const msg: ClientMessage = JSON.parse(raw.toString());
 
-        // Handle abort
         if (msg.type === "abort") {
-          if (scriptedEngine) {
-            scriptedEngine = null;
-          }
+          if (scriptedEngine) scriptedEngine = null;
           if (hatchingSession) {
-            if (hatchingSession.query) {
-              await hatchingSession.query.interrupt();
-            }
+            if (hatchingSession.query) await hatchingSession.query.interrupt();
             hatchingSession.cleanup();
             hatchingSession = null;
           }
-          if (sessionManager) {
-            await sessionManager.abort();
+          // Abort active session by removing it (remove() calls abort() internally)
+          if (currentConversationId && app.sessionRegistry.isWarm(currentConversationId)) {
+            app.sessionRegistry.remove(currentConversationId);
           }
           return;
         }
 
-        // Handle control responses
         if (msg.type === "control_response") {
-          if (scriptedEngine) {
-            scriptedEngine.handleControlResponse(msg.controlId, msg.value);
-          } else if (hatchingSession) {
-            hatchingSession.handleControlResponse(msg.controlId, msg.value);
-          }
+          if (scriptedEngine) scriptedEngine.handleControlResponse(msg.controlId, msg.value);
+          else if (hatchingSession) hatchingSession.handleControlResponse(msg.controlId, msg.value);
           return;
         }
 
-        // Block all non-auth messages until authentication is complete
         if (!isAuthCompleted) {
           send({ type: "error", message: "Authentication required" });
           return;
         }
 
-        // Handle conversation management (only after hatching complete)
-        if (fastify.isHatched) {
-          if (msg.type === "connect") {
-            if (
-              msg.conversationId &&
-              !isValidConversationId(msg.conversationId)
-            ) {
-              send({ type: "error", message: "Invalid conversation ID" });
-              return;
-            }
-            await handleConnect(msg.conversationId);
-            return;
-          }
-
-          if (msg.type === "new_conversation") {
-            await handleNewConversation();
-            return;
-          }
-
-          if (msg.type === "switch_conversation") {
-            if (!isValidConversationId(msg.conversationId)) {
-              send({ type: "error", message: "Invalid conversation ID" });
-              return;
-            }
-            await handleSwitchConversation(msg.conversationId);
-            return;
-          }
-
-          if (msg.type === "rename_conversation") {
-            await handleRenameConversation(msg.title);
-            return;
-          }
-
-          if (msg.type === "load_more_turns") {
-            await handleLoadMoreTurns(msg.before);
-            return;
-          }
-
-          if (msg.type === "delete_conversation") {
-            if (!isValidConversationId(msg.conversationId)) {
-              send({ type: "error", message: "Invalid conversation ID" });
-              return;
-            }
-            await handleDeleteConversation(msg.conversationId);
-            return;
-          }
-
-          if (msg.type === "set_model") {
-            await handleSetModel(msg.model);
-            return;
-          }
-
-          // Handle notification interactions
-          if (msg.type === "get_notifications") {
-            const service = fastify.notificationService;
-            if (service) {
-              const notifications = service.getAll().map((n) => ({
-                id: n.id,
-                type: n.type,
-                taskId: n.taskId,
-                created: n.created.toISOString(),
-                status: n.status,
-                ...(n.type === "notify" && {
-                  message: n.message,
-                  importance: n.importance,
-                }),
-                ...(n.type === "request_input" && {
-                  question: n.question,
-                  options: n.options,
-                  response: n.response,
-                  respondedAt: n.respondedAt?.toISOString(),
-                }),
-                ...(n.type === "escalate" && {
-                  problem: n.problem,
-                  severity: n.severity,
-                }),
-              }));
-              send({
-                type: "notification_list",
-                notifications,
-                pendingCount: service.getPending().length,
-              });
-            }
-            return;
-          }
-
-          if (msg.type === "notification_read") {
-            const service = fastify.notificationService;
-            if (service) {
-              service.markRead(msg.notificationId);
-            }
-            return;
-          }
-
-          if (msg.type === "notification_respond") {
-            const service = fastify.notificationService;
-            if (service) {
-              service.respond(msg.notificationId, msg.response);
-            }
-            return;
-          }
-
-          if (msg.type === "notification_dismiss") {
-            const service = fastify.notificationService;
-            if (service) {
-              service.dismiss(msg.notificationId);
-            }
-            return;
-          }
-        }
-
-        // Handle regular messages
         if (msg.type === "message") {
-          // Need either text content or attachments
-          const hasContent = msg.content?.trim();
-          const hasAttachments = msg.attachments && msg.attachments.length > 0;
-          if (!hasContent && !hasAttachments) return;
-
-          // If in scripted hatching, treat as free text
-          if (scriptedEngine) {
-            scriptedEngine.handleFreeText(msg.content);
-            return;
-          }
-
-          // If in LLM hatching, try to handle as free text
+          if (scriptedEngine) { scriptedEngine.handleFreeText(msg.content); return; }
           if (hatchingSession) {
-            const handled = hatchingSession.handleFreeText(msg.content);
-            if (!handled) {
-              // No pending control - the LLM is still processing
-              send({
-                type: "error",
-                message: "Please wait for the question to finish loading",
-              });
+            if (!hatchingSession.handleFreeText(msg.content)) {
+              send({ type: "error", message: "Please wait for the question to finish loading" });
             }
             return;
           }
-
-          // Normal chat mode
-          if (isStreaming) {
-            send({
-              type: "error",
-              message: "Already processing a message",
-            });
-            return;
-          }
-
-          if (msg.content.length > MAX_MESSAGE_LENGTH) {
-            send({
-              type: "error",
-              message: `Message too long (max ${MAX_MESSAGE_LENGTH} characters)`,
-            });
-            return;
-          }
-
-          await handleChatMessage(
-            msg.content,
-            msg.reasoning,
-            msg.model,
-            msg.attachments,
-            msg.context,
-          );
         }
-      } catch (err) {
+
+        if (!fastify.isHatched) return;
+
+        // ── Conversation management ───────────────────────────────
+        await handleMessage(msg);
+      } catch {
         send({ type: "error", message: "Invalid message format" });
       }
     });
 
-    socket.on("close", async () => {
-      fastify.log.info("Chat WebSocket disconnected");
-
-      // Stop keepalive pings
-      clearInterval(pingInterval);
-
-      // Check if we need to queue abbreviation before removing from registry
-      const wasLastViewer =
-        currentConversationId &&
-        connectionRegistry.getViewerCount(currentConversationId) === 1;
-
-      // Remove from registry
-      connectionRegistry.remove(socket);
-
-      // If this was the last viewer, queue abbreviation
-      if (wasLastViewer && currentConversationId && fastify.abbreviationQueue) {
-        fastify.abbreviationQueue.enqueue(currentConversationId);
-        fastify.log.info(
-          `Last viewer left conversation ${currentConversationId}, queued for abbreviation`,
-        );
-      }
-
-      // Cleanup hatching state
-      scriptedEngine = null;
-      if (hatchingSession) {
-        if (hatchingSession.query) {
-          await hatchingSession.query.interrupt();
+    async function handleMessage(msg: ClientMessage): Promise<void> {
+      switch (msg.type) {
+        case "connect": {
+          if (msg.conversationId && !isValidConversationId(msg.conversationId)) {
+            send({ type: "error", message: "Invalid conversation ID" });
+            return;
+          }
+          try {
+            const result = await app.chat.connect(msg.conversationId);
+            currentConversationId = result.conversation?.id ?? null;
+            currentTurnNumber = result.conversation?.turnCount ?? 0;
+            if (currentConversationId) {
+              const storedSid = app.conversationManager.getConversationDb().getSdkSessionId(currentConversationId);
+              await app.sessionRegistry.getOrCreate(currentConversationId, storedSid);
+              connectionRegistry.switchConversation(socket, currentConversationId);
+            }
+            send({ type: "conversation_loaded", conversation: result.conversation, turns: result.turns, hasMore: result.hasMore });
+            send({ type: "conversation_list", conversations: result.allConversations });
+          } catch (err) {
+            send({ type: "error", message: err instanceof Error ? err.message : "Error" });
+          }
+          return;
         }
-        hatchingSession.cleanup();
-        hatchingSession = null;
-      }
-      if (sessionManager) {
-        sessionManager.abort();
-      }
-    });
 
-    /**
-     * Handle connect - load conversation state
-     */
-    async function handleConnect(
-      requestedConversationId?: string | null,
-    ): Promise<void> {
-      let conversation;
+        case "new_conversation": {
+          if (currentConversationId) {
+            await app.chat.deleteIfEmpty(currentConversationId);
+            if (fastify.abbreviationQueue) fastify.abbreviationQueue.enqueue(currentConversationId);
+          }
+          const result = await app.chat.newConversation();
+          currentConversationId = result.conversation.id;
+          currentTurnNumber = 0;
+          await app.sessionRegistry.getOrCreate(result.conversation.id);
+          connectionRegistry.switchConversation(socket, result.conversation.id);
+          send({ type: "conversation_created", conversation: result.conversation });
+          connectionRegistry.broadcastToAll({ type: "conversation_created", conversation: result.conversation }, socket);
+          return;
+        }
 
-      if (requestedConversationId) {
-        // Load specific conversation
-        conversation = await conversationManager.get(requestedConversationId);
-        if (!conversation) {
-          send({
-            type: "error",
-            message: "Conversation not found",
+        case "switch_conversation": {
+          if (!isValidConversationId(msg.conversationId)) {
+            send({ type: "error", message: "Invalid conversation ID" });
+            return;
+          }
+          if (currentConversationId) {
+            await app.chat.deleteIfEmpty(currentConversationId);
+            if (fastify.abbreviationQueue) fastify.abbreviationQueue.enqueue(currentConversationId);
+          }
+          try {
+            const result = await app.chat.switchConversation(msg.conversationId);
+            currentConversationId = result.conversation.id;
+            currentTurnNumber = result.conversation.turnCount;
+            const storedSid = app.conversationManager.getConversationDb().getSdkSessionId(msg.conversationId);
+            await app.sessionRegistry.getOrCreate(msg.conversationId, storedSid);
+            connectionRegistry.switchConversation(socket, result.conversation.id);
+            send({ type: "conversation_loaded", conversation: result.conversation, turns: result.turns, hasMore: result.hasMore });
+          } catch (err) {
+            send({ type: "error", message: err instanceof Error ? err.message : "Error" });
+          }
+          return;
+        }
+
+        case "rename_conversation": {
+          if (!currentConversationId) { send({ type: "error", message: "No active conversation" }); return; }
+          const trimmed = await app.chat.renameConversation(currentConversationId, msg.title);
+          connectionRegistry.broadcastToConversation(currentConversationId, {
+            type: "conversation_renamed", conversationId: currentConversationId, title: trimmed,
           });
           return;
         }
-      } else {
-        // Load the current conversation
-        conversation = await conversationManager.getCurrent();
+
+        case "load_more_turns": {
+          if (!currentConversationId) { send({ type: "error", message: "No active conversation" }); return; }
+          const result = await app.chat.loadMoreTurns(currentConversationId, msg.before);
+          send({ type: "turns_loaded", turns: result.turns, hasMore: result.hasMore });
+          return;
+        }
+
+        case "delete_conversation": {
+          if (!isValidConversationId(msg.conversationId)) {
+            send({ type: "error", message: "Invalid conversation ID" });
+            return;
+          }
+          try {
+            await app.chat.deleteConversation(msg.conversationId, {
+              cancelAbbreviation: (id) => fastify.abbreviationQueue?.cancel(id),
+              clearIdleTimer: (id) => idleTimerManager?.clear(id),
+              deleteAttachments: (id) => attachmentService?.deleteConversationAttachments(id),
+              removeSearchEmbeddings: (id) => fastify.conversationSearchService?.removeConversation(id),
+            });
+            if (currentConversationId === msg.conversationId) {
+              currentConversationId = null;
+              currentTurnNumber = 0;
+            }
+            connectionRegistry.broadcastToAll({ type: "conversation_deleted", conversationId: msg.conversationId });
+          } catch (err) {
+            send({ type: "error", message: err instanceof Error ? err.message : "Error" });
+          }
+          return;
+        }
+
+        case "set_model": {
+          if (!currentConversationId) { send({ type: "error", message: "No active conversation" }); return; }
+          try {
+            await app.chat.setModel(currentConversationId, msg.model);
+            fastify.log.info(`Set model for conversation ${currentConversationId}: ${msg.model}`);
+          } catch (err) {
+            send({ type: "error", message: err instanceof Error ? err.message : "Error" });
+          }
+          return;
+        }
+
+        // ── Notifications ───────────────────────────────────────────
+        case "get_notifications": {
+          const service = fastify.notificationService;
+          if (service) {
+            const notifications = service.getAll().map((n) => ({
+              id: n.id, type: n.type, taskId: n.taskId,
+              created: n.created.toISOString(), status: n.status,
+              ...(n.type === "notify" && { message: n.message, importance: n.importance }),
+              ...(n.type === "request_input" && { question: n.question, options: n.options, response: n.response, respondedAt: n.respondedAt?.toISOString() }),
+              ...(n.type === "escalate" && { problem: n.problem, severity: n.severity }),
+            }));
+            send({ type: "notification_list", notifications, pendingCount: service.getPending().length });
+          }
+          return;
+        }
+        case "notification_read": { fastify.notificationService?.markRead(msg.notificationId); return; }
+        case "notification_respond": { fastify.notificationService?.respond(msg.notificationId, msg.response); return; }
+        case "notification_dismiss": { fastify.notificationService?.dismiss(msg.notificationId); return; }
+
+        // ── Chat message ────────────────────────────────────────────
+        case "message": {
+          const hasContent = msg.content?.trim();
+          const hasAttachments = msg.attachments && msg.attachments.length > 0;
+          if (!hasContent && !hasAttachments) return;
+          if (isStreaming) { send({ type: "error", message: "Already processing a message" }); return; }
+
+          await handleChatMessage(msg.content, msg.reasoning, msg.model, msg.attachments, msg.context);
+          return;
+        }
       }
-
-      if (conversation) {
-        // Load turns
-        const turns = await conversationManager.getTurns(conversation.id, {
-          limit: TURNS_PER_PAGE,
-        });
-
-        currentConversationId = conversation.id;
-        currentTurnNumber = conversation.turnCount;
-
-        // Get or create session for this conversation (load stored SDK session ID for resumption)
-        const storedSessionId = conversationManager
-          .getConversationDb()
-          .getSdkSessionId(conversation.id);
-        sessionManager = await sessionRegistry.getOrCreate(
-          conversation.id,
-          storedSessionId,
-        );
-
-        // Update registry
-        connectionRegistry.switchConversation(socket, conversation.id);
-
-        // Send conversation state
-        send({
-          type: "conversation_loaded",
-          conversation: toConversationMeta(conversation),
-          turns: turns.map(toTurn),
-          hasMore: turns.length === TURNS_PER_PAGE,
-        });
-      } else {
-        // No conversation yet - send empty state
-        send({
-          type: "conversation_loaded",
-          conversation: null,
-          turns: [],
-          hasMore: false,
-        });
-      }
-
-      // Send all conversations as a unified list
-      const allConversations = await conversationManager.list({});
-
-      send({
-        type: "conversation_list",
-        conversations: allConversations.slice(0, 50).map(toConversationMeta),
-      });
     }
 
-    /**
-     * Queue abbreviation+naming for the old conversation when switching away
-     */
-    function queueAbbreviationForCurrent(): void {
-      if (currentConversationId && fastify.abbreviationQueue) {
-        fastify.abbreviationQueue.enqueue(currentConversationId);
-      }
-    }
+    // ── Chat message handling ───────────────────────────────────────
 
-    /**
-     * Delete a conversation if it has no turns (empty conversation cleanup)
-     */
-    async function deleteIfEmpty(conversationId: string): Promise<void> {
-      if (!conversationId) return;
-      const conv = await conversationManager.get(conversationId);
-      if (conv && conv.turnCount === 0) {
-        await fastify.app!.conversations.delete(conversationId);
-      }
-    }
-
-    /**
-     * Handle new conversation
-     */
-    async function handleNewConversation(): Promise<void> {
-      // Delete the previous conversation if it's empty
-      if (currentConversationId) {
-        await deleteIfEmpty(currentConversationId);
-      }
-
-      // Queue abbreviation for the conversation we're leaving
-      queueAbbreviationForCurrent();
-
-      // Create new conversation (emits conversation:created event → StatePublisher)
-      const conversation = await fastify.app!.conversations.create();
-
-      currentConversationId = conversation.id;
-      currentTurnNumber = 0;
-
-      // Create session for new conversation (will be cold/empty)
-      sessionManager = await sessionRegistry.getOrCreate(conversation.id);
-
-      // Update registry
-      connectionRegistry.switchConversation(socket, conversation.id);
-
-      // Send conversation created to this socket (frontend handles reset + switch)
-      send({
-        type: "conversation_created",
-        conversation: toConversationMeta(conversation),
-      });
-
-      // Broadcast to other sockets so their sidebars update
-      connectionRegistry.broadcastToAll(
-        {
-          type: "conversation_created",
-          conversation: toConversationMeta(conversation),
-        },
-        socket,
-      );
-    }
-
-    /**
-     * Handle switch conversation
-     */
-    async function handleSwitchConversation(
-      conversationId: string,
-    ): Promise<void> {
-      // Delete the previous conversation if it's empty
-      if (currentConversationId) {
-        await deleteIfEmpty(currentConversationId);
-      }
-
-      // Queue abbreviation for the conversation we're leaving
-      queueAbbreviationForCurrent();
-
-      const conversation = await conversationManager.get(conversationId);
-
-      if (!conversation) {
-        send({
-          type: "error",
-          message: "Conversation not found",
-        });
-        return;
-      }
-
-      // Make this the current conversation (emits conversation:updated → StatePublisher)
-      await fastify.app!.conversations.makeCurrent(conversationId);
-
-      // Load turns
-      const turns = await conversationManager.getTurns(conversation.id, {
-        limit: TURNS_PER_PAGE,
-      });
-
-      currentConversationId = conversation.id;
-      currentTurnNumber = conversation.turnCount;
-
-      // Switch to session for new conversation (load stored SDK session ID for resumption)
-      const storedSessionId = conversationManager
-        .getConversationDb()
-        .getSdkSessionId(conversationId);
-      sessionManager = await sessionRegistry.getOrCreate(
-        conversationId,
-        storedSessionId,
-      );
-
-      // Update registry
-      connectionRegistry.switchConversation(socket, conversation.id);
-
-      // Send conversation state
-      send({
-        type: "conversation_loaded",
-        conversation: toConversationMeta(conversation),
-        turns: turns.map(toTurn),
-        hasMore: turns.length === TURNS_PER_PAGE,
-      });
-    }
-
-    /**
-     * Handle rename conversation
-     */
-    async function handleRenameConversation(title: string): Promise<void> {
-      if (!currentConversationId) {
-        send({ type: "error", message: "No active conversation" });
-        return;
-      }
-
-      const trimmedTitle = title.slice(0, MAX_TITLE_LENGTH);
-      await conversationManager.setTitleManual(
-        currentConversationId,
-        trimmedTitle,
-      );
-
-      // Broadcast rename to all viewers including sender
-      connectionRegistry.broadcastToConversation(currentConversationId, {
-        type: "conversation_renamed",
-        conversationId: currentConversationId,
-        title: trimmedTitle,
-      });
-    }
-
-    /**
-     * Handle load more turns (pagination)
-     */
-    async function handleLoadMoreTurns(before: string): Promise<void> {
-      if (!currentConversationId) {
-        send({ type: "error", message: "No active conversation" });
-        return;
-      }
-
-      const { turns, hasMore } = await conversationManager.getTurnsBefore(
-        currentConversationId,
-        before,
-        TURNS_PER_PAGE,
-      );
-
-      send({
-        type: "turns_loaded",
-        turns: turns.map(toTurn),
-        hasMore,
-      });
-    }
-
-    /**
-     * Handle delete conversation
-     *
-     * Cleanup includes:
-     * - Cancel pending abbreviation task
-     * - Clear idle timer
-     * - Remove from session registry
-     * - Delete from database + transcript
-     * - Broadcast deletion to all tabs
-     */
-    async function handleDeleteConversation(
-      conversationId: string,
-    ): Promise<void> {
-      // Verify conversation exists
-      const conversation = await conversationManager.get(conversationId);
-      if (!conversation) {
-        send({ type: "error", message: "Conversation not found" });
-        return;
-      }
-
-      // Cancel pending abbreviation task if exists
-      if (fastify.abbreviationQueue) {
-        fastify.abbreviationQueue.cancel(conversationId);
-      }
-
-      // Clear idle timer if exists
-      if (idleTimerManager) {
-        idleTimerManager.clear(conversationId);
-      }
-
-      // Remove from session registry if active
-      sessionRegistry.remove(conversationId);
-
-      // If this was the current conversation, clear local state
-      if (currentConversationId === conversationId) {
-        currentConversationId = null;
-        currentTurnNumber = 0;
-        sessionManager = null;
-      }
-
-      // Delete attachments folder
-      if (attachmentService) {
-        attachmentService.deleteConversationAttachments(conversationId);
-      }
-
-      // Remove conversation search embeddings (M6.7-S4)
-      if (fastify.conversationSearchService) {
-        fastify.conversationSearchService.removeConversation(conversationId);
-      }
-
-      // Delete from database + transcript (emits conversation:deleted → StatePublisher)
-      await fastify.app!.conversations.delete(conversationId);
-
-      fastify.log.info(`Deleted conversation ${conversationId}`);
-
-      // Broadcast deletion to all tabs
-      connectionRegistry.broadcastToAll({
-        type: "conversation_deleted",
-        conversationId,
-      });
-    }
-
-    /**
-     * Handle set model
-     */
-    async function handleSetModel(model: string): Promise<void> {
-      if (!currentConversationId) {
-        send({ type: "error", message: "No active conversation" });
-        return;
-      }
-
-      // Validate model (basic validation - allow known models)
-      const models = loadModels();
-      const validModels = Object.values(models);
-      if (!validModels.includes(model)) {
-        send({ type: "error", message: "Invalid model" });
-        return;
-      }
-
-      // Persist model to database
-      await conversationManager.setModel(currentConversationId, model);
-
-      fastify.log.info(
-        `Set model for conversation ${currentConversationId}: ${model}`,
-      );
-    }
-
-    /**
-     * Handle chat message
-     */
     async function handleChatMessage(
       content: string,
       reasoning?: boolean,
       model?: string,
-      attachments?: Attachment[],
-      context?: ViewContext | null,
+      attachments?: Array<{ filename: string; base64Data: string; mimeType: string }>,
+      context?: { type: string; title: string; file?: string; taskId?: string } | null,
     ): Promise<void> {
-      // Log context if user is viewing something specific
-      if (context) {
-        fastify.log.info(
-          `[Context] User viewing: ${context.title} (${context.type}${context.file ? `, file: ${context.file}` : ""})`,
-        );
-
-        // Inject task context so conversation Nina knows which task the user is viewing
-        if (context.type === "task" && context.taskId && sessionManager) {
-          sessionManager.setTaskContext(context.taskId, context.title);
-        }
-      }
       const textContent = content.trim().toLowerCase();
 
-      // ── Slash command: /new ─────────────────────────────────────────
+      // /new command
       if (textContent === "/new") {
-        // Delete the previous conversation if it's empty
         if (currentConversationId) {
-          await deleteIfEmpty(currentConversationId);
+          await app.chat.deleteIfEmpty(currentConversationId);
+          if (fastify.abbreviationQueue) fastify.abbreviationQueue.enqueue(currentConversationId);
         }
-        // Queue abbreviation for the conversation we're leaving
-        queueAbbreviationForCurrent();
-
-        // Create new conversation (emits conversation:created → StatePublisher)
-        const conversation = await fastify.app!.conversations.create();
-
-        currentConversationId = conversation.id;
+        const result = await app.chat.newConversationWithWelcome();
+        currentConversationId = result.conversation.id;
         currentTurnNumber = 0;
-
-        // Create session for new conversation
-        sessionManager = await sessionRegistry.getOrCreate(conversation.id);
-
-        // Update registry
-        connectionRegistry.switchConversation(socket, conversation.id);
-
-        // Build confirmation message as a turn (included in conversation_loaded)
-        const confirmationTurn: Turn = {
-          role: "assistant",
-          content: "Starting fresh! How can I help?",
-          timestamp: new Date().toISOString(),
-          turnNumber: 0,
-        };
-
-        // Send conversation_loaded with the confirmation message included
-        // This resets frontend state AND shows the welcome message in one event
-        send({
-          type: "conversation_loaded",
-          conversation: toConversationMeta(conversation),
-          turns: [confirmationTurn],
-          hasMore: false,
-        });
-
-        // Also send conversation_created to update sidebar for THIS socket
-        send({
-          type: "conversation_created",
-          conversation: toConversationMeta(conversation),
-        });
-
-        // Broadcast to other sockets so their sidebars update
-        connectionRegistry.broadcastToAll(
-          {
-            type: "conversation_created",
-            conversation: toConversationMeta(conversation),
-          },
-          socket,
-        );
-
+        await app.sessionRegistry.getOrCreate(result.conversation.id);
+        connectionRegistry.switchConversation(socket, result.conversation.id);
+        send({ type: "conversation_loaded", conversation: result.conversation, turns: result.turns, hasMore: result.hasMore });
+        send({ type: "conversation_created", conversation: result.conversation });
+        connectionRegistry.broadcastToAll({ type: "conversation_created", conversation: result.conversation }, socket);
         return;
       }
 
-      // ── Slash command: /model ───────────────────────────────────────
+      // /model command
       const modelMatch = textContent.match(/^\/model(?:\s+(\w+))?$/);
       if (modelMatch) {
-        const modelArg = modelMatch[1];
-
-        if (!modelArg) {
-          // Show current model and options
-          const conversation = currentConversationId
-            ? await conversationManager.get(currentConversationId)
-            : null;
-          const currentModel = conversation?.model || loadModels().sonnet;
-          const modelName = currentModel.includes("opus")
-            ? "Opus"
-            : currentModel.includes("haiku")
-              ? "Haiku"
-              : "Sonnet";
-
-          send({ type: "start" });
-          send({
-            type: "text_delta",
-            content: `Current model: ${modelName}\n\nAvailable: /model opus, /model sonnet, /model haiku`,
-          });
-          send({ type: "done" });
-          return;
+        for await (const event of app.chat.handleModelCommand(currentConversationId, modelMatch[1])) {
+          send(chatEventToServerMessage(event));
         }
-
-        // Map shorthand to full model ID
-        const m = loadModels();
-        const modelMap: Record<string, string> = {
-          opus: m.opus,
-          sonnet: m.sonnet,
-          haiku: m.haiku,
-        };
-
-        const newModelId = modelMap[modelArg];
-        if (!newModelId) {
-          send({ type: "start" });
-          send({
-            type: "text_delta",
-            content: `Unknown model "${modelArg}". Available: opus, sonnet, haiku`,
-          });
-          send({ type: "done" });
-          return;
+        if (modelMatch[1] && currentConversationId) {
+          const models = loadModels();
+          const newModelId = { opus: models.opus, sonnet: models.sonnet, haiku: models.haiku }[modelMatch[1]];
+          if (newModelId) {
+            connectionRegistry.broadcastToConversation(currentConversationId, {
+              type: "conversation_model_changed", conversationId: currentConversationId, model: newModelId,
+            });
+          }
         }
-
-        if (!currentConversationId) {
-          send({ type: "start" });
-          send({
-            type: "text_delta",
-            content: `No active conversation. Send a message first to start one.`,
-          });
-          send({ type: "done" });
-          return;
-        }
-
-        // Update conversation model
-        await conversationManager.setModel(currentConversationId, newModelId);
-
-        // Invalidate cached session and stored SDK session so next message uses the new model fresh
-        sessionRegistry.remove(currentConversationId);
-        sessionManager = null;
-        // Clear stored SDK session — model change requires a fresh SDK session
-        conversationManager
-          .getConversationDb()
-          .updateSdkSessionId(currentConversationId, null);
-
-        const modelName = modelArg.charAt(0).toUpperCase() + modelArg.slice(1);
-        send({ type: "start" });
-        send({ type: "text_delta", content: `Switched to ${modelName}.` });
-        send({ type: "done" });
-
-        // Broadcast model change to this and other clients
-        connectionRegistry.broadcastToConversation(currentConversationId, {
-          type: "conversation_model_changed",
-          conversationId: currentConversationId,
-          model: newModelId,
-        });
-
         return;
       }
 
-      // ── Normal message processing ───────────────────────────────────
-
-      // Expand /my-agent:* skill commands (inject skill content)
-      const expandedContent = await expandSkillCommand(content, fastify.agentDir);
-      const isSkillCommand = expandedContent !== content;
-      if (isSkillCommand) {
-        fastify.log.info(`Expanded skill command in message`);
-      }
-
-      // Create conversation if needed (emits conversation:created → StatePublisher)
-      if (!currentConversationId) {
-        const conversation = await fastify.app!.conversations.create();
-        currentConversationId = conversation.id;
-        currentTurnNumber = 0;
-
-        // Set model if provided (user selected before first message)
-        if (model) {
-          await conversationManager.setModel(conversation.id, model);
-          conversation.model = model;
-        }
-
-        connectionRegistry.switchConversation(socket, conversation.id);
-
-        send({
-          type: "conversation_created",
-          conversation: toConversationMeta(conversation),
-        });
-
-        // Broadcast to other sockets so their sidebar updates
-        connectionRegistry.broadcastToAll(
-          {
-            type: "conversation_created",
-            conversation: toConversationMeta(conversation),
-          },
-          socket,
-        );
-      }
-
-      // Get or create session for this conversation (load stored SDK session ID for resumption)
-      if (!sessionManager) {
-        const storedSid = conversationManager
-          .getConversationDb()
-          .getSdkSessionId(currentConversationId);
-        sessionManager = await sessionRegistry.getOrCreate(
-          currentConversationId,
-          storedSid,
-        );
-        const isWarm = sessionRegistry.isWarm(currentConversationId);
-        fastify.log.info(
-          `Session ${isWarm ? "warm" : "cold"} for conversation ${currentConversationId}, sdkSessionId: ${storedSid ?? "none"}`,
-        );
-      }
-
-      // Increment turn number
-      currentTurnNumber++;
-      const turnNumber = currentTurnNumber;
-      const userTimestamp = new Date().toISOString();
-
-      // Process attachments and build content blocks for Agent SDK
-      type ContentBlock =
-        | { type: "text"; text: string }
-        | {
-            type: "image";
-            source: { type: "base64"; media_type: string; data: string };
-          };
-
-      let contentBlocks: ContentBlock[] | undefined;
-      const savedAttachments: Array<{
-        id: string;
-        filename: string;
-        localPath: string;
-        mimeType: string;
-        size: number;
-      }> = [];
-
-      if (attachments && attachments.length > 0 && attachmentService) {
-        contentBlocks = [];
-
-        // Add text content first if present, or a placeholder for image-only messages
-        // Use expandedContent for brain (includes skill instructions if any)
-        if (expandedContent.trim()) {
-          contentBlocks.push({ type: "text", text: expandedContent });
-        } else {
-          // Image-only message — add minimal context for Claude
-          contentBlocks.push({ type: "text", text: "What is this?" });
-        }
-
-        // Process each attachment
-        for (const attachment of attachments) {
-          try {
-            const saved = await attachmentService.save(
-              currentConversationId,
-              attachment.filename,
-              attachment.mimeType,
-              attachment.base64Data,
-            );
-            savedAttachments.push(saved.meta);
-
-            // Build content block based on type
-            if (attachmentService.isImage(attachment.mimeType)) {
-              // Image: add as image block
-              contentBlocks.push({
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: attachment.mimeType,
-                  data: attachment.base64Data,
-                },
-              });
-            } else {
-              // Text file: decode and include as text
-              const textContent = Buffer.from(
-                attachment.base64Data,
-                "base64",
-              ).toString("utf-8");
-              contentBlocks.push({
-                type: "text",
-                text: `<file name="${attachment.filename}">\n${textContent}\n</file>`,
-              });
-            }
-          } catch (err) {
-            const message =
-              err instanceof Error ? err.message : "Failed to save attachment";
-            send({ type: "error", message });
-            fastify.log.error(err, `Attachment save failed: ${message}`);
-          }
-        }
-
-        // If no text content and contentBlocks is empty (all attachments failed), fall back
-        if (contentBlocks.length === 0) {
-          contentBlocks = undefined;
-        }
-      }
-
-      // Save user turn (include attachment metadata if present)
-      const userTurn: TranscriptTurn = {
-        type: "turn",
-        role: "user",
-        content,
-        timestamp: userTimestamp,
-        turnNumber,
-        attachments: savedAttachments.length > 0 ? savedAttachments : undefined,
-      };
-
-      await conversationManager.appendTurn(currentConversationId, userTurn);
-
-      // Fire-and-forget embedding for conversation search (M6.7-S4)
-      if (fastify.conversationSearchService) {
-        fastify.conversationSearchService
-          .indexTurn(currentConversationId, turnNumber, "user", content)
-          .catch(() => {});
-      }
-
-      // Touch idle timer on user message
-      if (idleTimerManager) {
-        idleTimerManager.touch(currentConversationId);
-      }
-
-      // Broadcast user turn to other tabs
-      connectionRegistry.broadcastToConversation(
-        currentConversationId,
-        {
-          type: "conversation_updated",
-          conversationId: currentConversationId,
-          turn: toTurn(userTurn),
-        },
-        socket,
-      );
-
-      // Send start
-      send({ type: "start" });
+      // Normal message — stream via ChatService
       isStreaming = true;
+      currentTurnNumber++;
 
-      let assistantContent = "";
-      let thinkingText = "";
-      let usage: { input: number; output: number } | undefined;
-      let cost: number | undefined;
-
-      // Get model: prefer message's model, fall back to stored model
-      const conversation = await conversationManager.get(currentConversationId);
-      const modelOverride = model || conversation?.model || undefined;
-
-      // Debug logging to trace model flow
-      fastify.log.info(
-        `[Model Debug] Message model: ${model}, Conversation model: ${conversation?.model}, Override: ${modelOverride}, ConvId: ${currentConversationId}`,
-      );
-
-      // If message specifies model and it differs from stored, persist it
-      if (model && model !== conversation?.model) {
-        await conversationManager.setModel(currentConversationId, model);
-      }
-
-      // Start response timer: sends interim status messages to web client
+      // Response timer (adapter-owned for interim status UX)
       const responseTimer = new ResponseTimer({
-        sendTyping: async () => {}, // Web uses text_delta streaming, no typing needed
-        sendInterim: async (message) => {
-          send({ type: "interim_status", message });
-        },
+        sendTyping: async () => {},
+        sendInterim: async (message) => send({ type: "interim_status", message }),
       });
       responseTimer.start();
 
       try {
-        // Use content blocks if we have attachments, otherwise plain text
-        // For brain: use expandedContent (with skill instructions)
-        const messageContent = contentBlocks || expandedContent;
-        fastify.log.info(
-          `Sending message with ${Array.isArray(messageContent) ? messageContent.length + " content blocks" : "text"}`,
-        );
-        if (Array.isArray(messageContent)) {
-          fastify.log.info(
-            `Content block types: ${messageContent.map((b) => b.type).join(", ")}`,
-          );
-        }
-
-        fastify.log.info("Starting stream iteration...");
         let firstToken = true;
-        for await (const event of sessionManager.streamMessage(messageContent, {
-          model: modelOverride,
-          reasoning,
-        })) {
-          fastify.log.info(`Stream event: ${event.type}`);
-          switch (event.type) {
-            case "text_delta":
-              if (firstToken) {
-                responseTimer.cancel();
-                firstToken = false;
-              }
-              assistantContent += event.text;
-              send({ type: "text_delta", content: event.text });
-              break;
-            case "thinking_delta":
-              thinkingText += event.text;
-              send({ type: "thinking_delta", content: event.text });
-              break;
-            case "thinking_end":
-              send({ type: "thinking_end" });
-              break;
-            case "done":
-              usage = event.usage;
-              cost = event.cost;
-              send({
-                type: "done",
-                cost: event.cost,
-                usage: event.usage,
-              });
-              break;
-            case "error":
-              send({ type: "error", message: event.message });
-              break;
-          }
-        }
-        fastify.log.info("Stream iteration complete");
-
-        // Save assistant turn
-        const assistantTurn: TranscriptTurn = {
-          type: "turn",
-          role: "assistant",
-          content: assistantContent,
-          timestamp: new Date().toISOString(),
-          turnNumber,
-          thinkingText: thinkingText || undefined,
-          usage,
-          cost,
-        };
-
-        await conversationManager.appendTurn(
+        for await (const event of app.chat.sendMessage(
           currentConversationId,
-          assistantTurn,
-        );
-
-        // Fire-and-forget embedding for conversation search (M6.7-S4)
-        if (fastify.conversationSearchService && assistantContent) {
-          fastify.conversationSearchService
-            .indexTurn(
-              currentConversationId,
-              turnNumber,
-              "assistant",
-              assistantContent,
-            )
-            .catch(() => {});
-        }
-
-        // Persist SDK session ID for future resumption (cold starts, server restarts)
-        const sdkSid = sessionManager?.getSessionId();
-        if (sdkSid && currentConversationId) {
-          conversationManager
-            .getConversationDb()
-            .updateSdkSessionId(currentConversationId, sdkSid);
-        }
-
-        // Touch idle timer on assistant response complete
-        if (idleTimerManager) {
-          idleTimerManager.touch(currentConversationId);
-        }
-
-        // Log turn completion for diagnostics
-        fastify.log.info(
-          `Turn ${currentTurnNumber} completed for ${currentConversationId}`,
-        );
-
-        // Trigger naming at turn 5 (fire-and-forget)
-        if (currentTurnNumber === 5 && currentConversationId) {
-          // Capture conversation ID to avoid closure issues if user switches
-          const convIdForNaming = currentConversationId;
-
-          // Lazily initialize naming service (auth handled by createBrainQuery)
-          if (!namingService) {
-            namingService = new NamingService();
+          content,
+          currentTurnNumber,
+          { reasoning, model, attachments, context },
+        )) {
+          // Handle start effects
+          if (event.type === "start" && event._effects) {
+            const effects = event._effects as StartEffects;
+            currentConversationId = effects.conversationId;
+            if (effects.conversationCreated) {
+              connectionRegistry.switchConversation(socket, effects.conversationId);
+              send({ type: "conversation_created", conversation: effects.conversationCreated });
+              connectionRegistry.broadcastToAll({ type: "conversation_created", conversation: effects.conversationCreated }, socket);
+            }
+            connectionRegistry.broadcastToConversation(
+              effects.conversationId,
+              { type: "conversation_updated", conversationId: effects.conversationId, turn: effects.userTurn },
+              socket,
+            );
           }
 
-          // Fire-and-forget naming
-          (async () => {
-            try {
-              // Check if title already set (user may have renamed manually)
-              const conv = await conversationManager.get(convIdForNaming);
-              if (conv?.title) {
-                return;
-              }
-
-              const turns = await conversationManager.getRecentTurns(
-                convIdForNaming,
-                10,
-              );
-              const result = await namingService!.generateName(turns);
-              await conversationManager.setTitle(convIdForNaming, result.title);
-              await conversationManager.setTopics(
-                convIdForNaming,
-                result.topics,
-              );
-
-              // Broadcast to ALL clients
-              connectionRegistry.broadcastToAll({
-                type: "conversation_renamed",
-                conversationId: convIdForNaming,
-                title: result.title,
-              });
-
-              fastify.log.info(
-                `Named conversation ${convIdForNaming}: ${result.title} [${result.topics.join(", ")}]`,
-              );
-            } catch (err) {
-              fastify.log.error(
-                err,
-                `Naming failed for conversation ${convIdForNaming}`,
-              );
-            }
-          })();
-        }
-
-        // Post-response hooks (task extraction, etc.) — fire-and-forget
-        if (fastify.postResponseHooks && currentConversationId) {
-          fastify.postResponseHooks
-            .run(currentConversationId, textContent, assistantContent)
-            .catch(() => {});
+          const serverMsg = chatEventToServerMessage(event);
+          if (serverMsg.type === "text_delta" && firstToken) {
+            responseTimer.cancel();
+            firstToken = false;
+          }
+          send(serverMsg);
         }
 
         // Broadcast assistant turn to other tabs
-        connectionRegistry.broadcastToConversation(
-          currentConversationId,
-          {
-            type: "conversation_updated",
-            conversationId: currentConversationId,
-            turn: toTurn(assistantTurn),
-          },
-          socket,
-        );
+        // (The assistant content was saved by ChatService; we need the turn for broadcast)
+        // Naming broadcasts are handled via app events → StatePublisher
       } catch (err) {
         responseTimer.cancel();
-        fastify.log.error(err, "Error in streamMessage");
-        send({
-          type: "error",
-          message: err instanceof Error ? err.message : "Unknown error",
-        });
+        send({ type: "error", message: err instanceof Error ? err.message : "Unknown error" });
       } finally {
         responseTimer.cancel();
         isStreaming = false;
       }
     }
 
-    function send(msg: ServerMessage) {
-      if (socket.readyState === 1) {
-        // WebSocket.OPEN
-        socket.send(JSON.stringify(msg));
+    // ── Socket close ────────────────────────────────────────────────
+
+    socket.on("close", async () => {
+      fastify.log.info("Chat WebSocket disconnected");
+      clearInterval(pingInterval);
+
+      const wasLastViewer = currentConversationId && connectionRegistry.getViewerCount(currentConversationId) === 1;
+      connectionRegistry.remove(socket);
+
+      if (wasLastViewer && currentConversationId && fastify.abbreviationQueue) {
+        fastify.abbreviationQueue.enqueue(currentConversationId);
       }
+
+      scriptedEngine = null;
+      if (hatchingSession) {
+        if (hatchingSession.query) await hatchingSession.query.interrupt();
+        hatchingSession.cleanup();
+        hatchingSession = null;
+      }
+    });
+
+    // ── Send helper ─────────────────────────────────────────────────
+
+    function send(msg: ServerMessage): void {
+      if (socket.readyState === 1) socket.send(JSON.stringify(msg));
     }
   });
 }
 
-/**
- * Convert Conversation to ConversationMeta for protocol
- */
-function toConversationMeta(conv: Conversation): ConversationMeta {
-  return {
-    id: conv.id,
-    title: conv.title,
-    topics: conv.topics,
-    created: conv.created.toISOString(),
-    updated: conv.updated.toISOString(),
-    turnCount: conv.turnCount,
-    model: conv.model,
-    externalParty: conv.externalParty,
-    isPinned: conv.isPinned,
-    status: conv.status,
-  };
-}
-
-/**
- * Convert TranscriptTurn to Turn for protocol
- */
-function toTurn(turn: TranscriptTurn): Turn {
-  return {
-    role: turn.role,
-    content: turn.content,
-    timestamp: turn.timestamp,
-    turnNumber: turn.turnNumber,
-    thinkingText: turn.thinkingText,
-    usage: turn.usage,
-    cost: turn.cost,
-    attachments: turn.attachments,
-    channel: turn.channel,
-  };
+/** Map ChatEvent to ServerMessage wire format. */
+function chatEventToServerMessage(event: ChatEvent): ServerMessage {
+  switch (event.type) {
+    case "start":
+      return { type: "start" };
+    case "text_delta":
+      return { type: "text_delta", content: event.text };
+    case "thinking_delta":
+      return { type: "thinking_delta", content: event.text };
+    case "thinking_end":
+      return { type: "thinking_end" };
+    case "done":
+      return { type: "done", cost: event.cost, usage: event.usage };
+    case "error":
+      return { type: "error", message: event.message };
+  }
 }
