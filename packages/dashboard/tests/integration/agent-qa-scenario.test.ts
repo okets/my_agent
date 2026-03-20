@@ -122,4 +122,42 @@ describe("Agent QA Scenario", () => {
     expect(errorEvent).toBeDefined();
     expect(errorEvent.message).toBe("Service unavailable");
   });
+
+  it("supports multi-turn conversation headlessly", async () => {
+    const { conversation } = await harness.chat.newConversation();
+
+    // Turn 1
+    for await (const _e of harness.chat.sendMessage(
+      conversation.id,
+      "First message",
+      1,
+    )) {}
+
+    // Turn 2
+    for await (const _e of harness.chat.sendMessage(
+      conversation.id,
+      "Second message",
+      2,
+    )) {}
+
+    // Verify both turns persisted
+    const loaded = await harness.chat.switchConversation(conversation.id);
+    const userTurns = loaded.turns.filter((t) => t.role === "user");
+    expect(userTurns).toHaveLength(2);
+  });
+
+  it("chat:done event includes conversation ID", async () => {
+    const { conversation } = await harness.chat.newConversation();
+    const doneEvents: any[] = [];
+    harness.emitter.on("chat:done", (convId: string) => {
+      doneEvents.push({ convId });
+    });
+    for await (const _e of harness.chat.sendMessage(
+      conversation.id,
+      "Hello",
+      1,
+    )) {}
+    expect(doneEvents).toHaveLength(1);
+    expect(doneEvents[0].convId).toBe(conversation.id);
+  });
 });
