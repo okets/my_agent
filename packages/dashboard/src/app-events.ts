@@ -41,6 +41,18 @@ export interface AppEventMap {
 
   // Skills
   "skills:changed": [];
+
+  // Chat streaming events (emitted by ChatService through App)
+  "chat:text_delta": [conversationId: string, text: string];
+  "chat:thinking_delta": [conversationId: string, text: string];
+  "chat:thinking_end": [conversationId: string];
+  "chat:done": [
+    conversationId: string,
+    cost?: number,
+    usage?: { input: number; output: number },
+  ];
+  "chat:error": [conversationId: string, message: string];
+  "chat:start": [conversationId: string];
 }
 
 export type AppEvent = keyof AppEventMap;
