@@ -1,6 +1,6 @@
 # Self-Evolving Agent Infrastructure
 
-> *"The API is for agents, maintained by agents."*
+> *"The App is for agents, maintained by agents."*
 
 ---
 
@@ -25,16 +25,46 @@ Manual testing is slow. Humans click through UIs. Agents could test programmatic
 
 Traditional software development: humans write APIs, humans maintain APIs, humans use APIs.
 
-Agentic software development: agents use APIs. When the API doesn't serve their needs, agents should be able to extend it.
+Agentic software development: agents use the App directly. When the App doesn't expose what they need, agents extend it.
 
-This isn't about replacing human oversight. It's about reducing friction. When a QA agent needs to verify a new feature but the API doesn't expose the relevant state, the agent shouldn't file a ticket and wait. It should:
+This isn't about replacing human oversight. It's about reducing friction. When a QA agent needs to verify a new feature but the App doesn't expose the relevant state, the agent shouldn't file a ticket and wait. It should:
 
 1. Document what it needs
-2. Implement the endpoint
+2. Implement the App method
 3. Continue testing
 4. Report what it added
 
-The human reviews the sprint output — including API changes — and approves or revises.
+The human reviews the sprint output — including App method additions — and approves or revises.
+
+---
+
+## The Headless App
+
+Since M6.10, the application core is a headless `App` class that agents drive directly — no HTTP server, no browser, no WebSocket. The web dashboard is a thin adapter over the App.
+
+**Headless API reference:** `docs/design/headless-api.md`
+
+### What agents can do headlessly
+
+| Capability | App Method | Replaces |
+|------------|-----------|----------|
+| Send messages, get streaming response | `app.chat.sendMessage()` | WebSocket chat UI |
+| Inspect system prompt + components | `app.debug.systemPrompt()` | `GET /api/debug/brain/prompt` |
+| Check brain status (hatched, auth, model) | `app.debug.brainStatus()` | `GET /api/debug/brain/status` |
+| List brain files | `app.debug.brainFiles()` | `GET /api/debug/brain/files` |
+| List skills | `app.debug.skills()` | `GET /api/debug/brain/skills` |
+| Create/manage tasks | `app.tasks.create()`, `.update()` | `POST /api/admin/tasks` |
+| Manage conversations | `app.chat.newConversation()`, `.switch()` | WebSocket + REST |
+| Listen for state changes | `app.on('task:updated', ...)` | WebSocket state messages |
+
+### Why headless-first
+
+- **Faster** — no HTTP roundtrip, no browser startup, no Playwright overhead
+- **Cheaper** — fewer tokens spent on curl commands and HTML parsing
+- **Deterministic** — no UI rendering timing, no WebSocket race conditions
+- **Parallel-safe** — multiple App instances can coexist (separate databases)
+
+The HTTP Debug/Admin API still exists as one adapter over the App. Agents should prefer headless methods. HTTP is for browser-based debugging when a human needs it.
 
 ---
 
@@ -44,12 +74,13 @@ Every sprint team includes a **QA agent**. The QA agent has three responsibiliti
 
 ### 1. Test Everything
 
-Use the Debug/Admin API to verify sprint changes:
-- Send messages, verify responses
-- Inspect system prompt assembly
-- Check cache state before and after operations
-- Simulate channel messages
-- Verify calendar integration
+Use the headless App to verify sprint changes:
+- `app.chat.sendMessage()` — send messages, collect streaming events, verify responses
+- `app.debug.systemPrompt()` — inspect system prompt assembly and components
+- `app.debug.brainStatus()` — check hatching, auth, model configuration
+- `app.tasks.create()` / `app.on('task:updated', ...)` — test task lifecycle
+- `app.conversations.*` — test conversation management
+- Listen for events via `app.on(eventName, handler)` — verify live updates fire
 
 ### 2. Document Gaps
 
@@ -59,7 +90,7 @@ When testing reveals missing capabilities, document them:
 ## WISHLIST.md
 
 ### Missing: Conversation token count
-**Needed:** GET /api/debug/conversation/:id/tokens
+**Needed:** app.debug.conversationTokens(conversationId)
 **Why:** Can't verify context window usage before sending messages
 **Workaround used:** None, had to skip this test
 ```
@@ -69,10 +100,10 @@ When testing reveals missing capabilities, document them:
 Spawn a subagent to implement the missing capability:
 
 ```
-Add endpoint GET /api/debug/conversation/:id/tokens to the debug API.
+Add method conversationTokens(conversationId) to AppDebugService.
 Should return: { inputTokens, outputTokens, total, limit }
-See docs/design/debug-api.md for patterns.
-Follow existing code style in packages/dashboard/src/routes/debug.ts
+See packages/dashboard/src/debug/debug-queries.ts for patterns.
+Add the corresponding pure function in debug-queries.ts, then wire it in app-debug-service.ts.
 ```
 
 Then continue testing with the new capability.
@@ -108,50 +139,57 @@ Humans can reject, revise, or refine. But the work is done. Review is faster tha
 
 Not all agents get the same capabilities:
 
-| Agent | Can Use API | Can Extend API | Can Modify Core |
-|-------|-------------|----------------|-----------------|
-| QA Agent | ✓ | ✓ (via subagent) | ✗ |
+| Agent | Can Use App | Can Extend App | Can Modify Core |
+|-------|------------|----------------|-----------------|
+| QA Agent | ✓ | ✓ (via subagent — add debug queries, App methods) | ✗ |
 | Dev Agent | ✓ | ✓ | ✓ (reviewed) |
 | Brain (Nina) | ✓ (limited) | ✗ | ✗ |
 
-The QA agent can extend the API but not touch core business logic. Extensions go through the same review as any other code change.
+The QA agent can extend the App's debug/introspection surface but not touch core business logic. Extensions go through the same review as any other code change.
 
 ---
 
-## Implementation Requirements
+## Implementation Layers
 
-### Debug API (`/api/debug/*`)
+### Primary: Headless App (M6.10+)
 
-Read-only inspection of agent internals:
-- System prompt assembly and components
-- Cache state (TTL, size, contents)
-- Conversation context being sent to model
-- Brain file inventory
-- Skill registry
+Agents drive the App class directly — no server required:
 
-### Admin API (`/api/admin/*`)
+**Introspection (`app.debug.*`):**
+- `brainStatus()` — hatching, auth, model
+- `systemPrompt()` — assembled prompt with component breakdown
+- `brainFiles()` — brain directory listing
+- `skills()` — framework and user skill inventory
 
-Mutating operations for test scenarios:
-- Inject messages into conversations
-- Invalidate caches
-- Reset hatching state
-- Simulate channel messages
-- Create/delete calendar events
-- Write to notebook files
+**Chat (`app.chat.*`):**
+- `sendMessage(conversationId, content, turnNumber)` — streaming via AsyncGenerator
+- `newConversation()`, `switchConversation()`, `deleteConversation()`
+- `connect()` — get current conversation state
 
-### WebSocket QA Mode (`?qa=true`)
+**State (`app.tasks.*`, `app.conversations.*`):**
+- Full CRUD on tasks and conversations
+- Event subscription via `app.on('task:updated', handler)`
 
-Extensions for programmatic chat testing:
-- Send messages to specific conversations (not just "current")
-- Get immediate conversation ID on creation
-- Receive complete turn data after streaming
-- Wait-for-idle synchronization
+**Test harness (`AppHarness`):**
+- Lightweight App-compatible environment for integration tests
+- Mock SDK sessions for testing chat without LLM calls
+- Broadcast capture for verifying event emission
+
+### Secondary: HTTP API (adapter)
+
+The Debug/Admin REST API remains available as a thin adapter over the App. Useful when:
+- A human needs to debug via browser
+- An external tool requires HTTP
+- The headless App doesn't expose something yet (add it — see pattern above)
+
+**Debug routes:** `GET /api/debug/*` — read-only inspection
+**Admin routes:** `POST /api/admin/*` — mutating operations
+**WebSocket:** `ws://localhost:4321/api/chat/ws` — real-time chat
 
 ### Security
 
-- Localhost-only access (no remote exploitation)
-- Actions logged to debug.log
-- QA mode clearly marked in logs
+- Headless App: in-process, no network exposure
+- HTTP API: localhost-only access, actions logged to debug.log
 
 ---
 
@@ -173,13 +211,13 @@ This is how agent infrastructure should work: **serving agents, maintained by ag
 
 **Mitigation:** All changes go through sprint review. Humans approve the diff.
 
-### Risk: API grows without coherence
+### Risk: App surface grows without coherence
 
-**Mitigation:** Design doc (`docs/design/debug-api.md`) defines patterns. Agents follow patterns or explain deviations.
+**Mitigation:** Debug queries are pure functions in `debug-queries.ts`. Design doc (`docs/design/headless-api.md`) defines patterns. Agents follow patterns or explain deviations.
 
 ### Risk: Security holes introduced
 
-**Mitigation:** Localhost-only. No auth means no auth bugs. Logging provides audit trail.
+**Mitigation:** Headless App is in-process (no network). HTTP adapter is localhost-only. Logging provides audit trail.
 
 ### Risk: Agents get stuck in loops
 
@@ -200,4 +238,5 @@ Agents are users now.
 ---
 
 *Philosophy documented: 2026-02-18*
+*Updated: 2026-03-20 — Headless App replaces HTTP as primary agent interface (M6.10)*
 *Part of: my_agent framework*

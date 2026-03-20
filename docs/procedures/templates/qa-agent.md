@@ -6,7 +6,101 @@
 
 You are the **QA Agent** for this sprint. Your job is end-to-end testing of all changes.
 
-## Tools Available
+## Primary: Headless App Verification (mandatory)
+
+**Always use headless methods first.** They are faster, cheaper, and more reliable than HTTP/browser testing.
+
+### Setup
+
+```typescript
+import { AppHarness } from "packages/dashboard/tests/integration/app-harness.js";
+import { installMockSession } from "packages/dashboard/tests/integration/mock-session.js";
+
+const harness = await AppHarness.create();
+// For chat tests without real LLM calls:
+installMockSession(harness, { response: "Expected response" });
+```
+
+### Introspection
+
+```typescript
+// Brain status (hatched, auth, model)
+const status = await harness.debug.brainStatus();
+
+// System prompt with component breakdown
+const prompt = await harness.debug.systemPrompt();
+console.log(prompt.totalChars, prompt.components);
+
+// Brain files
+const files = await harness.debug.brainFiles();
+
+// Skills inventory
+const skills = await harness.debug.skills();
+```
+
+### Chat Testing
+
+```typescript
+// Create conversation and send message
+const { conversation } = await harness.chat.newConversation();
+const events = [];
+for await (const event of harness.chat.sendMessage(conversation.id, "Hello", 1)) {
+  events.push(event);
+}
+// Verify streaming events
+const types = events.map(e => e.type);
+assert(types.includes("start"));
+assert(types.includes("done"));
+```
+
+### Task Lifecycle
+
+```typescript
+// Create task and listen for events
+harness.emitter.on("task:created", (task) => console.log("Created:", task.id));
+harness.emitter.on("task:updated", (task) => console.log("Updated:", task.status));
+
+const task = harness.tasks.create({
+  type: "immediate",
+  sourceType: "manual",
+  createdBy: "agent",
+  title: "Test task",
+  instructions: "Verify something",
+});
+harness.tasks.update(task.id, { status: "running" });
+harness.tasks.update(task.id, { status: "completed" });
+```
+
+### Conversation Management
+
+```typescript
+const { conversation } = await harness.chat.newConversation();
+await harness.chat.renameConversation(conversation.id, "Test Conv");
+const loaded = await harness.chat.switchConversation(conversation.id);
+await harness.chat.deleteConversation(conversation.id);
+```
+
+### Event Verification
+
+```typescript
+// Verify live updates fire on mutations
+const events = [];
+harness.emitter.on("task:updated", (task) => events.push(task));
+harness.tasks.update(taskId, { status: "completed" });
+assert(events.length === 1);
+```
+
+### Cleanup
+
+```typescript
+await harness.shutdown(); // Closes DBs, removes temp dir
+```
+
+**Reference:** `docs/design/headless-api.md` — full API surface and patterns
+
+## Secondary: HTTP API (when browser testing is needed)
+
+Only use HTTP/browser testing when the sprint modifies frontend HTML/CSS/JS.
 
 ### Debug API (localhost:4321)
 
@@ -37,32 +131,33 @@ Use the standard WebSocket protocol for chat testing. Send messages, receive str
 ## Workflow
 
 1. **Review sprint changes** — Understand what was modified
-2. **Write test scenarios** — Cover new/changed functionality
-3. **Execute tests** — Use API endpoints and WebSocket
-4. **Document results** — Report with evidence (API responses, screenshots)
+2. **Write headless test scenarios** — Cover new/changed functionality using App methods
+3. **Execute tests** — Run via `AppHarness` (primary) or HTTP API (fallback)
+4. **Browser test** — Only if sprint touches frontend code
+5. **Document results** — Report with evidence (assertions, event logs)
 
 ## If You Can't Test Something
 
-When the API doesn't expose what you need:
+When the App doesn't expose what you need:
 
 1. **Document in WISHLIST.md:**
    ```markdown
-   ### Missing: [endpoint description]
-   **Needed:** [HTTP method] [path]
+   ### Missing: [capability description]
+   **Needed:** app.debug.[methodName]() or app.[service].[method]()
    **Why:** [what test couldn't be done]
    **Workaround:** [if any]
    ```
 
 2. **Spawn a subagent to implement it:**
    ```
-   Add endpoint [description] to the debug/admin API.
-   See docs/design/debug-api.md for patterns.
-   Follow existing style in packages/dashboard/src/routes/
+   Add method [name] to AppDebugService (or relevant service).
+   Add the pure function in packages/dashboard/src/debug/debug-queries.ts.
+   Wire it in packages/dashboard/src/debug/app-debug-service.ts.
    ```
 
 3. **Continue testing with the new capability**
 
-## If You Find an API Bug
+## If You Find a Bug
 
 1. Document the bug
 2. Spawn a subagent to fix it
@@ -72,41 +167,7 @@ When the API doesn't expose what you need:
 
 Use the [test-report.md](./test-report.md) template for your final report.
 
-## Example Test Scenarios
-
-### Chat Functionality
-```bash
-# Check brain status
-curl http://localhost:4321/api/debug/brain/status
-
-# View system prompt
-curl http://localhost:4321/api/debug/brain/prompt
-
-# Invalidate calendar cache before testing
-curl -X POST http://localhost:4321/api/admin/caches/calendar-context/invalidate
-
-# Inject a test message
-curl -X POST http://localhost:4321/api/admin/inject-message \
-  -H "Content-Type: application/json" \
-  -d '{"conversationId": "conv-XXX", "role": "user", "content": "test"}'
-```
-
-### Calendar Integration
-```bash
-# Check calendar events
-curl http://localhost:4321/api/debug/calendar/events
-
-# Verify cache invalidation works
-curl -X POST http://localhost:4321/api/admin/caches/calendar-context/invalidate
-curl http://localhost:4321/api/debug/brain/prompt | jq '.components.calendar'
-```
-
-### Conversation Context
-```bash
-# Check what's being sent to the model
-curl http://localhost:4321/api/debug/conversation/conv-XXX/context
-```
-
 ---
 
-*See also: [docs/design/debug-api.md](../../design/debug-api.md) for full API specification*
+*See also: [docs/design/headless-api.md](../../design/headless-api.md) for full headless API specification*
+*See also: [docs/design/debug-api.md](../../design/debug-api.md) for HTTP API specification*

@@ -556,9 +556,9 @@ Extract a headless `App` class from the dashboard so the application can be driv
 | Sprint | Name | Scope | Status |
 |--------|------|-------|--------|
 | S1 | Business Layer Integration Tests | `AppHarness` + integration tests for core flows (conversation, task, channel, memory, state publishing). Capture behavior before extraction. | Complete — [plan](sprints/m6.10-s1-business-layer-integration-tests/plan.md) [review](sprints/m6.10-s1-business-layer-integration-tests/review.md) |
-| S2 | Extract App Class + Live Update Guarantee | Move service ownership from Fastify decorators to `App.create()`. All mutations emit events — live updates become structural, not opt-in. StatePublisher subscribes to App events. `index.ts` becomes ~50 lines. | Planned |
-| S3 | Chat Handler Decomposition | Split 900-line `chat-handler.ts` into App-owned `ChatService` + thin WS adapter. Streaming state machine extraction. | Planned |
-| S4 | Agent-Driven Verification | Agent-style test scenarios driving App directly. Prove QA agents can operate headlessly. Document headless API. | Planned |
+| S2 | Extract App Class + Live Update Guarantee | Move service ownership from Fastify decorators to `App.create()`. All mutations emit events — live updates become structural, not opt-in. StatePublisher subscribes to App events. `index.ts` becomes ~50 lines. | Complete — [plan](sprints/m6.10-s2-extract-app-class/plan.md) [review](sprints/m6.10-s2-extract-app-class/review.md) |
+| S3 | Chat Handler Decomposition | Split 900-line `chat-handler.ts` into App-owned `ChatService` + thin WS adapter. Streaming state machine extraction. | Complete — [plan](sprints/m6.10-s3-chat-handler-decomposition/plan.md) [review](sprints/m6.10-s3-chat-handler-decomposition/review.md) |
+| S4 | Agent-Driven Verification | Agent-style test scenarios driving App directly. Prove QA agents can operate headlessly. Document headless API. | Complete — [plan](sprints/m6.10-s4-agent-driven-verification/plan.md) [review](sprints/m6.10-s4-agent-driven-verification/review.md) |
 
 **Key design decisions:**
 
