@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-19 (M6.8 Skills Architecture complete)
+> **Updated:** 2026-03-21 (Release roadmap planned: M7–M14)
 
 ---
 
@@ -23,32 +23,30 @@
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5 incl. S2.5, S3.5), 593 tests |
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
-| **M6.11: Multimodal**        | Planned  | 4 sprints (rich input, rich output, micro-websites, voice mode) |
-| **M7: Coding Projects**      | Redesign | Reframe as Working Agent pattern post-M6.7 |
-| ~~**M8: Operations Dashboard**~~ | Absorbed | → M6.6 (UI work folded into lifecycle sprints) |
-| **M9: Email Integration**    | Redesign | Redesign post-M6.7 (Working Agent routing) |
-| **M10: External Comms**      | Redesign | Redesign post-M6.7 (Working Agent for external contacts) |
+| **M7: Persistent Workspaces** | Planned | 2 sprints (workspace entity, lifecycle) |
+| **M8: Desktop Automation**   | Planned | 2 sprints (Computer Use integration, cross-platform) |
+| **M9: Multimodal**           | Planned | 4 sprints (rich input, rich output + visual thinking, micro-websites, voice mode) |
+| **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
+| **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
+| **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
+| **M13: Platform Hardening**  | Planned | 3 sprints (auth, backup/restore, update mechanism) |
+| **M14: Release**             | Planned | 2 sprints (security audit, documentation + launch) |
 
 ---
 
 ## Visual Timeline
 
 ```
-2026-02                                          2026-03+
-├─────────────────────────────────────────────────────────────────────►
+COMPLETED (M1–M6.10)
+════════════════════
+M1 Foundation ► M2 Web UI ► M3 WhatsApp ► M4 Notebook ► M4.5 Calendar ► M5 Tasks ► M6 Memory
+► M6.5 SDK ► M6.7 Two-Agent ► M6.6 Lifecycle ► M6.9 Knowledge ► M6.8 Skills ► M6.10 Headless
+   All complete — 682 tests, 72 test files
 
-M1 Foundation    M2 Web UI       M3 WhatsApp    M4 Notebook   M4.5 Calendar   M5 Tasks         M6 Memory        M6.5 SDK
-[████████████]   [████████████]   [████████████]  [████████████]  [████████████]   [████████████]   [████████████]   [████████████]
-   COMPLETE         COMPLETE         COMPLETE        COMPLETE        COMPLETE         COMPLETE         COMPLETE         COMPLETE
-                                                                                                    M6.7 Two-Agent   M6.6 Lifecycle   M6.9 Knowledge   M6.8 Skills      M6.10 Headless
-                                                                                                    [████████████]   [████████████]   [████████████]   [████████████]   [░░░░░░░░░░]
-                                                                                                       COMPLETE         COMPLETE         COMPLETE         COMPLETE         PLANNED
-                                                                                                                                                             │
-                                                                                                                                                       ┌─────┴─────┐
-                                                                                                                                                       ▼           ▼
-                                                                                                                                          M6.11 Multimodal   M7 (redesign)  M9 (redesign)
-                                                                                                                                                               [░░░░░░░░░░]
-                                                                                                                                                                  PLANNED                      M10 (redesign)
+FUTURE (M7–M14) — ~22 sprints to release
+═════════════════════════════════════════
+M7 Workspaces ──► M8 Desktop Auto ──► M9 Multimodal ──► M10 Channel SDK ──► M11 External Comms ──► M12 iOS ──► M13 Hardening ──► M14 Release
+  (2 sprints)       (2 sprints)         (4 sprints)       (4 sprints)          (2 sprints)          (3 sprints)   (3 sprints)       (2 sprints)
 ```
 
 ---
@@ -672,89 +670,191 @@ The knowledge system gets a lifecycle. Facts are classified at extraction (perma
 
 ---
 
-### M6.11: Multimodal — PLANNED
+### M7: Persistent Workspaces — PLANNED
 
-Nina goes beyond text — understanding images and voice messages, producing rich deliverables (images, artifacts, links), and speaking back via TTS.
+Decouple work folders from task lifecycle. Workspaces become persistent, reusable contexts that tasks attach to. A "coding project" is just a long-lived workspace pointed at a repo.
 
-**Note:** Conversation Nina vs Working Agent responsibility split TBD after M6.8 (skills architecture will clarify routing).
+**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M7
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | Rich Input | Planned | Verify/fix image passthrough (dashboard + WhatsApp). Voice messages: STT (Whisper or similar) → text → Claude. Both channels. |
-| S2 | Rich Output | Planned | Asset storage + serving (`/assets/:taskId/`), deliverable type schema (text/image/html), image inline rendering in chat, link delivery. Both channels. |
-| S3 | Micro-websites | Planned *(nice-to-have)* | Iframe rendering for task-generated HTML artifacts in dashboard chat. Only if straightforward. |
-| S4 | Voice Mode | Planned | TTS on Conversation Nina responses. Dashboard audio playback + WhatsApp voice note replies. |
+| S1 | Workspace Entity | Planned | Workspace model (id, name, path, type: internal/external), WorkspaceStorage (CRUD), migration of existing task folders, workspace-task relationship in agent.db. MCP tools: `create_workspace`, `list_workspaces`. |
+| S2 | Workspace Lifecycle | Planned | Workspace persistence across tasks, workspace browser in dashboard, "attach to workspace" in task creation, external repo registration, workspace-scoped CLAUDE.md + skills loading. |
 
-**Dependencies:** M6.8 (skills architecture — determines how multimodal capabilities route between conversation and worker agents)
+**Core principle:** Workspace = a folder with a manifest file. The folder IS the workspace. agent.db indexes for search/listing but is derived and rebuildable.
 
----
+**Key design questions (resolve during spec):**
+- Source of truth for workspace manifest: format, location, external repo referencing
+- Archive/cleanup policy for inactive workspaces
+- How does the agentic task executor discover which workspace to use?
 
-### M7: Coding Projects — NEEDS REDESIGN
+**Dependencies:** M6.10 (headless App — workspace management via App API)
 
-Autonomous coding projects. Original design predates M6.7's two-agent architecture.
-
-**Design spec:** [coding-projects.md](design/coding-projects.md) — needs update
-
-**Redesign notes:**
-- "User's Code Projects" should be reframed as a Working Agent with the user's repo as cwd, not a separate concept
-- Process supervision may be overscoped — evaluate after M6.6 work loop is running
-- Internal self-development projects are Working Agents spawned by the work loop
-- Session streaming and `/whats-next` deliverables are still valid
-
-**Dependencies:** M6.6 (agentic lifecycle — work loop powers autonomous project spawning), M6.11 (rich deliverables for code output)
+**Supersedes:** Old M7 (Coding Projects). "User's Code Projects" becomes a workspace pointed at a repo.
 
 ---
 
-### ~~M8: Operations Dashboard~~ — ABSORBED → M6.6
+### M8: Desktop Automation — PLANNED
 
-Most operations UI already exists from M5-S10 (live dashboard) and M6 (memory). Remaining deliverables (work loop status, responsibility management) are folded into M6.6 sprints.
+Working Agents can control desktop applications via Claude Computer Use.
 
-**Original design spec:** [operations-dashboard.md](design/operations-dashboard.md)
+**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M8
 
-**What moved where:**
-- Work loop status panel → M6.6 (part of lifecycle UI)
-- Responsibility manager → M6.6 (part of lifecycle UI)
-- Task browser, memory viewer, settings → Already implemented (M5, M6)
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Computer Use Integration | Planned | Wire Claude Computer Use tools (screenshot, mouse, keyboard) into the agentic task executor. Safety hooks (confirmation before destructive actions, screenshot audit log). Linux first. |
+| S2 | Cross-Platform + UX | Planned | macOS support (Accessibility API permissions flow), desktop automation skill for the brain, task result screenshots in dashboard. |
 
----
+**Key design questions (resolve during spec):**
+- Trust tier: per-task approval or workspace-level permission?
+- Screenshot storage and privacy
+- Rate limiting / timeout guards
 
-### M9: Email Integration — NEEDS REDESIGN
-
-Email as a task submission mechanism routed to Working Agents. Original deliverables are directionally correct but need redesign to align with M6.7's external contact routing and Working Agent model.
-
-**Design reference:** [channels.md](design/channels.md), [conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) §2 External Contact Routing
-
-**Redesign notes:**
-- Core flow (inbound email → Working Agent) aligns with M6.7, but implementation details need rethinking
-- "Personal role" (monitoring user's email) depends on M6.6's responsibility system — could be a separate sprint gate
-- "Dedicated role" (agent's email) only needs M6.7's Working Agent routing
-- Escalation flow is defined in M6.7 design — M9 implements the email-specific parts
-- May overlap with M10 (external contacts) — consider merging
-
-**Dependencies:** M6.7 (external contact routing, escalation queue), M6.6 (email monitoring as responsibility)
+**Dependencies:** M7 (workspaces — desktop automation tasks benefit from persistent workspace context)
 
 ---
 
-### M10: External Communications — NEEDS REDESIGN
+### M9: Multimodal — PLANNED
 
-Cross-channel external communications via Working Agents. Original design predates M6.7 — assumed Nina handled external contacts directly. Post-M6.7, external contacts go to Working Agents.
+Nina goes beyond text — understanding images and voice, producing rich visual deliverables, thinking visually, and speaking back via TTS. Rich visual output is a key differentiator.
 
-**Design references:**
+**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M9
 
-- [channels.md](design/channels.md) — identity-based routing, ruleset model
-- [conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) §2 External Contact Routing
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Rich Input | Planned | Image passthrough verification/fix (dashboard + WhatsApp). Voice messages: STT engine selection (Whisper or similar), audio → text pipeline, transcription in chat. Both channels. |
+| S2 | Rich Output + Visual Thinking | Planned | Asset storage + serving, deliverable types (text/image/file/html), inline rendering. MCP tools for Nina to generate visual artifacts mid-conversation (diagrams, formatted cards). "Visual communication" skill — behavioral guidance on when to reach for visuals vs. text. |
+| S3 | Micro-websites | Planned | Sandboxed iframe for task-generated HTML artifacts in chat. Interactive deliverables. Security (CSP, sandboxing). Preview for WhatsApp. |
+| S4 | Voice Mode | Planned | TTS engine (local/open — Qwen 3 TTS or similar). Dashboard audio playback. WhatsApp voice notes. Streaming TTS. Settings toggle. |
 
-**Redesign notes:**
-- "Personal channel role" partially overlaps with M9 (email personal role) — resolve overlap
-- Ruleset model is now a Working Agent capability (rules define how a Working Agent handles contacts)
-- Approval flow for sensitive external communications is still needed
-- What remains: WhatsApp external contacts → Working Agent, multi-channel ruleset layer, approval UI
-- Consider merging with M9 into a unified "Working Agent for External Contacts" milestone
+**Key design questions (resolve during spec):**
+- STT/TTS: local models vs. cloud?
+- Asset storage: per-workspace, per-task, or global?
+- Voice mode: always on, toggle, or activation phrase?
+- Visual thinking: how does Nina decide when to produce a visual vs. text?
 
-**Dependencies:** M6.7 (external contact routing, Working Agent model), M6.6 (responsibility system), M9 (email is the first external channel)
+**Dependencies:** M8 (desktop automation — multimodal enriches all prior capabilities)
 
-**⚠️ Stashed Code:**
-M3-S4 stashed code is almost certainly incompatible with M6.7 architecture (assumed per-contact conversations on Nina). Evaluate before attempting recovery — likely discard.
+---
+
+### M10: Channel SDK + Transports — PLANNED
+
+Mature the transport plugin interface into a proper SDK. Prove it with email (MS365) and Discord — two very different transport types (async polling vs. real-time websocket). If the SDK handles both cleanly, it handles anything.
+
+**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M10
+
+**Inspiration:** OpenClaw connector patterns for design reference.
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Transport SDK | Planned | Audit existing transport/channel interface (M3-S6), study OpenClaw connector patterns, define mature Transport SDK (lifecycle hooks, auth flows, message normalization, rich content mapping, health monitoring). Migrate WhatsApp transport to new SDK. |
+| S2 | Email Transport (MS365) | Planned | MS365 transport via Microsoft Graph API. OAuth flow, inbound polling, outbound sending, attachments, threading. Proves SDK works for async polling-based transports. |
+| S3 | Discord Transport | Planned | Discord.js transport. Bot auth, real-time websocket, rich embeds, reactions, threads. Proves SDK works for real-time event-based transports. |
+| S4 | Transport Documentation | Planned | SDK docs, "build your own transport" guide, transport template/scaffold. Community-ready. |
+
+**Key design questions (resolve during spec):**
+- How much to borrow from OpenClaw connector design?
+- Message normalization: unified format across all transports?
+- Auth pattern: per-transport or shared framework?
+
+**Dependencies:** M9 (multimodal — transports need to carry rich content)
+
+**Supersedes:** Old M9 (Email Integration) and old M10 (External Communications). Email becomes a transport; external routing moves to M11.
+
+---
+
+### M11: External Communications — PLANNED
+
+The agent communicates with people other than the owner, across all transports, via Working Agents.
+
+**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M11
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | External Contact Routing | Planned | Working Agent spawned per external contact/conversation. Contact registry (markdown-first). Routing rules. Inbound routing across WhatsApp + email + Discord. |
+| S2 | Ruleset + Approval Flow | Planned | Cross-channel ruleset model (auto-reply, queue, block per contact/group). Approval UI in dashboard. Outbound sending on behalf of owner. Notification on escalation. |
+
+**Key design questions (resolve during spec):**
+- Contact identity across transports (same person on WhatsApp + email = one contact?)
+- Ruleset storage: per-contact YAML or workspace-level config?
+- Approval UX: quick-approve vs. full review queue?
+
+**Dependencies:** M10 (Channel SDK — transports must exist before routing external messages through them)
+
+**⚠️ Stashed Code:** M3-S4 stashed code is almost certainly incompatible with M6.7 architecture. Evaluate before attempting recovery — likely discard.
+
+---
+
+### M12: iOS App — PLANNED
+
+Native iOS app for the agent. Push notifications, multimodal support, full assistant experience on mobile.
+
+**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M12
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | App Foundation | Planned | Project setup (Swift/SwiftUI), headless App client connection, auth flow, basic chat UI. |
+| S2 | Full Chat Experience | Planned | Streaming responses, rich content rendering (images, files, micro-websites), voice input/output, conversation history, conversation switching. |
+| S3 | Native Features | Planned | Push notifications (APNs), Siri Shortcuts, home screen widget, background refresh, app store preparation. |
+
+**Key design questions (resolve during spec):**
+- Connection model: via dashboard server or direct to headless App?
+- SwiftUI vs. React Native vs. WebView wrapper?
+- Push notification delivery architecture
+
+**Dependencies:** M11 (external comms — iOS app benefits from all channels + multimodal being complete)
+
+---
+
+### M13: Platform Hardening — PLANNED
+
+Infrastructure that makes the agent safe, recoverable, and updatable.
+
+**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M13
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Dashboard Authentication | Planned | Session-based auth for web UI. Login flow, session tokens, secure cookies. Multi-user foundation (owner + guests). |
+| S2 | Backup & Restore | Planned | Full/partial backup (`.my_agent/` + DBs + config). Restore with index rebuild. CLI commands. Automated pre-update backup. |
+| S3 | Update Mechanism | Planned | Version tracking, `my-agent update`, schema migrations, breaking change detection, rollback via backup. |
+
+**Key design questions (resolve during spec):**
+- Auth: password/token or OAuth?
+- Backup format: tarball or structured export?
+- Update channel: git pull, npm, or custom registry?
+
+**Dependencies:** M12 (iOS app — hardening happens after all features are built)
+
+---
+
+### M14: Release — PLANNED
+
+Everything is audited, documented, and ready for other people to use.
+
+**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M14
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Security Audit | Planned | Review trust tiers, hooks, guardrails. Pen-test auth. Audit transport SDK auth flows. Review Computer Use safety hooks. Harden permissions. Fix findings. |
+| S2 | Documentation + Launch | Planned | User-facing README, getting started guide, hatching walkthrough, transport SDK guide, architecture overview. Examples. Landing page. License. |
+
+**Dependencies:** M13 (hardening — security audit reviews hardened platform)
+
+---
+
+### ~~Old M7: Coding Projects~~ — SUPERSEDED → M7 Persistent Workspaces
+
+"User's Code Projects" reframed as a persistent workspace pointed at a repo. Process supervision deferred. Session streaming and `/whats-next` deliverables remain valid for future enhancement.
+
+**Original design spec:** [coding-projects.md](design/coding-projects.md) — historical reference
+
+---
+
+### ~~Old M8: Operations Dashboard~~ — ABSORBED → M6.6
+
+Most operations UI already exists from M5-S10 (live dashboard) and M6 (memory). Work loop status and responsibility management folded into M6.6 sprints.
+
+**Original design spec:** [operations-dashboard.md](design/operations-dashboard.md) — historical reference
 
 ---
 
@@ -764,7 +864,7 @@ Design specs define architecture before implementation. Each spec should be comp
 
 | Spec                 | Status   | Milestones  | Path                                                             |
 | -------------------- | -------- | ----------- | ---------------------------------------------------------------- |
-| Channels             | Complete | M3, M9, M10 | [design/channels.md](design/channels.md)                         |
+| Channels             | Complete | M3, M10, M11 | [design/channels.md](design/channels.md)                        |
 | Conversations        | Revised  | M2, M6.7    | [design/conversation-system.md](design/conversation-system.md) + [conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Notebook             | Complete | M4, M5, M10 | [design/notebook.md](design/notebook.md)                         |
 | Calendar System      | Complete | M4.5        | [design/calendar-system.md](design/calendar-system.md)           |
@@ -779,12 +879,13 @@ Design specs define architecture before implementation. Each spec should be comp
 | settingSources       | Revised  | M6.5, M6.8  | [design/settings-sources-evaluation.md](design/settings-sources-evaluation.md) |
 | Two-Agent Refactor   | Approved | M6.7        | [plans/2026-03-04-conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Skills Architecture  | Complete | M6.8        | [superpowers/specs/2026-03-15-skills-architecture-design.md](superpowers/specs/2026-03-15-skills-architecture-design.md) |
-| Multimodal           | Idea     | M6.11       | TBD — rich input/output, voice mode, asset serving |
+| Release Roadmap      | Approved | M7–M14      | [superpowers/specs/2026-03-21-release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) |
+| Multimodal           | Idea     | M9          | TBD — rich input/output, visual thinking, voice mode, asset serving |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
 | Knowledge Lifecycle  | Approved | M6.9        | [sprints/m6.6-s6-knowledge-lifecycle/design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md) |
 | Trip Mode & Verification Pipeline | Complete | Process | [superpowers/specs/2026-03-12-trip-mode-verification-pipeline-design.md](superpowers/specs/2026-03-12-trip-mode-verification-pipeline-design.md) |
 | Headless App         | Approved | M6.10       | [superpowers/specs/2026-03-16-headless-app-design.md](superpowers/specs/2026-03-16-headless-app-design.md) |
-| Coding Projects      | Complete | M7          | [design/coding-projects.md](design/coding-projects.md)           |
+| Coding Projects      | Superseded | ~~M7~~ → M7 Workspaces | [design/coding-projects.md](design/coding-projects.md) |
 | Operations Dashboard | Absorbed | ~~M8~~ → M6.6 | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
 **Note:** M3 (WhatsApp), M9 (Email), and M10 (External Comms) are covered by `channels.md`. M6.7's conversation lifecycle and channel routing are covered by `conversation-nina-design.md`. `conversation-system.md` and `channels.md` need updates to align with M6.7 design (scheduled as M6.7-S2 deliverable).
@@ -794,56 +895,43 @@ Design specs define architecture before implementation. Each spec should be comp
 ## Dependencies
 
 ```
-M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 Notebook ───► M4.5 Calendar
-      (done)          (done)         (done)           (done)            (done)
-                                                                          │
-                                                                          ▼
-                                                                  M5 Tasks (S10=Live)
-                                                                          │
-                                                                          ▼
-                                                                      M6 Memory
-                                                                          │
-                                                                          ▼
-                                                                   M6.5 SDK Alignment
-                                                                          │
-                                                                          ▼
-                                                               M6.7 Two-Agent Refactor
-                                                                      │       │
-                                                                      │       └─────────────────────────┐
-                                                                      ▼                                 │
-                                                          M6.6 Agentic Lifecycle (+ M8 absorbed)        │
-                                                                      │                                 │
-                                                                      ▼                                 │
-                                                           M6.9 Knowledge Lifecycle (COMPLETE)           │
-                                                                      │                                 │
-                                                               ┌──────┴──────┐                          │
-                                                               ▼             ▼                          │
-                                                        M6.8 Skills       M9 Email ◄───────────────────┘
-                                                        (COMPLETE)          (needs redesign)
-                                                               │              │
-                                                               ▼              ▼
-                                                        M6.11 Multimodal  M10 External Comms
-                                                               │            (needs redesign)
-                                                               ▼
-                                                        M7 Coding Projects
-                                                          (needs redesign)
+COMPLETED (critical path)
+═════════════════════════
+M1 ► M2 ► M3 ► M4 ► M4.5 ► M5 ► M6 ► M6.5 ► M6.7 ► M6.6 ► M6.9 ► M6.8 ► M6.10
+                                                                                │
+FUTURE (linear chain to release)                                                │
+════════════════════════════════                                                │
+M7 Workspaces ◄─────────────────────────────────────────────────────────────────┘
+  │
+  ▼
+M8 Desktop Automation
+  │
+  ▼
+M9 Multimodal
+  │
+  ▼
+M10 Channel SDK + Transports
+  │
+  ▼
+M11 External Communications
+  │
+  ▼
+M12 iOS App
+  │
+  ▼
+M13 Platform Hardening
+  │
+  ▼
+M14 Release
 ```
 
-**Critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8. All complete.
+**Completed critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8 → M6.10. All complete. 682 tests, 72 test files.
 
-**M6.8 complete.** Skills architecture delivers SDK-native skill discovery, curated skill library, skill management tools (MCP CRUD), dashboard UI (browse/view/edit/delete/toggle with grouping and live refresh), interview-first triage for skill creation, and audience-based skill routing between Conversation Nina and Worker Nina.
+**Future path:** M7 → M8 → M9 → M10 → M11 → M12 → M13 → M14. ~22 sprints. Each milestone builds on the previous. Minimal rework, natural progression.
 
-**M6.10 complete.** Headless App fully extracted: App class owns all services, EventEmitter for all mutations, ChatService decomposed, AppDebugService for agent introspection, mock SDK sessions for headless QA testing. 682 tests, 72 test files.
+**Release definition:** Anyone can hatch their own agent. Full multimodal communication. Owner + external contacts on WhatsApp, email, Discord. iOS app. Desktop automation. Persistent workspaces. Backup/restore/update. Secure and documented.
 
-**M6.11 is next.** Multimodal capabilities (rich input, rich output, voice mode). Conversation/worker split clarified by M6.8 skill routing.
-
-**M7 requires M6.6 + M6.11:** Autonomous coding projects are triggered by the work loop. Rich deliverables from M6.11 enable code output beyond text. M7 will extend the `work-patterns.md` schema to support dynamic responsibility spawning.
-
-**M9 builds on M6.7 + M6.6.** Email integration uses M6.7's external contact routing and M6.6's work loop for email monitoring responsibilities.
-
-**M8 absorbed into M6.6:** System calendar provides work loop visibility. Most dashboard already exists from M5-S10 and M6.
-
-**M9 and M10 need redesign:** Both were designed pre-M6.7. External contacts now route to Working Agents, not to Conversation Nina. May merge into a single "Working Agent for External Contacts" milestone.
+**Release roadmap spec:** [superpowers/specs/2026-03-21-release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md)
 
 **Sprint quality gate:** Every future milestone's final sprint includes E2E automated tests + one comprehensive human-in-the-loop test walkthrough.
 
@@ -853,22 +941,23 @@ M1 Foundation ───► M2 Web UI ───► M3 WhatsApp ───► M4 No
 
 Quick fixes and small enhancements outside the milestone structure.
 
-| Sprint | Name | Status | Plan | Review |
-| ------ | ---- | ------ | ---- | ------ |
-| — | WhatsApp Typing Indicator | Planned | [plan](sprints/adhoc-whatsapp-typing-indicator/plan.md) | — |
+| Sprint | Name | Status | Plan | Review | Notes |
+| ------ | ---- | ------ | ---- | ------ | ----- |
+| — | WhatsApp Typing Indicator | Planned | [plan](sprints/adhoc-whatsapp-typing-indicator/plan.md) | — | May fold into M10 or M11 |
 
 ---
 
 ## Pre-Release Checklist
 
-Requirements that must be complete before public release, regardless of milestone.
+Requirements that must be complete before public release. All tracked in milestones M13–M14.
 
-| Item                         | Status  | Notes                                                    |
-| ---------------------------- | ------- | -------------------------------------------------------- |
-| **Dashboard authentication** | Pending | Session-based auth for web UI. Currently localhost-only. |
-| **Backup & Restore**        | Pending | Full backup (`.my_agent/` + DBs) or partial (personality, transcripts, tasks, skills). Discovered need during machine migration — no recovery mechanism exists. Skill snapshots enable rollback after `update_skill` corrections. |
-| **Security audit**           | Pending | Review hooks, guardrails, and trust tier enforcement     |
-| **Documentation**            | Pending | User-facing README, setup guide, examples                |
+| Item                         | Status  | Milestone | Notes                                                    |
+| ---------------------------- | ------- | --------- | -------------------------------------------------------- |
+| **Dashboard authentication** | Planned | M13-S1    | Session-based auth for web UI. Currently Tailscale-only. |
+| **Backup & Restore**        | Planned | M13-S2    | Full/partial backup + restore with index rebuild. CLI commands. |
+| **Update mechanism**         | Planned | M13-S3    | Version tracking, migrations, rollback via backup. |
+| **Security audit**           | Planned | M14-S1    | Review hooks, guardrails, trust tiers, transport auth, Computer Use safety. |
+| **Documentation**            | Planned | M14-S2    | User-facing README, setup guide, hatching walkthrough, transport SDK guide. |
 
 ---
 
@@ -887,18 +976,18 @@ Ideas that haven't been promoted to design specs yet.
 
 ---
 
-## Future Wishlist
+## Post-Release Backlog
 
-Long-term features beyond the current milestone plan. Not scheduled, not designed — just captured for future consideration.
+Features enabled by the architecture but explicitly out of scope for release.
 
 | Feature                        | Description                                                                   | Notes                                                                        |
 | ------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Additional Transports**      | Slack, Gmail, Telegram as transport plugins                                   | Community can build via Transport SDK (M10)                                  |
 | **External Calendar Channels** | Google Calendar, Apple iCloud, Outlook as channel plugins                     | Each with own OAuth/auth flow, modeled like WhatsApp/Email channels          |
 | **Mobile Dashboard (Phase 2)** | Advanced mobile features: bottom sheet chat, keyboard handling, accessibility | M2-S7 delivered foundation; remaining: peek/half/full chat, safe areas, a11y |
-| **iOS App**                    | Native iOS app for Nina                                                       | Push notifications, Siri integration, widget support                         |
+| **Navigable Timeline**         | Hero timeline, infinite scroll, search                                        | Design exists: [navigable-timeline.md](design/navigable-timeline.md)         |
+| **Skill Registry**             | Curated, trust-tiered community skill marketplace                             | Community skill sharing and discovery                                         |
 | **Mid-session Intervention**   | Send input to running Claude Code sessions                                    | Depends on Claude Code supporting message injection (steer)                  |
-| **Voice Output (TTS)**         | Give Nina a voice using text-to-speech                                        | Evaluate Qwen 3 TTS — open, sounds good, need to test near real-time latency |
-| **Voice Input (STT)**          | Let Nina understand voice via speech-to-text                                  | Web UI + WhatsApp channels; STT model for voice message transcription        |
 
 ---
 
@@ -995,4 +1084,4 @@ Every milestone's **last sprint** follows a consistent quality gate:
 
 ---
 
-_Updated: 2026-03-04_
+_Updated: 2026-03-21_
