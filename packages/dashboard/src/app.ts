@@ -36,6 +36,7 @@ import {
   needsMigration,
   checkSkillsHealth,
   filterSkillsByTools,
+  loadChannelBindings,
 } from "@my-agent/core";
 import type { HealthChangedEvent } from "@my-agent/core";
 import { createBaileysPlugin } from "@my-agent/channel-whatsapp";
@@ -564,7 +565,18 @@ export class App extends EventEmitter {
             await app.transportManager!.send(transportId, to, message);
           },
           getTransportConfig(id) {
-            return app.transportManager!.getTransportConfig(id);
+            const config = app.transportManager!.getTransportConfig(id);
+            if (!config) return undefined;
+            // ownerJid moved from transport config to channel binding after
+            // the TransportManager refactor — resolve it from the binding
+            if (!config.ownerJid) {
+              const bindings = loadChannelBindings(agentDir);
+              const binding = bindings.find((b) => b.transport === id);
+              if (binding?.ownerJid) {
+                return { ...config, ownerJid: binding.ownerJid };
+              }
+            }
+            return config;
           },
           getTransportInfos() {
             return app.transportManager!.getTransportInfos();
