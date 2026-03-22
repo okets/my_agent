@@ -793,13 +793,12 @@ export class WorkLoopScheduler {
     // Skipped when triggered via API (e.g. test/manual trigger) to prevent unintended messages
     if (!skipOutreach && this.conversationInitiator && output) {
       try {
-        const alerted = await this.conversationInitiator.alert(
-          "The debrief brief has been updated. Ask the user if they'd like to go through it now, or present it naturally if starting a new conversation.",
-        );
+        const debriefPrompt =
+          `[SYSTEM: The morning debrief is ready. Present it naturally to the user. Do NOT call request_debrief — the content is below.]\n\n${output}`;
+        const alerted = await this.conversationInitiator.alert(debriefPrompt);
         if (!alerted) {
           await this.conversationInitiator.initiate({
-            firstTurnPrompt:
-              "[SYSTEM: The debrief brief is ready. Start a new conversation and present it naturally to the user.]",
+            firstTurnPrompt: debriefPrompt,
           });
         }
       } catch (err) {
