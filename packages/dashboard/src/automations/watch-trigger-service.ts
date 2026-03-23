@@ -52,10 +52,68 @@ export class WatchTriggerService extends EventEmitter {
   }
 
   /** Start watching all configured paths */
-  async start(): Promise<void> { /* Task 2 */ }
+  async start(): Promise<void> {
+    const triggers = this.deps.getWatchTriggers();
+    if (triggers.length === 0) {
+      this.deps.log("[WatchTriggerService] No watch triggers configured");
+      return;
+    }
+
+    // Build path -> automationId[] map
+    for (const trigger of triggers) {
+      const existing = this.pathToAutomations.get(trigger.path) ?? [];
+      existing.push(trigger.automationId);
+      this.pathToAutomations.set(trigger.path, existing);
+    }
+
+    // Create one watcher per unique path
+    // chokidar is a transitive dependency via @my-agent/core
+    const chokidarModule = "chokidar";
+    const { watch } = (await import(chokidarModule)) as { watch: (path: string, opts: Record<string, unknown>) => FSWatcher };
+    const uniquePaths = [...new Set(triggers.map(t => t.path))];
+
+    for (const watchPath of uniquePaths) {
+      // Use first trigger's polling settings for this path
+      const config = triggers.find(t => t.path === watchPath)!;
+      const events = config.events ?? ["add", "change"];
+
+      const watcher = watch(watchPath, {
+        persistent: true,
+        ignoreInitial: true,
+        usePolling: config.polling ?? true,
+        interval: config.interval ?? 5000,
+      });
+
+      for (const event of events) {
+        watcher.on(event, (filePath: string) => {
+          this.handleFileEvent(watchPath, filePath, event);
+        });
+      }
+      watcher.on("error", (error: Error) => {
+        this.handleWatcherError(watchPath, error);
+      });
+
+      this.watchers.set(watchPath, watcher);
+      this.deps.log(`[WatchTriggerService] Watching: ${watchPath} (polling: ${config.polling ?? true})`);
+    }
+  }
 
   /** Stop all watchers */
-  async stop(): Promise<void> { /* Task 2 */ }
+  async stop(): Promise<void> {
+    for (const [path, watcher] of this.watchers) {
+      await watcher.close();
+      this.deps.log(`[WatchTriggerService] Stopped watching: ${path}`);
+    }
+    this.watchers.clear();
+    this.pathToAutomations.clear();
+
+    // Clear pending debounce timers
+    for (const pending of this.pendingEvents.values()) {
+      clearTimeout(pending.timer);
+    }
+    this.pendingEvents.clear();
+    this.mountRetryAttempts.clear();
+  }
 
   /** Re-sync watchers when automation manifests change */
   async sync(): Promise<void> { /* Task 3 */ }
