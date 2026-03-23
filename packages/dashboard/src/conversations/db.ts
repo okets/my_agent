@@ -320,6 +320,50 @@ export class ConversationDatabase {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_spaces_tags ON spaces(tags);
     `);
+
+    // M7-S3: Automations table (derived from automation .md files)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS automations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        trigger_config TEXT NOT NULL,
+        spaces TEXT,
+        model TEXT,
+        notify TEXT DEFAULT 'debrief',
+        persist_session INTEGER DEFAULT 0,
+        autonomy TEXT DEFAULT 'full',
+        once INTEGER DEFAULT 0,
+        delivery TEXT,
+        created TEXT NOT NULL,
+        indexed_at TEXT NOT NULL
+      );
+    `);
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_automations_status
+      ON automations(status);
+    `);
+
+    // M7-S3: Jobs table (derived from JSONL files, for timeline queries)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS jobs (
+        id TEXT PRIMARY KEY,
+        automation_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created TEXT NOT NULL,
+        completed TEXT,
+        summary TEXT,
+        context TEXT,
+        sdk_session_id TEXT,
+        run_dir TEXT,
+        FOREIGN KEY (automation_id) REFERENCES automations(id)
+      );
+    `);
+
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_automation ON jobs(automation_id);`);
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created);`);
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);`);
   }
 
   /**
@@ -851,6 +895,266 @@ export class ConversationDatabase {
       maintenance: row.maintenance ? JSON.parse(row.maintenance) : null,
       description: row.description,
       indexedAt: row.indexed_at,
+    };
+  }
+
+  // ── Automation CRUD ───────────────────────────────────────────────
+
+  upsertAutomation(automation: {
+    id: string;
+    name: string;
+    status: string;
+    triggerConfig: string;
+    spaces?: string;
+    model?: string;
+    notify?: string;
+    persistSession?: boolean;
+    autonomy?: string;
+    once?: boolean;
+    delivery?: string;
+    created: string;
+    indexedAt: string;
+  }): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO automations (id, name, status, trigger_config, spaces, model, notify, persist_session, autonomy, once, delivery, created, indexed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        status = excluded.status,
+        trigger_config = excluded.trigger_config,
+        spaces = excluded.spaces,
+        model = excluded.model,
+        notify = excluded.notify,
+        persist_session = excluded.persist_session,
+        autonomy = excluded.autonomy,
+        once = excluded.once,
+        delivery = excluded.delivery,
+        indexed_at = excluded.indexed_at
+    `);
+
+    stmt.run(
+      automation.id,
+      automation.name,
+      automation.status,
+      automation.triggerConfig,
+      automation.spaces ?? null,
+      automation.model ?? null,
+      automation.notify ?? "debrief",
+      automation.persistSession ? 1 : 0,
+      automation.autonomy ?? "full",
+      automation.once ? 1 : 0,
+      automation.delivery ?? null,
+      automation.created,
+      automation.indexedAt,
+    );
+  }
+
+  deleteAutomation(id: string): void {
+    this.db.prepare("DELETE FROM automations WHERE id = ?").run(id);
+  }
+
+  getAutomation(id: string): {
+    id: string;
+    name: string;
+    status: string;
+    triggerConfig: string;
+    spaces: string | null;
+    model: string | null;
+    notify: string;
+    persistSession: boolean;
+    autonomy: string;
+    once: boolean;
+    delivery: string | null;
+    created: string;
+    indexedAt: string;
+  } | null {
+    const row = this.db
+      .prepare("SELECT * FROM automations WHERE id = ?")
+      .get(id) as any;
+    if (!row) return null;
+    return this.rowToAutomation(row);
+  }
+
+  listAutomations(filter?: { status?: string }): Array<{
+    id: string;
+    name: string;
+    status: string;
+    triggerConfig: string;
+    spaces: string | null;
+    model: string | null;
+    notify: string;
+    persistSession: boolean;
+    autonomy: string;
+    once: boolean;
+    delivery: string | null;
+    created: string;
+    indexedAt: string;
+  }> {
+    let sql = "SELECT * FROM automations WHERE 1=1";
+    const params: any[] = [];
+
+    if (filter?.status) {
+      sql += " AND status = ?";
+      params.push(filter.status);
+    }
+
+    sql += " ORDER BY name";
+    const rows = this.db.prepare(sql).all(...params) as any[];
+    return rows.map((row) => this.rowToAutomation(row));
+  }
+
+  private rowToAutomation(row: any): {
+    id: string;
+    name: string;
+    status: string;
+    triggerConfig: string;
+    spaces: string | null;
+    model: string | null;
+    notify: string;
+    persistSession: boolean;
+    autonomy: string;
+    once: boolean;
+    delivery: string | null;
+    created: string;
+    indexedAt: string;
+  } {
+    return {
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      triggerConfig: row.trigger_config,
+      spaces: row.spaces,
+      model: row.model,
+      notify: row.notify,
+      persistSession: !!row.persist_session,
+      autonomy: row.autonomy,
+      once: !!row.once,
+      delivery: row.delivery,
+      created: row.created,
+      indexedAt: row.indexed_at,
+    };
+  }
+
+  // ── Job CRUD ────────────────────────────────────────────────────
+
+  upsertJob(job: {
+    id: string;
+    automationId: string;
+    status: string;
+    created: string;
+    completed?: string;
+    summary?: string;
+    context?: string;
+    sdkSessionId?: string;
+    runDir?: string;
+  }): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO jobs (id, automation_id, status, created, completed, summary, context, sdk_session_id, run_dir)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        status = excluded.status,
+        completed = excluded.completed,
+        summary = excluded.summary,
+        context = excluded.context,
+        sdk_session_id = excluded.sdk_session_id,
+        run_dir = excluded.run_dir
+    `);
+
+    stmt.run(
+      job.id,
+      job.automationId,
+      job.status,
+      job.created,
+      job.completed ?? null,
+      job.summary ?? null,
+      job.context ?? null,
+      job.sdkSessionId ?? null,
+      job.runDir ?? null,
+    );
+  }
+
+  getJob(id: string): {
+    id: string;
+    automationId: string;
+    status: string;
+    created: string;
+    completed: string | null;
+    summary: string | null;
+    context: string | null;
+    sdkSessionId: string | null;
+    runDir: string | null;
+  } | null {
+    const row = this.db
+      .prepare("SELECT * FROM jobs WHERE id = ?")
+      .get(id) as any;
+    if (!row) return null;
+    return this.rowToJob(row);
+  }
+
+  listJobs(filter?: {
+    automationId?: string;
+    status?: string;
+    since?: string;
+    limit?: number;
+  }): Array<{
+    id: string;
+    automationId: string;
+    status: string;
+    created: string;
+    completed: string | null;
+    summary: string | null;
+    context: string | null;
+    sdkSessionId: string | null;
+    runDir: string | null;
+  }> {
+    let sql = "SELECT * FROM jobs WHERE 1=1";
+    const params: any[] = [];
+
+    if (filter?.automationId) {
+      sql += " AND automation_id = ?";
+      params.push(filter.automationId);
+    }
+    if (filter?.status) {
+      sql += " AND status = ?";
+      params.push(filter.status);
+    }
+    if (filter?.since) {
+      sql += " AND created >= ?";
+      params.push(filter.since);
+    }
+
+    sql += " ORDER BY created DESC";
+
+    if (filter?.limit) {
+      sql += " LIMIT ?";
+      params.push(filter.limit);
+    }
+
+    const rows = this.db.prepare(sql).all(...params) as any[];
+    return rows.map((row) => this.rowToJob(row));
+  }
+
+  private rowToJob(row: any): {
+    id: string;
+    automationId: string;
+    status: string;
+    created: string;
+    completed: string | null;
+    summary: string | null;
+    context: string | null;
+    sdkSessionId: string | null;
+    runDir: string | null;
+  } {
+    return {
+      id: row.id,
+      automationId: row.automation_id,
+      status: row.status,
+      created: row.created,
+      completed: row.completed,
+      summary: row.summary,
+      context: row.context,
+      sdkSessionId: row.sdk_session_id,
+      runDir: row.run_dir,
     };
   }
 
