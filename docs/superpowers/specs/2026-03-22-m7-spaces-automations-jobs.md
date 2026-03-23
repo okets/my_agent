@@ -218,7 +218,7 @@ A Job is a discrete unit of work — one execution of an automation. Jobs are **
 
 | Field | Purpose |
 |---|---|
-| `id` | Unique job ID (`job-{ulid}`) |
+| `id` | Unique job ID (`job-{uuid}`) |
 | `created` | Timestamp |
 | `status` | `pending` / `running` / `completed` / `failed` / `needs_review` |
 | `completed` | Completion timestamp |
@@ -452,10 +452,10 @@ Via Bash tool (hooks preserved):
 cd .my_agent/spaces/web-scraper && uv run src/scraper.py '{"url":"https://example.com"}'
 ```
 
-**Error detection hierarchy:**
-1. Exit code != 0 → crash (programmatic)
-2. Empty stdout → no results (programmatic)
-3. Invalid JSON → garbage output (programmatic)
+**Error detection hierarchy** (prompt-driven — the worker agent applies these checks via system prompt instructions, not enforced in executor code):
+1. Exit code != 0 → crash
+2. Empty stdout → no results
+3. Invalid JSON → garbage output
 4. Semantic issues → LLM judgment
 
 **Output mode** declared in `io.output`: `stdout` (JSON to stdout) or `file` (writes to space directory).
@@ -464,9 +464,9 @@ cd .my_agent/spaces/web-scraper && uv run src/scraper.py '{"url":"https://exampl
 
 ### Failure and Repair
 
-Inline repair by the same executor, guided by SPACE.md `maintenance` section:
+Inline repair by the same executor, guided by SPACE.md `maintenance` section (prompt-driven — the worker agent follows these instructions via `buildRepairContext()` injected into its system prompt, not enforced as a code loop in the executor):
 
-1. Tool fails → executor reads `maintenance.on_failure` field
+1. Tool fails → worker reads `maintenance.on_failure` field
 2. If `fix`: reads DECISIONS.md + source code, makes ONE repair attempt, retests
 3. If fixed: logs fix in DECISIONS.md, continues job
 4. If still broken: marks job failed, logs in DECISIONS.md
