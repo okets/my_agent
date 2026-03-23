@@ -4838,8 +4838,23 @@
                   </div>
                 </template>
 
+                <!-- DECISIONS.md selected: Rendered Decision History -->
+                <template x-if="!tab.loading && tab.data?.loaded && tab.selectedFile === 'DECISIONS.md' && tab.fileContent !== null">
+                  <div class="p-4 space-y-4 overflow-y-auto max-h-full">
+                    <div class="flex items-center gap-2 mb-3">
+                      <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                      <span class="text-xs font-medium text-amber-400 uppercase tracking-wider">Decision History</span>
+                    </div>
+                    <div class="prose prose-invert prose-sm max-w-none text-gray-300"
+                         x-html="renderMarkdown(tab.fileContent)">
+                    </div>
+                  </div>
+                </template>
+
                 <!-- Other file selected: Code Preview -->
-                <template x-if="!tab.loading && tab.data?.loaded && tab.selectedFile && tab.selectedFile !== 'SPACE.md' && tab.fileContent !== null">
+                <template x-if="!tab.loading && tab.data?.loaded && tab.selectedFile && tab.selectedFile !== 'SPACE.md' && tab.selectedFile !== 'DECISIONS.md' && tab.fileContent !== null">
                   <div>
                     <div class="flex items-center justify-between mb-4">
                       <h3 class="text-sm font-medium text-tokyo-text flex items-center gap-2">
