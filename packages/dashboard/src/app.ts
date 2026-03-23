@@ -83,9 +83,18 @@ import { ConnectionRegistry } from "./ws/connection-registry.js";
 import { AppChatService } from "./chat/chat-service.js";
 import { AppAuthService } from "./auth/auth-service.js";
 import { AppDebugService } from "./debug/app-debug-service.js";
-import type { Task, CreateTaskInput } from "@my-agent/core";
+import type { Task, CreateTaskInput, Automation } from "@my-agent/core";
 import type { ConversationDatabase } from "./conversations/db.js";
 import type { Conversation } from "./conversations/types.js";
+import {
+  AutomationManager,
+  AutomationJobService,
+  AutomationExecutor,
+  AutomationProcessor,
+  AutomationScheduler,
+  AutomationSyncService,
+} from "./automations/index.js";
+import { createAutomationServer } from "./mcp/automation-server.js";
 
 // ─── Service Namespaces ──────────────────────────────────────────────────────
 // Thin wrappers that delegate reads and emit App events on mutations.
@@ -229,6 +238,63 @@ export class AppSpaceService {
   }
 }
 
+export class AppAutomationService {
+  constructor(
+    private manager: AutomationManager,
+    private processor: AutomationProcessor,
+    private jobService: AutomationJobService,
+    private app: App,
+  ) {}
+
+  // Read-through
+  list(filter?: { status?: string }) {
+    return this.manager.list(filter);
+  }
+  findById(id: string) {
+    return this.manager.findById(id);
+  }
+  read(id: string) {
+    return this.manager.read(id);
+  }
+  listJobs(filter?: Parameters<AutomationJobService["listJobs"]>[0]) {
+    return this.jobService.listJobs(filter);
+  }
+  getJob(id: string) {
+    return this.jobService.getJob(id);
+  }
+
+  // Mutations — emit events
+  create(input: Parameters<AutomationManager["create"]>[0]): Automation {
+    const automation = this.manager.create(input);
+    this.app.emit("automation:created", automation);
+    return automation;
+  }
+
+  async fire(
+    id: string,
+    context?: Record<string, unknown>,
+  ): Promise<void> {
+    const automation = this.manager.findById(id);
+    if (!automation) throw new Error(`Automation ${id} not found`);
+    await this.processor.fire(automation, context);
+  }
+
+  async resume(jobId: string, userInput: string): Promise<void> {
+    const job = this.jobService.getJob(jobId);
+    if (!job) throw new Error(`Job ${jobId} not found`);
+    if (job.status !== "needs_review") {
+      throw new Error(`Job ${jobId} is ${job.status}, not in needs_review`);
+    }
+    const automation = this.manager.findById(job.automationId);
+    if (!automation) throw new Error(`Automation ${job.automationId} not found`);
+    this.jobService.updateJob(jobId, { status: "running" });
+    await this.processor.fire(automation, {
+      resumedFrom: jobId,
+      userResponse: userInput,
+    });
+  }
+}
+
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export interface AppOptions {
@@ -299,6 +365,15 @@ export class App extends EventEmitter {
 
   // Spaces
   spaceSyncService: SpaceSyncService | null = null;
+
+  // Automations
+  automations!: AppAutomationService;
+  automationManager: AutomationManager | null = null;
+  automationJobService: AutomationJobService | null = null;
+  automationExecutor: AutomationExecutor | null = null;
+  automationProcessor: AutomationProcessor | null = null;
+  automationScheduler: AutomationScheduler | null = null;
+  automationSyncService: AutomationSyncService | null = null;
 
   // Health
   healthMonitor: HealthMonitor | null = null;
