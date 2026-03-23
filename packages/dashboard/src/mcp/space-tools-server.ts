@@ -3,6 +3,7 @@ import { z } from "zod";
 import { mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { writeFrontmatter } from "../metadata/frontmatter.js";
+import { ensureDecisionsFile } from "../spaces/decisions.js";
 import type { ConversationDatabase } from "../conversations/db.js";
 
 export interface SpaceToolsServerDeps {
@@ -89,6 +90,8 @@ export function createSpaceToolsServer(deps: SpaceToolsServerDeps) {
         frontmatter,
         args.description ?? "",
       );
+
+      ensureDecisionsFile(spaceDir);
 
       return {
         content: [

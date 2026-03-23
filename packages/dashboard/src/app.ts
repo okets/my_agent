@@ -13,6 +13,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AppEventMap } from "./app-events.js";
 import { writeFrontmatter } from "./metadata/frontmatter.js";
+import { ensureDecisionsFile } from "./spaces/decisions.js";
 
 import {
   resolveAuth,
@@ -213,6 +214,7 @@ export class AppSpaceService {
       frontmatter,
       input.description ?? "",
     );
+    ensureDecisionsFile(spaceDir);
     return spaceDir;
   }
 }
