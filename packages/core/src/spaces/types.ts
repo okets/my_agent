@@ -81,3 +81,11 @@ export interface ListSpacesFilter {
   /** Free-text search on name + description + tags */
   search?: string
 }
+
+/**
+ * A space is a tool when it has runtime + entry + io.
+ * Tool spaces can be invoked via shell commands and have I/O contracts.
+ */
+export function isToolSpace(space: Space): boolean {
+  return !!(space.runtime && space.entry && space.io)
+}

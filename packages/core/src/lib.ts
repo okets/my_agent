@@ -203,7 +203,7 @@ export type {
   SpaceSyncServiceOptions,
   SpaceSyncPayload,
 } from './spaces/index.js'
-export { SpaceSyncService } from './spaces/index.js'
+export { SpaceSyncService, isToolSpace } from './spaces/index.js'
 
 // Memory system
 export {
