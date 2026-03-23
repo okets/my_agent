@@ -1703,6 +1703,11 @@ function chat() {
             taskId: tab.data?.task?.id,
           };
 
+          // Add space name to chat context for space tabs
+          if (tab.type === "space" && tab.data?.name) {
+            this.chatContext.spaceName = tab.data.name;
+          }
+
           // Reload job detail when switching to a workloop tab
           if (tab.type === "workloop" && tab.data?.jobName) {
             this.loadWorkLoopJobDetail(tab.data.jobName);
@@ -5317,6 +5322,44 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         icon: "\u{1F4C1}",
         closeable: true,
       });
+    },
+
+    async loadSpaceDetail(name) {
+      const tab = this.openTabs.find((t) => t.id === `space-${name}`);
+      if (!tab) return;
+      tab.loading = true;
+      this.openTabs = [...this.openTabs];
+      try {
+        const resp = await fetch(
+          `/api/spaces/${encodeURIComponent(name)}`,
+        );
+        const data = await resp.json();
+        tab.data = { ...tab.data, ...data, loaded: true };
+        tab.selectedFile = null;
+        tab.fileContent = null;
+      } catch (err) {
+        console.error("Failed to load space:", err);
+      }
+      tab.loading = false;
+      this.openTabs = [...this.openTabs];
+    },
+
+    async loadSpaceFile(tabId, filePath) {
+      const tab = this.openTabs.find((t) => t.id === tabId);
+      if (!tab) return;
+      const name = tab.data.name;
+      try {
+        const resp = await fetch(
+          `/api/spaces/${encodeURIComponent(name)}/file?path=${encodeURIComponent(filePath)}`,
+        );
+        const data = await resp.json();
+        tab.selectedFile = filePath;
+        tab.fileContent = data.content;
+        tab.fileExtension = data.extension;
+        this.openTabs = [...this.openTabs];
+      } catch (err) {
+        console.error("Failed to load file:", err);
+      }
     },
 
     openNotebookBrowser() {
