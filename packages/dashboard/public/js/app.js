@@ -174,6 +174,97 @@ function chat() {
     timelineProjections: [], // Future projected runs from cron schedules
     timelineOlderJobs: [], // Jobs fetched via pagination (older than WebSocket range)
     canLoadEarlierJobs: true, // Whether more older jobs might exist
+    timelineLoading: false, // Loading state for timeline data
+
+    // Computed-like getters used by timeline templates
+    get timelineItems() {
+      const now = new Date();
+      const items = [];
+
+      // 1. Jobs from WebSocket store + older paginated jobs
+      const wsJobs = Alpine.store("jobs")?.items || [];
+      const allJobs = [...wsJobs, ...this.timelineOlderJobs];
+      const seenJobIds = new Set();
+      for (const job of allJobs) {
+        if (seenJobIds.has(job.id)) continue;
+        seenJobIds.add(job.id);
+        const created = new Date(job.created);
+        items.push({
+          id: `job-${job.id}`,
+          sortDate: created,
+          date: created.toDateString(),
+          isPast: created < now,
+          itemType: "job",
+          status: job.status,
+          title: job.automationName || job.automationId,
+          summary: job.summary,
+          triggerType: job.triggerType,
+          job: job,
+        });
+      }
+
+      // 2. Calendar events
+      for (const evt of this.upcomingEvents || []) {
+        const start = new Date(evt.start);
+        items.push({
+          id: `cal-${evt.id}`,
+          sortDate: start,
+          date: start.toDateString(),
+          isPast: start < now,
+          itemType: "calendar",
+          status: start < now ? "completed" : "scheduled",
+          title: evt.title,
+          summary: null,
+          triggerType: null,
+          event: evt,
+        });
+      }
+
+      // 3. Future projections
+      for (const proj of this.timelineProjections || []) {
+        const projDate = new Date(proj.scheduledFor || proj.date || proj.nextRun);
+        items.push({
+          id: `proj-${proj.automationId}-${projDate.getTime()}`,
+          sortDate: projDate,
+          date: projDate.toDateString(),
+          isPast: false,
+          itemType: "projected",
+          status: "scheduled",
+          title: proj.automationName || proj.automationId,
+          summary: null,
+          triggerType: "schedule",
+        });
+      }
+
+      // Sort chronologically
+      items.sort((a, b) => a.sortDate - b.sortDate);
+
+      // Add date separators
+      let lastDate = null;
+      for (const item of items) {
+        if (item.date !== lastDate) {
+          item.showDateSeparator = true;
+          lastDate = item.date;
+        } else {
+          item.showDateSeparator = false;
+        }
+      }
+
+      return items;
+    },
+
+    get canLoadEarlier() {
+      return this.canLoadEarlierJobs;
+    },
+
+    get canLoadLater() {
+      return !this.noMoreFutureEvents;
+    },
+
+    formatTimeNow() {
+      return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    },
+
     modelOptions: [
       { id: "claude-sonnet-4-6", name: "Sonnet" },
       { id: "claude-haiku-4-5", name: "Haiku" },
@@ -3193,6 +3284,39 @@ function chat() {
       }
 
       await this.loadTimelineData();
+    },
+
+    /**
+     * Format time for a timeline item
+     */
+    formatTimelineTime(item) {
+      const d = item.sortDate || new Date(item.job?.created || item.event?.start || 0);
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    },
+
+    /**
+     * Format a date string for timeline date separators
+     */
+    formatDateSeparator(dateStr) {
+      const d = new Date(dateStr);
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (d.toDateString() === today.toDateString()) return "Today";
+      if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+      return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    },
+
+    /**
+     * Format job duration from created to completed timestamps
+     */
+    formatJobDuration(item) {
+      if (!item.job?.created || !item.job?.completed) return null;
+      const ms = new Date(item.job.completed) - new Date(item.job.created);
+      if (ms < 1000) return "<1s";
+      if (ms < 60000) return `${Math.round(ms / 1000)}s`;
+      if (ms < 3600000) return `${Math.round(ms / 60000)}m`;
+      return `${Math.round(ms / 3600000)}h`;
     },
 
     /**
