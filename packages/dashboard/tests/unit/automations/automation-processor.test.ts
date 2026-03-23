@@ -18,7 +18,7 @@ describe("AutomationProcessor", () => {
   let processor: AutomationProcessor;
   let tempDir: string;
   let automationsDir: string;
-  let onJobMutated: ReturnType<typeof vi.fn>;
+  let onJobEvent: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "auto-processor-"));
@@ -43,13 +43,13 @@ describe("AutomationProcessor", () => {
       }),
     } as any;
 
-    onJobMutated = vi.fn();
+    onJobEvent = vi.fn();
 
     processor = new AutomationProcessor({
       automationManager: manager,
       executor: mockExecutor,
       jobService,
-      onJobMutated,
+      onJobEvent,
     });
   });
 
@@ -76,7 +76,7 @@ describe("AutomationProcessor", () => {
     await processor.fire(automation, { trigger: "manual" });
 
     expect(mockExecutor.run).toHaveBeenCalledTimes(1);
-    expect(onJobMutated).toHaveBeenCalled();
+    expect(onJobEvent).toHaveBeenCalled();
 
     const jobs = jobService.listJobs({ automationId: automation.id });
     expect(jobs).toHaveLength(1);
@@ -157,7 +157,7 @@ describe("AutomationProcessor", () => {
 
     await processor.fire(automation);
 
-    expect(onJobMutated).toHaveBeenCalled();
+    expect(onJobEvent).toHaveBeenCalled();
   });
 
   it("should report isRunning status correctly", async () => {
@@ -199,7 +199,7 @@ describe("AutomationProcessor", () => {
       automationManager: manager,
       executor: mockExecutor,
       jobService,
-      onJobMutated,
+      onJobEvent,
       conversationInitiator: {
         alert: mockAlert,
         initiate: mockInitiate,
@@ -231,7 +231,7 @@ describe("AutomationProcessor", () => {
       automationManager: manager,
       executor: mockExecutor,
       jobService,
-      onJobMutated,
+      onJobEvent,
       conversationInitiator: {
         alert: mockAlert,
         initiate: vi.fn(async () => {}),

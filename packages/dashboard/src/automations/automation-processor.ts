@@ -10,12 +10,14 @@ import type { AutomationManager } from "./automation-manager.js";
 import type { AutomationExecutor, ExecutionResult } from "./automation-executor.js";
 import type { AutomationJobService } from "./automation-job-service.js";
 
+export type JobEventName = "job:created" | "job:completed" | "job:failed" | "job:needs_review";
+
 export interface AutomationProcessorConfig {
   automationManager: AutomationManager;
   executor: AutomationExecutor;
   jobService: AutomationJobService;
-  /** Optional callback fired after any job mutation (for state publishing) */
-  onJobMutated?: () => void;
+  /** Optional callback fired with granular job lifecycle events */
+  onJobEvent?: (event: JobEventName, job: Job) => void;
   /** Optional ConversationInitiator for proactive notifications */
   conversationInitiator?: {
     alert(prompt: string): Promise<boolean>;
@@ -66,6 +68,7 @@ export class AutomationProcessor {
       automation.id,
       triggerContext,
     );
+    this.config.onJobEvent?.("job:created", job);
 
     // 2. Execute
     const result = await this.config.executor.run(
@@ -74,16 +77,25 @@ export class AutomationProcessor {
       triggerContext,
     );
 
-    // 3. Notify based on manifest.notify
+    // 3. Emit granular completion event
+    const updatedJob = this.config.jobService.getJob(job.id);
+    if (updatedJob) {
+      const eventName: JobEventName =
+        updatedJob.status === "needs_review"
+          ? "job:needs_review"
+          : updatedJob.status === "failed"
+            ? "job:failed"
+            : "job:completed";
+      this.config.onJobEvent?.(eventName, updatedJob);
+    }
+
+    // 4. Notify based on manifest.notify
     await this.handleNotification(automation, job.id, result);
 
-    // 4. If once: true, disable automation after success
+    // 5. If once: true, disable automation after success
     if (automation.manifest.once && result.success) {
       this.config.automationManager.disable(automation.id);
     }
-
-    // 5. Emit state change
-    this.config.onJobMutated?.();
   }
 
   /**
@@ -110,11 +122,20 @@ export class AutomationProcessor {
       triggerContext,
     );
 
+    // Emit granular event for resumed job
+    const resumedJob = this.config.jobService.getJob(job.id);
+    if (resumedJob) {
+      const eventName: JobEventName =
+        resumedJob.status === "needs_review"
+          ? "job:needs_review"
+          : resumedJob.status === "failed"
+            ? "job:failed"
+            : "job:completed";
+      this.config.onJobEvent?.(eventName, resumedJob);
+    }
+
     // Handle notification
     await this.handleNotification(automation, job.id, result);
-
-    // Emit state change
-    this.config.onJobMutated?.();
   }
 
   /**
