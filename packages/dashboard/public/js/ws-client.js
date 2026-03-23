@@ -93,6 +93,12 @@ class NinaWebSocket {
                 Alpine.store("memory").loading = false;
               }
               break;
+            case "state:spaces":
+              if (Alpine.store("spaces")) {
+                Alpine.store("spaces").items = data.spaces || [];
+                Alpine.store("spaces").loading = false;
+              }
+              break;
           }
         }
 

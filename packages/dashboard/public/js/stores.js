@@ -25,6 +25,11 @@ document.addEventListener("alpine:init", () => {
     loading: false,
   });
 
+  Alpine.store("spaces", {
+    items: [],
+    loading: false,
+  });
+
   // 'connected' | 'reconnecting' | 'offline'
   Alpine.store("connection", {
     status: "connected",
