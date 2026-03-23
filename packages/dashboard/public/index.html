@@ -1052,22 +1052,6 @@
                 </h2>
                 <div class="flex items-center gap-3">
                   <button
-                    @click="openCreateTaskForm()"
-                    class="text-xs text-tokyo-muted hover:text-tokyo-blue transition-colors flex items-center gap-1"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 16 16"
-                      fill="currentColor"
-                      class="w-3 h-3"
-                    >
-                      <path
-                        d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z"
-                      />
-                    </svg>
-                    New task
-                  </button>
-                  <button
                     @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('calendar', null, $event.currentTarget) : openCalendar()"
                     class="text-xs text-tokyo-muted hover:text-tokyo-blue transition-colors flex items-center gap-1"
                   >
@@ -1210,7 +1194,6 @@
                           'bg-blue-400 animate-pulse': item.status === 'running',
                           'bg-gray-400': item.status === 'pending',
                           'bg-cyan-400/60': item.status === 'scheduled' || item.itemType === 'projected',
-                          'bg-orange-400': item.itemType === 'task' && !['completed', 'failed', 'running', 'pending', 'scheduled'].includes(item.status),
                           'bg-purple-400': item.itemType === 'event' && !['completed'].includes(item.status),
                         }"
                       ></span>
@@ -1234,31 +1217,15 @@
                         ></span>
                         <!-- Badges row -->
                         <div class="flex flex-wrap items-center gap-1">
-                          <!-- Type badge (Task/Event/Job) -->
+                          <!-- Type badge (Event/Job) -->
                           <span
                             class="px-1 py-0.5 text-[9px] rounded font-medium"
                             :class="{
-                              'bg-orange-400/20 text-orange-400': item.itemType === 'task',
                               'bg-purple-400/20 text-purple-400': item.itemType === 'event',
                               'bg-blue-400/20 text-blue-400': item.itemType === 'job'
                             }"
-                            x-text="item.itemType === 'task' ? 'Task' : item.itemType === 'job' ? 'Job' : 'Event'"
+                            x-text="item.itemType === 'job' ? 'Job' : 'Event'"
                           ></span>
-                          <!-- Trigger type for tasks -->
-                          <template
-                            x-if="item.itemType === 'task' && item.triggerType"
-                          >
-                            <span
-                              class="px-1 py-0.5 text-[9px] rounded font-medium"
-                              :class="{
-                                'bg-cyan-400/20 text-cyan-400': item.triggerType === 'recurring',
-                                'bg-blue-400/20 text-blue-400': item.triggerType === 'scheduled',
-                                'bg-tokyo-text/10 text-tokyo-text/60': item.triggerType === 'immediate'
-                              }"
-                              x-text="item.triggerType === 'recurring' ? '🔁' :
-                                      item.triggerType === 'scheduled' ? '📅' : '⚡'"
-                            ></span>
-                          </template>
                           <!-- Trigger type for jobs and projected runs -->
                           <template
                             x-if="(item.itemType === 'job' || item.itemType === 'projected') && item.triggerType"
@@ -1646,17 +1613,6 @@
                               class="text-sm font-medium text-tokyo-text"
                               x-text="channelTitle(ch)"
                             ></span>
-                            <!-- Nina is on it tag -->
-                            <template x-if="hasChannelHelpTask(ch.id)">
-                              <span
-                                class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium flex items-center gap-1"
-                              >
-                                <span
-                                  class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
-                                ></span>
-                                Nina is on it
-                              </span>
-                            </template>
                           </div>
                           <div class="text-xs text-tokyo-muted mt-0.5">
                             <span x-text="friendlyRole(ch.role)"></span>
@@ -1743,34 +1699,9 @@
                               </button>
                               <button
                                 @click.stop="askNinaAboutChannel(ch.id)"
-                                class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
-                                :class="hasChannelHelpTask(ch.id)
-                                  ? 'bg-amber-500/15 text-amber-400 cursor-default'
-                                  : 'bg-tokyo-panel text-tokyo-text hover:bg-white/10'"
-                                :disabled="hasChannelHelpTask(ch.id)"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors bg-tokyo-panel text-tokyo-text hover:bg-white/10"
                               >
-                                <span x-show="!hasChannelHelpTask(ch.id)"
-                                  >Ask Nina</span
-                                >
-                                <span
-                                  x-show="hasChannelHelpTask(ch.id)"
-                                  class="flex items-center gap-1"
-                                >
-                                  <svg
-                                    class="w-3 h-3"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path
-                                      stroke-linecap="round"
-                                      stroke-linejoin="round"
-                                      stroke-width="2"
-                                      d="M5 13l4 4L19 7"
-                                    />
-                                  </svg>
-                                  Asked
-                                </span>
+                                Ask Nina
                               </button>
                               <button
                                 @click.stop="removeChannel(ch.id)"
@@ -3733,399 +3664,6 @@
                         </div>
                       </div>
                     </div>
-                  </template>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <!-- ======================================================== -->
-          <!-- Task Detail Tab (M5-S6)                                   -->
-          <!-- ======================================================== -->
-          <template
-            x-if="openTabs.find(t => t.id === activeTab)?.type === 'task'"
-          >
-            <div class="h-full flex flex-col p-6 overflow-auto">
-              <!-- Header: Title + Status + Actions -->
-              <div class="flex items-start justify-between gap-4 mb-6">
-                <div class="flex items-start gap-4 min-w-0 flex-1">
-                  <!-- Status indicator -->
-                  <div
-                    class="w-4 h-4 rounded-full shrink-0 mt-1.5"
-                    :class="UIComponents.getStatusDotClass(getCurrentTask()?.status)"
-                  ></div>
-                  <!-- Title and badges -->
-                  <div class="min-w-0 flex-1">
-                    <h1
-                      class="text-2xl font-bold text-tokyo-text truncate"
-                      x-text="getCurrentTask()?.title || 'Task'"
-                    ></h1>
-                    <div class="flex items-center gap-2 mt-1">
-                      <span
-                        x-html="UIComponents.renderStatusBadge(getCurrentTask()?.status)"
-                      ></span>
-                      <span
-                        x-html="UIComponents.renderTypeBadge(getCurrentTask()?.type)"
-                      ></span>
-                      <span
-                        x-html="UIComponents.renderSourceBadge(getCurrentTask()?.sourceType)"
-                      ></span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Action buttons -->
-                <div class="flex items-center gap-2 shrink-0">
-                  <!-- Complete button (if not completed) -->
-                  <template
-                    x-if="getCurrentTask()?.status !== 'completed' && getCurrentTask()?.status !== 'deleted'"
-                  >
-                    <button
-                      @click="completeTask(getCurrentTask()?.id)"
-                      class="cal-action-btn cal-action-btn-success"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 20 20"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <polyline points="4 10 8 14 16 6" />
-                      </svg>
-                      <span>Complete</span>
-                    </button>
-                  </template>
-
-                  <!-- Delete button -->
-                  <button
-                    @click="deleteTask(getCurrentTask()?.id)"
-                    class="cal-action-btn cal-action-btn-danger"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path
-                        d="M2.5 5h15M6.5 5V3.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5V5m2 0v11.5a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 5 16.5V5"
-                      />
-                      <path d="M8.5 9v5M11.5 9v5" />
-                    </svg>
-                    <span>Delete</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Metadata section -->
-              <div class="glass-strong rounded-xl p-4 mb-6">
-                <div class="divide-y divide-white/5">
-                  <!-- Created -->
-                  <div
-                    x-html="UIComponents.renderMetadataRow({
-                      icon: UIComponents.ICONS.calendar,
-                      label: 'Created',
-                      value: UIComponents.formatDate(getCurrentTask()?.created)
-                    })"
-                  ></div>
-
-                  <!-- Created by -->
-                  <div
-                    x-html="UIComponents.renderMetadataRow({
-                      icon: UIComponents.ICONS.user,
-                      label: 'Created by',
-                      value: UIComponents.SOURCE_LABELS[getCurrentTask()?.createdBy] || getCurrentTask()?.createdBy
-                    })"
-                  ></div>
-
-                  <!-- Scheduled for (if scheduled) -->
-                  <template x-if="getCurrentTask()?.scheduledFor">
-                    <div
-                      x-html="UIComponents.renderMetadataRow({
-                        icon: UIComponents.ICONS.clock,
-                        label: 'Scheduled for',
-                        value: UIComponents.formatDate(getCurrentTask()?.scheduledFor)
-                      })"
-                    ></div>
-                  </template>
-
-                  <!-- Started at (if running or completed) -->
-                  <template x-if="getCurrentTask()?.startedAt">
-                    <div
-                      x-html="UIComponents.renderMetadataRow({
-                        icon: UIComponents.ICONS.play,
-                        label: 'Started at',
-                        value: UIComponents.formatDate(getCurrentTask()?.startedAt)
-                      })"
-                    ></div>
-                  </template>
-
-                  <!-- Completed at (if completed) -->
-                  <template x-if="getCurrentTask()?.completedAt">
-                    <div
-                      x-html="UIComponents.renderMetadataRow({
-                        icon: UIComponents.ICONS.check,
-                        label: 'Completed at',
-                        value: UIComponents.formatDate(getCurrentTask()?.completedAt)
-                      })"
-                    ></div>
-                  </template>
-                </div>
-              </div>
-
-              <!-- Work Plan (if present) -->
-              <template
-                x-if="getCurrentTask()?.work?.length > 0 || getCurrentTask()?.delivery?.length > 0"
-              >
-                <div class="flex-1 mb-6">
-                  <!-- Work Items -->
-                  <template x-if="getCurrentTask()?.work?.length > 0">
-                    <div class="mb-4">
-                      <h2
-                        class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
-                      >
-                        Work Items
-                      </h2>
-                      <div class="glass-strong rounded-xl p-5 space-y-2">
-                        <template
-                          x-for="item in getCurrentTask().work"
-                          :key="item.description"
-                        >
-                          <div class="flex items-center gap-2 text-sm">
-                            <span
-                              x-show="item.status === 'completed'"
-                              class="text-green-400"
-                              >&#10003;</span
-                            >
-                            <span
-                              x-show="item.status === 'pending'"
-                              class="text-tokyo-muted"
-                              >&#9675;</span
-                            >
-                            <span
-                              x-show="item.status === 'failed'"
-                              class="text-red-400"
-                              >&#10007;</span
-                            >
-                            <span
-                              class="text-tokyo-text"
-                              x-text="item.description"
-                            ></span>
-                          </div>
-                        </template>
-                      </div>
-                    </div>
-                  </template>
-
-                  <!-- Delivery Actions -->
-                  <template x-if="getCurrentTask()?.delivery?.length > 0">
-                    <div>
-                      <h2
-                        class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
-                      >
-                        Delivery
-                      </h2>
-                      <div class="glass-strong rounded-xl p-5 space-y-2">
-                        <template
-                          x-for="action in getCurrentTask().delivery"
-                          :key="action.channel + (action.recipient || '')"
-                        >
-                          <div class="flex items-center gap-2 text-sm">
-                            <span
-                              x-show="action.status === 'completed'"
-                              class="text-green-400"
-                              >&#10003;</span
-                            >
-                            <span
-                              x-show="action.status === 'pending'"
-                              class="text-tokyo-muted"
-                              >&#9675;</span
-                            >
-                            <span
-                              x-show="action.status === 'failed'"
-                              class="text-red-400"
-                              >&#10007;</span
-                            >
-                            <span
-                              x-show="action.status === 'needs_review'"
-                              class="text-orange-400"
-                              >&#9888;</span
-                            >
-                            <span
-                              class="text-tokyo-text capitalize"
-                              x-text="action.channel"
-                            ></span>
-                            <template x-if="action.recipient">
-                              <span
-                                class="text-tokyo-muted"
-                                x-text="'→ ' + action.recipient"
-                              ></span>
-                            </template>
-                          </div>
-                        </template>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-              </template>
-
-              <!-- Instructions -->
-              <div class="flex-1">
-                <h2
-                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
-                >
-                  Instructions
-                </h2>
-
-                <div class="glass-strong rounded-xl p-5 min-h-[200px]">
-                  <template x-if="getCurrentTask()?.instructions">
-                    <div
-                      class="prose prose-invert prose-sm max-w-none"
-                      x-html="DOMPurify.sanitize(marked.parse(getCurrentTask()?.instructions || ''))"
-                    ></div>
-                  </template>
-                  <template x-if="!getCurrentTask()?.instructions">
-                    <p class="text-tokyo-muted italic">
-                      No instructions for this task.
-                    </p>
-                  </template>
-                </div>
-              </div>
-
-              <!-- Execution Log (shows result when task is completed/failed) -->
-              <div
-                class="mt-6"
-                x-data="{ logEntries: [], loading: true }"
-                x-init="
-                loadTaskLog(getCurrentTask()?.id).then(entries => {
-                  logEntries = entries;
-                  loading = false;
-                });
-              "
-                x-show="getCurrentTask()?.status === 'completed' || getCurrentTask()?.status === 'failed' || getCurrentTask()?.status === 'running'"
-              >
-                <h2
-                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
-                >
-                  Execution Log
-                </h2>
-
-                <template x-if="loading">
-                  <p class="text-sm text-tokyo-muted">Loading...</p>
-                </template>
-
-                <template x-if="!loading && logEntries.length === 0">
-                  <p class="text-sm text-tokyo-muted">No execution log yet.</p>
-                </template>
-
-                <template x-if="!loading && logEntries.length > 0">
-                  <div
-                    class="glass-strong rounded-xl p-5 max-h-[400px] overflow-y-auto"
-                  >
-                    <template
-                      x-for="(entry, idx) in logEntries.filter(e => e.type === 'turn')"
-                      :key="idx"
-                    >
-                      <div class="mb-4 last:mb-0">
-                        <div class="flex items-center gap-2 mb-2">
-                          <span
-                            class="text-xs font-medium px-2 py-0.5 rounded"
-                            :class="entry.role === 'user' ? 'bg-tokyo-blue/20 text-tokyo-blue' : 'bg-tokyo-purple/20 text-tokyo-purple'"
-                            x-text="entry.role === 'user' ? 'Instructions' : 'Result'"
-                          ></span>
-                          <span
-                            class="text-xs text-tokyo-muted"
-                            x-text="entry.timestamp ? new Date(entry.timestamp).toLocaleString() : ''"
-                          ></span>
-                        </div>
-                        <div
-                          class="prose prose-invert prose-sm max-w-none"
-                          x-html="DOMPurify.sanitize(marked.parse(entry.content || ''))"
-                        ></div>
-                      </div>
-                    </template>
-                  </div>
-                </template>
-              </div>
-
-              <!-- Linked Conversations -->
-              <div
-                class="mt-6"
-                x-data="{ conversations: [], loading: true }"
-                x-init="
-                loadTaskConversations(getCurrentTask()?.id).then(convs => {
-                  conversations = convs;
-                  loading = false;
-                });
-              "
-              >
-                <h2
-                  class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-3"
-                >
-                  Linked Conversations
-                </h2>
-
-                <template x-if="loading">
-                  <p class="text-sm text-tokyo-muted">Loading...</p>
-                </template>
-
-                <template x-if="!loading && conversations.length === 0">
-                  <p class="text-sm text-tokyo-muted">
-                    No conversations linked to this task yet.
-                  </p>
-                </template>
-
-                <template x-if="!loading && conversations.length > 0">
-                  <div class="space-y-2">
-                    <template
-                      x-for="link in conversations"
-                      :key="link.conversationId"
-                    >
-                      <button
-                        @click="switchConversation(link.conversationId)"
-                        class="w-full flex items-center justify-between p-3 glass-strong rounded-lg hover:bg-white/5 transition-colors text-left"
-                      >
-                        <div class="flex items-center gap-2">
-                          <span x-html="UIComponents.ICONS.chat"></span>
-                          <span
-                            class="text-sm text-tokyo-text"
-                            x-text="link.title"
-                          ></span>
-                        </div>
-                        <span
-                          class="text-xs text-tokyo-muted"
-                          x-text="UIComponents.formatDate(link.linkedAt, { relative: true })"
-                        ></span>
-                      </button>
-                    </template>
-                  </div>
-                </template>
-              </div>
-
-              <!-- Task metadata footer -->
-              <div class="mt-6 pt-4 border-t border-white/5">
-                <div class="flex items-center gap-6 text-xs text-tokyo-muted">
-                  <span>
-                    ID:
-                    <code
-                      class="px-1.5 py-0.5 rounded bg-white/5"
-                      x-text="getCurrentTask()?.id?.slice(0, 16) + '...'"
-                    ></code>
-                  </span>
-                  <template x-if="getCurrentTask()?.sessionId">
-                    <span>
-                      Session:
-                      <code
-                        class="px-1.5 py-0.5 rounded bg-white/5"
-                        x-text="getCurrentTask()?.sessionId?.slice(0, 12) + '...'"
-                      ></code>
-                    </span>
                   </template>
                 </div>
               </div>
@@ -6572,136 +6110,6 @@
       </div>
 
       <!-- ============================================================== -->
-      <!-- Create Task Modal (M5-S6)                                      -->
-      <!-- ============================================================== -->
-      <div
-        x-show="showCreateTaskForm"
-        x-transition:enter="transition ease-out duration-150"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-100"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-        @click.self="closeCreateTaskForm()"
-        x-cloak
-      >
-        <div
-          x-show="showCreateTaskForm"
-          x-transition:enter="transition ease-out duration-150"
-          x-transition:enter-start="opacity-0 scale-95"
-          x-transition:enter-end="opacity-100 scale-100"
-          x-transition:leave="transition ease-in duration-100"
-          x-transition:leave-start="opacity-100 scale-100"
-          x-transition:leave-end="opacity-0 scale-95"
-          class="glass-strong rounded-xl p-5 w-[28rem] max-w-[90vw] shadow-xl"
-        >
-          <h3 class="text-lg font-semibold text-tokyo-text mb-4">New Task</h3>
-
-          <div class="space-y-4">
-            <!-- Title -->
-            <div>
-              <label
-                class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
-                >Title</label
-              >
-              <input
-                x-model="createTaskForm.title"
-                type="text"
-                placeholder="What needs to be done?"
-                class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text placeholder-tokyo-muted/50 focus:outline-none focus:border-tokyo-blue/50 transition-colors"
-              />
-            </div>
-
-            <!-- Instructions -->
-            <div>
-              <label
-                class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
-                >Instructions</label
-              >
-              <textarea
-                x-model="createTaskForm.instructions"
-                rows="4"
-                placeholder="Detailed instructions for Nina..."
-                class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text placeholder-tokyo-muted/50 focus:outline-none focus:border-tokyo-blue/50 transition-colors resize-none"
-              ></textarea>
-            </div>
-
-            <!-- Type -->
-            <div>
-              <label
-                class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
-                >Type</label
-              >
-              <div class="flex gap-2">
-                <button
-                  @click="createTaskForm.type = 'immediate'"
-                  class="flex-1 px-3 py-2 text-sm rounded-lg border transition-colors"
-                  :class="createTaskForm.type === 'immediate'
-                    ? 'bg-tokyo-purple/20 border-tokyo-purple/50 text-tokyo-purple'
-                    : 'bg-tokyo-card border-white/10 text-tokyo-muted hover:border-white/20'"
-                >
-                  Immediate
-                </button>
-                <button
-                  @click="createTaskForm.type = 'scheduled'"
-                  class="flex-1 px-3 py-2 text-sm rounded-lg border transition-colors"
-                  :class="createTaskForm.type === 'scheduled'
-                    ? 'bg-tokyo-cyan/20 border-tokyo-cyan/50 text-tokyo-cyan'
-                    : 'bg-tokyo-card border-white/10 text-tokyo-muted hover:border-white/20'"
-                >
-                  Scheduled
-                </button>
-              </div>
-            </div>
-
-            <!-- Scheduled for (only if scheduled) -->
-            <template x-if="createTaskForm.type === 'scheduled'">
-              <div>
-                <label
-                  class="block text-[10px] text-tokyo-muted mb-1 uppercase tracking-wider"
-                  >Scheduled for</label
-                >
-                <input
-                  x-model="createTaskForm.scheduledFor"
-                  type="datetime-local"
-                  class="w-full bg-tokyo-card border border-white/10 rounded-lg px-3 py-2 text-sm text-tokyo-text focus:outline-none focus:border-tokyo-blue/50 transition-colors"
-                />
-              </div>
-            </template>
-          </div>
-
-          <!-- Actions -->
-          <div class="flex justify-end gap-3 mt-6">
-            <button
-              @click="closeCreateTaskForm()"
-              class="cal-action-btn cal-action-btn-ghost text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              @click="createTask()"
-              :disabled="!createTaskForm.title || !createTaskForm.instructions"
-              class="cal-action-btn cal-action-btn-cta-solid text-sm"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <polyline points="4 10 8 14 16 6" />
-              </svg>
-              <span>Create</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- ============================================================== -->
       <!-- Mobile: Popover Backdrop (< 768px)                            -->
       <!-- ============================================================== -->
       <div
@@ -6896,7 +6304,6 @@
                         'bg-blue-400 animate-pulse': item.status === 'running',
                         'bg-gray-400': item.status === 'pending',
                         'bg-cyan-400/60': item.status === 'scheduled' || item.itemType === 'projected',
-                        'bg-orange-400': item.itemType === 'task' && !['completed', 'failed', 'running', 'pending', 'scheduled'].includes(item.status),
                         'bg-purple-400': item.itemType === 'event' && !['completed'].includes(item.status),
                       }"
                     ></span>
@@ -7068,17 +6475,6 @@
                               class="text-sm font-medium text-tokyo-text truncate"
                               x-text="channel.id"
                             ></span>
-                            <!-- Nina is on it tag -->
-                            <template x-if="hasChannelHelpTask(channel.id)">
-                              <span
-                                class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium flex items-center gap-1"
-                              >
-                                <span
-                                  class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
-                                ></span>
-                                Nina is on it
-                              </span>
-                            </template>
                           </div>
                           <span
                             class="text-xs"
@@ -7131,34 +6527,9 @@
                               </button>
                               <button
                                 @click.stop="askNinaAboutChannel(channel.id)"
-                                class="text-xs px-3 py-1.5 rounded-lg font-medium"
-                                :class="hasChannelHelpTask(channel.id)
-                                  ? 'bg-amber-500/15 text-amber-400'
-                                  : 'bg-tokyo-panel text-tokyo-text active:bg-white/10'"
-                                :disabled="hasChannelHelpTask(channel.id)"
+                                class="text-xs px-3 py-1.5 rounded-lg font-medium bg-tokyo-panel text-tokyo-text active:bg-white/10"
                               >
-                                <span x-show="!hasChannelHelpTask(channel.id)"
-                                  >Ask Nina</span
-                                >
-                                <span
-                                  x-show="hasChannelHelpTask(channel.id)"
-                                  class="flex items-center gap-1"
-                                >
-                                  <svg
-                                    class="w-3 h-3"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path
-                                      stroke-linecap="round"
-                                      stroke-linejoin="round"
-                                      stroke-width="2"
-                                      d="M5 13l4 4L19 7"
-                                    />
-                                  </svg>
-                                  Asked
-                                </span>
+                                Ask Nina
                               </button>
                               <button
                                 @click.stop="removeChannel(channel.id)"

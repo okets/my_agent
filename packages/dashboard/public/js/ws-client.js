@@ -41,12 +41,6 @@ class NinaWebSocket {
         // Handle state sync messages — update Alpine stores directly
         if (typeof Alpine !== "undefined") {
           switch (data.type) {
-            case "state:tasks":
-              if (Alpine.store("tasks")) {
-                Alpine.store("tasks").items = data.tasks || [];
-                Alpine.store("tasks").loading = false;
-              }
-              break;
             case "state:calendar":
               if (Alpine.store("calendar")) {
                 // Transform WebSocket format to REST API format for timeline compatibility
@@ -64,8 +58,6 @@ class NinaWebSocket {
                     location: e.location,
                     status: e.status,
                     transparency: e.transparency,
-                    taskId: e.taskId,
-                    taskType: e.taskType,
                     action: e.action,
                     rrule: e.rrule,
                   },

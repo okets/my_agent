@@ -5,11 +5,6 @@
  * any x-data component initializes.
  */
 document.addEventListener("alpine:init", () => {
-  Alpine.store("tasks", {
-    items: [],
-    loading: false,
-  });
-
   Alpine.store("calendar", {
     events: [],
     configs: [],
