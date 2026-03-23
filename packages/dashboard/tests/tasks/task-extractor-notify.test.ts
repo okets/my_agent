@@ -161,7 +161,7 @@ describe("normalizeExtractedTask — notifyOnCompletion passthrough", () => {
 
 describe("PostResponseHooks — missed task detection (M6.9-S5)", () => {
   it("logs warning for task-worthy request when Nina didn't create a task", async () => {
-    vi.mock("../../src/tasks/task-extractor.js", () => ({
+    vi.mock("../../src/automations/automation-extractor.js", () => ({
       extractTaskFromMessage: vi.fn().mockResolvedValue({
         shouldCreateTask: true,
         task: {

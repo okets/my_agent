@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PostResponseHooks } from "../../src/conversations/post-response-hooks.js";
-import { extractTaskFromMessage } from "../../src/tasks/task-extractor.js";
+import { extractTaskFromMessage } from "../../src/automations/automation-extractor.js";
 
-vi.mock("../../src/tasks/task-extractor.js", () => ({
+vi.mock("../../src/automations/automation-extractor.js", () => ({
   extractTaskFromMessage: vi.fn(),
 }));
 
