@@ -6,7 +6,7 @@ import {
   existsSync,
 } from "fs";
 import { join, relative, extname, resolve } from "path";
-import { readFrontmatter } from "../metadata/frontmatter.js";
+import { readFrontmatter, writeFrontmatter } from "../metadata/frontmatter.js";
 
 interface FileTreeNode {
   name: string;
@@ -106,6 +106,26 @@ export async function registerSpaceRoutes(
       const content = readFileSync(fullPath, "utf-8");
       const ext = extname(filePath).slice(1);
       return { path: filePath, content, extension: ext };
+    },
+  );
+
+  // PATCH /api/spaces/:name — update space manifest fields
+  fastify.patch<{ Params: { name: string } }>(
+    "/api/spaces/:name",
+    async (request, reply) => {
+      const { name } = request.params;
+      const updates = request.body as Record<string, unknown>;
+      const spaceDir = join(agentDir, "spaces", name);
+      const manifestPath = join(spaceDir, "SPACE.md");
+
+      if (!existsSync(manifestPath)) {
+        return reply.code(404).send({ error: "Space not found" });
+      }
+
+      const { data, body } = readFrontmatter(manifestPath);
+      const merged = { ...data, ...updates };
+      writeFrontmatter(manifestPath, merged, body);
+      return { ok: true, manifest: merged };
     },
   );
 }

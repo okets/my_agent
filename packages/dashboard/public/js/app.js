@@ -5344,6 +5344,46 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       this.openTabs = [...this.openTabs];
     },
 
+    async updateSpaceField(name, field, value) {
+      try {
+        const resp = await fetch(
+          `/api/spaces/${encodeURIComponent(name)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ [field]: value }),
+          },
+        );
+        const data = await resp.json();
+        // Update local tab data with new manifest
+        const tab = this.openTabs.find((t) => t.id === `space-${name}`);
+        if (tab && data.manifest) {
+          tab.data.manifest = data.manifest;
+          this.openTabs = [...this.openTabs];
+        }
+      } catch (err) {
+        console.error("Failed to update space:", err);
+      }
+    },
+
+    async addSpaceTag(name, tag) {
+      const tab = this.openTabs.find((t) => t.id === `space-${name}`);
+      const currentTags = tab?.data?.manifest?.tags || [];
+      if (tag && !currentTags.includes(tag)) {
+        await this.updateSpaceField(name, "tags", [...currentTags, tag]);
+      }
+    },
+
+    async removeSpaceTag(name, tag) {
+      const tab = this.openTabs.find((t) => t.id === `space-${name}`);
+      const currentTags = tab?.data?.manifest?.tags || [];
+      await this.updateSpaceField(
+        name,
+        "tags",
+        currentTags.filter((t) => t !== tag),
+      );
+    },
+
     async loadSpaceFile(tabId, filePath) {
       const tab = this.openTabs.find((t) => t.id === tabId);
       if (!tab) return;

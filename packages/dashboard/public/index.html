@@ -4749,42 +4749,80 @@
                   </div>
                 </template>
 
-                <!-- SPACE.md selected: Property View -->
+                <!-- SPACE.md selected: Property View (Editable) -->
                 <template x-if="!tab.loading && tab.data?.loaded && tab.selectedFile === 'SPACE.md'">
-                  <div>
+                  <div x-data="{ newTag: '' }">
                     <h2 class="text-xl font-bold text-tokyo-text mb-4" x-text="tab.data.name"></h2>
                     <!-- Properties -->
                     <div class="glass-strong rounded-xl p-5 space-y-4">
                       <div class="space-y-3">
-                        <!-- Description -->
+                        <!-- Description (editable) -->
                         <div>
                           <label class="text-[10px] font-semibold uppercase text-tokyo-muted tracking-wider block mb-1">Description</label>
-                          <p class="text-sm text-tokyo-text" x-text="tab.data.manifest?.description || 'No description'"></p>
+                          <input
+                            type="text"
+                            :value="tab.data.manifest?.description || ''"
+                            @blur="if ($el.value !== (tab.data.manifest?.description || '')) updateSpaceField(tab.data.name, 'description', $el.value)"
+                            class="w-full text-sm text-tokyo-text bg-transparent border-b border-transparent hover:border-white/10 focus:border-tokyo-blue/50 outline-none py-0.5 transition-colors"
+                            placeholder="Add a description..."
+                          />
                         </div>
-                        <!-- Tags -->
+                        <!-- Tags (editable: removable + add) -->
                         <div>
                           <label class="text-[10px] font-semibold uppercase text-tokyo-muted tracking-wider block mb-1">Tags</label>
-                          <div class="flex gap-1.5 flex-wrap">
+                          <div class="flex gap-1.5 flex-wrap items-center">
                             <template x-for="tag in (tab.data.manifest?.tags || [])" :key="tag">
-                              <span class="text-[10px] px-1.5 py-0.5 rounded bg-tokyo-blue/10 text-tokyo-blue/70" x-text="tag"></span>
+                              <span class="text-[10px] px-1.5 py-0.5 rounded bg-tokyo-blue/10 text-tokyo-blue/70 flex items-center gap-1 group">
+                                <span x-text="tag"></span>
+                                <button
+                                  @click="removeSpaceTag(tab.data.name, tag)"
+                                  class="opacity-0 group-hover:opacity-100 transition-opacity text-tokyo-blue/50 hover:text-tokyo-blue"
+                                  title="Remove tag"
+                                >&times;</button>
+                              </span>
                             </template>
-                            <span x-show="!(tab.data.manifest?.tags || []).length" class="text-xs text-tokyo-muted/60 italic">No tags</span>
+                            <!-- Add tag input -->
+                            <input
+                              type="text"
+                              x-model="newTag"
+                              @keydown.enter.prevent="if (newTag.trim()) { addSpaceTag(tab.data.name, newTag.trim()); newTag = '' }"
+                              class="text-[10px] w-16 bg-transparent border-b border-white/10 focus:border-tokyo-blue/50 outline-none text-tokyo-text placeholder:text-tokyo-muted/40 py-0.5 transition-colors"
+                              placeholder="+ tag"
+                            />
                           </div>
                         </div>
-                        <!-- Runtime -->
-                        <div x-show="tab.data.manifest?.runtime">
+                        <!-- Runtime (editable) -->
+                        <div>
                           <label class="text-[10px] font-semibold uppercase text-tokyo-muted tracking-wider block mb-1">Runtime</label>
-                          <span class="text-[9px] px-1 py-px rounded bg-violet-500/15 text-violet-400" x-text="tab.data.manifest?.runtime"></span>
+                          <input
+                            type="text"
+                            :value="tab.data.manifest?.runtime || ''"
+                            @blur="if ($el.value !== (tab.data.manifest?.runtime || '')) updateSpaceField(tab.data.name, 'runtime', $el.value || undefined)"
+                            class="text-sm text-tokyo-text bg-transparent border-b border-transparent hover:border-white/10 focus:border-tokyo-blue/50 outline-none py-0.5 transition-colors font-mono"
+                            placeholder="e.g., node, python"
+                          />
                         </div>
-                        <!-- Entry -->
-                        <div x-show="tab.data.manifest?.entry">
+                        <!-- Entry (editable) -->
+                        <div>
                           <label class="text-[10px] font-semibold uppercase text-tokyo-muted tracking-wider block mb-1">Entry</label>
-                          <span class="text-sm text-tokyo-text font-mono" x-text="tab.data.manifest?.entry"></span>
+                          <input
+                            type="text"
+                            :value="tab.data.manifest?.entry || ''"
+                            @blur="if ($el.value !== (tab.data.manifest?.entry || '')) updateSpaceField(tab.data.name, 'entry', $el.value || undefined)"
+                            class="w-full text-sm text-tokyo-text bg-transparent border-b border-transparent hover:border-white/10 focus:border-tokyo-blue/50 outline-none py-0.5 transition-colors font-mono"
+                            placeholder="e.g., index.ts"
+                          />
                         </div>
-                        <!-- Path -->
-                        <div x-show="tab.data.manifest?.path">
+                        <!-- Path (editable) -->
+                        <div>
                           <label class="text-[10px] font-semibold uppercase text-tokyo-muted tracking-wider block mb-1">External Path</label>
-                          <span class="text-sm text-tokyo-text font-mono" x-text="tab.data.manifest?.path"></span>
+                          <input
+                            type="text"
+                            :value="tab.data.manifest?.path || ''"
+                            @blur="if ($el.value !== (tab.data.manifest?.path || '')) updateSpaceField(tab.data.name, 'path', $el.value || undefined)"
+                            class="w-full text-sm text-tokyo-text bg-transparent border-b border-transparent hover:border-white/10 focus:border-tokyo-blue/50 outline-none py-0.5 transition-colors font-mono"
+                            placeholder="/path/to/external/project"
+                          />
                         </div>
                       </div>
                     </div>
