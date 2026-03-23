@@ -238,6 +238,10 @@ export class AutomationJobService {
         const job = this.getJob(jobDir);
         if (job?.status === "needs_review") continue;
 
+        // Check if automation has once: true -- keep indefinitely
+        const automation = this.db.getAutomation(automationDir);
+        if (automation?.once) continue;
+
         try {
           fs.rmSync(jobRunPath, { recursive: true });
           pruned++;
