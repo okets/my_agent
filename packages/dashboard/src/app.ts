@@ -1064,6 +1064,96 @@ export class App extends EventEmitter {
       }
     }
 
+    // ── Automation system (M7-S3) ──
+    if (hatched) {
+      try {
+        const automationsDir = join(agentDir, "automations");
+        const convDb = app.conversationManager.getConversationDb();
+
+        app.automationManager = new AutomationManager(automationsDir, convDb);
+        app.automationJobService = new AutomationJobService(
+          automationsDir,
+          convDb,
+        );
+
+        app.automationExecutor = new AutomationExecutor({
+          automationManager: app.automationManager,
+          jobService: app.automationJobService,
+          agentDir,
+          db: convDb,
+          get mcpServers() {
+            return getSharedMcpServers() ?? undefined;
+          },
+          hooks: createHooks("task", { agentDir }),
+        });
+
+        app.automationProcessor = new AutomationProcessor({
+          automationManager: app.automationManager,
+          executor: app.automationExecutor,
+          jobService: app.automationJobService,
+          onJobMutated: () => {
+            // StatePublisher will subscribe via app events
+          },
+          get conversationInitiator() {
+            return app.conversationInitiator ?? null;
+          },
+        });
+
+        // Sync service — watch automation manifests
+        app.automationSyncService = new AutomationSyncService({
+          automationsDir,
+          manager: app.automationManager,
+        });
+
+        // Wire sync events to prompt cache invalidation + App events
+        app.automationSyncService.on("automation:updated", (automation) => {
+          getPromptBuilder()?.invalidateCache();
+          app.emit("automation:updated", automation);
+        });
+        app.automationSyncService.on("automation:removed", (id) => {
+          getPromptBuilder()?.invalidateCache();
+          app.emit("automation:deleted", id);
+        });
+
+        await app.automationSyncService.start();
+
+        // Scheduler — cron-based triggers
+        app.automationScheduler = new AutomationScheduler({
+          processor: app.automationProcessor,
+          automationManager: app.automationManager,
+          jobService: app.automationJobService,
+          agentDir,
+          pollIntervalMs: 60_000,
+        });
+        await app.automationScheduler.start();
+
+        // Service namespace
+        app.automations = new AppAutomationService(
+          app.automationManager,
+          app.automationProcessor,
+          app.automationJobService,
+          app,
+        );
+
+        // Register automation-tools MCP server
+        const automationToolsServer = createAutomationServer({
+          automationManager: app.automationManager,
+          processor: app.automationProcessor,
+          jobService: app.automationJobService,
+        });
+        addMcpServer("automation-tools", automationToolsServer);
+
+        console.log(
+          "Automation system initialized (sync + scheduler + MCP tools)",
+        );
+      } catch (err) {
+        console.warn(
+          "Failed to initialize automation system:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
     // ── Skill MCP server (M6.8-S5) ──
     {
       const skillServer = createSkillServer({
@@ -1228,6 +1318,14 @@ export class App extends EventEmitter {
     if (this.spaceSyncService) {
       await this.spaceSyncService.stop();
       console.log("SpaceSyncService stopped.");
+    }
+    if (this.automationScheduler) {
+      await this.automationScheduler.stop();
+      console.log("AutomationScheduler stopped.");
+    }
+    if (this.automationSyncService) {
+      await this.automationSyncService.stop();
+      console.log("AutomationSyncService stopped.");
     }
     if (this.syncService) {
       this.syncService.stopWatching();
