@@ -409,6 +409,17 @@ export class AppChatService {
       );
     }
 
+    // ── Automation context ───────────────────────────────────────
+    if (
+      options?.context?.type === "automation" &&
+      options.context.automationId
+    ) {
+      sessionManager.setAutomationContext(
+        options.context.automationId,
+        options.context.automationName || options.context.title || "",
+      );
+    }
+
     // ── Process attachments ─────────────────────────────────────
     type ContentBlock =
       | { type: "text"; text: string }

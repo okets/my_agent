@@ -1717,6 +1717,12 @@ function chat() {
             this.chatContext.spaceName = tab.data.name;
           }
 
+          // Add automation context for automation tabs
+          if (tab.type === "automation" && tab.data?.automationId) {
+            this.chatContext.automationId = tab.data.automationId;
+            this.chatContext.automationName = tab.title;
+          }
+
           // Reload job detail when switching to a workloop tab
           if (tab.type === "workloop" && tab.data?.jobName) {
             this.loadWorkLoopJobDetail(tab.data.jobName);

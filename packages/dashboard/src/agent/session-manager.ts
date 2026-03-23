@@ -169,6 +169,10 @@ export class SessionManager {
   private messageIndex = 0;
   private promptBuilder: SystemPromptBuilder | null = null;
   private activeTaskContext: { taskId: string; title: string } | null = null;
+  private activeAutomationContext: {
+    automationId: string;
+    name: string;
+  } | null = null;
   private agentDir: string | null = null;
   private disabledSkills: string[] = [];
 
@@ -185,6 +189,11 @@ export class SessionManager {
   /** Set task context for the next query (cleared after use) */
   setTaskContext(taskId: string, title: string): void {
     this.activeTaskContext = { taskId, title };
+  }
+
+  /** Set automation context for the next query (cleared after use) */
+  setAutomationContext(automationId: string, name: string): void {
+    this.activeAutomationContext = { automationId, name };
   }
 
   /**
@@ -320,9 +329,11 @@ export class SessionManager {
       messageIndex: this.messageIndex,
       activeWorkingAgents,
       activeTaskContext: this.activeTaskContext,
+      activeAutomationContext: this.activeAutomationContext,
     };
     // Clear after use — only applies to this message
     this.activeTaskContext = null;
+    this.activeAutomationContext = null;
 
     const systemPrompt = await this.promptBuilder!.build(buildContext);
 

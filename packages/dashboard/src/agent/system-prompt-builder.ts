@@ -30,6 +30,10 @@ export interface BuildContext {
   hasPendingEscalations?: boolean;
   activeWorkingAgents?: string[];
   activeTaskContext?: { taskId: string; title: string } | null;
+  activeAutomationContext?: {
+    automationId: string;
+    name: string;
+  } | null;
 }
 
 export interface SystemPromptBlock {
@@ -124,6 +128,13 @@ export class SystemPromptBuilder {
     if (context.activeTaskContext) {
       dynamicParts.push(
         `[Active Task View]\nThe user is currently viewing task: "${context.activeTaskContext.title}" (${context.activeTaskContext.taskId})\nIf they ask about "this task" or request changes, use revise_task with this task ID.\n[End Active Task View]`,
+      );
+    }
+
+    // Automation context: tell conversation Nina when the user is viewing a specific automation
+    if (context.activeAutomationContext) {
+      dynamicParts.push(
+        `[Active Automation View]\nThe user is viewing automation: "${context.activeAutomationContext.name}" (${context.activeAutomationContext.automationId})\nIf they ask about "this automation" or want changes, use the automation tools.\n[End Active Automation View]`,
       );
     }
 

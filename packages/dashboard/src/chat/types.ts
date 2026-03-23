@@ -55,6 +55,8 @@ export interface ChatMessageOptions {
     title: string;
     file?: string;
     taskId?: string;
+    automationId?: string;
+    automationName?: string;
   } | null;
 }
 
