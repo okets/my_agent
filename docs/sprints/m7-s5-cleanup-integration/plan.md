@@ -1036,6 +1036,14 @@ Replace task references in the mobile Home with stacked cards matching the spec:
 
 Delete any mobile task detail rendering (the `type === "task"` case in `openPopoverWithFocus`).
 
+- [ ] **Step 3: Fix Space detail tab mobile layout**
+
+The split-panel layout (256px file tree + content) doesn't work on mobile — property panel clips and text truncates. Fix:
+- On viewports < 640px (`sm:` breakpoint), stack panels vertically: file tree on top (collapsible), content below
+- Or use a drawer/replace pattern: tapping a file replaces the tree view with content + a back button
+- Ensure I/O contract badges, maintenance pills, and DECISIONS.md preview all render without horizontal overflow
+- This applies to all Space detail content added in S1 and S2
+
 **Commit:** `feat(m7-s5): mobile Home uses stacked compact cards for spaces/automations`
 
 ---
