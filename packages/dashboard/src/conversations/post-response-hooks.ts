@@ -8,13 +8,19 @@
  * Nina didn't delegate via create_task. Detection only — no auto-creation.
  */
 
-import { extractTaskFromMessage } from "../tasks/task-extractor.js";
+import { extractTaskFromMessage, type AutomationHint } from "../automations/automation-extractor.js";
 import type { TaskManager } from "../tasks/task-manager.js";
 
 export interface PostResponseHooksDeps {
   taskManager: TaskManager;
   log: (msg: string) => void;
   logError: (err: unknown, msg: string) => void;
+  /** Active automation hints for channel trigger matching */
+  getAutomationHints?: () => AutomationHint[];
+  /** Fire an automation job with context */
+  fireAutomation?: (automationId: string, context: Record<string, unknown>) => Promise<void>;
+  /** Count recent jobs for dedup */
+  getRecentJobsForAutomation?: (automationId: string, withinMs: number) => number;
 }
 
 export class PostResponseHooks {
@@ -41,10 +47,34 @@ export class PostResponseHooks {
     assistantContent: string,
   ): Promise<void> {
     try {
+      const automationHints = this.deps.getAutomationHints?.() ?? [];
       const extraction = await extractTaskFromMessage(
         userContent,
         assistantContent,
+        automationHints.length > 0 ? automationHints : undefined,
       );
+
+      // Check for automation match first
+      if (extraction.matchedAutomation && this.deps.fireAutomation) {
+        const { automationId, confidence, extractedContext } = extraction.matchedAutomation;
+
+        // 5-minute dedup: skip if automation fired recently
+        const recentJobs = this.deps.getRecentJobsForAutomation?.(automationId, 300_000) ?? 0;
+        if (recentJobs > 0) {
+          this.deps.log(`[PostResponseHooks] Automation ${automationId} already fired recently, skipping`);
+          return;
+        }
+
+        this.deps.log(
+          `[PostResponseHooks] Channel trigger: firing automation "${automationId}" (confidence: ${confidence.toFixed(2)})`,
+        );
+        await this.deps.fireAutomation(automationId, {
+          trigger: "channel",
+          conversationId,
+          ...extractedContext,
+        });
+        return;
+      }
 
       if (!extraction.shouldCreateTask) return;
 
