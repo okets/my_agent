@@ -5388,6 +5388,12 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       );
     },
 
+    async updateMaintenancePolicy(tab, newPolicy) {
+      const maintenance = { ...tab.data.manifest.maintenance, on_failure: newPolicy };
+      tab.data.manifest.maintenance = maintenance;
+      await this.updateSpaceField(tab.data.name, "maintenance", maintenance);
+    },
+
     async loadSpaceFile(tabId, filePath) {
       const tab = this.openTabs.find((t) => t.id === tabId);
       if (!tab) return;

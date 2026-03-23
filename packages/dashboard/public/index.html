@@ -4856,6 +4856,27 @@
                             </div>
                           </div>
                         </template>
+
+                        <!-- Maintenance (tool spaces only) -->
+                        <template x-if="tab.data.manifest?.maintenance">
+                          <div class="mt-4">
+                            <h4 class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Maintenance</h4>
+
+                            <!-- on_failure toggle pills -->
+                            <div class="flex gap-2 mb-3">
+                              <template x-for="option in ['fix', 'replace', 'alert']" :key="option">
+                                <button
+                                  class="text-xs px-3 py-1 rounded-full border transition-colors"
+                                  :class="tab.data.manifest.maintenance.on_failure === option
+                                    ? 'bg-violet-500/20 text-violet-300 border-violet-500/30'
+                                    : 'text-gray-500 border-gray-700 hover:border-gray-600'"
+                                  @click="updateMaintenancePolicy(tab, option)"
+                                  x-text="option"
+                                ></button>
+                              </template>
+                            </div>
+                          </div>
+                        </template>
                       </div>
                     </div>
                     <!-- Body content (markdown below frontmatter) -->
