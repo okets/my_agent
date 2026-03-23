@@ -8,3 +8,7 @@ export type { AutomationProcessorConfig } from "./automation-processor.js";
 export { AutomationScheduler } from "./automation-scheduler.js";
 export type { AutomationSchedulerConfig } from "./automation-scheduler.js";
 export { AutomationSyncService } from "./automation-sync-service.js";
+export { WatchTriggerService } from "./watch-trigger-service.js";
+export type { WatchTriggerConfig, WatchEvent, WatchTriggerServiceDeps } from "./watch-trigger-service.js";
+export { extractTaskFromMessage } from "./automation-extractor.js";
+export type { AutomationMatch, AutomationHint, ExtractionResult, ExtractedTask } from "./automation-extractor.js";
