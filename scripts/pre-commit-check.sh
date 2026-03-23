@@ -30,7 +30,8 @@ if [ -f "$GUARDRAILS" ]; then
   while IFS= read -r pattern; do
     [[ -z "$pattern" || "$pattern" == \#* ]] && continue
 
-    if echo "$STAGED_DIFF" | grep -qE "$pattern" 2>/dev/null; then
+    # Only scan added lines (starting with +, excluding +++ file headers and @@ hunks)
+    if echo "$STAGED_DIFF" | grep -E '^\+[^+]' | grep -qE "$pattern" 2>/dev/null; then
       # Find which files contain the match
       matched_files=$(git diff --cached --diff-filter=d -U0 --name-only | \
         while read -r fname; do
@@ -38,7 +39,7 @@ if [ -f "$GUARDRAILS" ]; then
           case "$fname" in
             .my_agent/*|.guardrails|scripts/pre-commit-check.sh|scripts/check-private-data.sh) continue ;;
           esac
-          git diff --cached -U0 -- "$fname" | grep -qE "$pattern" 2>/dev/null && echo "    $fname"
+          git diff --cached -U0 -- "$fname" | grep -E '^\+[^+]' | grep -qE "$pattern" 2>/dev/null && echo "    $fname"
         done)
 
       if [ -n "$matched_files" ]; then
