@@ -301,6 +301,25 @@ export class ConversationDatabase {
         task_id TEXT NOT NULL UNIQUE
       );
     `);
+
+    // M7-S1: Spaces table (derived index — rebuildable from SPACE.md files)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS spaces (
+        name TEXT PRIMARY KEY,
+        path TEXT NOT NULL,
+        tags TEXT,
+        runtime TEXT,
+        entry TEXT,
+        io TEXT,
+        maintenance TEXT,
+        description TEXT,
+        indexed_at TEXT NOT NULL
+      );
+    `);
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_spaces_tags ON spaces(tags);
+    `);
   }
 
   /**
@@ -711,6 +730,128 @@ export class ConversationDatabase {
       "UPDATE tasks SET sdk_session_id = ? WHERE id = ?",
     );
     stmt.run(sessionId, taskId);
+  }
+
+  // --- Space CRUD (M7-S1) ---
+
+  upsertSpace(space: {
+    name: string;
+    path: string;
+    tags?: string[];
+    runtime?: string;
+    entry?: string;
+    io?: object;
+    maintenance?: object;
+    description?: string;
+    indexedAt: string;
+  }): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO spaces (name, path, tags, runtime, entry, io, maintenance, description, indexed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(name) DO UPDATE SET
+        path = excluded.path,
+        tags = excluded.tags,
+        runtime = excluded.runtime,
+        entry = excluded.entry,
+        io = excluded.io,
+        maintenance = excluded.maintenance,
+        description = excluded.description,
+        indexed_at = excluded.indexed_at
+    `);
+
+    stmt.run(
+      space.name,
+      space.path,
+      space.tags ? JSON.stringify(space.tags) : null,
+      space.runtime ?? null,
+      space.entry ?? null,
+      space.io ? JSON.stringify(space.io) : null,
+      space.maintenance ? JSON.stringify(space.maintenance) : null,
+      space.description ?? null,
+      space.indexedAt,
+    );
+  }
+
+  getSpace(name: string): {
+    name: string;
+    path: string;
+    tags: string[];
+    runtime: string | null;
+    entry: string | null;
+    io: object | null;
+    maintenance: object | null;
+    description: string | null;
+    indexedAt: string;
+  } | null {
+    const row = this.db.prepare("SELECT * FROM spaces WHERE name = ?").get(name) as any;
+    if (!row) return null;
+    return this.rowToSpace(row);
+  }
+
+  listSpaces(filter?: {
+    tag?: string;
+    runtime?: string;
+    search?: string;
+  }): Array<{
+    name: string;
+    path: string;
+    tags: string[];
+    runtime: string | null;
+    entry: string | null;
+    io: object | null;
+    maintenance: object | null;
+    description: string | null;
+    indexedAt: string;
+  }> {
+    let sql = "SELECT * FROM spaces WHERE 1=1";
+    const params: any[] = [];
+
+    if (filter?.tag) {
+      // tags stored as JSON array, use LIKE for contains
+      sql += " AND tags LIKE ?";
+      params.push(`%"${filter.tag}"%`);
+    }
+    if (filter?.runtime) {
+      sql += " AND runtime = ?";
+      params.push(filter.runtime);
+    }
+    if (filter?.search) {
+      sql += " AND (name LIKE ? OR description LIKE ? OR tags LIKE ?)";
+      const term = `%${filter.search}%`;
+      params.push(term, term, term);
+    }
+
+    sql += " ORDER BY name";
+    const rows = this.db.prepare(sql).all(...params) as any[];
+    return rows.map((row) => this.rowToSpace(row));
+  }
+
+  deleteSpace(name: string): void {
+    this.db.prepare("DELETE FROM spaces WHERE name = ?").run(name);
+  }
+
+  private rowToSpace(row: any): {
+    name: string;
+    path: string;
+    tags: string[];
+    runtime: string | null;
+    entry: string | null;
+    io: object | null;
+    maintenance: object | null;
+    description: string | null;
+    indexedAt: string;
+  } {
+    return {
+      name: row.name,
+      path: row.path,
+      tags: row.tags ? JSON.parse(row.tags) : [],
+      runtime: row.runtime,
+      entry: row.entry,
+      io: row.io ? JSON.parse(row.io) : null,
+      maintenance: row.maintenance ? JSON.parse(row.maintenance) : null,
+      description: row.description,
+      indexedAt: row.indexed_at,
+    };
   }
 
   /**
