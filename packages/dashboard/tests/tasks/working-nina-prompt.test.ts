@@ -81,4 +81,55 @@ describe("buildWorkingNinaPrompt", () => {
     });
     expect(prompt).toContain("status-report.md");
   });
+
+  it("includes Tool Space Creation Guide when toolCreationGuide is true", async () => {
+    const prompt = await buildWorkingNinaPrompt(agentDir, {
+      taskTitle: "Create scraper tool",
+      taskId: "tool1",
+      toolCreationGuide: true,
+    });
+    expect(prompt).toContain("Tool Space Creation Guide");
+    expect(prompt).toContain("SPACE.md Format");
+    expect(prompt).toContain("Runtime Setup");
+  });
+
+  it("omits Tool Space Creation Guide when toolCreationGuide is false", async () => {
+    const prompt = await buildWorkingNinaPrompt(agentDir, {
+      taskTitle: "Check weather",
+      taskId: "abc123",
+      toolCreationGuide: false,
+    });
+    expect(prompt).not.toContain("Tool Space Creation Guide");
+  });
+
+  it("omits Tool Space Creation Guide when not specified", async () => {
+    const prompt = await buildWorkingNinaPrompt(agentDir, {
+      taskTitle: "Check weather",
+      taskId: "abc123",
+    });
+    expect(prompt).not.toContain("Tool Space Creation Guide");
+  });
+
+  it("includes space contexts when provided", async () => {
+    const prompt = await buildWorkingNinaPrompt(agentDir, {
+      taskTitle: "Run scraper",
+      taskId: "run1",
+      spaceContexts: [
+        "# Web Scraper\nScrapes websites for data",
+        "# Dedup Tool\nDeduplicates records",
+      ],
+    });
+    expect(prompt).toContain("[Available Tool Spaces]");
+    expect(prompt).toContain("Web Scraper");
+    expect(prompt).toContain("Dedup Tool");
+    expect(prompt).toContain("[End Tool Spaces]");
+  });
+
+  it("omits space contexts section when not provided", async () => {
+    const prompt = await buildWorkingNinaPrompt(agentDir, {
+      taskTitle: "Check weather",
+      taskId: "abc123",
+    });
+    expect(prompt).not.toContain("[Available Tool Spaces]");
+  });
 });

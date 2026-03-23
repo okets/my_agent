@@ -3,12 +3,69 @@ import { readProperties } from "../conversations/properties.js";
 import { resolveTimezone } from "../utils/timezone.js";
 import path from "node:path";
 
-interface WorkingNinaPromptOptions {
+export interface WorkingNinaPromptOptions {
   taskTitle: string;
   taskId: string;
   taskDir?: string;
   calendarContext?: string;
+  toolCreationGuide?: boolean;
+  spaceContexts?: string[];
 }
+
+const TOOL_CREATION_GUIDE = `
+## Tool Space Creation Guide
+
+When creating a new tool space, follow this structure:
+
+### Directory Layout
+\`\`\`
+.my_agent/spaces/{tool-name}/
+  SPACE.md          # Manifest (YAML frontmatter + description)
+  DECISIONS.md      # Operational history (created automatically)
+  src/              # Source code
+\`\`\`
+
+### SPACE.md Format
+\`\`\`yaml
+---
+name: tool-name
+tags: [tool, category]
+runtime: uv            # uv | node | bash
+entry: src/main.py     # entry point relative to space dir
+io:
+  input:
+    param_name: type   # string | number | file | boolean
+  output:
+    result_name: type  # stdout (JSON) | file (path)
+maintenance:
+  on_failure: fix      # fix | replace | alert
+  log: DECISIONS.md
+created: YYYY-MM-DD
+---
+
+# Tool Name
+
+Description of what the tool does.
+
+## Maintenance Rules
+
+- Specific repair guidance for this tool
+- What to check when things break
+\`\`\`
+
+### Runtime Setup
+- **uv:** \`cd space && uv init && uv add dependencies\`
+- **node:** \`cd space && npm init -y && npm install dependencies\`
+- **bash:** No setup needed, ensure script is executable
+
+### After Creation
+1. Write SPACE.md with proper frontmatter
+2. Initialize DECISIONS.md: log "created" entry with rationale
+3. Bootstrap runtime (uv init, npm init, etc.)
+4. Write source code
+5. Test with sample input: cd space && runtime run entry '{sample_input}'
+6. Verify output matches io.output contract
+`;
 
 const WORKING_NINA_PERSONA = `You are Working Nina — an autonomous task execution agent.
 
@@ -64,7 +121,7 @@ export async function buildWorkingNinaPrompt(
     // Properties unavailable — continue without
   }
 
-  return [
+  const sections = [
     WORKING_NINA_PERSONA,
     "",
     `[Temporal Context]`,
@@ -75,6 +132,20 @@ export async function buildWorkingNinaPrompt(
     `[End Temporal Context]`,
     propertiesSection,
     options.calendarContext ? `\n${options.calendarContext}\n` : "",
+    options.toolCreationGuide ? TOOL_CREATION_GUIDE : "",
     notebookContext,
-  ].join("\n");
+  ];
+
+  // Space contexts (tool manifests + maintenance rules for referenced spaces)
+  if (options.spaceContexts && options.spaceContexts.length > 0) {
+    sections.push("");
+    sections.push("[Available Tool Spaces]");
+    for (const ctx of options.spaceContexts) {
+      sections.push(ctx);
+      sections.push("---");
+    }
+    sections.push("[End Tool Spaces]");
+  }
+
+  return sections.join("\n");
 }
