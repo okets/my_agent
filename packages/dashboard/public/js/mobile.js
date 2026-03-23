@@ -126,7 +126,7 @@ document.addEventListener("alpine:init", () => {
 
     /**
      * Open a popover sheet. Replaces any currently open popover.
-     * @param {string} type - 'task' | 'event' | 'calendar' | 'settings' | 'notebook' | 'notification'
+     * @param {string} type - 'event' | 'calendar' | 'settings' | 'notebook' | 'notification'
      * @param {any} data - Contextual data for the popover content
      */
     openPopover(type, data) {
@@ -151,14 +151,7 @@ document.addEventListener("alpine:init", () => {
         const appData = chatEl._x_dataStack[0];
         if (!appData) return;
 
-        if (type === "task" && data) {
-          appData.chatContext = {
-            type: "task",
-            icon: "\uD83D\uDCCB",
-            title: data.title,
-            taskId: data.id,
-          };
-        } else if (type === "event" && data) {
+        if (type === "event" && data) {
           appData.chatContext = {
             type: "event",
             icon: "\uD83D\uDCC5",

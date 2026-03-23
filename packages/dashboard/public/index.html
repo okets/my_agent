@@ -341,8 +341,71 @@
               </div>
             </div>
 
-            <!-- Spaces Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden mb-4">
+            <!-- Mobile: Stacked compact cards (< 640px) -->
+            <div class="sm:hidden space-y-2 mb-4">
+              <div class="glass-strong rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+                   @click="openSpacesBrowser()">
+                <div class="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
+                    <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.622 4H12.5A1.5 1.5 0 0 1 14 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9Z"/>
+                  </svg>
+                  <span class="text-sm text-white/80">Spaces</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-white/40" x-text="$store.spaces.items.length"></span>
+                  <svg class="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="glass-strong rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+                   @click="openAutomationsBrowser()">
+                <div class="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
+                    <path fill-rule="evenodd" d="M8.074.945A4.993 4.993 0 0 0 6 5v.032c.004.6.114 1.176.311 1.709.16.428-.204.91-.61.7a5.023 5.023 0 0 1-1.868-1.677c-.202-.304-.648-.363-.848-.058a6 6 0 1 0 8.017-1.901l-.004-.007a4.98 4.98 0 0 1-2.18-2.574c-.116-.31-.477-.472-.744-.28Zm.78 6.178a3.001 3.001 0 1 1-3.473 4.341c-.205-.365.215-.694.62-.59a4.008 4.008 0 0 0 1.828.047c.96-.2 1.747-.918 2.08-1.36a.55.55 0 0 0-.054-.678Z" clip-rule="evenodd"/>
+                  </svg>
+                  <span class="text-sm text-white/80">Automations</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-white/40" x-text="$store.automations.items.filter(a => a.status === 'active').length + ' active'"></span>
+                  <svg class="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="glass-strong rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+                   @click="$store.mobile.openPopoverWithFocus('notebook-browser')">
+                <div class="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
+                    <path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h7A2.5 2.5 0 0 1 14 4.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5v-7Z"/>
+                  </svg>
+                  <span class="text-sm text-white/80">Notebook</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="glass-strong rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+                   @click="$store.mobile.expandChat('half')">
+                <div class="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
+                    <path d="M1 8.74c0 .983.713 1.825 1.69 1.943.764.092 1.534.164 2.31.216v2.351a.75.75 0 0 0 1.28.53l2.51-2.51c.182-.181.427-.29.687-.312A24.673 24.673 0 0 0 12.31 10.7c.978-.128 1.69-.962 1.69-1.96V4.26c0-.998-.712-1.832-1.69-1.96A24.885 24.885 0 0 0 8 2c-1.395 0-2.76.098-4.31.3C2.713 2.435 2 3.262 2 4.26v4.48h-.5A.5.5 0 0 0 1 8.74Z"/>
+                  </svg>
+                  <span class="text-sm text-white/80">Conversations</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-white/40" x-text="conversations.length"></span>
+                  <svg class="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Spaces Widget (hidden on mobile < 640px, shown on desktop) -->
+            <div class="hidden sm:block glass-strong rounded-xl overflow-hidden mb-4">
               <!-- Header -->
               <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
                 <h2 class="text-sm font-semibold text-tokyo-text flex items-center gap-2">
@@ -395,8 +458,8 @@
               </div>
             </div>
 
-            <!-- Automations Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden mb-4">
+            <!-- Automations Widget (hidden on mobile < 640px) -->
+            <div class="hidden sm:block glass-strong rounded-xl overflow-hidden mb-4">
               <!-- Header -->
               <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
                 <h2 class="text-sm font-semibold text-tokyo-text flex items-center gap-2">
@@ -457,8 +520,8 @@
               </div>
             </div>
 
-            <!-- Notebook Widget (Tabbed Mini-Notebook) -->
-            <div class="glass-strong rounded-xl overflow-hidden mb-4">
+            <!-- Notebook Widget (Tabbed Mini-Notebook, hidden on mobile < 640px) -->
+            <div class="hidden sm:block glass-strong rounded-xl overflow-hidden mb-4">
               <!-- Tab bar - 4 tabs -->
               <div class="flex border-b border-white/5">
                 <button
@@ -801,8 +864,8 @@
               </div>
             </div>
 
-            <!-- Conversations Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden mb-4 mt-4">
+            <!-- Conversations Widget (hidden on mobile < 640px) -->
+            <div class="hidden sm:block glass-strong rounded-xl overflow-hidden mb-4 mt-4">
               <!-- Header -->
               <div
                 class="flex items-center justify-between px-4 py-3 border-b border-white/5"
@@ -4767,17 +4830,29 @@
             x-if="openTabs.find(t => t.id === activeTab && t.type === 'space')"
           >
             <div
-              class="flex h-full"
+              class="flex flex-col sm:flex-row h-full"
               x-data="{
                 get tab() { return openTabs.find(t => t.id === activeTab) },
                 expandedDirs: {},
                 toggleDir(path) { this.expandedDirs[path] = !this.expandedDirs[path] },
                 ninaFiles: ['SPACE.md', 'DECISIONS.md'],
+                mobileTreeOpen: false,
               }"
               x-init="loadSpaceDetail(tab.data.name)"
             >
-              <!-- Left: File Tree (256px) -->
-              <div class="w-64 border-r border-white/5 overflow-y-auto shrink-0">
+              <!-- Left: File Tree (256px on desktop, collapsible on mobile) -->
+              <div class="w-full sm:w-64 border-b sm:border-b-0 sm:border-r border-white/5 overflow-y-auto shrink-0">
+                <!-- Mobile toggle button -->
+                <button
+                  class="sm:hidden w-full px-3 py-2 flex items-center justify-between text-xs text-tokyo-muted hover:text-tokyo-text transition-colors border-b border-white/5"
+                  @click="mobileTreeOpen = !mobileTreeOpen"
+                >
+                  <span>File Tree</span>
+                  <svg class="w-3.5 h-3.5 transition-transform" :class="mobileTreeOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                  </svg>
+                </button>
+                <div x-show="mobileTreeOpen || window.innerWidth >= 640" x-transition>
                 <!-- Loading -->
                 <template x-if="tab.loading">
                   <div class="px-4 py-8 text-center text-xs text-tokyo-muted">Loading...</div>
@@ -4890,6 +4965,7 @@
                     </div>
                   </div>
                 </template>
+                </div>
               </div>
 
               <!-- Right: Content / Property View -->
@@ -6686,149 +6762,7 @@
 
         <!-- Popover content — rendered based on popover type -->
         <div class="popover-content">
-          <!-- Task detail popover (#9) -->
-          <template x-if="$store.mobile.popover?.type === 'task'">
-            <div
-              class="space-y-4"
-              x-data="{ get task() { return $store.mobile.popover?.data } }"
-            >
-              <div class="flex items-start gap-3">
-                <div
-                  class="w-3 h-3 rounded-full shrink-0 mt-1.5"
-                  :class="UIComponents.getStatusDotClass(task?.status)"
-                ></div>
-                <div class="min-w-0 flex-1">
-                  <h2
-                    class="text-lg font-bold text-tokyo-text"
-                    x-text="task?.title || 'Task'"
-                  ></h2>
-                  <div class="flex items-center gap-2 mt-1">
-                    <span
-                      x-html="UIComponents.renderStatusBadge(task?.status)"
-                    ></span>
-                    <span
-                      x-html="UIComponents.renderTypeBadge(task?.type)"
-                    ></span>
-                  </div>
-                </div>
-              </div>
-              <div class="glass-strong rounded-xl p-4">
-                <div class="divide-y divide-white/5">
-                  <div
-                    x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.calendar, label: 'Created', value: UIComponents.formatDate(task?.created) })"
-                  ></div>
-                  <div
-                    x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.user, label: 'Created by', value: UIComponents.SOURCE_LABELS[task?.createdBy] || task?.createdBy })"
-                  ></div>
-                  <template x-if="task?.scheduledFor">
-                    <div
-                      x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.clock, label: 'Scheduled', value: UIComponents.formatDate(task?.scheduledFor) })"
-                    ></div>
-                  </template>
-                  <template x-if="task?.startedAt">
-                    <div
-                      x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.play, label: 'Started', value: UIComponents.formatDate(task?.startedAt) })"
-                    ></div>
-                  </template>
-                  <template x-if="task?.completedAt">
-                    <div
-                      x-html="UIComponents.renderMetadataRow({ icon: UIComponents.ICONS.check, label: 'Completed', value: UIComponents.formatDate(task?.completedAt) })"
-                    ></div>
-                  </template>
-                </div>
-              </div>
-              <template x-if="task?.work?.length > 0">
-                <div>
-                  <h3
-                    class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-2"
-                  >
-                    Work Items
-                  </h3>
-                  <div class="glass-strong rounded-xl p-4 space-y-2">
-                    <template x-for="item in task.work" :key="item.description">
-                      <div class="flex items-center gap-2 text-sm">
-                        <span
-                          x-show="item.status === 'completed'"
-                          class="text-green-400"
-                          >&#10003;</span
-                        >
-                        <span
-                          x-show="item.status === 'pending'"
-                          class="text-tokyo-muted"
-                          >&#9675;</span
-                        >
-                        <span
-                          x-show="item.status === 'failed'"
-                          class="text-red-400"
-                          >&#10007;</span
-                        >
-                        <span
-                          class="text-tokyo-text"
-                          x-text="item.description"
-                        ></span>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </template>
-              <template x-if="task?.instructions">
-                <div>
-                  <h3
-                    class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-2"
-                  >
-                    Instructions
-                  </h3>
-                  <div
-                    class="glass-strong rounded-xl p-4 text-sm text-tokyo-text chat-md"
-                    x-html="renderMarkdown(task.instructions)"
-                  ></div>
-                </div>
-              </template>
-              <!-- Actions: inline row -->
-              <div class="pt-4 flex items-center justify-center gap-4">
-                <template
-                  x-if="task && task.status !== 'completed' && task.status !== 'deleted'"
-                >
-                  <button
-                    @click="completeTask(task?.id); $store.mobile.closePopover()"
-                    class="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300 transition-colors"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      class="w-3.5 h-3.5"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                    Complete
-                  </button>
-                </template>
-                <button
-                  @click="deleteTask(task?.id); $store.mobile.closePopover()"
-                  class="flex items-center gap-1.5 text-xs text-tokyo-muted/60 hover:text-tokyo-red transition-colors"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    class="w-3.5 h-3.5"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                  Delete
-                </button>
-              </div>
-            </div>
-          </template>
+          <!-- Task detail popover removed (old task system) -->
 
           <!-- Event detail popover (#10) -->
           <template x-if="$store.mobile.popover?.type === 'event'">
