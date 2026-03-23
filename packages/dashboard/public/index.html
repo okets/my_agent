@@ -1211,9 +1211,8 @@
                             class="text-[9px]"
                             :class="{
                               'text-green-400': item.status === 'completed',
-                              'text-tokyo-red': item.status === 'failed',
+                              'text-tokyo-red': item.status === 'failed' || (item.status === 'running' && item.itemType !== 'job'),
                               'text-blue-400': item.status === 'running' && item.itemType === 'job',
-                              'text-tokyo-red': item.status === 'running' && item.itemType !== 'job',
                               'text-amber-400': item.status === 'needs_review',
                               'text-tokyo-text/50': !['completed', 'failed', 'running', 'needs_review'].includes(item.status)
                             }"

@@ -542,6 +542,7 @@ export class StatePublisher {
         created: j.created,
         completed: j.completed,
         summary: j.summary,
+        triggerType: (j.context as Record<string, unknown>)?.trigger as string | undefined,
       };
     });
   }
