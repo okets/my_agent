@@ -4652,6 +4652,73 @@
           </template>
 
           <!-- ======================================================== -->
+          <!-- Automations Browser Tab                                  -->
+          <!-- ======================================================== -->
+          <template
+            x-if="openTabs.find(t => t.id === activeTab && t.type === 'automations-browser')"
+          >
+            <div class="p-6 overflow-auto h-full" x-data="{ automationsSearch: '' }">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-tokyo-text">All Automations</h2>
+                <input
+                  x-model="automationsSearch"
+                  type="text"
+                  placeholder="Search automations..."
+                  class="text-xs bg-tokyo-card/50 border border-white/10 rounded-md px-3 py-1.5 text-tokyo-text placeholder:text-tokyo-muted outline-none focus:border-tokyo-blue/50 w-48"
+                />
+              </div>
+              <!-- Automation rows -->
+              <div class="space-y-2">
+                <template x-for="automation in $store.automations.items.filter(a =>
+                  !automationsSearch || a.name.toLowerCase().includes(automationsSearch.toLowerCase()) ||
+                  (a.triggerTypes || []).some(t => t.toLowerCase().includes(automationsSearch.toLowerCase()))
+                )" :key="automation.id">
+                  <button
+                    @click="openAutomationDetail(automation.id)"
+                    class="w-full glass-strong rounded-lg px-4 py-3 flex items-center gap-4 hover:bg-white/5 transition-colors text-left"
+                  >
+                    <!-- Status dot -->
+                    <span
+                      class="w-2.5 h-2.5 rounded-full shrink-0"
+                      :class="automation.status === 'active' ? 'bg-green-400' : 'bg-gray-500'"
+                    ></span>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-sm font-medium text-tokyo-text" x-text="automation.name"></div>
+                      <div class="flex gap-1.5 mt-1 flex-wrap items-center">
+                        <!-- Trigger type badges -->
+                        <template x-for="tt in automation.triggerTypes" :key="tt">
+                          <span
+                            class="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                            :class="{
+                              'bg-cyan-500/15 text-cyan-400': tt === 'schedule',
+                              'bg-green-500/15 text-green-400': tt === 'channel',
+                              'bg-amber-500/15 text-amber-400': tt === 'watch',
+                              'bg-violet-500/15 text-violet-400': tt === 'manual'
+                            }"
+                            x-text="tt"
+                          ></span>
+                        </template>
+                        <!-- Space references -->
+                        <template x-for="space in (automation.spaces || [])" :key="space">
+                          <span class="text-[10px] px-1.5 py-0.5 rounded bg-tokyo-blue/10 text-tokyo-blue/70" x-text="space"></span>
+                        </template>
+                      </div>
+                    </div>
+                    <!-- Right side info -->
+                    <div class="flex flex-col items-end gap-1 shrink-0">
+                      <span class="text-[10px] text-tokyo-muted" x-show="automation.jobCount > 0" x-text="automation.jobCount + ' jobs'"></span>
+                      <span class="text-[10px] text-tokyo-muted" x-show="automation.lastFiredAt" x-text="'Last: ' + new Date(automation.lastFiredAt).toLocaleDateString()"></span>
+                    </div>
+                  </button>
+                </template>
+              </div>
+              <div x-show="$store.automations.items.length === 0" class="text-center text-tokyo-muted text-sm py-12">
+                No automations yet. Use the chat to create one.
+              </div>
+            </div>
+          </template>
+
+          <!-- ======================================================== -->
           <!-- Space Detail Tab                                         -->
           <!-- ======================================================== -->
           <template
