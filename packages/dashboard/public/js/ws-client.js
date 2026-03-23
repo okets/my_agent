@@ -99,6 +99,16 @@ class NinaWebSocket {
                 Alpine.store("spaces").loading = false;
               }
               break;
+            case "state:automations":
+              if (Alpine.store("automations")) {
+                Alpine.store("automations").update(data.automations || []);
+              }
+              break;
+            case "state:jobs":
+              if (Alpine.store("jobs")) {
+                Alpine.store("jobs").update(data.jobs || []);
+              }
+              break;
           }
         }
 

@@ -1437,6 +1437,11 @@ function chat() {
           // Handled by ws-client.js → Alpine store
           break;
 
+        case "state:automations":
+        case "state:jobs":
+          // Handled by ws-client.js → Alpine store
+          break;
+
         default:
           console.warn("[App] Unknown message type:", data.type);
       }

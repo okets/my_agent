@@ -30,6 +30,24 @@ document.addEventListener("alpine:init", () => {
     loading: false,
   });
 
+  Alpine.store("automations", {
+    items: [],
+    loading: true,
+    update(automations) {
+      this.items = automations;
+      this.loading = false;
+    },
+  });
+
+  Alpine.store("jobs", {
+    items: [],
+    loading: true,
+    update(jobs) {
+      this.items = jobs;
+      this.loading = false;
+    },
+  });
+
   // 'connected' | 'reconnecting' | 'offline'
   Alpine.store("connection", {
     status: "connected",
