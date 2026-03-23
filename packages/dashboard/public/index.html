@@ -1155,7 +1155,7 @@
                       <!-- Card -->
                       <button
                         @click="openTimelineItem(item)"
-                        class="flex-1 flex flex-col gap-0.5 px-2 py-1 ml-1.5 rounded-lg hover:bg-tokyo-card/60 text-left transition-colors max-w-sm"
+                        class="flex-1 flex flex-col gap-0.5 px-2 py-1.5 ml-1.5 rounded-lg hover:bg-tokyo-card/60 text-left transition-colors min-w-0"
                         :class="{
                           'opacity-60': item.isPast && item.status === 'completed',
                           'bg-amber-500/10 border border-amber-500/20': item.status === 'needs_review',
@@ -1170,7 +1170,7 @@
                           x-text="item.title"
                         ></span>
                         <!-- Badges row -->
-                        <div class="flex items-center gap-1">
+                        <div class="flex flex-wrap items-center gap-1">
                           <!-- Type badge (Task/Event/Job) -->
                           <span
                             class="px-1 py-0.5 text-[9px] rounded font-medium"
@@ -6943,30 +6943,61 @@
                 </template>
                 <template x-for="item in mobileCalendarDayItems" :key="item.id">
                   <button
-                    @click="item.itemType === 'task'
-                      ? $store.mobile.openPopoverWithFocus('task', item.task, $event.currentTarget)
-                      : $store.mobile.openPopoverWithFocus('event', item.event, $event.currentTarget)"
-                    class="w-full flex items-center gap-3 p-2.5 rounded-lg glass-strong text-left hover:bg-tokyo-card/60 transition-colors"
+                    @click="openTimelineItem(item)"
+                    class="w-full flex items-center gap-3 p-2.5 rounded-lg glass-strong text-left active:bg-tokyo-card/60 transition-colors min-h-[44px]"
+                    :class="{
+                      'opacity-60': item.isPast && item.status === 'completed',
+                      'bg-amber-500/10 border border-amber-500/20': item.status === 'needs_review',
+                      'bg-blue-500/10': item.status === 'running',
+                      'opacity-50': item.itemType === 'projected',
+                    }"
                   >
+                    <!-- Status dot -->
                     <span
-                      class="text-xs shrink-0"
+                      class="w-2.5 h-2.5 rounded-full shrink-0"
+                      :class="{
+                        'bg-green-400': item.status === 'completed',
+                        'bg-tokyo-red': item.status === 'failed',
+                        'bg-amber-400 animate-pulse': item.status === 'needs_review',
+                        'bg-blue-400 animate-pulse': item.status === 'running',
+                        'bg-gray-400': item.status === 'pending',
+                        'bg-cyan-400/60': item.status === 'scheduled' || item.itemType === 'projected',
+                        'bg-orange-400': item.itemType === 'task' && !['completed', 'failed', 'running', 'pending', 'scheduled'].includes(item.status),
+                        'bg-purple-400': item.itemType === 'event' && !['completed'].includes(item.status),
+                      }"
+                    ></span>
+                    <!-- Time -->
+                    <span
+                      class="text-xs text-tokyo-text/50 shrink-0"
                       x-text="formatTimelineTime(item)"
                     ></span>
+                    <!-- Title + badges -->
                     <div class="min-w-0 flex-1">
                       <span
                         class="text-sm font-medium text-tokyo-text truncate block"
+                        :class="{ 'line-through text-tokyo-text/50': item.status === 'completed' }"
                         x-text="item.title"
                       ></span>
+                      <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                        <!-- Trigger badge for jobs/projected -->
+                        <template x-if="(item.itemType === 'job' || item.itemType === 'projected') && item.triggerType">
+                          <span
+                            class="px-1 py-0.5 text-[9px] rounded font-medium"
+                            :class="{
+                              'bg-cyan-500/15 text-cyan-400': item.triggerType === 'schedule',
+                              'bg-green-500/15 text-green-400': item.triggerType === 'channel',
+                              'bg-amber-500/15 text-amber-400': item.triggerType === 'watch',
+                              'bg-violet-500/15 text-violet-400': item.triggerType === 'manual'
+                            }"
+                            x-text="item.triggerType"
+                          ></span>
+                        </template>
+                        <!-- Duration -->
+                        <template x-if="item.itemType === 'job' && formatJobDuration(item)">
+                          <span class="text-[9px] text-tokyo-text/40" x-text="formatJobDuration(item)"></span>
+                        </template>
+                      </div>
                     </div>
-                    <span
-                      class="text-[10px] px-1.5 py-0.5 rounded shrink-0"
-                      :class="item.status === 'completed'
-                        ? 'bg-green-500/15 text-green-400'
-                        : item.status === 'running'
-                          ? 'bg-cyan-500/15 text-cyan-400'
-                          : 'bg-tokyo-blue/15 text-tokyo-blue'"
-                      x-text="item.status === 'completed' ? '✓' : item.itemType === 'event' ? '📅' : '○'"
-                    ></span>
                   </button>
                 </template>
               </div>
