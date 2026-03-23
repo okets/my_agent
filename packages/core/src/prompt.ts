@@ -308,6 +308,68 @@ export async function loadProperties(agentDir: string): Promise<string | null> {
 }
 
 /**
+ * Load active automation hints for brain system prompt.
+ * Reads from .my_agent/automations/*.md frontmatter.
+ * Returns compact format: ~50 chars per automation.
+ * At 50+ automations, returns pull-model instruction.
+ */
+export async function loadAutomationHints(
+  agentDir: string,
+): Promise<string | null> {
+  const automationsDir = path.join(agentDir, 'automations')
+  if (!existsSync(automationsDir)) return null
+
+  let mdFiles: string[]
+  try {
+    const files = await readdir(automationsDir)
+    mdFiles = files.filter(f => f.endsWith('.md')).sort()
+  } catch {
+    return null
+  }
+
+  if (mdFiles.length === 0) return null
+  if (mdFiles.length > 50) {
+    return '## Active Automations\n\nYou have 50+ automations. Use the list_automations tool to search and discover them.'
+  }
+
+  const lines: string[] = [
+    '## Active Automations',
+    '',
+    "You have these standing instructions. When a user's message matches one, call fire_automation().",
+    '',
+  ]
+
+  for (const file of mdFiles) {
+    try {
+      const content = await readFile(path.join(automationsDir, file), 'utf-8')
+      const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+      if (!fmMatch) continue
+      const data = parseYaml(fmMatch[1]) as Record<string, unknown>
+      if (data.status !== 'active') continue
+      const name = (data.name as string) ?? file.replace('.md', '')
+      const triggers = (data.trigger ?? []) as Array<Record<string, unknown>>
+      const hints = triggers
+        .filter((t) => t.type === 'channel' && t.hint)
+        .map((t) => t.hint as string)
+        .join(', ')
+      const triggerTypes = [
+        ...new Set(triggers.map((t) => t.type as string)),
+      ].join(', ')
+      const spaces = ((data.spaces as string[]) ?? []).join(', ')
+      let line = `- ${name} (${triggerTypes}`
+      if (hints) line += `, hints: ${hints}`
+      line += ')'
+      if (spaces) line += ` -> ${spaces}`
+      lines.push(line)
+    } catch {
+      // Skip malformed files
+    }
+  }
+
+  return lines.length > 4 ? lines.join('\n') : null
+}
+
+/**
  * Load today's and yesterday's daily logs.
  */
 async function loadDailyLogs(agentDir: string): Promise<string | null> {
@@ -480,6 +542,12 @@ export async function assembleSystemPrompt(
         sections.push(`${header}\n\n${content.trim()}`)
       }
     }
+  }
+
+  // Load automation hints for brain awareness (M7-S3)
+  const automationHints = await loadAutomationHints(agentDir)
+  if (automationHints) {
+    sections.push(automationHints)
   }
 
   // Add calendar context if provided (replaces static reminders.md)

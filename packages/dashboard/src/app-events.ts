@@ -6,6 +6,7 @@
  */
 
 import type { Task } from "@my-agent/core";
+import type { Automation, Job } from "@my-agent/core";
 import type { AnyNotification } from "@my-agent/core";
 import type { TransportStatus } from "@my-agent/core";
 import type { SpaceSyncPayload } from "@my-agent/core";
@@ -44,6 +45,18 @@ export interface AppEventMap {
   "space:created": [space: SpaceSyncPayload];
   "space:updated": [space: SpaceSyncPayload];
   "space:deleted": [name: string];
+
+  // Automation mutations
+  "automation:created": [automation: Automation];
+  "automation:updated": [automation: Automation];
+  "automation:deleted": [automationId: string];
+
+  // Job lifecycle
+  "job:created": [job: Job];
+  "job:started": [job: Job];
+  "job:completed": [job: Job];
+  "job:failed": [job: Job];
+  "job:needs_review": [job: Job];
 
   // Skills
   "skills:changed": [];

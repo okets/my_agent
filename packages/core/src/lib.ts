@@ -56,7 +56,7 @@ export { migrateConfig } from './config-migration.js'
 export { ConfigWriter } from './config-writer.js'
 export type { BrainConfig, HealthConfig } from './types.js'
 
-export { assembleSystemPrompt, loadProperties } from './prompt.js'
+export { assembleSystemPrompt, loadProperties, loadAutomationHints } from './prompt.js'
 
 export { resolveAuth, validateSetupToken, isAuthenticated, clearAuth } from './auth.js'
 export type { ResolvedAuth } from './auth.js'
