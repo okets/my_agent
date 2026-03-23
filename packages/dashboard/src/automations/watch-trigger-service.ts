@@ -6,6 +6,7 @@
  */
 
 import { EventEmitter } from "node:events";
+import { computeBackoff, DEFAULT_BACKOFF } from "@my-agent/core";
 
 /** Minimal FSWatcher interface (from chokidar) to avoid direct type dependency */
 interface FSWatcher {
@@ -189,8 +190,41 @@ export class WatchTriggerService extends EventEmitter {
     this.pendingEvents.set(debounceKey, { files: [filePath], event, timer });
   }
 
-  /** Handle watcher error (mount failure) */
-  handleWatcherError(watchPath: string, error: Error): void { /* Task 5 */ }
+  /** Handle watcher error (mount failure) with retry + backoff */
+  handleWatcherError(watchPath: string, error: Error): void {
+    const attempt = this.mountRetryAttempts.get(watchPath) ?? 0;
+    this.deps.logError(error, `[WatchTriggerService] Watcher error on ${watchPath} (attempt ${attempt})`);
+
+    const delay = computeBackoff(DEFAULT_BACKOFF, attempt);
+    if (delay === null) {
+      // Max attempts exceeded — persistent failure
+      this.deps.log(
+        `[WatchTriggerService] Persistent mount failure for ${watchPath} after ${attempt} attempts — alerting user`,
+      );
+      this.emit("mount_failure", { path: watchPath, attempts: attempt });
+      this.mountRetryAttempts.delete(watchPath);
+      return;
+    }
+
+    this.mountRetryAttempts.set(watchPath, attempt + 1);
+    this.deps.log(`[WatchTriggerService] Retrying ${watchPath} in ${delay}ms`);
+
+    setTimeout(async () => {
+      try {
+        // Close existing watcher
+        const existing = this.watchers.get(watchPath);
+        if (existing) {
+          await existing.close();
+          this.watchers.delete(watchPath);
+        }
+        // Re-register via sync (which reads current triggers from DB)
+        await this.sync();
+        this.mountRetryAttempts.delete(watchPath); // reset on success
+      } catch (retryErr) {
+        this.handleWatcherError(watchPath, retryErr instanceof Error ? retryErr : new Error(String(retryErr)));
+      }
+    }, delay);
+  }
 
   /** Flush debounced events and fire automations */
   async flushPendingEvents(debounceKey: string): Promise<void> {
