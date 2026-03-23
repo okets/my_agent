@@ -1143,12 +1143,12 @@
                         :class="{
                           'bg-green-400': item.status === 'completed',
                           'bg-tokyo-red': item.status === 'failed',
-                          'bg-amber-400': item.status === 'needs_review',
-                          'bg-blue-400 animate-pulse': item.status === 'running' && item.itemType === 'job',
-                          'bg-amber-400 animate-pulse': item.status === 'running' && item.itemType !== 'job',
-                          'bg-orange-400': item.itemType === 'task' && !['completed', 'failed', 'running'].includes(item.status),
-                          'bg-purple-400': item.itemType === 'event' && item.status !== 'completed',
-                          'bg-gray-400': item.itemType === 'job' && item.status === 'pending'
+                          'bg-amber-400 animate-pulse': item.status === 'needs_review',
+                          'bg-blue-400 animate-pulse': item.status === 'running',
+                          'bg-gray-400': item.status === 'pending',
+                          'bg-cyan-400/60': item.status === 'scheduled' || item.itemType === 'projected',
+                          'bg-orange-400': item.itemType === 'task' && !['completed', 'failed', 'running', 'pending', 'scheduled'].includes(item.status),
+                          'bg-purple-400': item.itemType === 'event' && !['completed'].includes(item.status),
                         }"
                       ></span>
 
@@ -1156,7 +1156,12 @@
                       <button
                         @click="openTimelineItem(item)"
                         class="flex-1 flex flex-col gap-0.5 px-2 py-1 ml-1.5 rounded-lg hover:bg-tokyo-card/60 text-left transition-colors max-w-sm"
-                        :class="{ 'opacity-60': item.isPast, 'bg-amber-500/10': item.status === 'running', 'border-l-2 border-amber-400': item.status === 'needs_review' }"
+                        :class="{
+                          'opacity-60': item.isPast && item.status === 'completed',
+                          'bg-amber-500/10 border border-amber-500/20': item.status === 'needs_review',
+                          'bg-blue-500/10': item.status === 'running',
+                          'opacity-50': item.itemType === 'projected',
+                        }"
                       >
                         <!-- Title -->
                         <span
@@ -1191,9 +1196,9 @@
                                       item.triggerType === 'scheduled' ? '📅' : '⚡'"
                             ></span>
                           </template>
-                          <!-- Trigger type for jobs -->
+                          <!-- Trigger type for jobs and projected runs -->
                           <template
-                            x-if="item.itemType === 'job' && item.triggerType"
+                            x-if="(item.itemType === 'job' || item.itemType === 'projected') && item.triggerType"
                           >
                             <span
                               class="px-1 py-0.5 text-[9px] rounded font-medium"
@@ -1206,13 +1211,13 @@
                               x-text="item.triggerType"
                             ></span>
                           </template>
-                          <!-- Status -->
+                          <!-- Status indicator -->
                           <span
                             class="text-[9px]"
                             :class="{
                               'text-green-400': item.status === 'completed',
-                              'text-tokyo-red': item.status === 'failed' || (item.status === 'running' && item.itemType !== 'job'),
-                              'text-blue-400': item.status === 'running' && item.itemType === 'job',
+                              'text-tokyo-red': item.status === 'failed',
+                              'text-blue-400': item.status === 'running',
                               'text-amber-400': item.status === 'needs_review',
                               'text-tokyo-text/50': !['completed', 'failed', 'running', 'needs_review'].includes(item.status)
                             }"
@@ -1220,8 +1225,16 @@
                                     item.status === 'failed' ? '✗' :
                                     item.status === 'running' ? '●' :
                                     item.status === 'needs_review' ? '!' :
-                                    item.status === 'pending' ? '○' : ''"
+                                    item.status === 'pending' ? '○' :
+                                    item.status === 'scheduled' ? '◇' : ''"
                           ></span>
+                          <!-- Duration for completed/failed jobs -->
+                          <template x-if="item.itemType === 'job' && formatJobDuration(item)">
+                            <span
+                              class="text-[9px] text-tokyo-text/40"
+                              x-text="formatJobDuration(item)"
+                            ></span>
+                          </template>
                         </div>
                       </button>
                     </div>
@@ -1262,24 +1275,32 @@
 
               <!-- Legend -->
               <div
-                class="flex items-center gap-4 mt-4 pt-3 border-t border-tokyo-panel/50"
+                class="flex flex-wrap items-center gap-3 mt-4 pt-3 border-t border-tokyo-panel/50"
               >
-                <div class="flex items-center gap-1.5">
-                  <span class="w-2 h-2 rounded-full bg-orange-400"></span>
-                  <span class="text-[10px] text-tokyo-muted"
-                    >Task (pending)</span
-                  >
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <span class="w-2 h-2 rounded-full bg-purple-400"></span>
-                  <span class="text-[10px] text-tokyo-muted"
-                    >Calendar event</span
-                  >
-                </div>
-                <div class="flex items-center gap-1.5">
+                <span class="flex items-center gap-1">
                   <span class="w-2 h-2 rounded-full bg-green-400"></span>
-                  <span class="text-[10px] text-tokyo-muted">Completed</span>
-                </div>
+                  <span class="text-[9px] text-tokyo-text/40">Completed</span>
+                </span>
+                <span class="flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-tokyo-red"></span>
+                  <span class="text-[9px] text-tokyo-text/40">Failed</span>
+                </span>
+                <span class="flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                  <span class="text-[9px] text-tokyo-text/40">Review</span>
+                </span>
+                <span class="flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+                  <span class="text-[9px] text-tokyo-text/40">Running</span>
+                </span>
+                <span class="flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-cyan-400/60"></span>
+                  <span class="text-[9px] text-tokyo-text/40">Scheduled</span>
+                </span>
+                <span class="flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                  <span class="text-[9px] text-tokyo-text/40">Calendar</span>
+                </span>
               </div>
 
               <!-- Scroll-to-now shortcut (sticky bottom — shown when now marker is below) -->

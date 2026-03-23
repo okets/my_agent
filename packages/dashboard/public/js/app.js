@@ -178,6 +178,7 @@ function chat() {
     timelineFutureDays: 7, // How far forward to show (days)
     noMoreFutureEvents: true, // Pessimistic default; set false when events are found
     nowMarkerDirection: null, // null = visible, 'up' = above viewport, 'down' = below
+    timelineProjections: [], // Future projected runs from cron schedules
     showCreateTaskForm: false, // Create task modal
     createTaskForm: {
       title: "",
@@ -402,6 +403,7 @@ function chat() {
       this.loadCalendarConfig();
       this.loadTodayEvents();
       this.loadUpcomingEvents();
+      this.loadTimelineProjections();
 
       // Load tasks (M5-S6)
       this.loadTasks();
@@ -3203,10 +3205,28 @@ function chat() {
     },
 
     /**
+     * Load projected future runs from the timeline API
+     */
+    async loadTimelineProjections() {
+      try {
+        const res = await fetch("/api/timeline/future?hours=168");
+        const data = await res.json();
+        this.timelineProjections = data.futureRuns || [];
+      } catch (err) {
+        console.error("[App] Failed to load timeline projections:", err);
+        this.timelineProjections = [];
+      }
+    },
+
+    /**
      * Reload both tasks and calendar events for the current timeline range
      */
     async loadTimelineData() {
-      await Promise.all([this.loadTasks(), this.loadUpcomingEvents()]);
+      await Promise.all([
+        this.loadTasks(),
+        this.loadUpcomingEvents(),
+        this.loadTimelineProjections(),
+      ]);
     },
 
     /**
@@ -4298,6 +4318,24 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         }
       }
 
+      // Add projected future runs
+      for (const proj of this.timelineProjections) {
+        const projTime = new Date(proj.scheduledFor);
+        if (projTime >= now && projTime <= futureDate) {
+          items.push({
+            id: proj.id,
+            itemType: "projected",
+            title: proj.automationName,
+            time: projTime,
+            date: projTime.toDateString(),
+            status: "scheduled",
+            isPast: false,
+            triggerType: proj.triggerType || "schedule",
+            automationId: proj.automationId,
+          });
+        }
+      }
+
       // Sort by time
       items.sort((a, b) => a.time - b.time);
 
@@ -4384,19 +4422,26 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       const today = new Date();
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
 
-      const dateFormatted = date.toLocaleDateString([], {
-        weekday: "short",
+      const shortDate = date.toLocaleDateString([], {
         month: "short",
         day: "numeric",
       });
 
       if (date.toDateString() === today.toDateString()) {
-        return `Today, ${date.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+        return `Today, ${shortDate}`;
       } else if (date.toDateString() === tomorrow.toDateString()) {
-        return `Tomorrow, ${date.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+        return `Tomorrow, ${shortDate}`;
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        return `Yesterday, ${shortDate}`;
       } else {
-        return dateFormatted;
+        return date.toLocaleDateString([], {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
       }
     },
 
@@ -4407,6 +4452,27 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       const date = new Date(dateStr);
       const today = new Date();
       return date.toDateString() === today.toDateString();
+    },
+
+    /**
+     * Format duration between created and completed time for a job
+     */
+    formatJobDuration(item) {
+      if (!item.job || !item.job.completed || !item.job.created) return null;
+      const ms =
+        new Date(item.job.completed).getTime() -
+        new Date(item.job.created).getTime();
+      if (ms < 0) return null;
+      if (ms < 1000) return "<1s";
+      const seconds = Math.floor(ms / 1000);
+      if (seconds < 60) return `${seconds}s`;
+      const minutes = Math.floor(seconds / 60);
+      const remainSec = seconds % 60;
+      if (minutes < 60)
+        return remainSec > 0 ? `${minutes}m ${remainSec}s` : `${minutes}m`;
+      const hours = Math.floor(minutes / 60);
+      const remainMin = minutes % 60;
+      return remainMin > 0 ? `${hours}h ${remainMin}m` : `${hours}h`;
     },
 
     /**
@@ -4426,7 +4492,10 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         this.openTaskTab(item.task);
       } else if (item.itemType === "event" && item.event) {
         this.openEventTab(item.event);
-      } else if (item.itemType === "job" && item.automationId) {
+      } else if (
+        (item.itemType === "job" || item.itemType === "projected") &&
+        item.automationId
+      ) {
         this.openAutomationDetail(item.automationId);
       }
     },
