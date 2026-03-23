@@ -680,7 +680,7 @@ Persistent file-backed entities: Spaces (managed folders), Automations (standing
 |--------|------|--------|-------|
 | S1 | Space Entity | **Done** | Space types, FileWatcher utility, agent.db `spaces` table, SpaceSyncService, MCP tools (create_space, list_spaces), App integration, StatePublisher, dashboard UI (home widget, browser tab, detail tab with tree view + property view + editing) |
 | S2 | Tool Spaces | **Done** | isToolSpace predicate, tool field sync, DECISIONS.md utilities, tool invocation helper + error detection, tool creation guide in worker prompt, inline repair protocol, I/O contract display, maintenance toggle pills, DECISIONS.md preview (Run button dropped — tools invoke through agent) |
-| S3 | Automations Core | Planned | Automation manifests, job JSONL, AutomationSyncService, triggers (schedule/channel/watch/manual), MCP tools, UI (widget, browser, detail, timeline) |
+| S3 | Automations Core | **Done** | Automation + Job types, agent.db schema, AutomationJobService (JSONL), AutomationManager, AutomationSyncService, AutomationExecutor, AutomationProcessor (concurrency + delivery), AutomationScheduler (cron), MCP tools (create/fire/list/resume), brain prompt hints, App integration, StatePublisher, REST API (8 endpoints), dashboard UI (widget, browser, detail tab, timeline redesign, chat tag injection) |
 | S4 | Triggers + HITL | Planned | Watch triggers, channel trigger refinement, human-in-the-loop review flows, needs_review job status |
 | S5 | Cleanup + Integration | Planned | Integration tests, performance tuning, docs, existing task folder migration |
 
