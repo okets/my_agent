@@ -23,6 +23,7 @@ import { registerWorkLoopRoutes } from "./routes/work-loop.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerWorkPatternsSettingsRoutes } from "./routes/work-patterns-settings.js";
 import { registerSkillRoutes } from "./routes/skills.js";
+import { registerSpaceRoutes } from "./routes/spaces.js";
 import { SkillService } from "./services/skill-service.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
@@ -205,6 +206,9 @@ export async function createServer(
 
   // Register task routes
   await registerTaskRoutes(fastify);
+
+  // Register space routes
+  await registerSpaceRoutes(fastify);
 
   // Register debug API routes (localhost-only)
   await fastify.register(
