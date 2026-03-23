@@ -395,6 +395,68 @@
               </div>
             </div>
 
+            <!-- Automations Widget -->
+            <div class="glass-strong rounded-xl overflow-hidden mb-4">
+              <!-- Header -->
+              <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                <h2 class="text-sm font-semibold text-tokyo-text flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
+                    <path fill-rule="evenodd" d="M8.074.945A4.993 4.993 0 0 0 6 5v.032c.004.6.114 1.176.311 1.709.16.428-.204.91-.61.7a5.023 5.023 0 0 1-1.868-1.677c-.202-.304-.648-.363-.848-.058a6 6 0 1 0 8.017-1.901l-.004-.007a4.98 4.98 0 0 1-2.18-2.574c-.116-.31-.477-.472-.744-.28Zm.78 6.178a3.001 3.001 0 1 1-3.473 4.341c-.205-.365.215-.694.62-.59a4.008 4.008 0 0 0 1.828.047c.96-.2 1.747-.918 2.08-1.36a.55.55 0 0 0-.054-.678Z" clip-rule="evenodd"/>
+                  </svg>
+                  Automations
+                </h2>
+                <span class="text-xs text-tokyo-muted" x-text="$store.automations.items.filter(a => a.status === 'active').length + ' active'"></span>
+              </div>
+              <!-- Automation list (compact, max 5 shown) -->
+              <div class="max-h-[200px] overflow-y-auto">
+                <template x-if="$store.automations.items.length === 0">
+                  <div class="px-4 py-6 text-center text-xs text-tokyo-muted">
+                    No automations yet
+                  </div>
+                </template>
+                <template x-for="automation in $store.automations.items.slice(0, 5)" :key="automation.id">
+                  <button
+                    @click="openAutomationDetail(automation.id)"
+                    class="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-b-0"
+                  >
+                    <!-- Status indicator -->
+                    <span
+                      class="w-2 h-2 rounded-full shrink-0"
+                      :class="automation.status === 'active' ? 'bg-green-400' : 'bg-gray-500'"
+                    ></span>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-xs font-medium text-tokyo-text truncate" x-text="automation.name"></div>
+                      <div class="flex gap-1 mt-0.5 flex-wrap">
+                        <template x-for="tt in automation.triggerTypes" :key="tt">
+                          <span
+                            class="text-[9px] px-1 py-px rounded font-medium"
+                            :class="{
+                              'bg-cyan-500/15 text-cyan-400': tt === 'schedule',
+                              'bg-green-500/15 text-green-400': tt === 'channel',
+                              'bg-amber-500/15 text-amber-400': tt === 'watch',
+                              'bg-violet-500/15 text-violet-400': tt === 'manual'
+                            }"
+                            x-text="tt"
+                          ></span>
+                        </template>
+                      </div>
+                    </div>
+                    <!-- Job count -->
+                    <span class="text-[10px] text-tokyo-muted shrink-0" x-show="automation.jobCount > 0" x-text="automation.jobCount + ' jobs'"></span>
+                  </button>
+                </template>
+                <!-- "Show all" link when there are more than 5 -->
+                <template x-if="$store.automations.items.length > 5">
+                  <button
+                    @click="openAutomationsBrowser()"
+                    class="w-full px-4 py-2 text-[11px] text-tokyo-blue hover:text-tokyo-blue/80 transition-colors text-center"
+                  >
+                    Show all <span x-text="$store.automations.items.length"></span> automations
+                  </button>
+                </template>
+              </div>
+            </div>
+
             <!-- Notebook Widget (Tabbed Mini-Notebook) -->
             <div class="glass-strong rounded-xl overflow-hidden mb-4">
               <!-- Tab bar - 4 tabs -->

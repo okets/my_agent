@@ -5417,6 +5417,66 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       }
     },
 
+    // ─── Automations ───────────────────────────────────────────────────
+
+    openAutomationDetail(id) {
+      const tabId = `automation-${id}`;
+      const automation = Alpine.store("automations").items.find(
+        (a) => a.id === id,
+      );
+      this.openTab({
+        id: tabId,
+        type: "automation",
+        title: automation?.name || id,
+        icon: "\u{1F525}",
+        closeable: true,
+        data: { automationId: id },
+      });
+    },
+
+    openAutomationsBrowser() {
+      this.openTab({
+        id: "automations-browser",
+        type: "automations-browser",
+        title: "Automations",
+        icon: "\u{1F525}",
+        closeable: true,
+      });
+    },
+
+    async loadAutomationDetail(id) {
+      const tab = this.openTabs.find((t) => t.id === `automation-${id}`);
+      if (!tab) return;
+      tab.loading = true;
+      this.openTabs = [...this.openTabs];
+      try {
+        const resp = await fetch(
+          `/api/automations/${encodeURIComponent(id)}`,
+        );
+        const data = await resp.json();
+        tab.data = { ...tab.data, ...data, loaded: true };
+      } catch (err) {
+        console.error("Failed to load automation:", err);
+      }
+      tab.loading = false;
+      this.openTabs = [...this.openTabs];
+    },
+
+    async fireAutomation(id) {
+      try {
+        const resp = await fetch(`/api/automations/${encodeURIComponent(id)}/fire`, {
+          method: "POST",
+        });
+        if (!resp.ok) {
+          console.error("Failed to fire automation:", await resp.text());
+        }
+      } catch (err) {
+        console.error("Failed to fire automation:", err);
+      }
+    },
+
+    // ─── Notebook ────────────────────────────────────────────────────────
+
     openNotebookBrowser() {
       // Check if already open
       const existing = this.openTabs.find((t) => t.id === "notebook-browser");
