@@ -73,11 +73,19 @@ export class AutomationJobService {
     const jsonlPath = this.getJsonlPath(automationId);
 
     // Read JSONL, find and update the matching line
+    // Safe: AutomationProcessor enforces one-job-per-automation concurrency,
+    // so concurrent writes to the same JSONL are prevented by the semaphore.
     const lines = this.readJsonlLines(jsonlPath);
     let result: Job | null = null;
 
     const newLines = lines.map((line) => {
-      const job = JSON.parse(line) as Job;
+      let job: Job;
+      try {
+        job = JSON.parse(line) as Job;
+      } catch {
+        // Skip corrupted JSONL lines (truncated write, disk error)
+        return line;
+      }
       if (job.id === jobId) {
         const merged = { ...job, ...updates };
         result = merged;
@@ -156,7 +164,13 @@ export class AutomationJobService {
       const lines = this.readJsonlLines(filePath);
 
       for (const line of lines) {
-        const job = JSON.parse(line) as Job;
+        let job: Job;
+        try {
+          job = JSON.parse(line) as Job;
+        } catch {
+          // Skip corrupted JSONL lines during reindex
+          continue;
+        }
         this.db.upsertJob({
           id: job.id,
           automationId: job.automationId,
