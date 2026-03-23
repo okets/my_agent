@@ -670,27 +670,25 @@ The knowledge system gets a lifecycle. Facts are classified at extraction (perma
 
 ---
 
-### M7: Persistent Workspaces — PLANNED
+### M7: Spaces, Automations & Jobs — IN PROGRESS
 
-Decouple work folders from task lifecycle. Workspaces become persistent, reusable contexts that tasks attach to. A "coding project" is just a long-lived workspace pointed at a repo.
+Persistent file-backed entities: Spaces (managed folders), Automations (standing instructions with triggers), Jobs (discrete execution units).
 
-**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M7
+**Design spec:** [m7-spaces-automations-jobs.md](superpowers/specs/2026-03-22-m7-spaces-automations-jobs.md)
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | Workspace Entity | Planned | Workspace model (id, name, path, type: internal/external), WorkspaceStorage (CRUD), migration of existing task folders, workspace-task relationship in agent.db. MCP tools: `create_workspace`, `list_workspaces`. |
-| S2 | Workspace Lifecycle | Planned | Workspace persistence across tasks, workspace browser in dashboard, "attach to workspace" in task creation, external repo registration, workspace-scoped CLAUDE.md + skills loading. |
+| S1 | Space Entity | **Done** | Space types, FileWatcher utility, agent.db `spaces` table, SpaceSyncService, MCP tools (create_space, list_spaces), App integration, StatePublisher, dashboard UI (home widget, browser tab, detail tab with tree view + property view + editing) |
+| S2 | Tool Spaces | Planned | Tool invocation, I/O contracts, DECISIONS.md lifecycle, inline repair, tool-specific UI, tool creation template |
+| S3 | Automations Core | Planned | Automation manifests, job JSONL, AutomationSyncService, triggers (schedule/channel/watch/manual), MCP tools, UI (widget, browser, detail, timeline) |
+| S4 | Triggers + HITL | Planned | Watch triggers, channel trigger refinement, human-in-the-loop review flows, needs_review job status |
+| S5 | Cleanup + Integration | Planned | Integration tests, performance tuning, docs, existing task folder migration |
 
-**Core principle:** Workspace = a folder with a manifest file. The folder IS the workspace. agent.db indexes for search/listing but is derived and rebuildable.
-
-**Key design questions (resolve during spec):**
-- Source of truth for workspace manifest: format, location, external repo referencing
-- Archive/cleanup policy for inactive workspaces
-- How does the agentic task executor discover which workspace to use?
+**Core principle:** Space = a folder with a SPACE.md manifest. The folder IS the space. agent.db indexes for search/listing but is derived and rebuildable.
 
 **Dependencies:** M6.10 (headless App — workspace management via App API)
 
-**Supersedes:** Old M7 (Coding Projects). "User's Code Projects" becomes a workspace pointed at a repo.
+**Supersedes:** Old M7 (Coding Projects/Persistent Workspaces). Spaces subsume the workspace concept.
 
 ---
 
