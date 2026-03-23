@@ -5057,6 +5057,158 @@
           </template>
 
           <!-- ======================================================== -->
+          <!-- Automation Detail Tab                                    -->
+          <!-- ======================================================== -->
+          <template
+            x-if="openTabs.find(t => t.id === activeTab && t.type === 'automation')"
+          >
+            <div
+              class="p-6 overflow-auto h-full"
+              x-data="{
+                get tab() { return openTabs.find(t => t.id === activeTab) },
+              }"
+              x-init="loadAutomationDetail(tab.data.automationId)"
+            >
+              <!-- Loading -->
+              <template x-if="tab.loading">
+                <div class="text-center text-xs text-tokyo-muted py-12">Loading...</div>
+              </template>
+
+              <template x-if="!tab.loading && tab.data?.loaded">
+                <div class="max-w-2xl">
+                  <!-- Header -->
+                  <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-3">
+                      <h2 class="text-lg font-semibold text-tokyo-text" x-text="tab.data.manifest?.name || tab.data.automationId"></h2>
+                      <span
+                        class="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                        :class="tab.data.manifest?.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'"
+                        x-text="tab.data.manifest?.status || 'unknown'"
+                      ></span>
+                    </div>
+                    <button
+                      @click="fireAutomation(tab.data.automationId)"
+                      class="text-xs px-3 py-1.5 rounded-md border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 transition-colors"
+                    >
+                      Fire Now
+                    </button>
+                  </div>
+
+                  <!-- Triggers section -->
+                  <div class="mb-6">
+                    <h3 class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide mb-2">Triggers</h3>
+                    <div class="flex flex-wrap gap-2">
+                      <template x-for="(trigger, idx) in (tab.data.manifest?.trigger || [])" :key="idx">
+                        <div class="glass-strong rounded-lg px-3 py-2 text-xs">
+                          <span
+                            class="text-[10px] px-1.5 py-0.5 rounded font-medium mr-2"
+                            :class="{
+                              'bg-cyan-500/15 text-cyan-400': trigger.type === 'schedule',
+                              'bg-green-500/15 text-green-400': trigger.type === 'channel',
+                              'bg-amber-500/15 text-amber-400': trigger.type === 'watch',
+                              'bg-violet-500/15 text-violet-400': trigger.type === 'manual'
+                            }"
+                            x-text="trigger.type"
+                          ></span>
+                          <span class="text-tokyo-muted" x-show="trigger.cron" x-text="trigger.cron"></span>
+                          <span class="text-tokyo-muted" x-show="trigger.hint" x-text="'hints: ' + trigger.hint"></span>
+                          <span class="text-tokyo-muted" x-show="trigger.path" x-text="'watch: ' + trigger.path"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Configuration -->
+                  <div class="mb-6 flex flex-wrap gap-4">
+                    <!-- Spaces -->
+                    <template x-if="(tab.data.manifest?.spaces || []).length > 0">
+                      <div>
+                        <h3 class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide mb-2">Spaces</h3>
+                        <div class="flex flex-wrap gap-1">
+                          <template x-for="space in tab.data.manifest.spaces" :key="space">
+                            <button
+                              @click="openSpaceDetail(space)"
+                              class="text-[10px] px-1.5 py-0.5 rounded bg-tokyo-blue/10 text-tokyo-blue hover:bg-tokyo-blue/20 transition-colors"
+                              x-text="space"
+                            ></button>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                    <!-- Model -->
+                    <div x-show="tab.data.manifest?.model">
+                      <h3 class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide mb-2">Model</h3>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400" x-text="tab.data.manifest?.model"></span>
+                    </div>
+                    <!-- Notify -->
+                    <div x-show="tab.data.manifest?.notify">
+                      <h3 class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide mb-2">Notify</h3>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded bg-tokyo-text/10 text-tokyo-text/70" x-text="tab.data.manifest?.notify"></span>
+                    </div>
+                    <!-- Autonomy -->
+                    <div x-show="tab.data.manifest?.autonomy">
+                      <h3 class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide mb-2">Autonomy</h3>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded bg-tokyo-text/10 text-tokyo-text/70" x-text="tab.data.manifest?.autonomy"></span>
+                    </div>
+                  </div>
+
+                  <!-- Instructions -->
+                  <template x-if="tab.data.instructions">
+                    <div class="mb-6">
+                      <h3 class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide mb-2">Instructions</h3>
+                      <div class="border-l-2 border-tokyo-blue/20 pl-3 text-xs text-tokyo-text/80 whitespace-pre-wrap" x-text="tab.data.instructions"></div>
+                    </div>
+                  </template>
+
+                  <!-- Job history -->
+                  <div>
+                    <h3 class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide mb-2">Recent Jobs</h3>
+                    <div class="space-y-1">
+                      <template x-for="job in $store.jobs.items.filter(j => j.automationId === tab.data.automationId).slice(0, 20)" :key="job.id">
+                        <div
+                          class="glass-strong rounded-lg px-3 py-2 flex items-center gap-3 text-xs"
+                          :class="{ 'border-l-2 border-amber-400': job.status === 'needs_review' }"
+                        >
+                          <!-- Status dot -->
+                          <span
+                            class="w-2 h-2 rounded-full shrink-0"
+                            :class="{
+                              'bg-green-400': job.status === 'completed',
+                              'bg-red-400': job.status === 'failed',
+                              'bg-amber-400': job.status === 'needs_review',
+                              'bg-blue-400 animate-pulse': job.status === 'running',
+                              'bg-gray-400': job.status === 'pending'
+                            }"
+                          ></span>
+                          <!-- Summary -->
+                          <span class="flex-1 text-tokyo-text/80 truncate" x-text="job.summary || job.status"></span>
+                          <!-- Trigger badge -->
+                          <span
+                            x-show="job.triggerType"
+                            class="text-[9px] px-1 py-px rounded font-medium shrink-0"
+                            :class="{
+                              'bg-cyan-500/15 text-cyan-400': job.triggerType === 'schedule',
+                              'bg-green-500/15 text-green-400': job.triggerType === 'channel',
+                              'bg-amber-500/15 text-amber-400': job.triggerType === 'watch',
+                              'bg-violet-500/15 text-violet-400': job.triggerType === 'manual'
+                            }"
+                            x-text="job.triggerType"
+                          ></span>
+                          <!-- Time -->
+                          <span class="text-[10px] text-tokyo-muted shrink-0" x-text="new Date(job.created).toLocaleString()"></span>
+                        </div>
+                      </template>
+                      <template x-if="$store.jobs.items.filter(j => j.automationId === tab.data.automationId).length === 0">
+                        <div class="text-xs text-tokyo-muted py-4 text-center">No jobs yet</div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- ======================================================== -->
           <!-- Calendar Tab                                             -->
           <!-- ======================================================== -->
           <div
