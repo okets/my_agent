@@ -566,102 +566,23 @@ Add maintenance section below the I/O contract. Shows `on_failure` as toggle pil
 
 **File:** `packages/dashboard/public/js/app.js`
 
-Add `updateMaintenancePolicy()` method to the chat component:
+Add `updateMaintenancePolicy()` method — uses existing PATCH `/api/spaces/:name` endpoint from S1:
 
 ```javascript
 async updateMaintenancePolicy(tab, newPolicy) {
-  tab.spaceData.maintenance.on_failure = newPolicy;
-  // Send update to backend via WebSocket
-  this.ws.send(JSON.stringify({
-    type: "space:update_maintenance",
-    spaceName: tab.spaceData.name,
-    maintenance: tab.spaceData.maintenance,
-  }));
+  const maintenance = { ...tab.spaceData.maintenance, on_failure: newPolicy };
+  tab.spaceData.maintenance = maintenance;
+  await this.updateSpaceField(tab.data.name, 'maintenance', maintenance);
 },
 ```
-
-**File:** `packages/dashboard/src/ws/chat-handler.ts`
-
-Handle the `space:update_maintenance` message -- update SPACE.md frontmatter via `writeFrontmatter()`.
 
 **Commit:** `feat(ui): maintenance section with toggle pills in Space detail`
 
 ---
 
-### Task 10 — UI: "Run" button on tool Space detail tab (5 min)
+### ~~Task 10 — DROPPED: "Run" button~~
 
-**File:** `packages/dashboard/public/index.html`
-
-Add a "Run" button to the Space detail tab header bar. Only visible for tool spaces (has `runtime` + `entry` + `io`). Clicking opens a compact input form pre-populated from the `io.input` contract, then sends a WebSocket message to invoke the tool.
-
-```html
-<!-- Run button (tool spaces only) -->
-<template x-if="tab.spaceData?.runtime && tab.spaceData?.entry && tab.spaceData?.io">
-  <button
-    class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-opacity"
-    @click="tab.showRunForm = !tab.showRunForm"
-  >
-    Run
-  </button>
-</template>
-
-<!-- Run form (collapsible) -->
-<template x-if="tab.showRunForm">
-  <div class="mt-3 p-3 rounded-lg glass-strong space-y-2">
-    <template x-for="[name, type] in Object.entries(tab.spaceData.io.input || {})" :key="name">
-      <div>
-        <label class="text-[10px] text-gray-500 uppercase" x-text="name"></label>
-        <input
-          type="text"
-          class="w-full mt-1 px-2 py-1.5 text-sm bg-surface-900 border border-white/10 rounded text-gray-200 font-mono focus:border-white/30 outline-none"
-          :placeholder="type"
-          x-model="tab.runInputs[name]"
-        />
-      </div>
-    </template>
-    <button
-      class="w-full px-3 py-1.5 text-xs font-medium rounded-lg bg-[#e07a5f] text-white hover:opacity-90"
-      @click="runTool(tab)"
-    >
-      Execute
-    </button>
-    <!-- Result display -->
-    <template x-if="tab.runResult">
-      <pre class="mt-2 p-2 text-xs bg-surface-900 rounded text-gray-300 overflow-x-auto max-h-48" x-text="tab.runResult"></pre>
-    </template>
-  </div>
-</template>
-```
-
-**File:** `packages/dashboard/public/js/app.js`
-
-Initialize `tab.runInputs = {}` and `tab.showRunForm = false` when opening a space tab. Add `runTool()`:
-
-```javascript
-async runTool(tab) {
-  tab.runResult = "Running...";
-  this.ws.send(JSON.stringify({
-    type: "space:run_tool",
-    spaceName: tab.spaceData.name,
-    input: tab.runInputs,
-  }));
-},
-```
-
-**File:** `packages/dashboard/src/ws/chat-handler.ts`
-
-Handle `space:run_tool` message:
-1. Look up space from agent.db
-2. Build shell command via `buildToolCommand()`
-3. Execute via `execFile()` with timeout (use `execFileNoThrow` pattern from `src/utils/execFileNoThrow.ts`)
-4. Classify result via `classifyToolOutput()`
-5. Send result back via WebSocket: `{ type: "space:run_result", spaceName, result }`
-
-**File:** `packages/dashboard/public/js/ws-client.js`
-
-Handle `space:run_result` message -- find the open space tab and set `tab.runResult`.
-
-**Commit:** `feat(ui): Run button with input form for tool spaces`
+> **Dropped by CTO decision (2026-03-23).** Direct shell execution from the dashboard bypasses agent hooks, doesn't log to job history, and has no audit trail. Tool invocation will go through the agent (chat) once automations exist in S3. No value after M7 development is complete.
 
 ---
 
@@ -731,59 +652,9 @@ cd packages/dashboard && npx vitest run tests/tasks/working-nina-prompt.test.ts
 
 ---
 
-### Task 13 — WebSocket handler for space tool operations (4 min)
+### ~~Task 13 — DROPPED: WebSocket handler for tool operations~~
 
-**File:** `packages/dashboard/src/ws/chat-handler.ts`
-
-Add handlers for the new WebSocket message types:
-
-```typescript
-case "space:run_tool": {
-  const { spaceName, input } = msg;
-  // 1. Look up space
-  const space = app.spaces.findByName(spaceName);
-  if (!space || !isToolSpace(space)) {
-    ws.send(JSON.stringify({
-      type: "space:run_result",
-      spaceName,
-      result: { success: false, error: "Not a tool space" },
-    }));
-    return;
-  }
-  // 2. Build command
-  const cmd = buildToolCommand(space, input);
-  // 3. Execute (with timeout, using execFileNoThrow pattern)
-  try {
-    const { stdout, stderr, exitCode } = await runToolProcess(cmd, { timeout: 30000, cwd: space.path });
-    const result = classifyToolOutput(exitCode, stdout, space.io);
-    ws.send(JSON.stringify({ type: "space:run_result", spaceName, result }));
-  } catch (err) {
-    ws.send(JSON.stringify({
-      type: "space:run_result",
-      spaceName,
-      result: { success: false, error: err.message, errorType: "exit_code" },
-    }));
-  }
-  break;
-}
-
-case "space:update_maintenance": {
-  const { spaceName, maintenance } = msg;
-  // Update SPACE.md frontmatter
-  const space = app.spaces.findByName(spaceName);
-  if (!space) return;
-  const spaceMdPath = path.join(space.path, "SPACE.md");
-  const { data, body } = readFrontmatter(spaceMdPath);
-  data.maintenance = maintenance;
-  writeFrontmatter(spaceMdPath, data, body);
-  // SpaceSyncService will detect the change and re-index
-  break;
-}
-```
-
-**Test:** Manual -- run a tool space from the UI, verify result appears.
-
-**Commit:** `feat(ws): handlers for space tool invocation and maintenance update`
+> **Dropped with Task 10.** No Run button means no need for `space:run_tool` WebSocket handler. Maintenance updates use the existing PATCH `/api/spaces/:name` endpoint from S1.
 
 ---
 
@@ -825,13 +696,13 @@ Expected: All 9 steps pass. Full tool creation to invocation to failure to repai
 | 6 | Inline repair protocol | `dashboard/src/spaces/repair-context.ts` | 4 min |
 | 7 | Verify list_spaces filtering | `dashboard/tests/mcp/space-tools-server.test.ts` | 3 min |
 | 8 | UI: I/O contract display | `dashboard/public/index.html` | 5 min |
-| 9 | UI: Maintenance section | `dashboard/public/index.html`, `app.js`, `chat-handler.ts` | 4 min |
-| 10 | UI: Run button | `dashboard/public/index.html`, `app.js`, `chat-handler.ts`, `ws-client.js` | 5 min |
+| 9 | UI: Maintenance section | `dashboard/public/index.html`, `app.js` | 4 min |
+| ~~10~~ | ~~DROPPED: Run button~~ | | |
 | 11 | UI: DECISIONS.md preview | `dashboard/public/index.html` | 3 min |
 | 12 | Space contexts in worker prompt | `dashboard/src/tasks/working-nina-prompt.ts` | 3 min |
-| 13 | WebSocket handlers | `dashboard/src/ws/chat-handler.ts` | 4 min |
+| ~~13~~ | ~~DROPPED: WebSocket handlers~~ | | |
 | 14 | Integration test | `dashboard/tests/spaces/tool-lifecycle.test.ts` | 5 min |
-| | **Total** | | **55 min** |
+| | **Total** | | **46 min** |
 
 ## Test Commands
 
