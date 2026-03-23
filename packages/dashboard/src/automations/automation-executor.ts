@@ -194,6 +194,116 @@ export class AutomationExecutor {
     }
   }
 
+  /**
+   * Resume a needs_review job with user input.
+   * Uses SDK session resumption when a stored session ID is available.
+   * Falls back to failed status if no session can be resumed.
+   */
+  async resume(
+    job: Job,
+    userInput: string,
+    storedSessionId: string | null,
+  ): Promise<{ success: boolean; status: string; summary?: string; error?: string }> {
+    console.log(
+      `[AutomationExecutor] Resuming job ${job.id} (session: ${storedSessionId ?? "none"})`,
+    );
+
+    // Update job status to running
+    this.config.jobService.updateJob(job.id, { status: "running" });
+
+    try {
+      if (storedSessionId) {
+        try {
+          // Resume the SDK session with user input as the prompt
+          const brainConfig = loadConfig();
+          const automation = this.config.automationManager.findById(job.automationId);
+          const model = automation?.manifest.model ?? brainConfig.model;
+
+          const query = createBrainQuery(userInput, {
+            model,
+            resume: storedSessionId,
+            cwd: job.run_dir,
+            tools: WORKER_TOOLS,
+            settingSources: ["project"],
+            additionalDirectories: [this.config.agentDir],
+            mcpServers: this.config.mcpServers,
+            hooks: this.config.hooks,
+            includePartialMessages: false,
+          });
+
+          // Iterate and collect response
+          let response = "";
+          let newSessionId: string | null = null;
+
+          for await (const msg of query) {
+            if (
+              msg.type === "system" &&
+              (msg as any).subtype === "init" &&
+              (msg as any).session_id
+            ) {
+              newSessionId = (msg as any).session_id;
+            }
+
+            if (msg.type === "assistant") {
+              const textBlocks = (msg as any).message.content.filter(
+                (block: { type: string }) => block.type === "text",
+              );
+              for (const block of textBlocks) {
+                if ("text" in block) {
+                  response += block.text;
+                }
+              }
+            }
+          }
+
+          const { work, deliverable } = extractDeliverable(response);
+          const summary = (deliverable ?? work).slice(0, 500);
+
+          // Check if the resumed session also requests review
+          const hasNeedsReview =
+            response.includes("needs_review") ||
+            automation?.manifest.autonomy === "review";
+          const finalStatus = hasNeedsReview ? "needs_review" : "completed";
+
+          this.config.jobService.updateJob(job.id, {
+            status: finalStatus,
+            completed: finalStatus === "completed" ? new Date().toISOString() : undefined,
+            summary,
+            sdk_session_id: newSessionId ?? storedSessionId,
+          });
+
+          console.log(
+            `[AutomationExecutor] Job ${job.id} resumed -> ${finalStatus}`,
+          );
+
+          return { success: finalStatus === "completed", status: finalStatus, summary };
+        } catch (resumeErr) {
+          console.warn(
+            `[AutomationExecutor] Session resume failed for job ${job.id}, marking as failed`,
+            resumeErr,
+          );
+        }
+      }
+
+      // No session to resume — fail gracefully
+      this.config.jobService.updateJob(job.id, {
+        status: "failed",
+        completed: new Date().toISOString(),
+        summary: "Session resume failed — no stored session available",
+      });
+
+      return { success: false, status: "failed", error: "No session to resume" };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.config.jobService.updateJob(job.id, {
+        status: "failed",
+        completed: new Date().toISOString(),
+        summary: `Resume failed: ${errorMsg}`,
+      });
+      return { success: false, status: "failed", error: errorMsg };
+    }
+  }
+
   private buildAutomationContext(
     automation: Automation,
     spaces: Space[],
