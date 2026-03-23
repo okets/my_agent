@@ -90,9 +90,30 @@ export class AutomationExecutor {
         },
       );
 
+      // Resolve referenced spaces for context
+      const spaces: Space[] = [];
+      for (const spaceName of automation.manifest.spaces ?? []) {
+        const spaceRow = this.config.db.getSpace(spaceName);
+        if (spaceRow) {
+          spaces.push({
+            name: spaceRow.name,
+            manifestDir: spaceRow.path,
+            tags: spaceRow.tags ?? [],
+            path: spaceRow.path,
+            runtime: spaceRow.runtime ?? undefined,
+            entry: spaceRow.entry ?? undefined,
+            io: spaceRow.io as Space["io"],
+            maintenance: spaceRow.maintenance as Space["maintenance"],
+            description: spaceRow.description ?? "",
+            created: "",
+            indexedAt: spaceRow.indexedAt,
+          });
+        }
+      }
+
       const automationContext = this.buildAutomationContext(
         automation,
-        [],
+        spaces,
         triggerContext,
       );
 

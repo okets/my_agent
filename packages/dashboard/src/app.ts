@@ -12,6 +12,7 @@ import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AppEventMap } from "./app-events.js";
+import { writeFrontmatter } from "./metadata/frontmatter.js";
 
 import {
   resolveAuth,
@@ -171,6 +172,7 @@ export class AppSpaceService {
   constructor(
     private db: ConversationDatabase,
     private app: App,
+    private agentDir: string,
   ) {}
 
   list(filter?: ListSpacesFilter) {
@@ -179,6 +181,39 @@ export class AppSpaceService {
 
   findByName(name: string) {
     return this.db.getSpace(name);
+  }
+
+  create(input: {
+    name: string;
+    tags?: string[];
+    path?: string;
+    runtime?: string;
+    entry?: string;
+    description?: string;
+  }): string {
+    const spacesDir = join(this.agentDir, "spaces");
+    if (!existsSync(spacesDir)) {
+      mkdirSync(spacesDir, { recursive: true });
+    }
+    const spaceDir = join(spacesDir, input.name);
+    if (existsSync(spaceDir)) {
+      throw new Error(`Space "${input.name}" already exists`);
+    }
+    mkdirSync(spaceDir, { recursive: true });
+    const frontmatter: Record<string, unknown> = {
+      name: input.name,
+      created: new Date().toISOString(),
+    };
+    if (input.tags?.length) frontmatter.tags = input.tags;
+    if (input.path) frontmatter.path = input.path;
+    if (input.runtime) frontmatter.runtime = input.runtime;
+    if (input.entry) frontmatter.entry = input.entry;
+    writeFrontmatter(
+      join(spaceDir, "SPACE.md"),
+      frontmatter,
+      input.description ?? "",
+    );
+    return spaceDir;
   }
 }
 
@@ -1159,6 +1194,7 @@ export class App extends EventEmitter {
     app.spaces = new AppSpaceService(
       app.conversationManager.getConversationDb(),
       app,
+      agentDir,
     );
     app.chat = new AppChatService(app);
     app.auth = new AppAuthService(app);
