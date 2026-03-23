@@ -1635,6 +1635,55 @@ systemctl --user restart nina-dashboard.service
 
 ---
 
+### Task 19: Live Trigger E2E Tests
+
+End-to-end tests that verify all 4 trigger types fire real automations and produce real jobs. These are NOT unit tests — they exercise the actual running system.
+
+- [ ] **Step 1: Schedule trigger E2E**
+
+Create an automation with `cron: "* * * * *"` (every minute). Wait up to 90s. Verify:
+- Job appears in agent.db with status `completed` or `running`
+- JSONL file created on disk
+- StatePublisher broadcast fires (listen via app.on events)
+
+- [ ] **Step 2: Watch trigger E2E**
+
+Create an automation with a watch trigger on a temp directory. Drop a file. Verify:
+- WatchTriggerService detects the file event
+- Job fires within debounce window (5s default)
+- Job context includes the file path and event type
+- Clean up temp dir after test
+
+- [ ] **Step 3: Channel trigger E2E**
+
+Create an automation with a channel trigger (hint keywords). Send a mock message through the chat pipeline with matching keywords. Verify:
+- Haiku extraction identifies the automation match
+- Job fires with channel context (message content, sender)
+- Automation instructions are followed
+
+- [ ] **Step 4: Manual trigger E2E**
+
+Fire an automation via the `fire_automation` MCP tool. Verify:
+- Job created immediately
+- Executor runs with correct system prompt
+- Job completes with summary
+
+- [ ] **Step 5: HITL resume E2E**
+
+Create an automation with `autonomy: review`. Fire it. Verify:
+- Job ends in `needs_review` status
+- ConversationInitiator alert fires
+- Call `resume_job` MCP tool with user response
+- SDK session resumes (or falls back to fresh)
+- Job transitions to `completed`
+- Session ID sidecar file created
+
+**Test file:** `packages/dashboard/tests/e2e/trigger-e2e.test.ts`
+
+**Commit:** `test(m7-s5): live E2E tests for all 4 trigger types + HITL resume`
+
+---
+
 ## Summary
 
 | Part | Tasks | Concern |
@@ -1642,6 +1691,7 @@ systemctl --user restart nina-dashboard.service
 | **A: Backend** | 1-7 | App events, service namespaces, StatePublisher, E2E verification |
 | **B: UI** | 8-13 | Alpine stores, WS handlers, 2x2 Home grid, timeline, future projection |
 | **C: Cleanup** | 14-18 | Delete files, remove imports, drop tables, final verification |
+| **D: E2E** | 19 | Live trigger tests for schedule, watch, channel, manual + HITL resume |
 
 **Execution order:** A1-A6 (types + namespaces + App wiring + StatePublisher) -> B8-B12 (stores + UI) -> A7 (E2E verify) -> C14-C16 (delete + cleanup + DB) -> B13 (future projection) -> C17-C18 (runtime cleanup + final verify)
 
