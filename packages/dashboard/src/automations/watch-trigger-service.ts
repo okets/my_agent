@@ -116,7 +116,58 @@ export class WatchTriggerService extends EventEmitter {
   }
 
   /** Re-sync watchers when automation manifests change */
-  async sync(): Promise<void> { /* Task 3 */ }
+  async sync(): Promise<void> {
+    const triggers = this.deps.getWatchTriggers();
+
+    // Build new path -> automationId[] map
+    const newPathMap = new Map<string, string[]>();
+    for (const trigger of triggers) {
+      const existing = newPathMap.get(trigger.path) ?? [];
+      existing.push(trigger.automationId);
+      newPathMap.set(trigger.path, existing);
+    }
+
+    // Tear down watchers for paths no longer needed
+    for (const [path, watcher] of this.watchers) {
+      if (!newPathMap.has(path)) {
+        await watcher.close();
+        this.watchers.delete(path);
+        this.deps.log(`[WatchTriggerService] Removed watcher: ${path}`);
+      }
+    }
+
+    // Register watchers for new paths
+    const chokidarModule = "chokidar";
+    const { watch } = (await import(chokidarModule)) as { watch: (path: string, opts: Record<string, unknown>) => FSWatcher };
+    for (const [path] of newPathMap) {
+      if (!this.watchers.has(path)) {
+        const config = triggers.find(t => t.path === path)!;
+        const events = config.events ?? ["add", "change"];
+
+        const watcher = watch(path, {
+          persistent: true,
+          ignoreInitial: true,
+          usePolling: config.polling ?? true,
+          interval: config.interval ?? 5000,
+        });
+
+        for (const event of events) {
+          watcher.on(event, (filePath: string) => {
+            this.handleFileEvent(path, filePath, event);
+          });
+        }
+        watcher.on("error", (error: Error) => {
+          this.handleWatcherError(path, error);
+        });
+
+        this.watchers.set(path, watcher);
+        this.deps.log(`[WatchTriggerService] Added watcher: ${path}`);
+      }
+    }
+
+    // Update the path map
+    this.pathToAutomations = newPathMap;
+  }
 
   /** Handle file event with space-level debouncing */
   handleFileEvent(watchPath: string, filePath: string, event: string): void { /* Task 4 */ }
