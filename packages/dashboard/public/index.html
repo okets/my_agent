@@ -1143,9 +1143,12 @@
                         :class="{
                           'bg-green-400': item.status === 'completed',
                           'bg-tokyo-red': item.status === 'failed',
-                          'bg-amber-400 animate-pulse': item.status === 'running',
+                          'bg-amber-400': item.status === 'needs_review',
+                          'bg-blue-400 animate-pulse': item.status === 'running' && item.itemType === 'job',
+                          'bg-amber-400 animate-pulse': item.status === 'running' && item.itemType !== 'job',
                           'bg-orange-400': item.itemType === 'task' && !['completed', 'failed', 'running'].includes(item.status),
-                          'bg-purple-400': item.itemType === 'event' && item.status !== 'completed'
+                          'bg-purple-400': item.itemType === 'event' && item.status !== 'completed',
+                          'bg-gray-400': item.itemType === 'job' && item.status === 'pending'
                         }"
                       ></span>
 
@@ -1153,7 +1156,7 @@
                       <button
                         @click="openTimelineItem(item)"
                         class="flex-1 flex flex-col gap-0.5 px-2 py-1 ml-1.5 rounded-lg hover:bg-tokyo-card/60 text-left transition-colors max-w-sm"
-                        :class="{ 'opacity-60': item.isPast, 'bg-amber-500/10': item.status === 'running' }"
+                        :class="{ 'opacity-60': item.isPast, 'bg-amber-500/10': item.status === 'running', 'border-l-2 border-amber-400': item.status === 'needs_review' }"
                       >
                         <!-- Title -->
                         <span
@@ -1163,14 +1166,15 @@
                         ></span>
                         <!-- Badges row -->
                         <div class="flex items-center gap-1">
-                          <!-- Type badge (Task/Event) -->
+                          <!-- Type badge (Task/Event/Job) -->
                           <span
                             class="px-1 py-0.5 text-[9px] rounded font-medium"
                             :class="{
                               'bg-orange-400/20 text-orange-400': item.itemType === 'task',
-                              'bg-purple-400/20 text-purple-400': item.itemType === 'event'
+                              'bg-purple-400/20 text-purple-400': item.itemType === 'event',
+                              'bg-blue-400/20 text-blue-400': item.itemType === 'job'
                             }"
-                            x-text="item.itemType === 'task' ? 'Task' : 'Event'"
+                            x-text="item.itemType === 'task' ? 'Task' : item.itemType === 'job' ? 'Job' : 'Event'"
                           ></span>
                           <!-- Trigger type for tasks -->
                           <template
@@ -1187,18 +1191,36 @@
                                       item.triggerType === 'scheduled' ? '📅' : '⚡'"
                             ></span>
                           </template>
+                          <!-- Trigger type for jobs -->
+                          <template
+                            x-if="item.itemType === 'job' && item.triggerType"
+                          >
+                            <span
+                              class="px-1 py-0.5 text-[9px] rounded font-medium"
+                              :class="{
+                                'bg-cyan-500/15 text-cyan-400': item.triggerType === 'schedule',
+                                'bg-green-500/15 text-green-400': item.triggerType === 'channel',
+                                'bg-amber-500/15 text-amber-400': item.triggerType === 'watch',
+                                'bg-violet-500/15 text-violet-400': item.triggerType === 'manual'
+                              }"
+                              x-text="item.triggerType"
+                            ></span>
+                          </template>
                           <!-- Status -->
                           <span
                             class="text-[9px]"
                             :class="{
                               'text-green-400': item.status === 'completed',
                               'text-tokyo-red': item.status === 'failed',
-                              'text-tokyo-red': item.status === 'running',
-                              'text-tokyo-text/50': !['completed', 'failed', 'running'].includes(item.status)
+                              'text-blue-400': item.status === 'running' && item.itemType === 'job',
+                              'text-tokyo-red': item.status === 'running' && item.itemType !== 'job',
+                              'text-amber-400': item.status === 'needs_review',
+                              'text-tokyo-text/50': !['completed', 'failed', 'running', 'needs_review'].includes(item.status)
                             }"
                             x-text="item.status === 'completed' ? '✓' :
                                     item.status === 'failed' ? '✗' :
                                     item.status === 'running' ? '●' :
+                                    item.status === 'needs_review' ? '!' :
                                     item.status === 'pending' ? '○' : ''"
                           ></span>
                         </div>

@@ -4263,6 +4263,35 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         }
       }
 
+      // Add automation jobs
+      const jobStore = Alpine.store("jobs");
+      if (jobStore) {
+        for (const job of jobStore.items) {
+          const jobTime = new Date(job.created);
+          const isRunning = job.status === "running";
+          const isPast = jobTime < now;
+          const isRecentPast = jobTime >= pastDate && jobTime < now;
+          const isFuture = jobTime >= now && jobTime <= futureDate;
+
+          if (isFuture || isRunning || isRecentPast) {
+            const displayTime = isRunning ? now : jobTime;
+            items.push({
+              id: `job-${job.id}`,
+              itemType: "job",
+              title: job.automationName || job.automationId,
+              time: displayTime,
+              date: displayTime.toDateString(),
+              status: job.status,
+              isPast: isRunning ? false : isPast,
+              triggerType: job.triggerType,
+              summary: job.summary,
+              automationId: job.automationId,
+              job: job,
+            });
+          }
+        }
+      }
+
       // Sort by time
       items.sort((a, b) => a.time - b.time);
 
@@ -4391,6 +4420,8 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         this.openTaskTab(item.task);
       } else if (item.itemType === "event" && item.event) {
         this.openEventTab(item.event);
+      } else if (item.itemType === "job" && item.automationId) {
+        this.openAutomationDetail(item.automationId);
       }
     },
 
