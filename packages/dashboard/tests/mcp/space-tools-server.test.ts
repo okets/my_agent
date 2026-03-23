@@ -133,4 +133,86 @@ describe("createSpaceToolsServer", () => {
     const result = await findTool("list_spaces").handler({});
     expect(result.content[0].text).toBe("No spaces found.");
   });
+
+  describe("tool discovery filtering", () => {
+    beforeEach(() => {
+      db.upsertSpace({
+        name: "scraper",
+        path: "/spaces/scraper",
+        tags: ["tool", "scraper"],
+        runtime: "uv",
+        entry: "src/scraper.py",
+        io: { input: { url: "string" }, output: { results: "file" } },
+        maintenance: { on_failure: "fix", log: "DECISIONS.md" },
+        description: "Web scraper tool",
+        indexedAt: "2026-03-23T10:00:00Z",
+      });
+      db.upsertSpace({
+        name: "data-store",
+        path: "/spaces/data-store",
+        tags: ["data"],
+        runtime: "node",
+        description: "Data storage space",
+        indexedAt: "2026-03-23T10:00:00Z",
+      });
+      db.upsertSpace({
+        name: "dedup",
+        path: "/spaces/dedup",
+        tags: ["tool", "dedup"],
+        runtime: "uv",
+        entry: "src/dedup.py",
+        io: { input: { records: "string" }, output: { unique: "stdout" } },
+        description: "Deduplication tool",
+        indexedAt: "2026-03-23T10:00:00Z",
+      });
+    });
+
+    it("list_spaces({ tag: 'tool' }) returns only tool-tagged spaces", async () => {
+      const result = await findTool("list_spaces").handler({ tag: "tool" });
+      const text = result.content[0].text;
+      expect(text).toContain("2 space(s)");
+      expect(text).toContain("scraper");
+      expect(text).toContain("dedup");
+      expect(text).not.toContain("data-store");
+    });
+
+    it("list_spaces({ tag: 'scraper' }) returns 1 result", async () => {
+      const result = await findTool("list_spaces").handler({ tag: "scraper" });
+      const text = result.content[0].text;
+      expect(text).toContain("1 space(s)");
+      expect(text).toContain("scraper");
+    });
+
+    it("list_spaces({ runtime: 'uv' }) returns only uv-runtime spaces", async () => {
+      const result = await findTool("list_spaces").handler({ runtime: "uv" });
+      const text = result.content[0].text;
+      expect(text).toContain("2 space(s)");
+      expect(text).toContain("scraper");
+      expect(text).toContain("dedup");
+      expect(text).not.toContain("data-store");
+    });
+
+    it("returned spaces include io and maintenance fields when present", () => {
+      const spaces = db.listSpaces({ tag: "tool" });
+      const scraper = spaces.find((s) => s.name === "scraper");
+      expect(scraper).toBeDefined();
+      expect(scraper!.io).toEqual({
+        input: { url: "string" },
+        output: { results: "file" },
+      });
+      expect(scraper!.maintenance).toEqual({
+        on_failure: "fix",
+        log: "DECISIONS.md",
+      });
+
+      const dedup = spaces.find((s) => s.name === "dedup");
+      expect(dedup).toBeDefined();
+      expect(dedup!.io).toEqual({
+        input: { records: "string" },
+        output: { unique: "stdout" },
+      });
+      // dedup has no maintenance
+      expect(dedup!.maintenance).toBeNull();
+    });
+  });
 });
