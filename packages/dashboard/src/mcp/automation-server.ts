@@ -15,6 +15,10 @@ export interface AutomationServerDeps {
   automationManager: AutomationManager;
   processor: AutomationProcessor;
   jobService: AutomationJobService;
+  /** Optional: executor for direct resume with session ID */
+  executor?: {
+    resume(job: any, userInput: string, sessionId: string | null): Promise<{ success: boolean; status: string; summary?: string; error?: string }>;
+  };
 }
 
 export function createAutomationServer(deps: AutomationServerDeps) {
@@ -283,21 +287,34 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         };
       }
 
-      // Resume the existing job with user response (no new job created)
-      deps.processor
-        .resume(automation, job, args.userResponse)
-        .catch((err) =>
-          console.error(
-            `[automation-server] resume failed for ${args.jobId}:`,
-            err,
-          ),
-        );
+      // Resume with SDK session if executor.resume() is available
+      if (deps.executor?.resume) {
+        const sessionId = job.sdk_session_id ?? null;
+        deps.executor
+          .resume(job, args.userResponse, sessionId)
+          .catch((err) =>
+            console.error(
+              `[automation-server] resume failed for ${args.jobId}:`,
+              err,
+            ),
+          );
+      } else {
+        // Fallback to processor.resume (no SDK session restoration)
+        deps.processor
+          .resume(automation, job, args.userResponse)
+          .catch((err) =>
+            console.error(
+              `[automation-server] resume failed for ${args.jobId}:`,
+              err,
+            ),
+          );
+      }
 
       return {
         content: [
           {
             type: "text" as const,
-            text: `Job "${args.jobId}" resumed with your response. The worker will continue.`,
+            text: `Job "${args.jobId}" resumed with your response. The worker will continue${job.sdk_session_id ? " with prior context" : ""}.`,
           },
         ],
       };
