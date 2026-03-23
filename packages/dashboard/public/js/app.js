@@ -5297,6 +5297,28 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     /**
      * Open notebook browser tab
      */
+    openSpaceDetail(name) {
+      const tabId = `space-${name}`;
+      this.openTab({
+        id: tabId,
+        type: "space",
+        title: name,
+        icon: "\u{1F4C1}",
+        closeable: true,
+        data: { name },
+      });
+    },
+
+    openSpacesBrowser() {
+      this.openTab({
+        id: "spaces-browser",
+        type: "spaces-browser",
+        title: "Spaces",
+        icon: "\u{1F4C1}",
+        closeable: true,
+      });
+    },
+
     openNotebookBrowser() {
       // Check if already open
       const existing = this.openTabs.find((t) => t.id === "notebook-browser");
