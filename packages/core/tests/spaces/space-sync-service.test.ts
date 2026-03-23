@@ -95,6 +95,44 @@ describe('SpaceSyncService', () => {
     expect(events[0].name).toBe('test-space')
   })
 
+  it('should sync tool fields (io, maintenance) from SPACE.md frontmatter', async () => {
+    writeSpaceMd(
+      'tool-space',
+      [
+        'name: tool-space',
+        'tags:',
+        '  - tool',
+        'runtime: uv',
+        'entry: src/scraper.py',
+        'io:',
+        '  input:',
+        '    url: string',
+        '  output:',
+        '    results: file',
+        'maintenance:',
+        '  on_failure: fix',
+        '  log: DECISIONS.md',
+        'created: "2026-03-23"',
+        '',
+      ].join('\n'),
+      'A tool with full io and maintenance fields',
+    )
+
+    createService()
+    await service.fullSync()
+
+    expect(changed).toHaveLength(1)
+    expect(changed[0].entry).toBe('src/scraper.py')
+    expect(changed[0].io).toEqual({
+      input: { url: 'string' },
+      output: { results: 'file' },
+    })
+    expect(changed[0].maintenance).toEqual({
+      on_failure: 'fix',
+      log: 'DECISIONS.md',
+    })
+  })
+
   it('should sync multiple spaces', async () => {
     writeSpaceMd('alpha', 'name: alpha\ntags:\n  - a\ncreated: "2026-03-23"\n')
     writeSpaceMd('beta', 'name: beta\ntags:\n  - b\ncreated: "2026-03-23"\n')
