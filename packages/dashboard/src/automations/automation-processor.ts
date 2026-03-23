@@ -145,10 +145,12 @@ export class AutomationProcessor {
     // needs_review always alerts immediately
     const job = this.config.jobService.getJob(jobId);
     if (job?.status === "needs_review" && ci) {
-      const prompt = `Automation "${automation.manifest.name}" needs your review. Job ${jobId}. Question: ${job.summary}. Use resume_job to respond.`;
+      const question = job.summary ?? "A job requires your review.";
+      const automationName = automation.manifest.name;
+      const prompt = `[SYSTEM: Automation "${automationName}" needs your review.\n\nQuestion: ${question}\n\nJob ID: ${jobId}\n\nPresent this to the user naturally. Ask for their input. When they respond, you can resume the job with resume_job("${jobId}", <their response>).]`;
       const alerted = await ci.alert(prompt);
       if (!alerted) {
-        await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+        await ci.initiate({ firstTurnPrompt: prompt });
       }
     }
   }
