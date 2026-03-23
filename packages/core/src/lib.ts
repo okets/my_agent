@@ -188,6 +188,16 @@ export type {
   NotificationEvent,
 } from './notifications/index.js'
 
+// Space types
+export type {
+  SpaceMaintenance,
+  SpaceIO,
+  SpaceManifest,
+  Space,
+  CreateSpaceInput,
+  ListSpacesFilter,
+} from './spaces/index.js'
+
 // Memory system
 export {
   MemoryDb,
