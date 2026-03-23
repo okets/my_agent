@@ -682,7 +682,7 @@ Persistent file-backed entities: Spaces (managed folders), Automations (standing
 | S2 | Tool Spaces | **Done** | isToolSpace predicate, tool field sync, DECISIONS.md utilities, tool invocation helper + error detection, tool creation guide in worker prompt, inline repair protocol, I/O contract display, maintenance toggle pills, DECISIONS.md preview (Run button dropped — tools invoke through agent) |
 | S3 | Automations Core | **Done** | Automation + Job types, agent.db schema, AutomationJobService (JSONL), AutomationManager, AutomationSyncService, AutomationExecutor, AutomationProcessor (concurrency + delivery), AutomationScheduler (cron), MCP tools (create/fire/list/resume), brain prompt hints, App integration, StatePublisher, REST API (8 endpoints), dashboard UI (widget, browser, detail tab, timeline redesign, chat tag injection) |
 | S4 | Triggers + HITL | **Done** | WatchTriggerService (chokidar polling, sync, debounce, mount retry), channel triggers (Haiku extraction + PostResponseHooks), media staging, needs_review → ConversationInitiator, SDK session resumption for HITL, timeline redesign (status dots, trigger badges, NOW marker, pagination), App wiring + lifecycle cleanup |
-| S5 | Cleanup + Integration | Planned | Integration tests, performance tuning, docs, existing task folder migration |
+| S5 | Cleanup + Integration | **Done** | Old task system removed (-7,147 lines), mobile layout fix, run dir retention cleanup, design coverage audit (98 requirements), 4 coverage gaps closed, spec deviations documented, granular job events, session sidecar files |
 
 **Core principle:** Space = a folder with a SPACE.md manifest. The folder IS the space. agent.db indexes for search/listing but is derived and rebuildable.
 
