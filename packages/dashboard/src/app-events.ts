@@ -5,7 +5,6 @@
  * StatePublisher and transport adapters subscribe to them.
  */
 
-import type { Task } from "@my-agent/core";
 import type { Automation, Job } from "@my-agent/core";
 import type { AnyNotification } from "@my-agent/core";
 import type { TransportStatus } from "@my-agent/core";
@@ -13,11 +12,6 @@ import type { SpaceSyncPayload } from "@my-agent/core";
 import type { Conversation } from "./conversations/types.js";
 
 export interface AppEventMap {
-  // Task mutations
-  "task:created": [task: Task];
-  "task:updated": [task: Task];
-  "task:deleted": [taskId: string];
-
   // Conversation mutations
   "conversation:created": [conversation: Conversation];
   "conversation:updated": [conversationId: string];

@@ -14,7 +14,6 @@ import { existsSync, readdirSync } from "fs";
 import { join } from "path";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import type {
-  TaskSnapshot,
   CalendarEventSnapshot,
   ConversationMeta,
   MemoryStats,
@@ -23,14 +22,12 @@ import type {
   JobSnapshot,
 } from "../ws/protocol.js";
 import type {
-  Task,
   CalendarEvent,
   createCalDAVClient,
   MemoryDb,
   PluginRegistry,
   Automation,
 } from "@my-agent/core";
-import type { TaskManager } from "../tasks/index.js";
 import type { ConversationManager } from "../conversations/index.js";
 import type { ConversationDatabase } from "../conversations/db.js";
 import type { AutomationManager } from "../automations/automation-manager.js";
@@ -38,33 +35,6 @@ import type { AutomationJobService } from "../automations/automation-job-service
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 100;
-
-/**
- * Convert a Task to the TaskSnapshot wire format
- */
-function toTaskSnapshot(task: Task): TaskSnapshot {
-  return {
-    id: task.id,
-    type: task.type,
-    sourceType: task.sourceType,
-    sourceRef: task.sourceRef,
-    title: task.title,
-    instructions: task.instructions,
-    work: task.work as unknown[] | undefined,
-    delivery: task.delivery as unknown[] | undefined,
-    status: task.status,
-    sessionId: task.sessionId,
-    recurrenceId: task.recurrenceId,
-    occurrenceDate: task.occurrenceDate,
-    scheduledFor: task.scheduledFor?.toISOString(),
-    startedAt: task.startedAt?.toISOString(),
-    completedAt: task.completedAt?.toISOString(),
-    deletedAt: task.deletedAt?.toISOString(),
-    created: task.created.toISOString(),
-    createdBy: task.createdBy,
-    notifyOnCompletion: task.notifyOnCompletion,
-  };
-}
 
 /**
  * Convert a CalendarEvent to the CalendarEventSnapshot wire format
@@ -82,8 +52,6 @@ function toCalendarEventSnapshot(event: CalendarEvent): CalendarEventSnapshot {
     status: event.status,
     transparency: event.transparency,
     location: event.location,
-    taskId: event.taskId,
-    taskType: event.taskType,
     action: event.action,
   };
 }
@@ -110,7 +78,6 @@ function toSpaceSnapshot(space: {
 
 export interface StatePublisherOptions {
   connectionRegistry: ConnectionRegistry;
-  taskManager: TaskManager | null;
   conversationManager: ConversationManager | null;
   spacesDb: ConversationDatabase | null;
   /** Optional calendar client factory — called lazily when needed */
@@ -121,7 +88,6 @@ export interface StatePublisherOptions {
 
 export class StatePublisher {
   private registry: ConnectionRegistry;
-  private taskManager: TaskManager | null;
   private conversationManager: ConversationManager | null;
   private getCalendarClient:
     | (() => ReturnType<typeof createCalDAVClient> | null)
@@ -137,7 +103,6 @@ export class StatePublisher {
   private automationJobService: AutomationJobService | null = null;
 
   // Debounce timers for each entity type
-  private tasksTimer: ReturnType<typeof setTimeout> | null = null;
   private calendarTimer: ReturnType<typeof setTimeout> | null = null;
   private conversationsTimer: ReturnType<typeof setTimeout> | null = null;
   private memoryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -147,7 +112,6 @@ export class StatePublisher {
 
   constructor(options: StatePublisherOptions) {
     this.registry = options.connectionRegistry;
-    this.taskManager = options.taskManager;
     this.conversationManager = options.conversationManager;
     this.spacesDb = options.spacesDb;
     this.getCalendarClient = options.getCalendarClient;
@@ -158,10 +122,6 @@ export class StatePublisher {
    * Replaces all imperative publishX() calls from routes/handlers.
    */
   subscribeToApp(app: import("../app.js").App): void {
-    app.on("task:created", () => this.publishTasks());
-    app.on("task:updated", () => this.publishTasks());
-    app.on("task:deleted", () => this.publishTasks());
-
     app.on("conversation:created", () => this.publishConversations());
     app.on("conversation:updated", () => this.publishConversations());
     app.on("conversation:deleted", () => this.publishConversations());
@@ -215,17 +175,6 @@ export class StatePublisher {
   }
 
   // ─── Public API ──────────────────────────────────────────────────────────
-
-  /**
-   * Schedule a debounced broadcast of all tasks to all connected clients.
-   */
-  publishTasks(): void {
-    if (this.tasksTimer) clearTimeout(this.tasksTimer);
-    this.tasksTimer = setTimeout(() => {
-      this.tasksTimer = null;
-      this._broadcastTasks();
-    }, DEBOUNCE_MS);
-  }
 
   /**
    * Schedule a debounced broadcast of calendar events to all connected clients.
@@ -300,19 +249,6 @@ export class StatePublisher {
    */
   async publishAllTo(socket: WebSocket): Promise<void> {
     const timestamp = Date.now();
-
-    // Tasks
-    if (this.taskManager) {
-      const tasks = this.taskManager.list();
-      const payload = JSON.stringify({
-        type: "state:tasks",
-        tasks: tasks.map(toTaskSnapshot),
-        timestamp,
-      });
-      if (socket.readyState === 1) {
-        socket.send(payload);
-      }
-    }
 
     // Calendar events (next 30 days)
     const calClient = this.getCalendarClient?.();
@@ -416,16 +352,6 @@ export class StatePublisher {
   }
 
   // ─── Private Broadcast Helpers ───────────────────────────────────────────
-
-  private _broadcastTasks(): void {
-    if (!this.taskManager) return;
-    const tasks = this.taskManager.list();
-    this.registry.broadcastToAll({
-      type: "state:tasks",
-      tasks: tasks.map(toTaskSnapshot),
-      timestamp: Date.now(),
-    });
-  }
 
   private _broadcastCalendar(): void {
     const calClient = this.getCalendarClient?.();

@@ -130,34 +130,3 @@ export async function getConversation(
   return res.json();
 }
 
-/**
- * List tasks with optional filters
- */
-export async function listTasks(
-  baseUrl: string,
-  filters?: Record<string, string>,
-): Promise<any[]> {
-  const params = new URLSearchParams(filters);
-  const url = filters
-    ? `${baseUrl}/api/tasks?${params}`
-    : `${baseUrl}/api/tasks`;
-
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Failed to list tasks: ${res.status}`);
-  }
-
-  const data = await res.json();
-  return data.tasks;
-}
-
-/**
- * Get task by ID
- */
-export async function getTask(baseUrl: string, taskId: string): Promise<any> {
-  const res = await fetch(`${baseUrl}/api/tasks/${taskId}`);
-  if (!res.ok) {
-    throw new Error(`Failed to get task: ${res.status}`);
-  }
-  return res.json();
-}

@@ -22,8 +22,8 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { ConversationDatabase } from "../conversations/db.js";
 import type { AutomationManager } from "./automation-manager.js";
 import type { AutomationJobService } from "./automation-job-service.js";
-import { buildWorkingNinaPrompt } from "../tasks/working-nina-prompt.js";
-import { extractDeliverable } from "../tasks/task-executor.js";
+import { buildWorkingNinaPrompt } from "./working-nina-prompt.js";
+import { extractDeliverable } from "./deliverable-utils.js";
 
 /** Working Nina's allowed tools */
 const WORKER_TOOLS = [

@@ -54,14 +54,6 @@ import {
   MockTransportPlugin,
   ChannelMessageHandler,
 } from "./channels/index.js";
-import {
-  TaskManager,
-  TaskLogStorage,
-  TaskExecutor,
-  TaskProcessor,
-  TaskScheduler,
-  TaskSearchService,
-} from "./tasks/index.js";
 import { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
 import { ConversationInitiator } from "./agent/conversation-initiator.js";
 import { PostResponseHooks } from "./conversations/post-response-hooks.js";
@@ -74,16 +66,14 @@ import {
   getPromptBuilder,
   getSharedMcpServers,
   addMcpServer,
-  setRunningTasksChecker,
 } from "./agent/session-manager.js";
-import { createTaskToolsServer } from "./mcp/task-tools-server.js";
 import { createSpaceToolsServer } from "./mcp/space-tools-server.js";
 import { createSkillServer } from "./mcp/skill-server.js";
 import { ConnectionRegistry } from "./ws/connection-registry.js";
 import { AppChatService } from "./chat/chat-service.js";
 import { AppAuthService } from "./auth/auth-service.js";
 import { AppDebugService } from "./debug/app-debug-service.js";
-import type { Task, CreateTaskInput, Automation } from "@my-agent/core";
+import type { Automation } from "@my-agent/core";
 import type { ConversationDatabase } from "./conversations/db.js";
 import type { Conversation } from "./conversations/types.js";
 import {
@@ -100,53 +90,6 @@ import { createAutomationServer } from "./mcp/automation-server.js";
 // ─── Service Namespaces ──────────────────────────────────────────────────────
 // Thin wrappers that delegate reads and emit App events on mutations.
 // These are the ONLY way external code should mutate state.
-
-type TaskUpdateChanges = Parameters<TaskManager["update"]>[1];
-
-export class AppTaskService {
-  constructor(
-    private manager: TaskManager,
-    private app: App,
-  ) {}
-
-  // Read-through
-  list(filter?: Parameters<TaskManager["list"]>[0]) {
-    return this.manager.list(filter);
-  }
-  findById(id: string) {
-    return this.manager.findById(id);
-  }
-  getRunningTasksForConversation(convId: string) {
-    return this.manager.getRunningTasksForConversation(convId);
-  }
-  getTasksForConversation(convId: string) {
-    return this.manager.getTasksForConversation(convId);
-  }
-
-  // Mutations — emit events
-  create(input: CreateTaskInput): Task {
-    const task = this.manager.create(input);
-    this.app.emit("task:created", task);
-    return task;
-  }
-
-  update(id: string, changes: TaskUpdateChanges): void {
-    this.manager.update(id, changes);
-    const task = this.manager.findById(id);
-    if (task) this.app.emit("task:updated", task);
-  }
-
-  delete(id: string): void {
-    this.manager.delete(id);
-    this.app.emit("task:deleted", id);
-  }
-
-  linkTaskToConversation(taskId: string, conversationId: string): void {
-    this.manager.linkTaskToConversation(taskId, conversationId);
-    const task = this.manager.findById(taskId);
-    if (task) this.app.emit("task:updated", task);
-  }
-}
 
 export class AppConversationService {
   constructor(
@@ -308,7 +251,6 @@ export class App extends EventEmitter {
   readonly isHatched: boolean;
 
   // Service namespaces (event-emitting wrappers)
-  tasks!: AppTaskService;
   conversations!: AppConversationService;
   calendar!: AppCalendarService;
   memory!: AppMemoryService;
@@ -320,14 +262,6 @@ export class App extends EventEmitter {
   // Core services
   conversationManager!: ConversationManager;
   sessionRegistry!: SessionRegistry;
-
-  // Task system
-  taskManager: TaskManager | null = null;
-  logStorage: TaskLogStorage | null = null;
-  taskExecutor: TaskExecutor | null = null;
-  taskProcessor: TaskProcessor | null = null;
-  taskScheduler: TaskScheduler | null = null;
-  taskSearchService: TaskSearchService | null = null;
 
   // Channels
   transportManager: TransportManager | null = null;
@@ -546,56 +480,17 @@ export class App extends EventEmitter {
       }
     }
 
-    // ── Task system ──
+    // ── Notifications + Post-response hooks ──
     if (hatched) {
-      const db = app.conversationManager.getDb();
-      app.taskManager = new TaskManager(db, agentDir);
-      app.logStorage = new TaskLogStorage(agentDir);
-
-      app.taskExecutor = new TaskExecutor({
-        taskManager: app.taskManager,
-        logStorage: app.logStorage,
-        agentDir,
-        db: app.conversationManager.getConversationDb(),
-        get mcpServers() {
-          return getSharedMcpServers() ?? undefined;
-        },
-        hooks: createHooks("task", { agentDir }),
-      });
-
       app.notificationService = new NotificationService();
 
-      // TaskProcessor — onTaskMutated is lazy (statePublisher set later)
-      app.taskProcessor = new TaskProcessor({
-        taskManager: app.taskManager,
-        executor: app.taskExecutor,
-        conversationManager: app.conversationManager,
-        connectionRegistry: connectionRegistry ?? new ConnectionRegistry(),
-        transportManager: app.transportManager,
-        notificationService: app.notificationService,
-        taskUpdater: (id, changes) => app.tasks?.update(id, changes),
-        get conversationInitiator() {
-          return app.conversationInitiator ?? null;
-        },
-      });
-
-      app.taskScheduler = new TaskScheduler({
-        taskManager: app.taskManager,
-        processor: app.taskProcessor,
-        pollIntervalMs: 30_000,
-      });
-      app.taskScheduler.start();
-
-      // Notification events → App events (coupling point #2 — broken)
+      // Notification events → App events
       app.notificationService.on("notification", (event) => {
         app.emit("notification:created", event.notification);
       });
 
-      console.log("Task system initialized with processor and scheduler");
-
       // Post-response hooks
       app.postResponseHooks = new PostResponseHooks({
-        taskManager: app.taskManager,
         log: (msg) => console.log(msg),
         logError: (err, msg) => console.error(msg, err),
         getAutomationHints: () =>
@@ -608,7 +503,7 @@ export class App extends EventEmitter {
     }
 
     // ── Calendar scheduler ──
-    if (hatched && app.taskManager && app.logStorage) {
+    if (hatched) {
       try {
         const calConfig = loadCalendarConfig(agentDir);
         const credentials = loadCalendarCredentials(agentDir);
@@ -618,8 +513,6 @@ export class App extends EventEmitter {
 
           const eventHandler = createEventHandler({
             conversationManager: app.conversationManager,
-            taskManager: app.taskManager,
-            logStorage: app.logStorage,
             agentDir,
             db: app.conversationManager.getConversationDb(),
           });
@@ -700,7 +593,6 @@ export class App extends EventEmitter {
           pollIntervalMs: 60_000,
           notificationService: app.notificationService ?? undefined,
           conversationInitiator: app.conversationInitiator ?? undefined,
-          taskManager: app.taskManager ?? undefined,
         });
         await app.workLoopScheduler.start();
         console.log("Work loop scheduler started");
@@ -729,7 +621,6 @@ export class App extends EventEmitter {
     if (hatched && connectionRegistry) {
       app.statePublisher = new StatePublisher({
         connectionRegistry,
-        taskManager: app.taskManager,
         conversationManager: app.conversationManager,
         spacesDb: app.conversationManager.getConversationDb(),
         getCalendarClient: () => {
@@ -968,62 +859,6 @@ export class App extends EventEmitter {
       await checkSkillsHealth(agentDir);
     }
 
-    // ── TaskSearch (M6.9-S5) ──
-    if (app.taskManager) {
-      try {
-        const rawDb = app.conversationManager.getDb();
-        app.taskSearchService = new TaskSearchService({
-          db: rawDb,
-          getPlugin: () => app.pluginRegistry?.getActive() ?? null,
-        });
-
-        const activePlugin = app.pluginRegistry?.getActive() ?? null;
-        if (activePlugin) {
-          const dims = activePlugin.getDimensions();
-          if (dims) {
-            app.taskSearchService.initVectorTable(dims);
-            console.log(
-              `[TaskSearch] Vector table initialized (${dims} dims)`,
-            );
-          }
-        }
-
-        const searchSvc = app.taskSearchService;
-        app.taskManager.onTaskCreated = (task) => {
-          searchSvc
-            .indexTask({
-              id: task.id,
-              title: task.title,
-              instructions: task.instructions,
-            })
-            .catch(() => {});
-        };
-
-        console.log("[TaskSearch] Service initialized");
-      } catch (err) {
-        console.warn(
-          "[TaskSearch] Failed to initialize:",
-          err instanceof Error ? err.message : String(err),
-        );
-      }
-    }
-
-    // ── Task-tools MCP server ──
-    if (app.taskManager && app.taskProcessor) {
-      const taskToolsServer = createTaskToolsServer({
-        taskManager: app.taskManager,
-        taskProcessor: app.taskProcessor,
-        agentDir,
-        taskSearchService: app.taskSearchService ?? undefined,
-      });
-      addMcpServer("task-tools", taskToolsServer);
-
-      setRunningTasksChecker((conversationId: string) => {
-        const running =
-          app.taskManager!.getRunningTasksForConversation(conversationId);
-        return running.map((t) => `"${t.title}" (${t.id})`);
-      });
-    }
 
     // ── SpaceSyncService + space-tools MCP (M7-S1) ──
     if (hatched) {
@@ -1318,9 +1153,6 @@ export class App extends EventEmitter {
     }
 
     // ── Service namespaces (event-emitting wrappers) ──
-    if (app.taskManager) {
-      app.tasks = new AppTaskService(app.taskManager, app);
-    }
     app.conversations = new AppConversationService(app.conversationManager, app);
     app.calendar = new AppCalendarService(app);
     app.memory = new AppMemoryService(app);
@@ -1342,10 +1174,6 @@ export class App extends EventEmitter {
     if (this.workLoopScheduler) {
       await this.workLoopScheduler.stop();
       console.log("Work loop scheduler stopped.");
-    }
-    if (this.taskScheduler) {
-      this.taskScheduler.stop();
-      console.log("Task scheduler stopped.");
     }
     if (this.calendarScheduler) {
       this.calendarScheduler.stop();

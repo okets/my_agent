@@ -17,70 +17,8 @@ let harness: AppHarness;
 // Helpers
 // ---------------------------------------------------------------------------
 
-function taskInput(overrides?: Record<string, unknown>) {
-  return {
-    title: "Audit test task",
-    instructions: "Verify broadcast behavior",
-    type: "immediate" as const,
-    sourceType: "conversation" as const,
-    sourceRef: "conv-audit",
-    createdBy: "test",
-    ...overrides,
-  };
-}
-
 /** Wait for debounced publish (StatePublisher debounce is 100ms). */
 const waitForDebounce = () => new Promise((r) => setTimeout(r, 150));
-
-// ---------------------------------------------------------------------------
-// Task mutations — manual publish required
-// ---------------------------------------------------------------------------
-
-describe("Task mutations (manual publish required)", () => {
-  beforeEach(async () => {
-    harness = await AppHarness.create();
-  });
-
-  afterEach(async () => {
-    await harness.shutdown();
-  });
-
-  it("task creation + publishTasks() -> state:tasks broadcast", async () => {
-    harness.taskManager.create(taskInput());
-    harness.statePublisher.publishTasks();
-    await waitForDebounce();
-
-    const broadcasts = harness.getBroadcasts("state:tasks");
-    expect(broadcasts.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("task status update + publishTasks() -> state:tasks broadcast", async () => {
-    const task = harness.taskManager.create(taskInput());
-    harness.clearBroadcasts();
-
-    harness.taskManager.update(task.id, {
-      status: "running",
-      startedAt: new Date(),
-    });
-    harness.statePublisher.publishTasks();
-    await waitForDebounce();
-
-    const broadcasts = harness.getBroadcasts("state:tasks");
-    expect(broadcasts.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("task deletion + publishTasks() -> state:tasks broadcast", async () => {
-    const task = harness.taskManager.create(taskInput());
-    harness.clearBroadcasts();
-
-    harness.taskManager.delete(task.id);
-    harness.statePublisher.publishTasks();
-    await waitForDebounce();
-
-    const broadcasts = harness.getBroadcasts("state:tasks");
-    expect(broadcasts.length).toBeGreaterThanOrEqual(1);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Conversation mutations — manual publish required
@@ -197,12 +135,6 @@ describe("Live update coverage audit", () => {
      *   "no"      — no broadcast wired
      */
     const auditTable = {
-      tasks: {
-        restRoutes: "manual",
-        taskProcessor: "manual — via onTaskMutated callback",
-        taskScheduler: "via TaskProcessor",
-        mcpTools: "manual — via onTaskMutated callback",
-      },
       conversations: {
         chatHandler: "partial",
         channelHandler: "partial",
@@ -221,7 +153,6 @@ describe("Live update coverage audit", () => {
         hatching: "no broadcast",
       },
       notifications: {
-        taskProcessor: "yes",
         notificationService: "yes",
       },
       channels: {
@@ -231,7 +162,6 @@ describe("Live update coverage audit", () => {
 
     // Verify the table has all expected top-level categories
     expect(Object.keys(auditTable)).toEqual([
-      "tasks",
       "conversations",
       "calendar",
       "memory",
@@ -239,12 +169,6 @@ describe("Live update coverage audit", () => {
       "notifications",
       "channels",
     ]);
-
-    // Verify task mutation paths are documented
-    expect(auditTable.tasks.restRoutes).toBe("manual");
-    expect(auditTable.tasks.taskProcessor).toContain("manual");
-    expect(auditTable.tasks.taskScheduler).toContain("TaskProcessor");
-    expect(auditTable.tasks.mcpTools).toContain("manual");
 
     // Verify conversation paths
     expect(auditTable.conversations.chatHandler).toBe("partial");
@@ -254,7 +178,6 @@ describe("Live update coverage audit", () => {
     // Verify fully-wired subsystems
     expect(auditTable.calendar.calendarScheduler).toBe("yes");
     expect(auditTable.memory.syncService).toBe("yes");
-    expect(auditTable.notifications.taskProcessor).toBe("yes");
     expect(auditTable.channels.transportManager).toContain("yes");
 
     // Verify known gaps

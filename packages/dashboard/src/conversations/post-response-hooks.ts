@@ -9,10 +9,8 @@
  */
 
 import { extractTaskFromMessage, type AutomationHint } from "../automations/automation-extractor.js";
-import type { TaskManager } from "../tasks/task-manager.js";
 
 export interface PostResponseHooksDeps {
-  taskManager: TaskManager;
   log: (msg: string) => void;
   logError: (err: unknown, msg: string) => void;
   /** Active automation hints for channel trigger matching */
@@ -76,25 +74,7 @@ export class PostResponseHooks {
         return;
       }
 
-      if (!extraction.shouldCreateTask) return;
-
-      // Check if Nina already created tasks for this conversation recently
-      const existingTasks =
-        this.deps.taskManager.getTasksForConversation(conversationId);
-      const recentTasks = existingTasks.filter(
-        (t) => Date.now() - new Date(t.linkedAt).getTime() < 300_000, // within last 5 minutes
-      );
-
-      if (recentTasks.length > 0) return; // Nina handled it
-
-      // Nina missed it — log warning
-      const title =
-        extraction.task?.title ??
-        extraction.tasks?.[0]?.title ??
-        "unknown request";
-      this.deps.log(
-        `[MissedTaskDetector] Potential missed task: "${title}" in conversation ${conversationId}`,
-      );
+      // Legacy task detection removed — automations handle this now
     } catch {
       // Non-fatal — detection is best-effort
     }

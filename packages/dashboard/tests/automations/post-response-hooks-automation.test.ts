@@ -10,9 +10,6 @@ import { PostResponseHooks, type PostResponseHooksDeps } from "../../src/convers
 
 function makeDeps(overrides?: Partial<PostResponseHooksDeps>): PostResponseHooksDeps {
   return {
-    taskManager: {
-      getTasksForConversation: vi.fn(() => []),
-    } as any,
     log: vi.fn(),
     logError: vi.fn(),
     getAutomationHints: vi.fn(() => [
@@ -91,24 +88,6 @@ describe("PostResponseHooks — automation channel triggers", () => {
     expect(deps.fireAutomation).not.toHaveBeenCalled();
     expect(deps.log).toHaveBeenCalledWith(
       expect.stringContaining("already fired recently"),
-    );
-  });
-
-  it("falls through to task detection when no automation matches", async () => {
-    deps = makeDeps();
-    hooks = new PostResponseHooks(deps);
-
-    mockExtract.mockResolvedValue({
-      shouldCreateTask: true,
-      task: { title: "Research Bangkok" },
-    });
-
-    await hooks.run("conv-1", "Research Bangkok", "I'll look into that");
-
-    expect(deps.fireAutomation).not.toHaveBeenCalled();
-    // Should log the missed task
-    expect(deps.log).toHaveBeenCalledWith(
-      expect.stringContaining("Potential missed task"),
     );
   });
 

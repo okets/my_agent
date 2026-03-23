@@ -71,12 +71,11 @@ export interface Turn {
 
 // Context from dashboard (what user is currently viewing)
 export interface ViewContext {
-  type: "notebook" | "conversation" | "settings" | "task";
+  type: "notebook" | "conversation" | "settings";
   title: string;
   icon?: string;
   file?: string; // For notebook tabs
   conversationId?: string; // For external conversation tabs
-  taskId?: string; // For task tabs/popovers
 }
 
 // Client → Server messages
@@ -175,7 +174,6 @@ export type ServerMessage =
       pendingCount: number;
     }
   // State sync — full collection snapshots pushed to all connected clients
-  | { type: "state:tasks"; tasks: TaskSnapshot[]; timestamp: number }
   | {
       type: "state:calendar";
       events: CalendarEventSnapshot[];
@@ -205,28 +203,6 @@ export type ServerMessage =
 // Server pushes full snapshots of entity collections to all connected clients.
 // These are used for live dashboard panels (Tasks, Calendar, Conversations).
 
-export interface TaskSnapshot {
-  id: string;
-  type: string;
-  sourceType: string;
-  sourceRef?: string;
-  title: string;
-  instructions: string;
-  work?: unknown[];
-  delivery?: unknown[];
-  status: string;
-  sessionId: string;
-  recurrenceId?: string;
-  occurrenceDate?: string;
-  scheduledFor?: string;
-  startedAt?: string;
-  completedAt?: string;
-  deletedAt?: string;
-  created: string;
-  createdBy: string;
-  notifyOnCompletion?: "immediate" | "debrief" | "none";
-}
-
 export interface CalendarEventSnapshot {
   uid: string;
   calendarId: string;
@@ -239,8 +215,6 @@ export interface CalendarEventSnapshot {
   status: string;
   transparency: string;
   location?: string;
-  taskId?: string;
-  taskType?: string;
   action?: string;
 }
 

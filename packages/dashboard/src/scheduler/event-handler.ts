@@ -1,17 +1,13 @@
 /**
- * Scheduled Task Handler for CalendarScheduler
+ * Scheduled Event Handler for CalendarScheduler
  *
- * Creates Task entities and executes them when calendar events fire.
- * This closes the loop: scheduled event fires → Task created → TaskExecutor runs.
- *
- * M5-S2: Updated to use TaskManager/TaskExecutor instead of direct brain queries.
+ * Logs when calendar events fire. The old task system has been removed;
+ * scheduled work is now handled by the automation system.
  */
 
 import type { CalendarEvent } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
 import type { ConversationDatabase } from "../conversations/db.js";
-import { TaskManager, TaskLogStorage, TaskExecutor } from "../tasks/index.js";
-import type { CreateTaskInput } from "../tasks/index.js";
 
 const SCHEDULER_CHANNEL = "system";
 const SCHEDULER_CONVERSATION_TITLE = "Scheduled Events";
@@ -21,8 +17,6 @@ const SCHEDULER_CONVERSATION_TITLE = "Scheduled Events";
  */
 interface EventHandlerConfig {
   conversationManager: ConversationManager;
-  taskManager: TaskManager;
-  logStorage: TaskLogStorage;
   agentDir: string;
   /** Database for SDK session persistence (M6.5-S2) */
   db: ConversationDatabase;
@@ -30,12 +24,11 @@ interface EventHandlerConfig {
 
 /**
  * Get or create the scheduler conversation.
- * Used to log task execution summaries for user visibility.
+ * Used to log event firing for user visibility.
  */
 async function getSchedulerConversation(
   manager: ConversationManager,
 ): Promise<string> {
-  // Try to find existing scheduler conversation
   const conversations = await manager.list({});
   const existing = conversations.find(
     (c) => c.title === SCHEDULER_CONVERSATION_TITLE,
@@ -45,7 +38,6 @@ async function getSchedulerConversation(
     return existing.id;
   }
 
-  // Create new conversation for scheduler events
   const conv = await manager.create({
     title: SCHEDULER_CONVERSATION_TITLE,
   });
@@ -55,144 +47,18 @@ async function getSchedulerConversation(
 }
 
 /**
- * Check if an event is recurring and generate a recurrence ID.
- * Groups all occurrences of the same recurring event.
- *
- * For recurring events (has rrule), we use the event UID as the recurrence ID
- * since all occurrences share the same UID.
- */
-function getRecurrenceId(event: CalendarEvent): string | undefined {
-  if (!event.rrule) {
-    return undefined;
-  }
-  // Use calendar ID + UID to ensure uniqueness across calendars
-  return `${event.calendarId}:${event.uid}`;
-}
-
-/**
- * Generate the occurrence date key for a recurring event.
- */
-function getOccurrenceDate(event: CalendarEvent): string {
-  return event.start.toISOString().split("T")[0]; // YYYY-MM-DD
-}
-
-/**
- * Build task instructions from calendar event.
- */
-function buildInstructions(event: CalendarEvent): string {
-  let instructions = `Calendar event fired: "${event.title}"`;
-
-  if (event.description) {
-    instructions += `\n\nDescription: ${event.description}`;
-  }
-
-  if (event.action) {
-    instructions += `\n\nAction: ${event.action}`;
-  }
-
-  return instructions;
-}
-
-/**
- * Handle a fired calendar event by creating/resuming a Task and executing it.
+ * Handle a fired calendar event by logging it.
+ * Scheduled work execution is now handled by the automation system.
  */
 export async function spawnEventQuery(
   event: CalendarEvent,
   config: EventHandlerConfig,
 ): Promise<string> {
-  const { conversationManager, taskManager, logStorage, agentDir, db } = config;
+  const { conversationManager } = config;
 
-  console.log(`[EventHandler] Processing event: "${event.title}"`);
+  console.log(`[EventHandler] Calendar event fired: "${event.title}"`);
 
-  let task;
-  let created: boolean;
-
-  // Check if event has a linked task (conversation-created scheduled tasks)
-  if (event.taskId) {
-    const existingTask = taskManager.findById(event.taskId);
-    if (existingTask) {
-      console.log(
-        `[EventHandler] Found linked task ${event.taskId}, executing existing task`,
-      );
-      task = existingTask;
-      created = false;
-    } else {
-      console.warn(
-        `[EventHandler] Linked task ${event.taskId} not found, creating new task`,
-      );
-      // Fall through to create task from event
-      task = null;
-    }
-  }
-
-  // If no linked task found, create from event (legacy CalDAV events)
-  if (!task) {
-    const recurrenceId = getRecurrenceId(event);
-    const occurrenceDate = getOccurrenceDate(event);
-
-    // Store calendarId:uid as sourceRef so executor can extract calendarId
-    const sourceRef = `${event.calendarId}:${event.uid}`;
-
-    if (recurrenceId) {
-      // Recurring event: find existing or create new with shared session
-      const result = taskManager.findOrCreateForOccurrence({
-        type: "scheduled",
-        sourceType: "caldav",
-        sourceRef,
-        title: event.title,
-        instructions: buildInstructions(event),
-        createdBy: "scheduler",
-        scheduledFor: event.start,
-        recurrenceId,
-        occurrenceDate,
-      });
-      task = result.task;
-      created = result.created;
-
-      if (created) {
-        console.log(
-          `[EventHandler] Created task for recurring event: ${task.id}`,
-        );
-      } else {
-        console.log(`[EventHandler] Resuming recurring task: ${task.id}`);
-      }
-    } else {
-      // One-time event: create new task
-      const taskInput: CreateTaskInput = {
-        type: "scheduled",
-        sourceType: "caldav",
-        sourceRef,
-        title: event.title,
-        instructions: buildInstructions(event),
-        createdBy: "scheduler",
-        scheduledFor: event.start,
-      };
-      task = taskManager.create(taskInput);
-      created = true;
-
-      console.log(`[EventHandler] Created task for one-time event: ${task.id}`);
-    }
-  }
-
-  // Guard: only execute tasks that are still pending
-  if (task.status !== "pending") {
-    console.log(
-      `[EventHandler] Skipping task ${task.id} — status is "${task.status}", not "pending"`,
-    );
-    return "";
-  }
-
-  // Create executor and run
-  const executor = new TaskExecutor({
-    taskManager,
-    logStorage,
-    agentDir,
-    db,
-  });
-
-  const result = await executor.run(task);
-
-  // Log execution summary to scheduler conversation
+  // Log to scheduler conversation for visibility
   const conversationId = await getSchedulerConversation(conversationManager);
 
   try {
@@ -200,22 +66,22 @@ export async function spawnEventQuery(
     const turnNumber = (conversation?.turnCount ?? 0) + 1;
     const timestamp = new Date().toISOString();
 
-    // User turn: task trigger
+    let description = `Calendar event: "${event.title}"`;
+    if (event.description) description += `\n${event.description}`;
+    if (event.action) description += `\nAction: ${event.action}`;
+
     await conversationManager.appendTurn(conversationId, {
       type: "turn",
       role: "user",
-      content: `[Task: ${task.id}] ${task.title}`,
+      content: description,
       timestamp,
       turnNumber,
     });
 
-    // Assistant turn: execution result
-    const summary = result.success ? result.work : `[Error: ${result.error}]`;
-
     await conversationManager.appendTurn(conversationId, {
       type: "turn",
       role: "assistant",
-      content: summary,
+      content: "Event logged. Scheduled work is handled by automations.",
       timestamp: new Date().toISOString(),
       turnNumber,
     });
@@ -223,14 +89,14 @@ export async function spawnEventQuery(
     console.warn(`[EventHandler] Failed to record turn:`, err);
   }
 
-  return result.work;
+  return "";
 }
 
 /**
  * Create an event handler function for use with CalendarScheduler.
  *
  * Usage:
- *   const handler = createEventHandler({ conversationManager, taskManager, logStorage, agentDir });
+ *   const handler = createEventHandler({ conversationManager, agentDir, db });
  *   scheduler = new CalendarScheduler(caldavClient, { onEventFired: handler });
  */
 export function createEventHandler(

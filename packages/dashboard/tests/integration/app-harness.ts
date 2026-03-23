@@ -27,11 +27,9 @@ import {
 import type { ServerMessage } from "../../src/ws/protocol.js";
 import type { AppEventMap } from "../../src/app-events.js";
 import { ConversationManager } from "../../src/conversations/index.js";
-import { TaskManager, TaskLogStorage } from "../../src/tasks/index.js";
 import { ConnectionRegistry } from "../../src/ws/connection-registry.js";
 import { StatePublisher } from "../../src/state/state-publisher.js";
 import {
-  AppTaskService,
   AppConversationService,
   AppCalendarService,
   AppMemoryService,
@@ -75,8 +73,6 @@ export class AppHarness {
 
   // Direct service access (backward compat for S1 tests)
   readonly conversationManager: ConversationManager;
-  readonly taskManager: TaskManager;
-  readonly logStorage: TaskLogStorage;
   readonly notificationService: NotificationService;
   readonly connectionRegistry: ConnectionRegistry;
   readonly statePublisher: StatePublisher;
@@ -84,7 +80,6 @@ export class AppHarness {
 
   // App-style event emission (M6.10-S2)
   readonly emitter: HarnessEmitter;
-  readonly tasks: AppTaskService;
   readonly conversations: AppConversationService;
   readonly calendar: AppCalendarService;
   readonly memory: AppMemoryService;
@@ -106,10 +101,6 @@ export class AppHarness {
     // Core services (same order as index.ts)
     this.conversationManager = new ConversationManager(agentDir);
 
-    const db = this.conversationManager.getDb();
-    this.taskManager = new TaskManager(db, agentDir);
-    this.logStorage = new TaskLogStorage(agentDir);
-
     this.notificationService = new NotificationService();
 
     // ConnectionRegistry — own instance, not the module singleton from chat-handler
@@ -118,16 +109,11 @@ export class AppHarness {
     // StatePublisher — wired to our ConnectionRegistry
     this.statePublisher = new StatePublisher({
       connectionRegistry: this.connectionRegistry,
-      taskManager: this.taskManager,
       conversationManager: this.conversationManager,
       getCalendarClient: () => null, // No calendar in tests
     });
 
     // Service namespaces with event emission (uses emitter as App stand-in)
-    this.tasks = new AppTaskService(
-      this.taskManager,
-      this.emitter as any,
-    );
     this.conversations = new AppConversationService(
       this.conversationManager,
       this.emitter as any,
@@ -170,7 +156,6 @@ export class AppHarness {
     // Create minimal agent directory structure
     fs.mkdirSync(path.join(agentDir, "brain"), { recursive: true });
     fs.mkdirSync(path.join(agentDir, "runtime"), { recursive: true });
-    fs.mkdirSync(path.join(agentDir, "tasks", "logs"), { recursive: true });
     fs.writeFileSync(
       path.join(agentDir, "brain", "AGENTS.md"),
       "# Test Agent\nYou are a test agent.\n",

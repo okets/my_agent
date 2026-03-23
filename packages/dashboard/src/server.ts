@@ -15,7 +15,6 @@ import { registerCalendarRoutes } from "./routes/calendar.js";
 import { registerDebugRoutes } from "./routes/debug.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
-import { registerTaskRoutes } from "./routes/tasks.js";
 import { registerNotebookRoutes } from "./routes/notebook.js";
 import { registerMemoryRoutes } from "./routes/memory.js";
 import { registerConversationSearchRoutes } from "./routes/conversation-search.js";
@@ -31,12 +30,6 @@ import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
 import type { TransportManager } from "./channels/index.js";
 import type { ChannelMessageHandler } from "./channels/message-handler.js";
-import type {
-  TaskManager,
-  TaskLogStorage,
-  TaskProcessor,
-  TaskScheduler,
-} from "./tasks/index.js";
 import type {
   CalendarScheduler,
   NotificationService,
@@ -65,10 +58,6 @@ declare module "fastify" {
     abbreviationQueue: AbbreviationQueue | null;
     transportManager: TransportManager | null;
     channelMessageHandler: ChannelMessageHandler | null;
-    taskManager: TaskManager | null;
-    logStorage: TaskLogStorage | null;
-    taskProcessor: TaskProcessor | null;
-    taskScheduler: TaskScheduler | null;
     calendarScheduler: CalendarScheduler | null;
     notificationService: NotificationService | null;
     statePublisher: StatePublisher | null;
@@ -85,9 +74,6 @@ declare module "fastify" {
     } | null;
     postResponseHooks:
       | import("./conversations/post-response-hooks.js").PostResponseHooks
-      | null;
-    taskSearchService:
-      | import("./tasks/task-search-service.js").TaskSearchService
       | null;
     skillService: SkillService;
   }
@@ -169,10 +155,6 @@ export async function createServer(
   fastify.decorate("abbreviationQueue", null);
   fastify.decorate("transportManager", null);
   fastify.decorate("channelMessageHandler", null);
-  fastify.decorate("taskManager", null);
-  fastify.decorate("logStorage", null);
-  fastify.decorate("taskProcessor", null);
-  fastify.decorate("taskScheduler", null);
   fastify.decorate("calendarScheduler", null);
   fastify.decorate("notificationService", null);
   fastify.decorate("statePublisher", null);
@@ -185,7 +167,6 @@ export async function createServer(
   fastify.decorate("workLoopScheduler", null);
   fastify.decorate("conversationInitiator", null);
   fastify.decorate("postResponseHooks", null);
-  fastify.decorate("taskSearchService", null);
   fastify.decorate("skillService", new SkillService(agentDir));
 
   // Register WebSocket chat route
@@ -205,9 +186,6 @@ export async function createServer(
 
   // Register notification routes
   await registerNotificationRoutes(fastify);
-
-  // Register task routes
-  await registerTaskRoutes(fastify);
 
   // Register space routes
   await registerSpaceRoutes(fastify);

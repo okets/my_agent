@@ -166,21 +166,4 @@ export async function registerNotificationRoutes(
     },
   );
 
-  // GET /api/tasks/:taskId/notifications - Get notifications for a task
-  fastify.get<{ Params: { taskId: string } }>(
-    "/api/tasks/:taskId/notifications",
-    async (request, reply) => {
-      const service = fastify.notificationService;
-      if (!service) {
-        return reply
-          .code(503)
-          .send({ error: "Notification service not ready" });
-      }
-
-      const notifications = service
-        .getForTask(request.params.taskId)
-        .map(toResponse);
-      return { notifications };
-    },
-  );
 }

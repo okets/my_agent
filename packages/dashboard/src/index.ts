@@ -45,10 +45,6 @@ async function main() {
   server.abbreviationQueue = app.abbreviationQueue;
   server.transportManager = app.transportManager;
   server.channelMessageHandler = app.channelMessageHandler;
-  server.taskManager = app.taskManager;
-  server.logStorage = app.logStorage;
-  server.taskProcessor = app.taskProcessor;
-  server.taskScheduler = app.taskScheduler;
   server.calendarScheduler = app.calendarScheduler;
   server.notificationService = app.notificationService;
   server.statePublisher = app.statePublisher;
@@ -60,7 +56,6 @@ async function main() {
   server.workLoopScheduler = app.workLoopScheduler;
   server.conversationInitiator = app.conversationInitiator;
   server.postResponseHooks = app.postResponseHooks;
-  server.taskSearchService = app.taskSearchService;
 
   // ── Adapter: Channel events → WS broadcasts ──
   app.on("channel:status_changed", (transportId, status) => {

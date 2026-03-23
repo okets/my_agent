@@ -37,7 +37,6 @@ import {
 } from "./jobs/debrief-prep.js";
 import type { ModelAlias } from "./query-model.js";
 import { loadPreferences } from "@my-agent/core";
-import type { TaskManager } from "../tasks/task-manager.js";
 import {
   readProperties,
   detectStaleProperties,
@@ -86,8 +85,6 @@ export interface WorkLoopSchedulerConfig {
     alert(prompt: string): Promise<boolean>;
     initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
   };
-  /** Optional TaskManager for including completed tasks in debrief */
-  taskManager?: TaskManager | null;
 }
 
 interface WorkLoopRun {
@@ -115,15 +112,12 @@ export class WorkLoopScheduler {
   private patterns: WorkPattern[] = [];
   private notificationService: WorkLoopSchedulerConfig["notificationService"];
   private conversationInitiator: WorkLoopSchedulerConfig["conversationInitiator"];
-  private taskManager: TaskManager | null;
-
   constructor(config: WorkLoopSchedulerConfig) {
     this.db = config.db;
     this.agentDir = config.agentDir;
     this.pollIntervalMs = config.pollIntervalMs ?? 60_000;
     this.notificationService = config.notificationService;
     this.conversationInitiator = config.conversationInitiator;
-    this.taskManager = config.taskManager ?? null;
 
     this.initDb();
   }
@@ -729,23 +723,6 @@ export class WorkLoopScheduler {
       sections.length > 0
         ? sections.join("\n\n---\n\n")
         : "No context available.";
-
-    // Tasks completed since last debrief
-    const lastRun = this.getLastRun("debrief-prep");
-    if (lastRun && this.taskManager) {
-      const completedTasks = this.taskManager.getCompletedForDebrief(
-        lastRun.toISOString(),
-      );
-      if (completedTasks.length > 0) {
-        const taskSection = completedTasks
-          .map(
-            (t) =>
-              `- **${t.title}** (completed ${t.completedAt?.toISOString().slice(0, 16)})`,
-          )
-          .join("\n");
-        context += `\n\n---\n\n## Tasks Completed Since Last Debrief\n\n${taskSection}`;
-      }
-    }
 
     // Clean expired facts before building the prompt (max 3 attempts)
     await cleanExpiredFacts(this.agentDir, 3);
