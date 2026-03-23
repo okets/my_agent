@@ -11,10 +11,10 @@ import fs from "node:fs";
 import type { Conversation } from "./types.js";
 
 /**
- * SQLite database manager for agent data (conversations, tasks)
+ * SQLite database manager for agent data (conversations, automations, spaces)
  *
  * Renamed from conversations.db to agent.db in M5-S1 to reflect
- * expanded scope including tasks and future entity types.
+ * expanded scope including automations, spaces, and jobs.
  */
 export class ConversationDatabase {
   private db: Database.Database;
@@ -173,134 +173,11 @@ export class ConversationDatabase {
       ON conversations(channel, external_party);
     `);
 
-    // Create tasks table (M5-S1)
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL,
-        source_type TEXT NOT NULL,
-        source_ref TEXT,
-        title TEXT NOT NULL,
-        instructions TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        session_id TEXT NOT NULL,
-        recurrence_id TEXT,
-        occurrence_date TEXT,
-        scheduled_for TEXT,
-        started_at TEXT,
-        completed_at TEXT,
-        created_by TEXT NOT NULL,
-        log_path TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-    `);
-
-    // Task indexes
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_tasks_status
-      ON tasks(status);
-    `);
-
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_tasks_recurrence
-      ON tasks(recurrence_id);
-    `);
-
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_tasks_source
-      ON tasks(source_type, source_ref);
-    `);
-
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_tasks_scheduled
-      ON tasks(scheduled_for);
-    `);
-
-    // Migration: add deleted_at column if missing (M5-S5)
-    const taskColumns = this.db
-      .prepare("PRAGMA table_info(tasks)")
-      .all() as Array<{ name: string }>;
-    if (!taskColumns.some((c) => c.name === "deleted_at")) {
-      this.db.exec("ALTER TABLE tasks ADD COLUMN deleted_at TEXT DEFAULT NULL");
-    }
-
-    // Migration: add steps and current_step columns (M5-S9, legacy)
-    if (!taskColumns.some((c) => c.name === "steps")) {
-      this.db.exec("ALTER TABLE tasks ADD COLUMN steps TEXT DEFAULT NULL");
-    }
-    if (!taskColumns.some((c) => c.name === "current_step")) {
-      this.db.exec(
-        "ALTER TABLE tasks ADD COLUMN current_step INTEGER DEFAULT NULL",
-      );
-    }
-
-    // Migration: add work and delivery columns (M5-S9 Work+Deliverable architecture)
-    if (!taskColumns.some((c) => c.name === "work")) {
-      this.db.exec("ALTER TABLE tasks ADD COLUMN work TEXT DEFAULT NULL");
-    }
-    if (!taskColumns.some((c) => c.name === "delivery")) {
-      this.db.exec("ALTER TABLE tasks ADD COLUMN delivery TEXT DEFAULT NULL");
-    }
-
-    // Migration: add SDK session ID for Agent SDK session resumption (M6.5-S2)
-    if (!taskColumns.some((c) => c.name === "sdk_session_id")) {
-      this.db.exec(
-        "ALTER TABLE tasks ADD COLUMN sdk_session_id TEXT DEFAULT NULL",
-      );
-    }
-
-    // M6.9-S3.5: Task completion notification preference
-    if (!taskColumns.some((c) => c.name === "notify_on_completion")) {
-      this.db.exec(
-        "ALTER TABLE tasks ADD COLUMN notify_on_completion TEXT DEFAULT NULL",
-      );
-    }
-
-    // M6.9-S4: Per-task model override
-    if (!taskColumns.some((c) => c.name === "model")) {
-      this.db.exec(
-        "ALTER TABLE tasks ADD COLUMN model TEXT DEFAULT NULL",
-      );
-    }
-
-    // Create task_conversations junction table (M5-S5)
-    // Soft references: no FK constraints for graceful degradation
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS task_conversations (
-        task_id TEXT NOT NULL,
-        conversation_id TEXT NOT NULL,
-        linked_at TEXT NOT NULL,
-        PRIMARY KEY (task_id, conversation_id)
-      );
-    `);
-
-    // Index for querying conversations by task
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_task_conversations_task
-      ON task_conversations(task_id);
-    `);
-
-    // Index for querying tasks by conversation
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_task_conversations_conv
-      ON task_conversations(conversation_id);
-    `);
-
-    // M6.9-S5: Task search tables (FTS5 for keyword search)
-    this.db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
-        task_id UNINDEXED,
-        content
-      );
-    `);
-
-    // M6.9-S5: Task embedding map (vec0 rowids → task IDs)
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS task_embedding_map (
-        vec_rowid INTEGER PRIMARY KEY AUTOINCREMENT,
-        task_id TEXT NOT NULL UNIQUE
-      );
-    `);
+    // M7-S5: Drop legacy task tables (task system removed)
+    this.db.exec(`DROP TABLE IF EXISTS tasks`);
+    this.db.exec(`DROP TABLE IF EXISTS task_conversations`);
+    this.db.exec(`DROP TABLE IF EXISTS tasks_fts`);
+    this.db.exec(`DROP TABLE IF EXISTS task_embedding_map`);
 
     // M7-S1: Spaces table (derived index — rebuildable from SPACE.md files)
     this.db.exec(`
@@ -751,29 +628,6 @@ export class ConversationDatabase {
       "UPDATE conversations SET sdk_session_id = ? WHERE id = ?",
     );
     stmt.run(sessionId, conversationId);
-  }
-
-  /**
-   * Get the SDK session ID for a task (M6.5-S2)
-   */
-  getTaskSdkSessionId(taskId: string): string | null {
-    const stmt = this.db.prepare(
-      "SELECT sdk_session_id FROM tasks WHERE id = ?",
-    );
-    const row = stmt.get(taskId) as
-      | { sdk_session_id: string | null }
-      | undefined;
-    return row?.sdk_session_id ?? null;
-  }
-
-  /**
-   * Update the SDK session ID for a task (M6.5-S2)
-   */
-  updateTaskSdkSessionId(taskId: string, sessionId: string | null): void {
-    const stmt = this.db.prepare(
-      "UPDATE tasks SET sdk_session_id = ? WHERE id = ?",
-    );
-    stmt.run(sessionId, taskId);
   }
 
   // --- Space CRUD (M7-S1) ---
