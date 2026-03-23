@@ -190,6 +190,76 @@ export class AutomationJobService {
   }
 
   /**
+   * Prune expired run directories. Keeps dirs for jobs with status needs_review.
+   */
+  pruneExpiredRunDirs(retentionDays = 7): number {
+    const runsDir = path.join(this.automationsDir, ".runs");
+    if (!fs.existsSync(runsDir)) return 0;
+
+    let pruned = 0;
+    const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+
+    let automationDirs: string[];
+    try {
+      automationDirs = fs.readdirSync(runsDir);
+    } catch {
+      return 0;
+    }
+
+    for (const automationDir of automationDirs) {
+      const automationRunsPath = path.join(runsDir, automationDir);
+      let stat: fs.Stats;
+      try {
+        stat = fs.statSync(automationRunsPath);
+      } catch {
+        continue;
+      }
+      if (!stat.isDirectory()) continue;
+
+      let jobDirs: string[];
+      try {
+        jobDirs = fs.readdirSync(automationRunsPath);
+      } catch {
+        continue;
+      }
+
+      for (const jobDir of jobDirs) {
+        const jobRunPath = path.join(automationRunsPath, jobDir);
+        let jobStat: fs.Stats;
+        try {
+          jobStat = fs.statSync(jobRunPath);
+        } catch {
+          continue;
+        }
+        if (!jobStat.isDirectory()) continue;
+        if (jobStat.mtimeMs > cutoff) continue;
+
+        // Check if job is needs_review -- don't prune
+        const job = this.getJob(jobDir);
+        if (job?.status === "needs_review") continue;
+
+        try {
+          fs.rmSync(jobRunPath, { recursive: true });
+          pruned++;
+        } catch {
+          // Skip if can't remove
+        }
+      }
+
+      // Clean up empty automation run dirs
+      try {
+        const remaining = fs.readdirSync(automationRunsPath);
+        if (remaining.length === 0) {
+          fs.rmdirSync(automationRunsPath);
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    return pruned;
+  }
+
+  /**
    * Create ephemeral run directory.
    */
   private createRunDir(automationId: string, jobId: string): string {

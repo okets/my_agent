@@ -1121,6 +1121,12 @@ export class App extends EventEmitter {
 
         await app.automationSyncService.start();
 
+        // Prune expired run directories on startup (7-day retention)
+        const pruned = app.automationJobService.pruneExpiredRunDirs();
+        if (pruned > 0) {
+          console.log(`[App] Pruned ${pruned} expired run directories`);
+        }
+
         // Scheduler — cron-based triggers
         app.automationScheduler = new AutomationScheduler({
           processor: app.automationProcessor,
