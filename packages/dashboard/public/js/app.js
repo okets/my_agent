@@ -179,6 +179,8 @@ function chat() {
     noMoreFutureEvents: true, // Pessimistic default; set false when events are found
     nowMarkerDirection: null, // null = visible, 'up' = above viewport, 'down' = below
     timelineProjections: [], // Future projected runs from cron schedules
+    timelineOlderJobs: [], // Jobs fetched via pagination (older than WebSocket range)
+    canLoadEarlierJobs: true, // Whether more older jobs might exist
     showCreateTaskForm: false, // Create task modal
     createTaskForm: {
       title: "",
@@ -3230,19 +3232,45 @@ function chat() {
     },
 
     /**
-     * Expand the timeline range backward by 7 days and reload
+     * Expand the timeline range backward — fetch older jobs from API
      */
-    loadEarlierTimeline() {
+    async loadEarlierTimeline() {
       this.timelinePastDays += 7;
-      this.loadTimelineData();
+
+      // Find the oldest job/item in the current timeline to use as cursor
+      const allItems = this.timelineItems;
+      const pastItems = allItems.filter((i) => i.isPast && i.itemType === "job");
+      const oldest = pastItems.length > 0 ? pastItems[pastItems.length - 1] : null;
+
+      if (oldest && oldest.job) {
+        try {
+          const res = await fetch(
+            `/api/timeline?before=${encodeURIComponent(oldest.job.created)}&limit=20`,
+          );
+          const data = await res.json();
+          if (data.pastJobs && data.pastJobs.length > 0) {
+            // Merge with existing older jobs, avoiding duplicates
+            const existingIds = new Set(this.timelineOlderJobs.map((j) => j.id));
+            const newJobs = data.pastJobs.filter((j) => !existingIds.has(j.id));
+            this.timelineOlderJobs = [...this.timelineOlderJobs, ...newJobs];
+            this.canLoadEarlierJobs = data.pastJobs.length === 20;
+          } else {
+            this.canLoadEarlierJobs = false;
+          }
+        } catch (err) {
+          console.error("[App] Failed to load earlier jobs:", err);
+        }
+      }
+
+      await this.loadTimelineData();
     },
 
     /**
      * Expand the timeline range forward by 7 days and reload
      */
-    loadLaterTimeline() {
+    async loadLaterTimeline() {
       this.timelineFutureDays += 7;
-      this.loadTimelineData();
+      await this.loadTimelineData();
     },
 
     /**
@@ -4318,6 +4346,27 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         }
       }
 
+      // Add older jobs fetched via pagination
+      const jobIds = new Set(items.filter((i) => i.itemType === "job").map((i) => i.id));
+      for (const olderJob of this.timelineOlderJobs) {
+        const jobId = `job-${olderJob.id}`;
+        if (jobIds.has(jobId)) continue;
+        const jobTime = new Date(olderJob.created);
+        items.push({
+          id: jobId,
+          itemType: "job",
+          title: olderJob.automationName || olderJob.automationId,
+          time: jobTime,
+          date: jobTime.toDateString(),
+          status: olderJob.status,
+          isPast: true,
+          triggerType: olderJob.triggerType,
+          summary: olderJob.summary,
+          automationId: olderJob.automationId,
+          job: olderJob,
+        });
+      }
+
       // Add projected future runs
       for (const proj of this.timelineProjections) {
         const projTime = new Date(proj.scheduledFor);
@@ -4366,6 +4415,9 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
      * Checks if any task exists before the current past boundary.
      */
     get canLoadEarlier() {
+      // Can load if we haven't exhausted the API cursor
+      if (this.canLoadEarlierJobs) return true;
+
       const now = new Date();
       const pastMs = this.timelinePastDays * 24 * 60 * 60 * 1000;
       const pastDate = new Date(now.getTime() - pastMs);
