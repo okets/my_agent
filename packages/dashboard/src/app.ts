@@ -9,7 +9,7 @@
  */
 
 import { EventEmitter } from "node:events";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AppEventMap } from "./app-events.js";
 
@@ -1163,6 +1163,17 @@ export class App extends EventEmitter {
     app.chat = new AppChatService(app);
     app.auth = new AppAuthService(app);
     app.debug = new AppDebugService(agentDir);
+
+    // ── Legacy directory warnings ──
+    const legacyDirs = ["tasks", "inbox"].filter((d) =>
+      existsSync(join(agentDir, d)),
+    );
+    if (legacyDirs.length > 0) {
+      console.warn(
+        `[App] Legacy directories found: ${legacyDirs.map((d) => `${d}/`).join(", ")}. ` +
+          "These are no longer used — safe to delete manually.",
+      );
+    }
 
     return app;
   }
