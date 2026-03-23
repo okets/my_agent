@@ -37,7 +37,9 @@ import {
   checkSkillsHealth,
   filterSkillsByTools,
   loadChannelBindings,
+  SpaceSyncService,
 } from "@my-agent/core";
+import type { ListSpacesFilter } from "@my-agent/core";
 import type { HealthChangedEvent } from "@my-agent/core";
 import { createBaileysPlugin } from "@my-agent/channel-whatsapp";
 import {
@@ -74,12 +76,14 @@ import {
   setRunningTasksChecker,
 } from "./agent/session-manager.js";
 import { createTaskToolsServer } from "./mcp/task-tools-server.js";
+import { createSpaceToolsServer } from "./mcp/space-tools-server.js";
 import { createSkillServer } from "./mcp/skill-server.js";
 import { ConnectionRegistry } from "./ws/connection-registry.js";
 import { AppChatService } from "./chat/chat-service.js";
 import { AppAuthService } from "./auth/auth-service.js";
 import { AppDebugService } from "./debug/app-debug-service.js";
 import type { Task, CreateTaskInput } from "@my-agent/core";
+import type { ConversationDatabase } from "./conversations/db.js";
 import type { Conversation } from "./conversations/types.js";
 
 // ─── Service Namespaces ──────────────────────────────────────────────────────
@@ -209,6 +213,21 @@ export class AppMemoryService {
   }
 }
 
+export class AppSpaceService {
+  constructor(
+    private db: ConversationDatabase,
+    private app: App,
+  ) {}
+
+  list(filter?: ListSpacesFilter) {
+    return this.db.listSpaces(filter);
+  }
+
+  findByName(name: string) {
+    return this.db.getSpace(name);
+  }
+}
+
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export interface AppOptions {
@@ -229,6 +248,7 @@ export class App extends EventEmitter {
   conversations!: AppConversationService;
   calendar!: AppCalendarService;
   memory!: AppMemoryService;
+  spaces!: AppSpaceService;
   chat!: AppChatService;
   auth!: AppAuthService;
   debug!: AppDebugService;
@@ -275,6 +295,9 @@ export class App extends EventEmitter {
 
   // State publishing
   statePublisher: StatePublisher | null = null;
+
+  // Spaces
+  spaceSyncService: SpaceSyncService | null = null;
 
   // Health
   healthMonitor: HealthMonitor | null = null;
@@ -921,6 +944,48 @@ export class App extends EventEmitter {
       });
     }
 
+    // ── SpaceSyncService + space-tools MCP (M7-S1) ──
+    if (hatched) {
+      try {
+        const spacesDir = join(agentDir, "spaces");
+        const db = app.conversationManager.getConversationDb();
+
+        app.spaceSyncService = new SpaceSyncService({
+          spacesDir,
+          onSpaceChanged: (payload) => {
+            db.upsertSpace({
+              name: payload.name,
+              path: payload.path,
+              tags: payload.tags,
+              runtime: payload.runtime,
+              entry: payload.entry,
+              io: payload.io,
+              maintenance: payload.maintenance,
+              description: payload.description,
+              indexedAt: payload.indexedAt,
+            });
+            app.emit("space:updated", payload);
+          },
+          onSpaceDeleted: (name) => {
+            db.deleteSpace(name);
+            app.emit("space:deleted", name);
+          },
+        });
+
+        await app.spaceSyncService.fullSync();
+        app.spaceSyncService.start();
+        console.log("SpaceSyncService initialized");
+
+        const spaceToolsServer = createSpaceToolsServer({ agentDir, db });
+        addMcpServer("space-tools", spaceToolsServer);
+      } catch (err) {
+        console.warn(
+          "Failed to initialize spaces:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
     // ── Skill MCP server (M6.8-S5) ──
     {
       const skillServer = createSkillServer({
@@ -1045,6 +1110,10 @@ export class App extends EventEmitter {
     app.conversations = new AppConversationService(app.conversationManager, app);
     app.calendar = new AppCalendarService(app);
     app.memory = new AppMemoryService(app);
+    app.spaces = new AppSpaceService(
+      app.conversationManager.getConversationDb(),
+      app,
+    );
     app.chat = new AppChatService(app);
     app.auth = new AppAuthService(app);
     app.debug = new AppDebugService(agentDir);
@@ -1077,6 +1146,10 @@ export class App extends EventEmitter {
     if (this.healthMonitor) {
       this.healthMonitor.stop();
       console.log("HealthMonitor stopped.");
+    }
+    if (this.spaceSyncService) {
+      await this.spaceSyncService.stop();
+      console.log("SpaceSyncService stopped.");
     }
     if (this.syncService) {
       this.syncService.stopWatching();

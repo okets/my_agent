@@ -8,6 +8,7 @@
 import type { Task } from "@my-agent/core";
 import type { AnyNotification } from "@my-agent/core";
 import type { TransportStatus } from "@my-agent/core";
+import type { SpaceSyncPayload } from "@my-agent/core";
 import type { Conversation } from "./conversations/types.js";
 
 export interface AppEventMap {
@@ -38,6 +39,11 @@ export interface AppEventMap {
   "channel:qr_code": [transportId: string, qrDataUrl: string];
   "channel:pairing_code": [transportId: string, pairingCode: string];
   "channel:paired": [transportId: string];
+
+  // Space mutations
+  "space:created": [space: SpaceSyncPayload];
+  "space:updated": [space: SpaceSyncPayload];
+  "space:deleted": [name: string];
 
   // Skills
   "skills:changed": [];
