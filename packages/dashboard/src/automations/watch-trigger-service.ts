@@ -170,13 +170,57 @@ export class WatchTriggerService extends EventEmitter {
   }
 
   /** Handle file event with space-level debouncing */
-  handleFileEvent(watchPath: string, filePath: string, event: string): void { /* Task 4 */ }
+  handleFileEvent(watchPath: string, filePath: string, event: string): void {
+    const debounceKey = watchPath; // debounce by watched path (space-level)
+
+    const pending = this.pendingEvents.get(debounceKey);
+    if (pending) {
+      // Add file to existing batch, reset timer
+      if (!pending.files.includes(filePath)) {
+        pending.files.push(filePath);
+      }
+      clearTimeout(pending.timer);
+      pending.timer = setTimeout(() => this.flushPendingEvents(debounceKey), this.debounceDurationMs);
+      return;
+    }
+
+    // New batch
+    const timer = setTimeout(() => this.flushPendingEvents(debounceKey), this.debounceDurationMs);
+    this.pendingEvents.set(debounceKey, { files: [filePath], event, timer });
+  }
 
   /** Handle watcher error (mount failure) */
   handleWatcherError(watchPath: string, error: Error): void { /* Task 5 */ }
 
   /** Flush debounced events and fire automations */
-  async flushPendingEvents(debounceKey: string): Promise<void> { /* Task 4 */ }
+  async flushPendingEvents(debounceKey: string): Promise<void> {
+    const pending = this.pendingEvents.get(debounceKey);
+    if (!pending) return;
+    this.pendingEvents.delete(debounceKey);
+
+    const automationIds = this.pathToAutomations.get(debounceKey) ?? [];
+    const context = {
+      trigger: "watch" as const,
+      files: pending.files,
+      event: pending.event,
+      batchSize: pending.files.length,
+    };
+
+    this.deps.log(
+      `[WatchTriggerService] Firing ${automationIds.length} automation(s) for ${pending.files.length} file(s) at ${debounceKey}`,
+    );
+
+    // Fire all automations mapped to this path
+    for (const automationId of automationIds) {
+      try {
+        await this.deps.fireAutomation(automationId, context);
+      } catch (err) {
+        this.deps.logError(err, `[WatchTriggerService] Failed to fire automation ${automationId}`);
+      }
+    }
+
+    this.emit("triggered", { automationIds, ...context });
+  }
 
   /** Accessors for testing */
   getWatchers(): Map<string, FSWatcher> { return this.watchers; }
