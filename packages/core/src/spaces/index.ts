@@ -6,3 +6,6 @@ export type {
   CreateSpaceInput,
   ListSpacesFilter,
 } from './types.js'
+
+export { SpaceSyncService } from './space-sync-service.js'
+export type { SpaceSyncServiceOptions, SpaceSyncPayload } from './space-sync-service.js'

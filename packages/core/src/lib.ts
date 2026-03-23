@@ -192,7 +192,7 @@ export type {
 export { FileWatcher, hashContent } from './sync/index.js'
 export type { FileWatcherOptions, FileChange } from './sync/index.js'
 
-// Space types
+// Spaces
 export type {
   SpaceMaintenance,
   SpaceIO,
@@ -200,7 +200,10 @@ export type {
   Space,
   CreateSpaceInput,
   ListSpacesFilter,
+  SpaceSyncServiceOptions,
+  SpaceSyncPayload,
 } from './spaces/index.js'
+export { SpaceSyncService } from './spaces/index.js'
 
 // Memory system
 export {
