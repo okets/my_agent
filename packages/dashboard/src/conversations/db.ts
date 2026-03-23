@@ -1215,6 +1215,91 @@ export class ConversationDatabase {
   }
 
   /**
+   * Get watch trigger configs from active automations.
+   */
+  getWatchTriggers(): Array<{
+    automationId: string;
+    path: string;
+    events?: string[];
+    polling?: boolean;
+    interval?: number;
+  }> {
+    const automations = this.db
+      .prepare(
+        `SELECT id, trigger_config FROM automations WHERE status = 'active'`,
+      )
+      .all() as Array<{ id: string; trigger_config: string }>;
+
+    const triggers: Array<{
+      automationId: string;
+      path: string;
+      events?: string[];
+      polling?: boolean;
+      interval?: number;
+    }> = [];
+
+    for (const a of automations) {
+      const triggerConfig = JSON.parse(a.trigger_config) as any[];
+      for (const t of triggerConfig) {
+        if (t.type === "watch" && (t.path || t.space)) {
+          triggers.push({
+            automationId: a.id,
+            path: t.path ?? t.space,
+            events: t.events,
+            polling: t.polling ?? true,
+            interval: t.interval ?? 5000,
+          });
+        }
+      }
+    }
+    return triggers;
+  }
+
+  /**
+   * Get automation hints for channel trigger matching (Haiku extraction).
+   */
+  getAutomationHints(): Array<{
+    id: string;
+    name: string;
+    hints: string;
+    description: string;
+  }> {
+    const automations = this.db
+      .prepare(
+        `SELECT id, name, trigger_config FROM automations WHERE status = 'active'`,
+      )
+      .all() as Array<{ id: string; name: string; trigger_config: string }>;
+
+    return automations
+      .map((a) => {
+        const triggers = JSON.parse(a.trigger_config) as any[];
+        const channelTrigger = triggers.find(
+          (t: any) => t.type === "channel",
+        );
+        return {
+          id: a.id,
+          name: a.name,
+          hints: channelTrigger?.hint ?? "",
+          description: a.name,
+        };
+      })
+      .filter((h) => h.hints);
+  }
+
+  /**
+   * Count recent jobs for an automation (used for dedup in channel triggers).
+   */
+  getRecentJobCount(automationId: string, withinMs: number): number {
+    const since = new Date(Date.now() - withinMs).toISOString();
+    const result = this.db
+      .prepare(
+        `SELECT COUNT(*) as count FROM jobs WHERE automation_id = ? AND created > ?`,
+      )
+      .get(automationId, since) as { count: number };
+    return result.count;
+  }
+
+  /**
    * Expose the raw Database instance for shared access (e.g. ExternalMessageStore)
    */
   getDb(): Database.Database {

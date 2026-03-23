@@ -93,6 +93,7 @@ import {
   AutomationProcessor,
   AutomationScheduler,
   AutomationSyncService,
+  WatchTriggerService,
 } from "./automations/index.js";
 import { createAutomationServer } from "./mcp/automation-server.js";
 
@@ -370,6 +371,7 @@ export class App extends EventEmitter {
   automationProcessor: AutomationProcessor | null = null;
   automationScheduler: AutomationScheduler | null = null;
   automationSyncService: AutomationSyncService | null = null;
+  watchTriggerService: WatchTriggerService | null = null;
 
   // Health
   healthMonitor: HealthMonitor | null = null;
@@ -596,6 +598,12 @@ export class App extends EventEmitter {
         taskManager: app.taskManager,
         log: (msg) => console.log(msg),
         logError: (err, msg) => console.error(msg, err),
+        getAutomationHints: () =>
+          app.conversationManager.getConversationDb().getAutomationHints(),
+        fireAutomation: async (id, context) =>
+          app.automations?.fire(id, context),
+        getRecentJobsForAutomation: (id, withinMs) =>
+          app.conversationManager.getConversationDb().getRecentJobCount(id, withinMs),
       });
     }
 
@@ -1139,8 +1147,40 @@ export class App extends EventEmitter {
         });
         addMcpServer("automation-tools", automationToolsServer);
 
+        // WatchTriggerService — filesystem-based triggers
+        const watchTriggerService = new WatchTriggerService(
+          {
+            getWatchTriggers: () => convDb.getWatchTriggers(),
+            fireAutomation: async (id, context) =>
+              app.automations.fire(id, context),
+            log: (msg) => console.log(msg),
+            logError: (err, msg) => console.error(msg, err),
+          },
+          5000,
+        );
+        await watchTriggerService.start();
+        app.watchTriggerService = watchTriggerService;
+
+        // Re-sync watchers when automation manifests change
+        app.automationSyncService.on("sync", () =>
+          watchTriggerService.sync(),
+        );
+
+        // Mount failure -> alert user
+        watchTriggerService.on("mount_failure", async ({ path, attempts }) => {
+          if (app.conversationInitiator) {
+            const prompt = `[SYSTEM: Filesystem watch on "${path}" has failed after ${attempts} retry attempts. The mount may be down.]`;
+            const alerted = await app.conversationInitiator.alert(prompt);
+            if (!alerted) {
+              await app.conversationInitiator.initiate({
+                firstTurnPrompt: prompt,
+              });
+            }
+          }
+        });
+
         console.log(
-          "Automation system initialized (sync + scheduler + MCP tools)",
+          "Automation system initialized (sync + scheduler + watch triggers + MCP tools)",
         );
       } catch (err) {
         console.warn(
@@ -1318,6 +1358,10 @@ export class App extends EventEmitter {
     if (this.spaceSyncService) {
       await this.spaceSyncService.stop();
       console.log("SpaceSyncService stopped.");
+    }
+    if (this.watchTriggerService) {
+      await this.watchTriggerService.stop();
+      console.log("WatchTriggerService stopped.");
     }
     if (this.automationScheduler) {
       await this.automationScheduler.stop();
