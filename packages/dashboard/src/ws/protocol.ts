@@ -191,6 +191,7 @@ export type ServerMessage =
       stats: MemoryStats;
       timestamp: number;
     }
+  | { type: "state:spaces"; spaces: SpaceSnapshot[]; timestamp: number }
   | { type: "state:skills"; timestamp: number };
 
 // ─── State Sync Messages ───────────────────────────────────────────────────
@@ -266,6 +267,16 @@ export interface MemoryStats {
     model: string;
   }>;
   localModelCached?: boolean; // M6-S9: For "Delete Local Model" visibility
+}
+
+export interface SpaceSnapshot {
+  name: string;
+  tags: string[];
+  path?: string;
+  runtime?: string;
+  entry?: string;
+  description?: string;
+  indexedAt: string;
 }
 
 // Notification payload for WebSocket transport

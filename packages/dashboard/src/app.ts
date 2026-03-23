@@ -651,6 +651,7 @@ export class App extends EventEmitter {
         connectionRegistry,
         taskManager: app.taskManager,
         conversationManager: app.conversationManager,
+        spacesDb: app.conversationManager.getConversationDb(),
         getCalendarClient: () => {
           try {
             const calConfig = loadCalendarConfig(agentDir);

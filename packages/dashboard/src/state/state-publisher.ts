@@ -18,6 +18,7 @@ import type {
   CalendarEventSnapshot,
   ConversationMeta,
   MemoryStats,
+  SpaceSnapshot,
 } from "../ws/protocol.js";
 import type {
   Task,
@@ -28,6 +29,7 @@ import type {
 } from "@my-agent/core";
 import type { TaskManager } from "../tasks/index.js";
 import type { ConversationManager } from "../conversations/index.js";
+import type { ConversationDatabase } from "../conversations/db.js";
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 100;
@@ -81,10 +83,31 @@ function toCalendarEventSnapshot(event: CalendarEvent): CalendarEventSnapshot {
   };
 }
 
+function toSpaceSnapshot(space: {
+  name: string;
+  tags: string[];
+  path: string;
+  runtime: string | null;
+  entry: string | null;
+  description: string | null;
+  indexedAt: string;
+}): SpaceSnapshot {
+  return {
+    name: space.name,
+    tags: space.tags,
+    path: space.path,
+    runtime: space.runtime ?? undefined,
+    entry: space.entry ?? undefined,
+    description: space.description ?? undefined,
+    indexedAt: space.indexedAt,
+  };
+}
+
 export interface StatePublisherOptions {
   connectionRegistry: ConnectionRegistry;
   taskManager: TaskManager | null;
   conversationManager: ConversationManager | null;
+  spacesDb: ConversationDatabase | null;
   /** Optional calendar client factory — called lazily when needed */
   getCalendarClient:
     | (() => ReturnType<typeof createCalDAVClient> | null)
@@ -98,6 +121,7 @@ export class StatePublisher {
   private getCalendarClient:
     | (() => ReturnType<typeof createCalDAVClient> | null)
     | null;
+  private spacesDb: ConversationDatabase | null;
 
   // Memory services (set after initialization via setMemoryServices)
   private memoryDb: MemoryDb | null = null;
@@ -108,11 +132,13 @@ export class StatePublisher {
   private calendarTimer: ReturnType<typeof setTimeout> | null = null;
   private conversationsTimer: ReturnType<typeof setTimeout> | null = null;
   private memoryTimer: ReturnType<typeof setTimeout> | null = null;
+  private spacesTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: StatePublisherOptions) {
     this.registry = options.connectionRegistry;
     this.taskManager = options.taskManager;
     this.conversationManager = options.conversationManager;
+    this.spacesDb = options.spacesDb;
     this.getCalendarClient = options.getCalendarClient;
   }
 
@@ -132,6 +158,10 @@ export class StatePublisher {
     app.on("calendar:changed", () => this.publishCalendar());
 
     app.on("memory:changed", () => this.publishMemory());
+
+    app.on("space:created", () => this.publishSpaces());
+    app.on("space:updated", () => this.publishSpaces());
+    app.on("space:deleted", () => this.publishSpaces());
 
     app.on("skills:changed", () => {
       this.registry.broadcastToAll({
@@ -201,6 +231,17 @@ export class StatePublisher {
   }
 
   /**
+   * Schedule a debounced broadcast of space snapshots to all connected clients.
+   */
+  publishSpaces(): void {
+    if (this.spacesTimer) clearTimeout(this.spacesTimer);
+    this.spacesTimer = setTimeout(() => {
+      this.spacesTimer = null;
+      this._broadcastSpaces();
+    }, DEBOUNCE_MS);
+  }
+
+  /**
    * Send current state of all entity types to a single newly-connected socket.
    * Called immediately on connect — no debounce needed.
    */
@@ -265,6 +306,19 @@ export class StatePublisher {
         }
       } catch {
         // Skip on error
+      }
+    }
+
+    // Spaces
+    if (this.spacesDb) {
+      const spaces = this.spacesDb.listSpaces();
+      const payload = JSON.stringify({
+        type: "state:spaces",
+        spaces: spaces.map(toSpaceSnapshot),
+        timestamp,
+      });
+      if (socket.readyState === 1) {
+        socket.send(payload);
       }
     }
 
@@ -341,6 +395,16 @@ export class StatePublisher {
     } catch {
       // Skip on error
     }
+  }
+
+  private _broadcastSpaces(): void {
+    if (!this.spacesDb) return;
+    const spaces = this.spacesDb.listSpaces();
+    this.registry.broadcastToAll({
+      type: "state:spaces",
+      spaces: spaces.map(toSpaceSnapshot),
+      timestamp: Date.now(),
+    });
   }
 
   private _broadcastMemory(): void {
