@@ -4824,6 +4824,38 @@
                             placeholder="/path/to/external/project"
                           />
                         </div>
+                        <!-- I/O Contract (tool spaces only) -->
+                        <template x-if="tab.data.manifest?.io">
+                          <div class="mt-4">
+                            <h4 class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">I/O Contract</h4>
+
+                            <!-- Input -->
+                            <div class="mb-3">
+                              <span class="text-[10px] text-gray-500 uppercase">Input</span>
+                              <div class="mt-1 space-y-1">
+                                <template x-for="[name, type] in Object.entries(tab.data.manifest.io.input || {})" :key="name">
+                                  <div class="flex items-center gap-2 px-2 py-1 rounded bg-surface-800/50">
+                                    <span class="text-sm text-gray-300 font-mono" x-text="name"></span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400" x-text="type"></span>
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+
+                            <!-- Output -->
+                            <div>
+                              <span class="text-[10px] text-gray-500 uppercase">Output</span>
+                              <div class="mt-1 space-y-1">
+                                <template x-for="[name, type] in Object.entries(tab.data.manifest.io.output || {})" :key="name">
+                                  <div class="flex items-center gap-2 px-2 py-1 rounded bg-surface-800/50">
+                                    <span class="text-sm text-gray-300 font-mono" x-text="name"></span>
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-400" x-text="type"></span>
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+                          </div>
+                        </template>
                       </div>
                     </div>
                     <!-- Body content (markdown below frontmatter) -->
