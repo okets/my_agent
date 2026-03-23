@@ -264,6 +264,41 @@ export class AutomationJobService {
   }
 
   /**
+   * Store SDK session ID in sidecar file: .sessions/{automationId}.json
+   */
+  storeSessionId(automationId: string, jobId: string, sessionId: string): void {
+    const sessionsDir = path.join(this.automationsDir, ".sessions");
+    if (!fs.existsSync(sessionsDir)) {
+      fs.mkdirSync(sessionsDir, { recursive: true });
+    }
+    const sidecarPath = path.join(sessionsDir, `${automationId}.json`);
+    let data: Record<string, string> = {};
+    if (fs.existsSync(sidecarPath)) {
+      try {
+        data = JSON.parse(fs.readFileSync(sidecarPath, "utf-8"));
+      } catch {
+        // Corrupted file, start fresh
+      }
+    }
+    data[jobId] = sessionId;
+    fs.writeFileSync(sidecarPath, JSON.stringify(data, null, 2) + "\n", "utf-8");
+  }
+
+  /**
+   * Read SDK session ID from sidecar file.
+   */
+  getSessionId(automationId: string, jobId: string): string | null {
+    const sidecarPath = path.join(this.automationsDir, ".sessions", `${automationId}.json`);
+    if (!fs.existsSync(sidecarPath)) return null;
+    try {
+      const data = JSON.parse(fs.readFileSync(sidecarPath, "utf-8"));
+      return data[jobId] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Create ephemeral run directory.
    */
   private createRunDir(automationId: string, jobId: string): string {

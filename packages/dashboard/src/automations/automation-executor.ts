@@ -170,7 +170,12 @@ export class AutomationExecutor {
 
       const finalStatus = hasNeedsReview ? "needs_review" : "completed";
 
-      // 8. Update job
+      // 8. Store session ID in sidecar file
+      if (sdkSessionId) {
+        this.config.jobService.storeSessionId(automation.id, job.id, sdkSessionId);
+      }
+
+      // 9. Update job
       this.config.jobService.updateJob(job.id, {
         status: finalStatus,
         completed: new Date().toISOString(),
@@ -225,15 +230,20 @@ export class AutomationExecutor {
     userInput: string,
     storedSessionId: string | null,
   ): Promise<{ success: boolean; status: string; summary?: string; error?: string }> {
+    // Fall back to sidecar file if no session ID passed
+    const effectiveSessionId =
+      storedSessionId ??
+      this.config.jobService.getSessionId(job.automationId, job.id);
+
     console.log(
-      `[AutomationExecutor] Resuming job ${job.id} (session: ${storedSessionId ?? "none"})`,
+      `[AutomationExecutor] Resuming job ${job.id} (session: ${effectiveSessionId ?? "none"})`,
     );
 
     // Update job status to running
     this.config.jobService.updateJob(job.id, { status: "running" });
 
     try {
-      if (storedSessionId) {
+      if (effectiveSessionId) {
         try {
           // Resume the SDK session with user input as the prompt
           const brainConfig = loadConfig();
@@ -242,7 +252,7 @@ export class AutomationExecutor {
 
           const query = createBrainQuery(userInput, {
             model,
-            resume: storedSessionId,
+            resume: effectiveSessionId,
             cwd: job.run_dir,
             tools: WORKER_TOOLS,
             settingSources: ["project"],
@@ -280,6 +290,12 @@ export class AutomationExecutor {
           const { work, deliverable } = extractDeliverable(response);
           const summary = (deliverable ?? work).slice(0, 500);
 
+          // Store updated session ID in sidecar
+          const finalSessionId = newSessionId ?? effectiveSessionId;
+          if (finalSessionId) {
+            this.config.jobService.storeSessionId(job.automationId, job.id, finalSessionId);
+          }
+
           // Check if the resumed session also requests review
           const hasNeedsReview =
             response.includes("needs_review") ||
@@ -290,7 +306,7 @@ export class AutomationExecutor {
             status: finalStatus,
             completed: finalStatus === "completed" ? new Date().toISOString() : undefined,
             summary,
-            sdk_session_id: newSessionId ?? storedSessionId,
+            sdk_session_id: newSessionId ?? effectiveSessionId,
           });
 
           console.log(

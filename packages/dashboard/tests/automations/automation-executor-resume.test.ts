@@ -41,6 +41,8 @@ function makeConfig(overrides?: Partial<AutomationExecutorConfig>): AutomationEx
     jobService: {
       updateJob: vi.fn(),
       getJob: vi.fn(() => makeJob()),
+      getSessionId: vi.fn(() => null),
+      storeSessionId: vi.fn(),
     } as any,
     agentDir: "/tmp/agent",
     db: {} as any,
