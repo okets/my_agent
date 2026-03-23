@@ -1176,11 +1176,15 @@ export class App extends EventEmitter {
       addMcpServer("skills", skillServer);
     }
 
-    // Connect memory services to state publisher
+    // Connect memory + automation services to state publisher
     if (app.statePublisher) {
       app.statePublisher.setMemoryServices(
         app.memoryDb,
         app.pluginRegistry,
+      );
+      app.statePublisher.setAutomationServices(
+        app.automationManager,
+        app.automationJobService,
       );
     }
 

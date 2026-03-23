@@ -19,6 +19,8 @@ import type {
   ConversationMeta,
   MemoryStats,
   SpaceSnapshot,
+  AutomationSnapshot,
+  JobSnapshot,
 } from "../ws/protocol.js";
 import type {
   Task,
@@ -26,10 +28,13 @@ import type {
   createCalDAVClient,
   MemoryDb,
   PluginRegistry,
+  Automation,
 } from "@my-agent/core";
 import type { TaskManager } from "../tasks/index.js";
 import type { ConversationManager } from "../conversations/index.js";
 import type { ConversationDatabase } from "../conversations/db.js";
+import type { AutomationManager } from "../automations/automation-manager.js";
+import type { AutomationJobService } from "../automations/automation-job-service.js";
 
 // Debounce delay in milliseconds
 const DEBOUNCE_MS = 100;
@@ -127,12 +132,18 @@ export class StatePublisher {
   private memoryDb: MemoryDb | null = null;
   private pluginRegistry: PluginRegistry | null = null;
 
+  // Automation services (set after initialization via setAutomationServices)
+  private automationManager: AutomationManager | null = null;
+  private automationJobService: AutomationJobService | null = null;
+
   // Debounce timers for each entity type
   private tasksTimer: ReturnType<typeof setTimeout> | null = null;
   private calendarTimer: ReturnType<typeof setTimeout> | null = null;
   private conversationsTimer: ReturnType<typeof setTimeout> | null = null;
   private memoryTimer: ReturnType<typeof setTimeout> | null = null;
   private spacesTimer: ReturnType<typeof setTimeout> | null = null;
+  private automationsTimer: ReturnType<typeof setTimeout> | null = null;
+  private jobsTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: StatePublisherOptions) {
     this.registry = options.connectionRegistry;
@@ -163,12 +174,32 @@ export class StatePublisher {
     app.on("space:updated", () => this.publishSpaces());
     app.on("space:deleted", () => this.publishSpaces());
 
+    app.on("automation:created", () => this.publishAutomations());
+    app.on("automation:updated", () => this.publishAutomations());
+    app.on("automation:deleted", () => this.publishAutomations());
+    app.on("job:created", () => this.publishJobs());
+    app.on("job:completed", () => this.publishJobs());
+    app.on("job:failed", () => this.publishJobs());
+    app.on("job:needs_review", () => this.publishJobs());
+
     app.on("skills:changed", () => {
       this.registry.broadcastToAll({
         type: "state:skills",
         timestamp: Date.now(),
       });
     });
+  }
+
+  /**
+   * Set automation services after initialization.
+   * Called after automation system is initialized in App.create().
+   */
+  setAutomationServices(
+    automationManager: AutomationManager | null,
+    automationJobService: AutomationJobService | null,
+  ): void {
+    this.automationManager = automationManager;
+    this.automationJobService = automationJobService;
   }
 
   /**
@@ -238,6 +269,28 @@ export class StatePublisher {
     this.spacesTimer = setTimeout(() => {
       this.spacesTimer = null;
       this._broadcastSpaces();
+    }, DEBOUNCE_MS);
+  }
+
+  /**
+   * Schedule a debounced broadcast of automation snapshots to all connected clients.
+   */
+  publishAutomations(): void {
+    if (this.automationsTimer) clearTimeout(this.automationsTimer);
+    this.automationsTimer = setTimeout(() => {
+      this.automationsTimer = null;
+      this._broadcastAutomations();
+    }, DEBOUNCE_MS);
+  }
+
+  /**
+   * Schedule a debounced broadcast of job snapshots to all connected clients.
+   */
+  publishJobs(): void {
+    if (this.jobsTimer) clearTimeout(this.jobsTimer);
+    this.jobsTimer = setTimeout(() => {
+      this.jobsTimer = null;
+      this._broadcastJobs();
     }, DEBOUNCE_MS);
   }
 
@@ -315,6 +368,32 @@ export class StatePublisher {
       const payload = JSON.stringify({
         type: "state:spaces",
         spaces: spaces.map(toSpaceSnapshot),
+        timestamp,
+      });
+      if (socket.readyState === 1) {
+        socket.send(payload);
+      }
+    }
+
+    // Automations
+    if (this.automationManager) {
+      const snapshots = this._getAutomationSnapshots();
+      const payload = JSON.stringify({
+        type: "state:automations",
+        automations: snapshots,
+        timestamp,
+      });
+      if (socket.readyState === 1) {
+        socket.send(payload);
+      }
+    }
+
+    // Jobs
+    if (this.automationJobService) {
+      const snapshots = this._getJobSnapshots();
+      const payload = JSON.stringify({
+        type: "state:jobs",
+        jobs: snapshots,
         timestamp,
       });
       if (socket.readyState === 1) {
@@ -404,6 +483,69 @@ export class StatePublisher {
       type: "state:spaces",
       spaces: spaces.map(toSpaceSnapshot),
       timestamp: Date.now(),
+    });
+  }
+
+  private _broadcastAutomations(): void {
+    if (!this.automationManager) return;
+    const snapshots = this._getAutomationSnapshots();
+    this.registry.broadcastToAll({
+      type: "state:automations",
+      automations: snapshots,
+      timestamp: Date.now(),
+    });
+  }
+
+  private _broadcastJobs(): void {
+    if (!this.automationJobService) return;
+    const snapshots = this._getJobSnapshots();
+    this.registry.broadcastToAll({
+      type: "state:jobs",
+      jobs: snapshots,
+      timestamp: Date.now(),
+    });
+  }
+
+  private _getAutomationSnapshots(): AutomationSnapshot[] {
+    if (!this.automationManager) return [];
+    const automations = this.automationManager.list();
+    return automations.map((a) => {
+      const jobs = this.automationJobService?.listJobs({
+        automationId: a.id,
+        limit: 1,
+      });
+      return {
+        id: a.id,
+        name: a.manifest.name,
+        status: a.manifest.status,
+        triggerTypes: a.manifest.trigger.map((t) => t.type),
+        spaces: a.manifest.spaces ?? [],
+        model: a.manifest.model,
+        notify: a.manifest.notify,
+        autonomy: a.manifest.autonomy,
+        once: a.manifest.once,
+        lastFiredAt: jobs?.[0]?.created,
+        jobCount:
+          this.automationJobService?.listJobs({ automationId: a.id })
+            .length ?? 0,
+      };
+    });
+  }
+
+  private _getJobSnapshots(): JobSnapshot[] {
+    if (!this.automationJobService) return [];
+    const jobs = this.automationJobService.listJobs({ limit: 50 });
+    return jobs.map((j) => {
+      const automation = this.automationManager?.findById(j.automationId);
+      return {
+        id: j.id,
+        automationId: j.automationId,
+        automationName: automation?.manifest.name ?? j.automationId,
+        status: j.status,
+        created: j.created,
+        completed: j.completed,
+        summary: j.summary,
+      };
     });
   }
 

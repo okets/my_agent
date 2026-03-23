@@ -192,6 +192,12 @@ export type ServerMessage =
       timestamp: number;
     }
   | { type: "state:spaces"; spaces: SpaceSnapshot[]; timestamp: number }
+  | {
+      type: "state:automations";
+      automations: AutomationSnapshot[];
+      timestamp: number;
+    }
+  | { type: "state:jobs"; jobs: JobSnapshot[]; timestamp: number }
   | { type: "state:skills"; timestamp: number };
 
 // ─── State Sync Messages ───────────────────────────────────────────────────
@@ -277,6 +283,31 @@ export interface SpaceSnapshot {
   entry?: string;
   description?: string;
   indexedAt: string;
+}
+
+export interface AutomationSnapshot {
+  id: string;
+  name: string;
+  status: string;
+  triggerTypes: string[];
+  spaces: string[];
+  model?: string;
+  notify?: string;
+  autonomy?: string;
+  once?: boolean;
+  lastFiredAt?: string;
+  jobCount: number;
+}
+
+export interface JobSnapshot {
+  id: string;
+  automationId: string;
+  automationName: string;
+  status: string;
+  created: string;
+  completed?: string;
+  summary?: string;
+  triggerType?: string;
 }
 
 // Notification payload for WebSocket transport
