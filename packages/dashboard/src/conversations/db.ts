@@ -1159,6 +1159,62 @@ export class ConversationDatabase {
   }
 
   /**
+   * Query jobs within a date range, joined with automation name and trigger config.
+   * Used by the timeline API for combined past/future view.
+   */
+  getTimelineJobs(options: {
+    before?: string;
+    after?: string;
+    limit?: number;
+  }): Array<{
+    id: string;
+    automationId: string;
+    automationName: string;
+    triggerConfig: string;
+    status: string;
+    created: string;
+    completed: string | null;
+    summary: string | null;
+    context: string | null;
+  }> {
+    const limit = options.limit ?? 20;
+    const params: any[] = [];
+
+    let sql = `
+      SELECT j.id, j.automation_id, j.status, j.created, j.completed,
+             j.summary, j.context, a.name as automation_name, a.trigger_config
+      FROM jobs j
+      LEFT JOIN automations a ON j.automation_id = a.id
+      WHERE 1=1
+    `;
+
+    if (options.before) {
+      sql += " AND j.created < ?";
+      params.push(options.before);
+    }
+    if (options.after) {
+      sql += " AND j.created > ?";
+      params.push(options.after);
+    }
+
+    sql += " ORDER BY j.created DESC LIMIT ?";
+    params.push(limit);
+
+    const rows = this.db.prepare(sql).all(...params) as any[];
+    return rows.map((row) => ({
+      id: row.id,
+      automationId: row.automation_id,
+      automationName: row.automation_name ?? row.automation_id,
+      triggerConfig: row.trigger_config ?? "[]",
+      status: row.status,
+      created: row.created,
+      completed: row.completed,
+      summary: row.summary,
+      context: row.context,
+    }));
+  }
+
+  /**
    * Expose the raw Database instance for shared access (e.g. ExternalMessageStore)
    */
   getDb(): Database.Database {

@@ -25,6 +25,7 @@ import { registerWorkPatternsSettingsRoutes } from "./routes/work-patterns-setti
 import { registerSkillRoutes } from "./routes/skills.js";
 import { registerSpaceRoutes } from "./routes/spaces.js";
 import { registerAutomationRoutes } from "./routes/automations.js";
+import { registerTimelineRoutes } from "./routes/timeline.js";
 import { SkillService } from "./services/skill-service.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
@@ -213,6 +214,9 @@ export async function createServer(
 
   // Register automation routes (M7-S3)
   await registerAutomationRoutes(fastify);
+
+  // Register timeline routes (M7-S4)
+  await registerTimelineRoutes(fastify);
 
   // Register debug API routes (localhost-only)
   await fastify.register(
