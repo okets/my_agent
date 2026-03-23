@@ -10,3 +10,13 @@ export { isToolSpace } from './types.js'
 
 export { SpaceSyncService } from './space-sync-service.js'
 export type { SpaceSyncServiceOptions, SpaceSyncPayload } from './space-sync-service.js'
+
+export type {
+  TriggerConfig,
+  AutomationDeliveryAction,
+  AutomationManifest,
+  Automation,
+  JobStatus,
+  Job,
+  CreateAutomationInput,
+} from './automation-types.js'
