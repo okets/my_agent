@@ -287,11 +287,7 @@ export class AppAutomationService {
     }
     const automation = this.manager.findById(job.automationId);
     if (!automation) throw new Error(`Automation ${job.automationId} not found`);
-    this.jobService.updateJob(jobId, { status: "running" });
-    await this.processor.fire(automation, {
-      resumedFrom: jobId,
-      userResponse: userInput,
-    });
+    await this.processor.resume(automation, job, userInput);
   }
 }
 
@@ -1092,7 +1088,7 @@ export class App extends EventEmitter {
           executor: app.automationExecutor,
           jobService: app.automationJobService,
           onJobMutated: () => {
-            // StatePublisher will subscribe via app events
+            app.statePublisher?.publishJobs();
           },
           get conversationInitiator() {
             return app.conversationInitiator ?? null;

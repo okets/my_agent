@@ -512,7 +512,6 @@ export class StatePublisher {
     return automations.map((a) => {
       const jobs = this.automationJobService?.listJobs({
         automationId: a.id,
-        limit: 1,
       });
       return {
         id: a.id,
@@ -525,9 +524,7 @@ export class StatePublisher {
         autonomy: a.manifest.autonomy,
         once: a.manifest.once,
         lastFiredAt: jobs?.[0]?.created,
-        jobCount:
-          this.automationJobService?.listJobs({ automationId: a.id })
-            .length ?? 0,
+        jobCount: jobs?.length ?? 0,
       };
     });
   }

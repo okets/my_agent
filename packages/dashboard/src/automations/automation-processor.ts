@@ -5,7 +5,7 @@
  * handles notifications, and manages per-automation concurrency.
  */
 
-import type { Automation } from "@my-agent/core";
+import type { Automation, Job } from "@my-agent/core";
 import type { AutomationManager } from "./automation-manager.js";
 import type { AutomationExecutor, ExecutionResult } from "./automation-executor.js";
 import type { AutomationJobService } from "./automation-job-service.js";
@@ -83,6 +83,37 @@ export class AutomationProcessor {
     }
 
     // 5. Emit state change
+    this.config.onJobMutated?.();
+  }
+
+  /**
+   * Resume a needs_review job with the user's response.
+   * Re-uses the existing job (no new job created).
+   */
+  async resume(
+    automation: Automation,
+    job: Job,
+    userResponse: string,
+  ): Promise<void> {
+    // Update job status to running
+    this.config.jobService.updateJob(job.id, { status: "running" });
+
+    // Execute with user response in context
+    const triggerContext = {
+      ...(job.context ?? {}),
+      resumedFrom: job.id,
+      userResponse,
+    };
+    const result = await this.config.executor.run(
+      automation,
+      job,
+      triggerContext,
+    );
+
+    // Handle notification
+    await this.handleNotification(automation, job.id, result);
+
+    // Emit state change
     this.config.onJobMutated?.();
   }
 

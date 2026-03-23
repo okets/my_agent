@@ -283,15 +283,9 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         };
       }
 
-      // Update job back to pending with user response as context
-      deps.jobService.updateJob(args.jobId, { status: "running" });
-
-      // Re-fire the automation with user response in context
+      // Resume the existing job with user response (no new job created)
       deps.processor
-        .fire(automation, {
-          resumedFrom: args.jobId,
-          userResponse: args.userResponse,
-        })
+        .resume(automation, job, args.userResponse)
         .catch((err) =>
           console.error(
             `[automation-server] resume failed for ${args.jobId}:`,
