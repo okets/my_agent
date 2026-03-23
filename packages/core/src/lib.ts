@@ -188,6 +188,10 @@ export type {
   NotificationEvent,
 } from './notifications/index.js'
 
+// Sync utilities
+export { FileWatcher, hashContent } from './sync/index.js'
+export type { FileWatcherOptions, FileChange } from './sync/index.js'
+
 // Space types
 export type {
   SpaceMaintenance,
