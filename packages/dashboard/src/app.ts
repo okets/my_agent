@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from "node:events";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AppEventMap } from "./app-events.js";
 
@@ -949,6 +950,7 @@ export class App extends EventEmitter {
     if (hatched) {
       try {
         const spacesDir = join(agentDir, "spaces");
+        mkdirSync(spacesDir, { recursive: true });
         const db = app.conversationManager.getConversationDb();
 
         app.spaceSyncService = new SpaceSyncService({

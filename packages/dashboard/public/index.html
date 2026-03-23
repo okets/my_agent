@@ -4732,7 +4732,7 @@
                 <template x-if="!tab.loading && tab.data?.loaded && !tab.selectedFile">
                   <div>
                     <h2 class="text-xl font-bold text-tokyo-text mb-2" x-text="tab.data.name"></h2>
-                    <p class="text-sm text-tokyo-muted mb-4" x-text="tab.data.manifest?.description || 'No description'"></p>
+                    <p class="text-sm text-tokyo-muted mb-4" x-text="tab.data.manifest?.description || tab.data.body || 'No description'"></p>
                     <div class="flex gap-2 flex-wrap mb-4">
                       <template x-for="tag in (tab.data.manifest?.tags || [])" :key="tag">
                         <span class="text-[10px] px-1.5 py-0.5 rounded bg-tokyo-blue/10 text-tokyo-blue/70" x-text="tag"></span>

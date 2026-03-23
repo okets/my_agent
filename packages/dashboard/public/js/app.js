@@ -1433,6 +1433,10 @@ function chat() {
           this.loadSkills();
           break;
 
+        case "state:spaces":
+          // Handled by ws-client.js → Alpine store
+          break;
+
         default:
           console.warn("[App] Unknown message type:", data.type);
       }
