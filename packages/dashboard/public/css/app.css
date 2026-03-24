@@ -866,6 +866,12 @@ body.sidebar-resizing {
   background: var(--color-surface);
   border-bottom: 1px solid var(--border-subtle);
   padding: 4px 4px 0;
+  max-width: 100%;
+}
+
+/* Hide scrollbar on tab bar while allowing horizontal scroll */
+.tab-bar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Tab buttons - rounded top corners */

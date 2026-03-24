@@ -238,14 +238,14 @@
       >
         <!-- Tab bar (hidden on mobile) -->
         <div
-          class="tab-bar items-end gap-0 h-9 shrink-0 hidden md:flex"
-          style="background: var(--color-crust)"
+          class="tab-bar items-end gap-0 h-9 shrink-0 hidden md:flex overflow-x-auto"
+          style="background: var(--color-crust); scrollbar-width: none"
         >
           <!-- Open tabs -->
           <template x-for="tab in openTabs" :key="tab.id">
             <button
               @click="switchTab(tab.id)"
-              class="flex items-center gap-1.5 px-3 h-full text-xs font-medium transition-colors border-b-2"
+              class="flex items-center gap-1.5 px-3 h-full text-xs font-medium transition-colors border-b-2 flex-shrink-0"
               :class="
                 activeTab === tab.id
                   ? 'bg-tokyo-bg text-tokyo-text border-tokyo-blue'
