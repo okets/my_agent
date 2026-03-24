@@ -5046,7 +5046,27 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
           `/api/automations/${encodeURIComponent(id)}`,
         );
         const data = await resp.json();
-        tab.data = { ...tab.data, ...data, loaded: true };
+        // Restructure flat API response into the shape the template expects:
+        // tab.data.manifest.{name,status,...} and tab.data.instructions
+        tab.data = {
+          ...tab.data,
+          automationId: data.id || id,
+          manifest: {
+            name: data.name,
+            status: data.status,
+            trigger: data.trigger,
+            spaces: data.spaces,
+            model: data.model,
+            notify: data.notify,
+            autonomy: data.autonomy,
+            once: data.once,
+            delivery: data.delivery,
+            created: data.created,
+          },
+          instructions: data.instructions,
+          jobs: data.jobs,
+          loaded: true,
+        };
       } catch (err) {
         console.error("Failed to load automation:", err);
       }

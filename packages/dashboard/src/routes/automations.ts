@@ -48,7 +48,11 @@ export async function registerAutomationRoutes(
         return reply.code(404).send({ error: "Automations not initialized" });
       }
 
-      const automation = app.automations.read(request.params.id);
+      // Try disk read first, fall back to DB index (list widget uses DB,
+      // so an automation visible in the widget must be findable here too)
+      const automation =
+        app.automations.read(request.params.id) ??
+        app.automations.findById(request.params.id);
       if (!automation) {
         return reply.code(404).send({ error: "Automation not found" });
       }
