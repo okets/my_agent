@@ -874,6 +874,14 @@ body.sidebar-resizing {
   display: none;
 }
 
+/* Hide scrollbar on scrollable tabs container */
+.tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+.tabs-scroll {
+  scrollbar-width: none;
+}
+
 /* Tab buttons - rounded top corners */
 .tab-bar button {
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;

@@ -238,41 +238,56 @@
       >
         <!-- Tab bar (hidden on mobile) -->
         <div
-          class="tab-bar items-end gap-0 h-9 shrink-0 hidden md:flex overflow-x-auto"
-          style="background: var(--color-crust); scrollbar-width: none"
+          class="tab-bar items-end gap-0 h-9 shrink-0 hidden md:flex"
+          style="background: var(--color-crust)"
         >
-          <!-- Open tabs -->
-          <template x-for="tab in openTabs" :key="tab.id">
-            <button
-              @click="switchTab(tab.id)"
-              class="flex items-center gap-1.5 px-3 h-full text-xs font-medium transition-colors border-b-2 flex-shrink-0"
-              :class="
-                activeTab === tab.id
-                  ? 'bg-tokyo-bg text-tokyo-text border-tokyo-blue'
-                  : 'text-tokyo-muted hover:text-tokyo-text bg-transparent border-transparent hover:bg-white/5'
-              "
-            >
-              <span x-text="tab.icon" class="text-sm"></span>
-              <span x-text="tab.title" class="max-w-24 truncate"></span>
-              <!-- Close button (only for closeable tabs) -->
-              <span
-                x-show="tab.closeable"
-                @click.stop="closeTab(tab.id)"
-                class="ml-1 w-4 h-4 rounded flex items-center justify-center hover:bg-tokyo-red/20 hover:text-tokyo-red transition-colors"
+          <!-- Home tab (pinned left) -->
+          <button
+            @click="switchTab('home')"
+            class="flex items-center gap-1.5 px-3 h-full text-xs font-medium transition-colors border-b-2 flex-shrink-0 border-r border-r-white/10"
+            :class="
+              activeTab === 'home'
+                ? 'bg-tokyo-bg text-tokyo-text border-b-tokyo-blue'
+                : 'text-tokyo-muted hover:text-tokyo-text bg-transparent border-b-transparent hover:bg-white/5'
+            "
+          >
+            <span x-text="openTabs.find(t => t.id === 'home')?.icon || '🏠'" class="text-sm"></span>
+            <span class="max-w-24 truncate">Home</span>
+          </button>
+          <!-- Scrollable tabs -->
+          <div class="flex-1 flex items-end min-w-0 overflow-x-auto tabs-scroll h-full">
+            <template x-for="tab in openTabs.filter(t => t.id !== 'home')" :key="tab.id">
+              <button
+                @click="switchTab(tab.id)"
+                class="flex items-center gap-1.5 px-3 h-full text-xs font-medium transition-colors border-b-2 flex-shrink-0"
+                :class="
+                  activeTab === tab.id
+                    ? 'bg-tokyo-bg text-tokyo-text border-tokyo-blue'
+                    : 'text-tokyo-muted hover:text-tokyo-text bg-transparent border-transparent hover:bg-white/5'
+                "
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 16 16"
-                  fill="currentColor"
-                  class="w-3 h-3"
+                <span x-text="tab.icon" class="text-sm"></span>
+                <span x-text="tab.title" class="max-w-24 truncate"></span>
+                <!-- Close button (only for closeable tabs) -->
+                <span
+                  x-show="tab.closeable"
+                  @click.stop="closeTab(tab.id)"
+                  class="ml-1 w-4 h-4 rounded flex items-center justify-center hover:bg-tokyo-red/20 hover:text-tokyo-red transition-colors"
                 >
-                  <path
-                    d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z"
-                  />
-                </svg>
-              </span>
-            </button>
-          </template>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    class="w-3 h-3"
+                  >
+                    <path
+                      d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z"
+                    />
+                  </svg>
+                </span>
+              </button>
+            </template>
+          </div>
         </div>
 
         <!-- Content area -->
