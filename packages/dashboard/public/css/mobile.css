@@ -257,11 +257,16 @@
     background: var(--color-blue);
   }
 
-  /* ── Chat peek elevated (no bg, just shadow) ─────────────── */
+  /* ── Chat peek elevated (no bg, just shadow, floating) ───── */
   .chat-peek-elevated {
-    background: var(--color-panel);
-    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5), 0 -2px 8px rgba(0, 0, 0, 0.3);
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: transparent;
+    box-shadow: none;
+    border-top: none;
+    padding-bottom: 5px;
+  }
+
+  .chat-peek-elevated .compose-box {
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
   /* When expanded, shadow wraps the whole panel */
