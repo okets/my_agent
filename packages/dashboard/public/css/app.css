@@ -718,7 +718,7 @@ body.sidebar-resizing {
 }
 
 .compose-box:focus-within {
-  border-color: var(--color-muted);
+  border-color: var(--border-muted);
 }
 
 .action-bar {
