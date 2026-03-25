@@ -119,6 +119,10 @@ export class AutomationManager {
       throw new Error(`Automation not found: ${id}`);
     }
 
+    if (existing.manifest.system) {
+      throw new Error(`Cannot modify system automation: ${id}`);
+    }
+
     const updatedManifest: AutomationManifest = {
       ...existing.manifest,
       ...changes,
@@ -145,6 +149,9 @@ export class AutomationManager {
    */
   disable(id: string): void {
     const existing = this.read(id);
+    if (existing?.manifest.system) {
+      throw new Error(`Cannot disable system automation: ${id}`);
+    }
     if (!existing) {
       // If file doesn't exist, just update DB
       const dbRow = this.db.getAutomation(id);
