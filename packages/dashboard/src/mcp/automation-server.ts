@@ -187,10 +187,10 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         .describe("Search term for name matching"),
     },
     async (args) => {
-      const filter =
+      const filter: { status?: string; excludeSystem?: boolean } =
         args.status && args.status !== "all"
-          ? { status: args.status }
-          : undefined;
+          ? { status: args.status, excludeSystem: true }
+          : { excludeSystem: true };
       const automations = deps.automationManager.list(filter);
 
       if (automations.length === 0) {

@@ -434,7 +434,7 @@ export class StatePublisher {
 
   private _getAutomationSnapshots(): AutomationSnapshot[] {
     if (!this.automationManager) return [];
-    const automations = this.automationManager.list();
+    const automations = this.automationManager.list({ excludeSystem: true });
     return automations.map((a) => {
       const jobs = this.automationJobService?.listJobs({
         automationId: a.id,

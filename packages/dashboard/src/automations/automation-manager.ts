@@ -176,7 +176,7 @@ export class AutomationManager {
   /**
    * List automations from agent.db.
    */
-  list(filter?: { status?: string }): Automation[] {
+  list(filter?: { status?: string; excludeSystem?: boolean }): Automation[] {
     const rows = this.db.listAutomations(filter);
     return rows.map((row) => {
       const triggerConfig = JSON.parse(row.triggerConfig);
