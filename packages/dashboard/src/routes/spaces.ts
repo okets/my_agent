@@ -84,7 +84,7 @@ export async function registerSpaceRoutes(
         const db = convManager.getDb();
         referencingAutomations = db.prepare(
           `SELECT id, name, status FROM automations WHERE spaces LIKE ?`
-        ).all(`%"${name}"%`) as { id: string; name: string; status: string }[];
+        ).all(`%${name.replace(/[%_"\\]/g, "")}%`) as { id: string; name: string; status: string }[];
       }
 
       return { name, manifest, body, tree, referencingAutomations };
