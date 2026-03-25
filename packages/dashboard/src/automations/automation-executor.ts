@@ -18,6 +18,7 @@ import type {
   HookCallbackMatcher,
   Space,
 } from "@my-agent/core";
+import { getHandler } from "../scheduler/jobs/handler-registry.js";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { ConversationDatabase } from "../conversations/db.js";
 import type { AutomationManager } from "./automation-manager.js";
@@ -67,6 +68,45 @@ export class AutomationExecutor {
     console.log(
       `[AutomationExecutor] Running automation "${automation.manifest.name}" (job ${job.id})`,
     );
+
+    // Check for built-in handler (system automations)
+    const handlerKey = automation.manifest.handler;
+    if (handlerKey) {
+      const handler = getHandler(handlerKey);
+      if (!handler) {
+        throw new Error(`Unknown built-in handler: ${handlerKey}`);
+      }
+
+      this.config.jobService.updateJob(job.id, { status: "running" });
+
+      try {
+        const result = await handler({
+          agentDir: this.config.agentDir,
+          db: this.config.db,
+          jobId: job.id,
+        });
+
+        this.config.jobService.updateJob(job.id, {
+          status: result.success ? "completed" : "failed",
+          completed: new Date().toISOString(),
+          summary: (result.deliverable ?? result.work).slice(0, 500),
+        });
+
+        console.log(
+          `[AutomationExecutor] Handler "${handlerKey}" ${result.success ? "completed" : "failed"} (job ${job.id})`,
+        );
+
+        return result;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.config.jobService.updateJob(job.id, {
+          status: "failed",
+          completed: new Date().toISOString(),
+          summary: `Error: ${errorMessage}`,
+        });
+        return { success: false, work: "", deliverable: null, error: errorMessage };
+      }
+    }
 
     // 1. Update job status to running
     this.config.jobService.updateJob(job.id, { status: "running" });
