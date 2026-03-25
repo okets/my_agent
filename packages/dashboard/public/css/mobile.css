@@ -262,6 +262,8 @@
     background: transparent;
     box-shadow: none;
     border-top: none;
+    border-radius: 0;
+    overflow: hidden;
     padding-bottom: 5px;
   }
 

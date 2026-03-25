@@ -20,7 +20,7 @@
 
 /* ── Constants ─────────────────────────────────────────────────── */
 
-const CHAT_RATIO_PEEK = 12;
+const CHAT_RATIO_PEEK = 15;
 const CHAT_RATIO_HALF = 50;
 const CHAT_RATIO_FULL = 92;
 const CHAT_RATIO_PRESETS = [CHAT_RATIO_PEEK, CHAT_RATIO_HALF, CHAT_RATIO_FULL];
