@@ -1339,9 +1339,22 @@ button[title="Rename conversation"]:active {
   }
 }
 
-/* Widgets align to top, don't stretch empty ones */
+/* Home widgets — consistent height for all four */
 .home-widget-grid {
-  align-items: start;
+  align-items: stretch;  /* All widgets same height per row */
+}
+
+/* Standard widget height — ensures visual consistency */
+.home-widget {
+  display: flex;
+  flex-direction: column;
+  max-height: 360px;  /* Consistent max height for all widgets */
+}
+
+.home-widget > .widget-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;  /* Allow flex item to shrink below content */
 }
 
 /* ── Section background tints (~4% opacity for subtle identity) ──── */
@@ -1483,6 +1496,170 @@ button[title="Rename conversation"]:active {
 
 .section-label-conversations {
   color: var(--section-color-conversations);
+}
+
+/* ── Notebook Browser — category colors ───────────────────────────── */
+
+/* Category color tokens */
+:root {
+  --notebook-operations: #ff9e64;    /* Amber/Orange - commands, actions */
+  --notebook-lists: #7aa2f7;         /* Blue - reference, lists */
+  --notebook-daily: #9ece6a;         /* Green - calendar, logs */
+  --notebook-knowledge: #bb9af7;     /* Purple - knowledge, learning */
+  --notebook-skills: #f7768e;        /* Pink - abilities, magic */
+}
+
+/* Category section headers */
+.notebook-section-operations {
+  color: var(--notebook-operations);
+}
+
+.notebook-section-lists {
+  color: var(--notebook-lists);
+}
+
+.notebook-section-daily {
+  color: var(--notebook-daily);
+}
+
+.notebook-section-knowledge {
+  color: var(--notebook-knowledge);
+}
+
+.notebook-section-skills {
+  color: var(--notebook-skills);
+}
+
+/* Notebook category items — hover state with category color */
+.notebook-item-operations:hover {
+  background: rgba(255, 158, 100, 0.1) !important;
+}
+
+.notebook-item-lists:hover {
+  background: rgba(122, 162, 247, 0.1) !important;
+}
+
+.notebook-item-daily:hover {
+  background: rgba(158, 206, 106, 0.1) !important;
+}
+
+.notebook-item-knowledge:hover {
+  background: rgba(187, 154, 247, 0.1) !important;
+}
+
+.notebook-item-skills:hover {
+  background: rgba(247, 118, 142, 0.1) !important;
+}
+
+/* File icon color on hover */
+.notebook-item-operations:hover svg { color: var(--notebook-operations); }
+.notebook-item-lists:hover svg { color: var(--notebook-lists); }
+.notebook-item-daily:hover svg { color: var(--notebook-daily); }
+.notebook-item-knowledge:hover svg { color: var(--notebook-knowledge); }
+.notebook-item-skills:hover svg { color: var(--notebook-skills); }
+
+/* Notebook browser tree panel — subtle gradient */
+.notebook-tree-panel {
+  background: linear-gradient(
+    180deg,
+    rgba(30, 30, 46, 0.6) 0%,
+    rgba(26, 27, 38, 0.8) 100%
+  );
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Notebook preview panel — content area with subtle tint */
+.notebook-preview-panel {
+  background: linear-gradient(
+    135deg,
+    rgba(187, 154, 247, 0.03) 0%,
+    rgba(26, 27, 38, 0.5) 100%
+  );
+}
+
+/* Section expand indicator — colored dot */
+.notebook-section-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.notebook-section-dot.operations { background: var(--notebook-operations); }
+.notebook-section-dot.lists { background: var(--notebook-lists); }
+.notebook-section-dot.daily { background: var(--notebook-daily); }
+.notebook-section-dot.knowledge { background: var(--notebook-knowledge); }
+.notebook-section-dot.skills { background: var(--notebook-skills); }
+
+/* Skill type badges — refined colors */
+.skill-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.skill-badge-user {
+  background: rgba(187, 154, 247, 0.2);
+  color: #bb9af7;
+}
+
+.skill-badge-system {
+  background: rgba(125, 207, 255, 0.2);
+  color: #7dcfff;
+}
+
+.skill-badge-curated {
+  background: rgba(122, 162, 247, 0.2);
+  color: #7aa2f7;
+}
+
+.skill-badge-worker {
+  background: rgba(255, 158, 100, 0.2);
+  color: #ff9e64;
+}
+
+.skill-badge-conversation {
+  background: rgba(158, 206, 106, 0.2);
+  color: #9ece6a;
+}
+
+.skill-badge-off {
+  background: rgba(247, 118, 142, 0.2);
+  color: #f7768e;
+}
+
+/* File count badges */
+.notebook-count {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.notebook-count-operations {
+  background: rgba(255, 158, 100, 0.15);
+  color: var(--notebook-operations);
+}
+
+.notebook-count-lists {
+  background: rgba(122, 162, 247, 0.15);
+  color: var(--notebook-lists);
+}
+
+.notebook-count-daily {
+  background: rgba(158, 206, 106, 0.15);
+  color: var(--notebook-daily);
+}
+
+.notebook-count-knowledge {
+  background: rgba(187, 154, 247, 0.15);
+  color: var(--notebook-knowledge);
+}
+
+.notebook-count-skills {
+  background: rgba(247, 118, 142, 0.15);
+  color: var(--notebook-skills);
 }
 
 /* Timeline source badges — distinct colors per trigger type */

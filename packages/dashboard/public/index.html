@@ -443,9 +443,9 @@
             <div class="hidden sm:grid home-widget-grid gap-3 mb-4">
 
             <!-- Spaces Widget -->
-            <div class="glass-strong section-tint-spaces rounded-xl overflow-hidden flex flex-col">
+            <div class="glass-strong section-tint-spaces rounded-xl overflow-hidden home-widget">
               <!-- Header -->
-              <button @click="openSpacesBrowser()" class="flex items-center justify-between px-4 py-3 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer">
+              <button @click="openSpacesBrowser()" class="flex items-center justify-between px-4 py-3 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer shrink-0">
                 <h2 class="text-sm font-semibold flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-blue">
                     <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.622 4H12.5A1.5 1.5 0 0 1 14 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9Z"/>
@@ -455,7 +455,7 @@
                 <span class="section-count" x-text="$store.spaces.items.length + ' total'"></span>
               </button>
               <!-- Space list -->
-              <div class="flex-1 overflow-y-auto max-h-[280px]">
+              <div class="widget-content">
                 <template x-if="$store.spaces.items.length === 0">
                   <div class="px-4 py-6 text-center text-xs text-tokyo-muted">
                     No spaces yet
@@ -497,9 +497,9 @@
             </div>
 
             <!-- Automations Widget -->
-            <div class="glass-strong section-tint-automations rounded-xl overflow-hidden flex flex-col">
+            <div class="glass-strong section-tint-automations rounded-xl overflow-hidden home-widget">
               <!-- Header (clickable → opens automations browser tab) -->
-              <button @click="openAutomationsBrowser()" class="flex items-center justify-between px-4 py-3 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer">
+              <button @click="openAutomationsBrowser()" class="flex items-center justify-between px-4 py-3 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer shrink-0">
                 <h2 class="text-sm font-semibold flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-orange">
                     <path fill-rule="evenodd" d="M8.074.945A4.993 4.993 0 0 0 6 5v.032c.004.6.114 1.176.311 1.709.16.428-.204.91-.61.7a5.023 5.023 0 0 1-1.868-1.677c-.202-.304-.648-.363-.848-.058a6 6 0 1 0 8.017-1.901l-.004-.007a4.98 4.98 0 0 1-2.18-2.574c-.116-.31-.477-.472-.744-.28Zm.78 6.178a3.001 3.001 0 1 1-3.473 4.341c-.205-.365.215-.694.62-.59a4.008 4.008 0 0 0 1.828.047c.96-.2 1.747-.918 2.08-1.36a.55.55 0 0 0-.054-.678Z" clip-rule="evenodd"/>
@@ -509,7 +509,7 @@
                 <span class="section-count section-count-automations" x-text="$store.automations.items.filter(a => a.status === 'active').length + ' active'"></span>
               </button>
               <!-- Automation list -->
-              <div class="flex-1 overflow-y-auto max-h-[280px]">
+              <div class="widget-content">
                 <template x-if="$store.automations.items.length === 0">
                   <div class="px-4 py-6 text-center text-xs text-tokyo-muted">
                     No automations yet
@@ -559,18 +559,19 @@
             </div>
 
             <!-- Notebook Widget -->
-            <div class="glass-strong section-tint-notebook rounded-xl overflow-hidden flex flex-col">
+            <div class="glass-strong section-tint-notebook rounded-xl overflow-hidden home-widget">
               <!-- Header (clickable → opens notebook browser) -->
-              <button @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('notebook-browser') : openNotebookBrowser()" class="flex items-center justify-between px-4 py-2 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer">
+              <button @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('notebook-browser') : openNotebookBrowser()" class="flex items-center justify-between px-4 py-3 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer shrink-0">
                 <h2 class="text-sm font-semibold flex items-center gap-2">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-purple">
                     <path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h7A2.5 2.5 0 0 1 14 4.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5v-7Z"/>
                   </svg>
                   <span class="section-label-notebook">Notebook</span>
                 </h2>
+                <span class="section-count" x-text="(notebookCategoryFiles.orders.length + notebookCategoryFiles.lists.length + notebookCategoryFiles.daily.length + notebookCategoryFiles.knowledge.length) + ' files'"></span>
               </button>
               <!-- Tab bar - 4 tabs with category colors -->
-              <div class="flex border-b border-white/5">
+              <div class="flex border-b border-white/5 shrink-0">
                 <button
                   @click="setNotebookTab('orders')"
                   :class="notebookTab === 'orders' ? 'notebook-section-operations border-b-2' : 'text-tokyo-muted hover:text-tokyo-text'"
@@ -614,7 +615,7 @@
               </div>
 
               <!-- Content area - file list per category -->
-              <div class="p-3 flex-1 overflow-y-auto max-h-[280px] min-h-[80px]">
+              <div class="p-3 widget-content">
                 <!-- Loading state -->
                 <template x-if="notebookLoading">
                   <div
@@ -904,24 +905,14 @@
                   </div>
                 </template>
               </div>
-
-              <!-- Footer with browse link -->
-              <div class="px-4 py-2 border-t border-white/5 flex justify-end">
-                <button
-                  @click.stop="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('notebook-browser') : openNotebookBrowser()"
-                  class="text-xs text-tokyo-blue hover:text-tokyo-text transition-colors"
-                >
-                  Browse all &rarr;
-                </button>
-              </div>
             </div>
 
             <!-- Conversations Widget -->
-            <div class="glass-strong section-tint-conversations rounded-xl overflow-hidden flex flex-col">
+            <div class="glass-strong section-tint-conversations rounded-xl overflow-hidden home-widget">
               <!-- Header (entire bar clickable → opens conversations browser) -->
               <button
                 @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('conversations-browser') : openTab({ id: 'conversations-browser', type: 'conversations-browser', title: 'Conversations', icon: ICONS.chat, closeable: true })"
-                class="flex items-center justify-between px-4 py-3 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer"
+                class="flex items-center justify-between px-4 py-3 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer shrink-0"
               >
                 <h2 class="text-sm font-semibold flex items-center gap-2">
                   <svg
@@ -938,14 +929,14 @@
                   </svg>
                   <span class="section-label-conversations">Conversations</span>
                 </h2>
-                <span class="text-tokyo-muted text-[10px]">View all</span>
+                <span class="section-count" x-text="conversations.length + ' total'"></span>
               </button>
 
               <!-- Collapsible search input -->
               <div
                 x-show="convWidgetSearchOpen"
                 x-transition
-                class="px-4 py-2 border-b border-white/5"
+                class="px-4 py-2 border-b border-white/5 shrink-0"
               >
                 <input
                   x-ref="convWidgetSearchInput"
@@ -959,7 +950,7 @@
               </div>
 
               <!-- Conversation list -->
-              <div class="flex-1 overflow-y-auto max-h-[280px]">
+              <div class="widget-content">
                 <!-- Search loading -->
                 <div
                   x-show="convWidgetSearchOpen && convSearchLoading"
@@ -1030,7 +1021,7 @@
                       </div>
                     </template>
                     <template
-                      x-for="conv in conversations.filter(c => c.id !== currentConversationId && c.turnCount > 0)"
+                      x-for="conv in conversations.filter(c => c.id !== currentConversationId && c.turnCount > 0).slice(0, 30)"
                       :key="conv.id"
                     >
                       <button
@@ -1066,6 +1057,15 @@
                           class="text-[10px] text-tokyo-blue opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1"
                           >View &rarr;</span
                         >
+                      </button>
+                    </template>
+                    <!-- Show all link when there are more than 30 -->
+                    <template x-if="conversations.filter(c => c.id !== currentConversationId && c.turnCount > 0).length > 30">
+                      <button
+                        @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('conversations-browser') : openTab({ id: 'conversations-browser', type: 'conversations-browser', title: 'Conversations', icon: ICONS.chat, closeable: true })"
+                        class="w-full px-4 py-2 text-[11px] text-tokyo-green hover:text-tokyo-green/80 transition-colors text-center"
+                      >
+                        Show all <span x-text="conversations.filter(c => c.id !== currentConversationId && c.turnCount > 0).length"></span> conversations
                       </button>
                     </template>
                   </div>
