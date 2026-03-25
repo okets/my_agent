@@ -108,15 +108,6 @@ export class ConversationInitiator {
     }
 
     if (response) {
-      // Only append the brain's response — NOT the synthetic system turn
-      await this.conversationManager.appendTurn(active.id, {
-        type: "turn",
-        role: "assistant",
-        content: response,
-        timestamp: new Date().toISOString(),
-        turnNumber: (active.turnCount ?? 0) + 1,
-      });
-
       // Send via the active conversation's channel, not the global preference
       // Search enough turns back to find the inbound channel, even if assistant
       // turns have accumulated since the last user message
@@ -128,10 +119,19 @@ export class ConversationInitiator {
       const lastChannelTurn = recentTurns
         .filter((t) => t.channel && t.role === "user")
         .at(-1);
-      await this.trySendViaChannel(
-        response,
-        lastChannelTurn?.channel ?? undefined,
-      );
+      const outboundChannel = lastChannelTurn?.channel ?? undefined;
+
+      // Only append the brain's response — NOT the synthetic system turn
+      await this.conversationManager.appendTurn(active.id, {
+        type: "turn",
+        role: "assistant",
+        content: response,
+        timestamp: new Date().toISOString(),
+        turnNumber: (active.turnCount ?? 0) + 1,
+        channel: outboundChannel,
+      });
+
+      await this.trySendViaChannel(response, outboundChannel);
     }
 
     return true;
@@ -145,7 +145,12 @@ export class ConversationInitiator {
   async initiate(options?: {
     firstTurnPrompt?: string;
   }): Promise<Conversation> {
-    const conv = await this.conversationManager.create();
+    // Resolve outbound channel info so the conversation is reply-matchable
+    const { ownerJid, resolvedChannelId } = this.resolveOutboundInfo();
+
+    const conv = await this.conversationManager.create({
+      externalParty: ownerJid ?? undefined,
+    });
 
     // Stream first turn from brain — agent speaks first
     const prompt =
@@ -168,12 +173,44 @@ export class ConversationInitiator {
         content: response,
         timestamp: new Date().toISOString(),
         turnNumber: 1,
+        channel: resolvedChannelId ?? undefined,
       });
 
       await this.trySendViaChannel(response);
     }
 
     return conv;
+  }
+
+  /**
+   * Resolve the outbound channel's transport ID and owner JID.
+   * Used to set externalParty and channel on agent-initiated conversations
+   * so that incoming replies can be matched back.
+   */
+  private resolveOutboundInfo(): {
+    ownerJid: string | null;
+    resolvedChannelId: string | null;
+  } {
+    const channelId = this.getOutboundChannel();
+    if (channelId === "web" || !channelId) {
+      return { ownerJid: null, resolvedChannelId: null };
+    }
+
+    const channels = this.channelManager.getTransportInfos();
+    const PLUGIN_MAP: Record<string, string> = { whatsapp: "baileys" };
+    const pluginName = PLUGIN_MAP[channelId] || channelId;
+    const channel = channels.find(
+      (c) => c.id === channelId || c.plugin === pluginName,
+    );
+    if (!channel?.statusDetail?.connected) {
+      return { ownerJid: null, resolvedChannelId: null };
+    }
+
+    const config = this.channelManager.getTransportConfig(channel.id);
+    return {
+      ownerJid: config?.ownerJid ?? null,
+      resolvedChannelId: channel.id,
+    };
   }
 
   /**
