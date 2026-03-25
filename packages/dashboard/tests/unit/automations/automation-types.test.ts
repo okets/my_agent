@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type {
   TriggerConfig,
-  AutomationDeliveryAction,
   AutomationManifest,
   Automation,
   JobStatus,
@@ -48,16 +47,6 @@ describe("Automation type definitions", () => {
     expect(trigger.type).toBe("manual");
   });
 
-  it("AutomationDeliveryAction has correct shape", () => {
-    const action: AutomationDeliveryAction = {
-      channel: "whatsapp",
-      content: "Invoice filed",
-      status: "pending",
-    };
-    expect(action.channel).toBe("whatsapp");
-    expect(action.status).toBe("pending");
-  });
-
   it("AutomationManifest satisfies full manifest shape", () => {
     const manifest = {
       name: "File Invoices",
@@ -69,7 +58,6 @@ describe("Automation type definitions", () => {
       persist_session: false,
       autonomy: "full" as const,
       once: false,
-      delivery: [{ channel: "dashboard" as const }],
       created: "2026-03-23T00:00:00Z",
     } satisfies AutomationManifest;
 
