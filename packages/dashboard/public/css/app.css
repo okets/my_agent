@@ -719,6 +719,13 @@ body.sidebar-resizing {
 
 .compose-box:focus-within {
   border-color: var(--border-muted);
+  outline: none;
+}
+
+.compose-box textarea:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-appearance: none;
 }
 
 .action-bar {
