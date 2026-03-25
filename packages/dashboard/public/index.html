@@ -8126,90 +8126,14 @@
           aria-hidden="true"
         ></div>
 
-        <!-- Peek state: full compose bar (matches expanded mode) -->
+        <!-- Sub-header + messages (visible in half/full, hidden in peek) -->
         <div
-          x-show="$store.mobile.chatState === 'peek'"
-          class="chat-peek-content"
-          @click="$store.mobile.restoreChat()"
+          x-show="$store.mobile.chatState !== 'peek'"
+          class="flex flex-col flex-1 min-h-0"
         >
-          <div class="chat-compose-bar shrink-0 p-2">
-            <div class="compose-box">
-              <div class="px-3 py-2">
-                <textarea
-                  x-model="inputText"
-                  rows="1"
-                  :placeholder="isCurrentConversationReadOnly ? 'Read-only' : 'Message...'"
-                  :disabled="isCurrentConversationReadOnly"
-                  class="w-full bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted resize-none outline-none leading-relaxed"
-                  style="max-height: 3rem"
-                  @keydown.enter="if (!$event.shiftKey && !isCurrentConversationReadOnly) { $event.preventDefault(); sendMessage(); }"
-                  @focus="$store.mobile.restoreChat()"
-                ></textarea>
-              </div>
-              <div class="action-bar flex items-center gap-2 px-2 py-1">
-                <div class="flex items-center gap-1 flex-1 min-w-0">
-                  <!-- Model selector -->
-                  <div class="relative shrink-0" x-data="{ modelOpen: false }">
-                    <button
-                      @click.stop="modelOpen = !modelOpen"
-                      @click.outside="modelOpen = false"
-                      class="model-badge"
-                    >
-                      <span class="model-name" x-text="modelDisplayName"></span>
-                      <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3 ml-0.5 opacity-50">
-                        <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/>
-                      </svg>
-                    </button>
-                    <div
-                      x-show="modelOpen"
-                      x-transition
-                      class="absolute bottom-full left-0 mb-1 w-40 rounded-lg bg-tokyo-panel border border-tokyo-muted/20 shadow-lg overflow-hidden z-50"
-                      x-cloak
-                    >
-                      <template x-for="model in modelOptions" :key="model.id">
-                        <button
-                          @click="onModelChange(model.id); modelOpen = false"
-                          class="w-full text-left px-3 py-2 text-xs transition-colors"
-                          :class="selectedModel === model.id ? 'bg-tokyo-blue/15 text-tokyo-blue' : 'text-tokyo-text hover:bg-tokyo-card/50'"
-                          x-text="model.name"
-                        ></button>
-                      </template>
-                    </div>
-                  </div>
-                  <!-- Reasoning toggle -->
-                  <label
-                    class="reasoning-toggle shrink-0"
-                    :class="{ 'active': reasoningEnabled, 'disabled': isHaikuModel }"
-                  >
-                    <input type="checkbox" x-model="reasoningEnabled" :disabled="isHaikuModel" class="sr-only"/>
-                    <svg viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5">
-                      <path d="M8 0a.75.75 0 0 1 .7.48l1.17 3.15 3.15 1.17a.75.75 0 0 1 0 1.4l-3.15 1.17-1.17 3.15a.75.75 0 0 1-1.4 0L6.13 7.37 2.98 6.2a.75.75 0 0 1 0-1.4l3.15-1.17L7.3.48A.75.75 0 0 1 8 0Zm4.5 9a.5.5 0 0 1 .47.33l.5 1.35 1.35.5a.5.5 0 0 1 0 .94l-1.35.5-.5 1.35a.5.5 0 0 1-.94 0l-.5-1.35-1.35-.5a.5.5 0 0 1 0-.94l1.35-.5.5-1.35A.5.5 0 0 1 12.5 9Z"/>
-                    </svg>
-                  </label>
-                </div>
-                <!-- Send button -->
-                <button
-                  class="send-btn"
-                  :disabled="(!inputText.trim() && attachments.length === 0) || isResponding"
-                  @click.stop="sendMessage()"
-                  aria-label="Send"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-                    <path d="M3.105 2.288a.75.75 0 0 0-.826.95l1.414 4.926A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.115A28.897 28.897 0 0 0 3.105 2.288Z"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Half/Full state: messages + full compose -->
-        <template x-if="$store.mobile.chatState !== 'peek'">
-          <div class="flex flex-col flex-1 min-h-0">
-            <!-- Mobile chat sub-header: title + New chat -->
-            <div
-              x-show="$store.mobile.chatState !== 'peek'"
-              class="px-3 py-2 border-b border-white/5 shrink-0 flex items-center justify-between"
+          <!-- Mobile chat sub-header: title + New chat -->
+          <div
+            class="px-3 py-2 border-b border-white/5 shrink-0 flex items-center justify-between"
             >
               <span
                 class="text-xs text-tokyo-muted truncate"
@@ -8281,9 +8205,11 @@
                 </div>
               </template>
             </div>
+          </div><!-- end sub-header + messages wrapper -->
 
-            <!-- Compose bar -->
-            <div class="chat-compose-bar shrink-0 p-3 border-t border-white/5">
+          <!-- Compose bar (ALWAYS visible — shared between peek and expanded) -->
+          <div class="chat-compose-bar shrink-0 p-3" :class="$store.mobile.chatState !== 'peek' ? 'border-t border-white/5' : ''"
+               @click="if ($store.mobile.chatState === 'peek') $store.mobile.restoreChat()">
               <div class="compose-box">
                 <div class="px-3 py-2">
                   <textarea
@@ -8293,6 +8219,7 @@
                     :disabled="isCurrentConversationReadOnly"
                     class="w-full bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted resize-none outline-none leading-relaxed"
                     style="max-height: 7.5rem"
+                    @focus="if ($store.mobile.chatState === 'peek') $store.mobile.restoreChat()"
                     @keydown.enter="if (!$event.shiftKey && !isCurrentConversationReadOnly) { $event.preventDefault(); sendMessage(); }"
                     @input="autoResize($event.target)"
                   ></textarea>
@@ -8441,7 +8368,6 @@
               </div>
             </div>
           </div>
-        </template>
       </div>
 
       <!-- ============================================================== -->
