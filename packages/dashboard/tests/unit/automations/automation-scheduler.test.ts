@@ -62,7 +62,12 @@ describe("AutomationScheduler", () => {
     });
 
     const now = new Date();
-    const result = scheduler.isCronDue("* * * * *", "every-minute", now, "UTC");
+    const result = scheduler.isCronDue(
+      "* * * * *",
+      { id: "every-minute", manifest: {} },
+      now,
+      "UTC",
+    );
     expect(result).toBe(true);
   });
 
@@ -81,7 +86,7 @@ describe("AutomationScheduler", () => {
     const now = new Date();
     const result = scheduler.isCronDue(
       "0 * * * *",
-      automation.id,
+      { id: automation.id, manifest: {} },
       now,
       "UTC",
     );
@@ -110,7 +115,7 @@ describe("AutomationScheduler", () => {
     const now = new Date();
     const result = scheduler.isCronDue(
       "* * * * *",
-      automation.id,
+      { id: automation.id, manifest: {} },
       now,
       "UTC",
     );
@@ -120,7 +125,7 @@ describe("AutomationScheduler", () => {
   it("should return false for invalid cron expressions", () => {
     const result = scheduler.isCronDue(
       "invalid cron",
-      "test",
+      { id: "test", manifest: {} },
       new Date(),
       "UTC",
     );
