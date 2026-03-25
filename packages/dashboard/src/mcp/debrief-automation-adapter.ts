@@ -62,7 +62,6 @@ export function createDebriefAutomationAdapter(
 
       const result = await handler({
         agentDir,
-        db: null as any, // handler doesn't use db directly
         jobId,
       });
 

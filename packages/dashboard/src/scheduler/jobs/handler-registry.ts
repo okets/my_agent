@@ -41,7 +41,7 @@ import {
 
 export type BuiltInHandler = (ctx: {
   agentDir: string;
-  db: ConversationDatabase;
+  db?: ConversationDatabase;
   jobId: string;
 }) => Promise<{ success: boolean; work: string; deliverable: string | null }>;
 
