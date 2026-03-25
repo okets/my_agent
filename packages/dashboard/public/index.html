@@ -4962,7 +4962,7 @@
       <!-- Right Panel: Permanent Chat                                    -->
       <!-- ============================================================== -->
       <div
-        class="chat-panel flex flex-col shrink-0 border-l border-white/5 hidden md:flex"
+        class="chat-panel chat-bg-pattern flex flex-col shrink-0 border-l border-white/5 hidden md:flex"
         :class="{ 'relative z-[10000]': needsAuth }"
         :style="{ width: chatWidth + 'px' }"
         style="min-width: 300px; max-width: 85vw"
@@ -5266,7 +5266,7 @@
         <!-- Chat messages -->
         <main
           x-ref="messagesContainer"
-          class="chat-bg-pattern flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
+          class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
         >
           <!-- Welcome state (no messages) -->
           <template x-if="messages.length === 0">
