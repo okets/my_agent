@@ -1058,6 +1058,7 @@ export class ConversationDatabase {
     before?: string;
     after?: string;
     limit?: number;
+    automationId?: string;
   }): Array<{
     id: string;
     automationId: string;
@@ -1087,6 +1088,10 @@ export class ConversationDatabase {
     if (options.after) {
       sql += " AND j.created > ?";
       params.push(options.after);
+    }
+    if (options.automationId) {
+      sql += " AND j.automation_id = ?";
+      params.push(options.automationId);
     }
 
     sql += " ORDER BY j.created DESC LIMIT ?";

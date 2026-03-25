@@ -12,7 +12,12 @@ export async function registerTimelineRoutes(
 ): Promise<void> {
   // GET /api/timeline — past jobs with automation name + trigger config
   fastify.get<{
-    Querystring: { before?: string; after?: string; limit?: string };
+    Querystring: {
+      before?: string;
+      after?: string;
+      limit?: string;
+      automationId?: string;
+    };
   }>("/api/timeline", async (request) => {
     const app = fastify.app;
     if (!app?.automationJobService) {
@@ -25,15 +30,20 @@ export async function registerTimelineRoutes(
     }
     const db = convManager.getConversationDb();
 
-    const { before, after, limit } = request.query;
+    const { before, after, limit, automationId } = request.query;
     const pastJobs = db.getTimelineJobs({
       before,
       after,
       limit: limit ? parseInt(limit, 10) : 20,
+      automationId,
     });
 
     // Also include future projections in the combined response
-    const futureRuns = getFutureRuns(app, 24);
+    // If filtering by automationId, filter future runs too
+    let futureRuns = getFutureRuns(app, 24);
+    if (automationId) {
+      futureRuns = futureRuns.filter((r) => r.automationId === automationId);
+    }
 
     return { pastJobs, futureRuns };
   });

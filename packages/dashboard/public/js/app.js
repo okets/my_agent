@@ -1,4 +1,19 @@
 /**
+ * Format a duration in milliseconds to a human-readable string.
+ */
+function formatDuration(ms) {
+  if (ms < 1000) return ms + "ms";
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return secs + "s";
+  const mins = Math.floor(secs / 60);
+  const remSecs = secs % 60;
+  if (mins < 60) return mins + "m " + remSecs + "s";
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return hrs + "h " + remMins + "m";
+}
+
+/**
  * Alpine.js chat component
  */
 function chat() {
@@ -4969,13 +4984,71 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
           },
           instructions: data.instructions,
           jobs: data.jobs,
+          jobHistory: [],
+          jobHistoryLoading: true,
           loaded: true,
         };
+        this.openTabs = [...this.openTabs];
+
+        // Fetch job history from timeline API
+        this.loadAutomationJobHistory(id);
       } catch (err) {
         console.error("Failed to load automation:", err);
       }
       tab.loading = false;
       this.openTabs = [...this.openTabs];
+    },
+
+    async loadAutomationJobHistory(automationId) {
+      const tab = this.openTabs.find(
+        (t) => t.id === `automation-${automationId}`,
+      );
+      if (!tab) return;
+      try {
+        const resp = await fetch(
+          `/api/timeline?automationId=${encodeURIComponent(automationId)}&limit=20`,
+        );
+        const data = await resp.json();
+        const history = [];
+
+        // Past jobs
+        for (const job of data.pastJobs || []) {
+          const duration =
+            job.completed && job.created
+              ? formatDuration(
+                  new Date(job.completed) - new Date(job.created),
+                )
+              : null;
+          history.push({
+            id: job.id,
+            automationName: job.automationName,
+            status: job.status,
+            created: job.created,
+            completed: job.completed,
+            summary: job.summary,
+            duration,
+          });
+        }
+
+        // Future projected runs
+        for (const run of data.futureRuns || []) {
+          history.push({
+            id: run.id,
+            automationName: run.automationName,
+            status: "scheduled",
+            scheduledFor: run.scheduledFor,
+            summary: "Scheduled run",
+          });
+        }
+
+        tab.data.jobHistory = history;
+        tab.data.jobHistoryLoading = false;
+        this.openTabs = [...this.openTabs];
+      } catch (err) {
+        console.error("Failed to load job history:", err);
+        tab.data.jobHistoryLoading = false;
+        this.openTabs = [...this.openTabs];
+      }
     },
 
     async fireAutomation(id) {
