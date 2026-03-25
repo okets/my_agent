@@ -8208,7 +8208,7 @@
           </div><!-- end sub-header + messages wrapper -->
 
           <!-- Compose bar (ALWAYS visible — shared between peek and expanded) -->
-          <div class="chat-compose-bar shrink-0 p-3" :class="$store.mobile.chatState !== 'peek' ? 'border-t border-white/5' : ''"
+          <div class="chat-compose-bar shrink-0 p-3 border-t border-white/5"
                @click="if ($store.mobile.chatState === 'peek') $store.mobile.restoreChat()">
               <div class="compose-box">
                 <div class="px-3 py-2">

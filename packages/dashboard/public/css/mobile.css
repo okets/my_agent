@@ -257,18 +257,28 @@
     background: var(--color-blue);
   }
 
-  /* ── Chat peek elevated (no bg, just shadow, floating) ───── */
+  /* ── Chat peek elevated (transparent, home page shows through) ── */
   .chat-peek-elevated {
-    background: transparent;
-    box-shadow: none;
-    border-top: none;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-top: none !important;
     border-radius: 0;
     overflow: hidden;
-    padding-bottom: 5px;
+    pointer-events: none; /* let taps pass through to home, except on compose-box */
+  }
+
+  .chat-peek-elevated .chat-compose-bar {
+    pointer-events: auto; /* re-enable on the compose bar itself */
+    border-color: transparent !important; /* keep 1px space but invisible — no shift */
   }
 
   .chat-peek-elevated .compose-box {
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Hide the diagonal line pattern pseudo-element in peek */
+  .chat-peek-elevated::before {
+    display: none !important;
   }
 
   /* When expanded, shadow wraps the whole panel */
