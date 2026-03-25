@@ -76,7 +76,18 @@ export async function registerSpaceRoutes(
       }
 
       const tree = buildFileTree(spaceDir, spaceDir);
-      return { name, manifest, body, tree };
+
+      // Query automations that reference this space
+      let referencingAutomations: { id: string; name: string; status: string }[] = [];
+      const convManager = fastify.conversationManager;
+      if (convManager) {
+        const db = convManager.getDb();
+        referencingAutomations = db.prepare(
+          `SELECT id, name, status FROM automations WHERE spaces LIKE ?`
+        ).all(`%"${name}"%`) as { id: string; name: string; status: string }[];
+      }
+
+      return { name, manifest, body, tree, referencingAutomations };
     },
   );
 
