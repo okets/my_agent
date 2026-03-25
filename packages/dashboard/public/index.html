@@ -2644,98 +2644,154 @@
                 </div>
               </div>
 
-              <!-- Debrief section (M6.9-S2) -->
-              <div id="settings-debrief" class="glass-strong rounded-xl p-5">
+              <!-- Automation Schedules section -->
+              <div id="settings-automations" class="glass-strong rounded-xl p-5"
+                x-data="{
+                  automationSchedules: [],
+                  schedulesLoading: true,
+                  editingCron: null,
+                  editCronValue: '',
+                  scheduleStatus: '',
+                  async loadSchedules() {
+                    this.schedulesLoading = true;
+                    try {
+                      const resp = await fetch('/api/automations');
+                      const data = await resp.json();
+                      this.automationSchedules = (data.automations || []).map(a => ({
+                        id: a.id,
+                        name: a.name,
+                        status: a.status,
+                        system: a.system || false,
+                        cron: (a.trigger || []).find(t => t.type === 'schedule')?.cron || '',
+                        model: a.model || '',
+                      }));
+                    } catch (err) {
+                      console.error('Failed to load automation schedules:', err);
+                    }
+                    this.schedulesLoading = false;
+                  },
+                  startEditCron(automation) {
+                    if (automation.system) return;
+                    this.editingCron = automation.id;
+                    this.editCronValue = automation.cron;
+                  },
+                  async saveCron(automation) {
+                    try {
+                      const trigger = [{ type: 'schedule', cron: this.editCronValue }];
+                      const resp = await fetch('/api/automations/' + encodeURIComponent(automation.id), {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ trigger }),
+                      });
+                      if (resp.ok) {
+                        automation.cron = this.editCronValue;
+                        this.scheduleStatus = 'saved';
+                        setTimeout(() => this.scheduleStatus = '', 2000);
+                      } else {
+                        this.scheduleStatus = 'error';
+                        setTimeout(() => this.scheduleStatus = '', 2000);
+                      }
+                    } catch (err) {
+                      console.error('Failed to save cron:', err);
+                      this.scheduleStatus = 'error';
+                      setTimeout(() => this.scheduleStatus = '', 2000);
+                    }
+                    this.editingCron = null;
+                  },
+                  cancelEditCron() { this.editingCron = null; },
+                }"
+                x-init="loadSchedules()"
+              >
                 <h3
                   class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    class="w-4 h-4 text-tokyo-blue"
-                  >
-                    <path
-                      d="M10 2a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 2ZM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM15.657 5.404a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM6.464 14.596a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM18 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 18 10ZM5 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 5 10ZM14.596 15.657a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 1 0-1.06 1.06l1.06 1.061ZM5.404 6.464a.75.75 0 0 0 1.06-1.06L5.403 4.343a.75.75 0 0 0-1.06 1.06l1.06 1.061Z"
-                    />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-tokyo-blue">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clip-rule="evenodd" />
                   </svg>
-                  Debrief
+                  Automation Schedules
                 </h3>
-                <div class="space-y-4">
-                  <!-- Time + Timezone row -->
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <label class="block text-xs text-tokyo-muted mb-1.5"
-                        >Delivery time</label
-                      >
-                      <input
-                        type="time"
-                        x-model="briefTime"
-                        class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label class="block text-xs text-tokyo-muted mb-1.5"
-                        >Timezone</label
-                      >
-                      <input
-                        type="text"
-                        x-model="briefTimezone"
-                        placeholder="e.g. Europe/Paris"
-                        class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors placeholder-tokyo-muted/50"
-                      />
-                    </div>
+
+                <!-- Loading -->
+                <template x-if="schedulesLoading">
+                  <div class="text-xs text-tokyo-muted py-4 text-center">Loading schedules...</div>
+                </template>
+
+                <!-- Schedule list -->
+                <template x-if="!schedulesLoading">
+                  <div class="space-y-2">
+                    <!-- Status message -->
+                    <div
+                      x-show="scheduleStatus"
+                      x-transition
+                      class="text-xs mb-2"
+                      :class="scheduleStatus === 'saved' ? 'text-green-400' : 'text-red-400'"
+                      x-text="scheduleStatus === 'saved' ? 'Schedule updated' : 'Failed to update'"
+                    ></div>
+
+                    <!-- User automations (editable) -->
+                    <template x-for="auto in automationSchedules.filter(a => !a.system)" :key="auto.id">
+                      <div class="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-white/5 transition-colors">
+                        <span
+                          class="w-2 h-2 rounded-full shrink-0"
+                          :class="auto.status === 'active' ? 'bg-green-400' : 'bg-gray-400'"
+                        ></span>
+                        <span class="text-sm text-tokyo-text flex-1 min-w-0 truncate" x-text="auto.name"></span>
+                        <template x-if="editingCron !== auto.id">
+                          <div class="flex items-center gap-2">
+                            <code class="text-xs text-tokyo-muted bg-white/5 px-2 py-0.5 rounded" x-text="auto.cron || 'No schedule'"></code>
+                            <button
+                              @click="startEditCron(auto)"
+                              class="text-[10px] text-tokyo-blue hover:text-blue-300 transition-colors"
+                            >Edit</button>
+                          </div>
+                        </template>
+                        <template x-if="editingCron === auto.id">
+                          <div class="flex items-center gap-2">
+                            <input
+                              type="text"
+                              x-model="editCronValue"
+                              @keydown.enter="saveCron(auto)"
+                              @keydown.escape="cancelEditCron()"
+                              class="w-36 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-tokyo-text focus:outline-none focus:border-blue-500/50"
+                              placeholder="0 8 * * *"
+                            />
+                            <button
+                              @click="saveCron(auto)"
+                              class="text-[10px] text-green-400 hover:text-green-300"
+                            >Save</button>
+                            <button
+                              @click="cancelEditCron()"
+                              class="text-[10px] text-tokyo-muted hover:text-tokyo-text"
+                            >Cancel</button>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- System automations (read-only) -->
+                    <template x-if="automationSchedules.filter(a => a.system).length > 0">
+                      <div class="mt-3 pt-3 border-t border-white/5">
+                        <div class="text-[10px] text-tokyo-muted uppercase tracking-wide mb-2">System Automations</div>
+                        <template x-for="auto in automationSchedules.filter(a => a.system)" :key="auto.id">
+                          <div class="flex items-center gap-3 py-1.5 px-3 text-tokyo-muted">
+                            <span
+                              class="w-2 h-2 rounded-full shrink-0"
+                              :class="auto.status === 'active' ? 'bg-green-400/50' : 'bg-gray-400/50'"
+                            ></span>
+                            <span class="text-xs flex-1 min-w-0 truncate" x-text="auto.name"></span>
+                            <code class="text-[10px] bg-white/5 px-2 py-0.5 rounded" x-text="auto.cron || 'No schedule'"></code>
+                            <span class="text-[9px] px-1 py-px rounded bg-white/5">read-only</span>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- Empty state -->
+                    <template x-if="automationSchedules.length === 0">
+                      <div class="text-xs text-tokyo-muted py-4 text-center">No automations configured</div>
+                    </template>
                   </div>
-                  <!-- Model selector row -->
-                  <div>
-                    <label class="block text-xs text-tokyo-muted mb-1.5"
-                      >Model</label
-                    >
-                    <select
-                      x-model="briefModel"
-                      class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
-                      style="
-                        background-color: rgba(30, 30, 46, 0.9);
-                        color: #e5e7eb;
-                      "
-                    >
-                      <option
-                        value="haiku"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Haiku — Fast and lightweight
-                      </option>
-                      <option
-                        value="sonnet"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Sonnet — Balanced
-                      </option>
-                      <option
-                        value="opus"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Opus — Most capable
-                      </option>
-                    </select>
-                  </div>
-                  <!-- Save row -->
-                  <div class="flex items-center justify-between pt-1">
-                    <span
-                      class="text-xs transition-opacity"
-                      :class="preferencesStatus === 'saved' ? 'text-green-400 opacity-100' : preferencesStatus === 'error' ? 'text-red-400 opacity-100' : 'opacity-0'"
-                      x-text="preferencesStatus === 'saved' ? 'Preferences saved' : preferencesStatus === 'error' ? 'Failed to save' : ''"
-                    ></span>
-                    <button
-                      @click="savePreferences()"
-                      :disabled="savingPreferences"
-                      class="px-4 py-1.5 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25 hover:border-blue-500/35 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span x-show="!savingPreferences">Save</span>
-                      <span x-show="savingPreferences">Saving…</span>
-                    </button>
-                  </div>
-                </div>
+                </template>
               </div>
 
               <!-- AI Connection section -->
@@ -7039,98 +7095,62 @@
                 </div>
               </div>
 
-              <!-- Debrief section (mobile, M6.9-S2) -->
+              <!-- Automation Schedules section (mobile) -->
               <div
-                id="mobile-settings-debrief"
+                id="mobile-settings-automations"
                 class="glass-strong rounded-xl p-4"
+                x-data="{
+                  mobileSchedules: [],
+                  mobileSchedulesLoading: true,
+                  async loadMobileSchedules() {
+                    this.mobileSchedulesLoading = true;
+                    try {
+                      const resp = await fetch('/api/automations');
+                      const data = await resp.json();
+                      this.mobileSchedules = (data.automations || []).map(a => ({
+                        id: a.id,
+                        name: a.name,
+                        status: a.status,
+                        system: a.system || false,
+                        cron: (a.trigger || []).find(t => t.type === 'schedule')?.cron || '',
+                      }));
+                    } catch (err) {
+                      console.error('Failed to load schedules:', err);
+                    }
+                    this.mobileSchedulesLoading = false;
+                  },
+                }"
+                x-init="loadMobileSchedules()"
               >
                 <h3
                   class="text-sm font-semibold text-tokyo-text mb-3 flex items-center gap-2"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    class="w-4 h-4 text-tokyo-blue"
-                  >
-                    <path
-                      d="M10 2a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 2ZM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM15.657 5.404a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM6.464 14.596a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM18 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 18 10ZM5 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 5 10ZM14.596 15.657a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 1 0-1.06 1.06l1.06 1.061ZM5.404 6.464a.75.75 0 0 0 1.06-1.06L5.403 4.343a.75.75 0 0 0-1.06 1.06l1.06 1.061Z"
-                    />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-tokyo-blue">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clip-rule="evenodd" />
                   </svg>
-                  Debrief
+                  Schedules
                 </h3>
-                <div class="space-y-3">
-                  <div class="grid grid-cols-2 gap-3">
-                    <div>
-                      <label class="block text-xs text-tokyo-muted mb-1"
-                        >Time</label
-                      >
-                      <input
-                        type="time"
-                        x-model="briefTime"
-                        class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label class="block text-xs text-tokyo-muted mb-1"
-                        >Timezone</label
-                      >
-                      <input
-                        type="text"
-                        x-model="briefTimezone"
-                        placeholder="UTC"
-                        class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors placeholder-tokyo-muted/50"
-                      />
-                    </div>
+                <template x-if="mobileSchedulesLoading">
+                  <div class="text-xs text-tokyo-muted py-2 text-center">Loading...</div>
+                </template>
+                <template x-if="!mobileSchedulesLoading">
+                  <div class="space-y-1.5">
+                    <template x-for="auto in mobileSchedules" :key="auto.id">
+                      <div class="flex items-center gap-2 py-1">
+                        <span
+                          class="w-2 h-2 rounded-full shrink-0"
+                          :class="auto.status === 'active' ? 'bg-green-400' : 'bg-gray-400'"
+                        ></span>
+                        <span class="text-xs text-tokyo-text flex-1 truncate" x-text="auto.name"></span>
+                        <code class="text-[10px] text-tokyo-muted bg-white/5 px-1.5 py-0.5 rounded" x-text="auto.cron || '—'"></code>
+                        <span x-show="auto.system" class="text-[9px] text-tokyo-muted bg-white/5 px-1 py-px rounded">sys</span>
+                      </div>
+                    </template>
+                    <template x-if="mobileSchedules.length === 0">
+                      <div class="text-xs text-tokyo-muted py-2 text-center">No automations</div>
+                    </template>
                   </div>
-                  <div>
-                    <label class="block text-xs text-tokyo-muted mb-1"
-                      >Model</label
-                    >
-                    <select
-                      x-model="briefModel"
-                      class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
-                      style="
-                        background-color: rgba(30, 30, 46, 0.9);
-                        color: #e5e7eb;
-                      "
-                    >
-                      <option
-                        value="haiku"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Haiku
-                      </option>
-                      <option
-                        value="sonnet"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Sonnet
-                      </option>
-                      <option
-                        value="opus"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Opus
-                      </option>
-                    </select>
-                  </div>
-                  <div class="flex items-center justify-between pt-0.5">
-                    <span
-                      class="text-xs transition-opacity"
-                      :class="preferencesStatus === 'saved' ? 'text-green-400 opacity-100' : preferencesStatus === 'error' ? 'text-red-400 opacity-100' : 'opacity-0'"
-                      x-text="preferencesStatus === 'saved' ? 'Saved' : preferencesStatus === 'error' ? 'Error' : ''"
-                    ></span>
-                    <button
-                      @click="savePreferences()"
-                      :disabled="savingPreferences"
-                      class="px-4 py-1.5 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
-                    >
-                      <span x-show="!savingPreferences">Save</span>
-                      <span x-show="savingPreferences">Saving…</span>
-                    </button>
-                  </div>
-                </div>
+                </template>
               </div>
 
               <!-- AI Connection section (mobile) -->

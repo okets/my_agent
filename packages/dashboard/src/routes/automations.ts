@@ -27,6 +27,7 @@ export async function registerAutomationRoutes(
           id: a.id,
           name: a.manifest.name,
           status: a.manifest.status,
+          system: a.manifest.system ?? false,
           trigger: a.manifest.trigger,
           spaces: a.manifest.spaces ?? [],
           model: a.manifest.model,
