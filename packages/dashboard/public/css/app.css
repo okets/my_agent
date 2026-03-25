@@ -711,7 +711,7 @@ body.sidebar-resizing {
 
 /* Compose box wrapper — V1 style with stronger border */
 .compose-box {
-  background: var(--color-bg);
+  background: var(--color-panel);
   border: 1px solid var(--border-muted);
   border-radius: 0.75rem;
   transition: border-color 0.15s;
