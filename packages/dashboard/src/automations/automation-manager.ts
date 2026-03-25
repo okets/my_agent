@@ -163,6 +163,8 @@ export class AutomationManager {
           delivery: dbRow.delivery ?? undefined,
           created: dbRow.created,
           indexedAt: dbRow.indexedAt,
+          system: dbRow.system,
+          handler: dbRow.handler ?? undefined,
         });
       }
       return;
@@ -251,6 +253,8 @@ export class AutomationManager {
         : undefined,
       created: automation.manifest.created,
       indexedAt: automation.indexedAt,
+      system: automation.manifest.system,
+      handler: automation.manifest.handler,
     });
   }
 
@@ -294,6 +298,8 @@ export class AutomationManager {
       once: (data.once as boolean) ?? false,
       delivery: data.delivery as AutomationManifest["delivery"] | undefined,
       created: (data.created as string) ?? new Date().toISOString(),
+      system: (data.system as boolean) ?? undefined,
+      handler: (data.handler as string) ?? undefined,
     };
   }
 }
