@@ -7824,20 +7824,20 @@
 
           <!-- Automations browser popover (mobile) -->
           <template x-if="$store.mobile.popover?.type === 'automations-browser'">
-            <div class="space-y-3" x-data="{ expanded: null }">
-              <h2 class="text-base font-semibold text-tokyo-text">Automations</h2>
-              <template x-if="$store.automations.items.length === 0">
-                <div class="text-center text-tokyo-muted text-sm py-8">No automations yet</div>
-              </template>
-              <div class="space-y-1.5">
-                <template x-for="automation in $store.automations.items" :key="automation.id">
-                  <div style="background:rgba(30,30,46,0.8);border-radius:12px;overflow:hidden;"
-                       :style="expanded === automation.id ? 'border:1px solid rgba(122,162,247,0.2)' : 'border:1px solid rgba(255,255,255,0.06)'">
-                    <!-- Header (always visible, tappable) -->
-                    <button
-                      @click="expanded = expanded === automation.id ? null : automation.id"
-                      class="w-full flex items-center gap-3 p-3 text-left"
-                    >
+            <div x-data="{ selected: null, jobs: [], jobsLoading: false, expandedJob: null }"
+                 x-effect="if (selected) { jobsLoading = true; expandedJob = null; fetch('/api/timeline?automationId=' + encodeURIComponent(selected.id) + '&limit=20').then(r => r.json()).then(d => { jobs = (d.pastJobs || []).concat((d.futureRuns || []).map(r => ({...r, status: 'scheduled', summary: 'Scheduled run'}))); jobsLoading = false; }).catch(() => { jobsLoading = false; }) }">
+
+              <!-- LIST VIEW (no automation selected) -->
+              <div x-show="!selected">
+                <h2 class="text-base font-semibold text-tokyo-text mb-3">Automations</h2>
+                <template x-if="$store.automations.items.length === 0">
+                  <div class="text-center text-tokyo-muted text-sm py-8">No automations yet</div>
+                </template>
+                <div class="space-y-1.5">
+                  <template x-for="automation in $store.automations.items" :key="automation.id">
+                    <button @click="selected = automation"
+                            class="w-full flex items-center gap-3 p-3 rounded-xl text-left"
+                            style="background:rgba(30,30,46,0.8);border:1px solid rgba(255,255,255,0.06);">
                       <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                            style="background:rgba(158,206,106,0.15);">
                         <span class="w-2.5 h-2.5 rounded-full"
@@ -7861,48 +7861,114 @@
                       <span class="text-[10px] text-tokyo-muted shrink-0" x-show="automation.jobCount > 0"
                             x-text="automation.jobCount + ' jobs'"></span>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                           class="w-4 h-4 text-tokyo-muted transition-transform shrink-0"
-                           :class="expanded === automation.id ? 'rotate-90' : ''">
+                           class="w-4 h-4 text-tokyo-muted shrink-0">
                         <path fill-rule="evenodd" d="m8.25 4.5 7.5 7.5-7.5 7.5" clip-rule="evenodd"/>
                       </svg>
                     </button>
+                  </template>
+                </div>
+              </div>
 
-                    <!-- Expanded detail panel -->
-                    <div x-show="expanded === automation.id" x-collapse
-                         class="border-t border-white/5 px-3 pb-3"
-                         style="background:rgba(0,0,0,0.15);">
-                      <!-- Stats row -->
-                      <div class="flex gap-2 mt-2 mb-2">
-                        <div class="flex-1 rounded-lg p-2" style="background:rgba(30,30,46,0.5);">
-                          <div class="text-[9px] text-tokyo-muted uppercase tracking-wide">Last run</div>
-                          <div class="text-[11px] text-tokyo-text mt-0.5"
-                               x-text="automation.lastFiredAt ? new Date(automation.lastFiredAt).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Never'"></div>
-                        </div>
-                        <div class="flex-1 rounded-lg p-2" style="background:rgba(30,30,46,0.5);">
-                          <div class="text-[9px] text-tokyo-muted uppercase tracking-wide">Status</div>
-                          <div class="text-[11px] mt-0.5"
-                               :class="automation.status === 'active' ? 'text-green-400' : 'text-tokyo-muted'"
-                               x-text="automation.status === 'active' ? 'Active' : 'Inactive'"></div>
-                        </div>
-                      </div>
-                      <!-- Action buttons -->
-                      <div class="flex gap-2 mt-2">
-                        <button
-                          @click.stop="$store.mobile.closePopoverWithFocus(); $nextTick(() => { $store.mobile.expandChat('full'); inputText = 'Fire the ' + automation.name + ' automation now'; })"
-                          class="flex-1 py-2 px-3 rounded-lg text-[11px] font-semibold text-white text-center"
-                          style="background:linear-gradient(135deg,#7c3aed,#ec4899);">
-                          Fire Now
-                        </button>
-                        <button
-                          @click.stop="$store.mobile.closePopoverWithFocus()"
-                          class="py-2 px-4 rounded-lg text-[11px] text-tokyo-muted text-center"
-                          style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);"
-                          x-text="(automation.jobCount || 0) + ' jobs'">
-                        </button>
-                      </div>
+              <!-- DETAIL VIEW (automation selected — fills the popover) -->
+              <div x-show="selected" class="flex flex-col gap-3">
+                <!-- Header with back -->
+                <div class="flex items-center gap-2">
+                  <button @click="selected = null; jobs = []; expandedJob = null"
+                          class="w-8 h-8 flex items-center justify-center text-tokyo-blue hover:text-tokyo-text rounded-lg transition-colors shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+                      <path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 0 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd"/>
+                    </svg>
+                  </button>
+                  <div class="flex-1 min-w-0">
+                    <h2 class="text-base font-semibold text-tokyo-text truncate" x-text="selected?.name"></h2>
+                    <div class="flex items-center gap-2 mt-0.5">
+                      <span class="w-2 h-2 rounded-full" :class="selected?.status === 'active' ? 'bg-green-400' : 'bg-gray-500'"></span>
+                      <span class="text-[10px] text-tokyo-muted" x-text="selected?.status"></span>
+                      <template x-for="tt in (selected?.triggerTypes || [])" :key="tt">
+                        <span class="text-[9px] px-1 py-px rounded font-medium"
+                              :class="{
+                                'bg-cyan-500/15 text-cyan-400': tt === 'schedule',
+                                'bg-green-500/15 text-green-400': tt === 'channel',
+                                'bg-amber-500/15 text-amber-400': tt === 'watch',
+                                'bg-violet-500/15 text-violet-400': tt === 'manual'
+                              }"
+                              x-text="tt"></span>
+                      </template>
                     </div>
                   </div>
-                </template>
+                </div>
+
+                <!-- Stats row -->
+                <div class="flex gap-2">
+                  <div class="flex-1 rounded-lg p-2.5" style="background:rgba(30,30,46,0.8);border:1px solid rgba(255,255,255,0.06);">
+                    <div class="text-[9px] text-tokyo-muted uppercase tracking-wide">Last run</div>
+                    <div class="text-[12px] text-tokyo-text mt-0.5"
+                         x-text="selected?.lastFiredAt ? new Date(selected.lastFiredAt).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Never'"></div>
+                  </div>
+                  <div class="flex-1 rounded-lg p-2.5" style="background:rgba(30,30,46,0.8);border:1px solid rgba(255,255,255,0.06);">
+                    <div class="text-[9px] text-tokyo-muted uppercase tracking-wide">Total jobs</div>
+                    <div class="text-[12px] text-tokyo-text mt-0.5" x-text="selected?.jobCount || 0"></div>
+                  </div>
+                </div>
+
+                <!-- Fire Now button -->
+                <button
+                  @click="$store.mobile.closePopoverWithFocus(); $nextTick(() => { $store.mobile.expandChat('full'); inputText = 'Fire the ' + selected.name + ' automation now'; })"
+                  class="w-full py-2.5 px-4 rounded-xl text-[13px] font-semibold text-white flex items-center justify-center gap-2"
+                  style="background:linear-gradient(135deg,#7c3aed,#ec4899);">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                    <path fill-rule="evenodd" d="M8.074.945A4.993 4.993 0 0 0 6 5v.032c.004.6.114 1.176.311 1.709.16.428-.204.91-.61.7a5.023 5.023 0 0 1-1.868-1.677c-.202-.304-.648-.363-.848-.058a6 6 0 1 0 8.017-1.901l-.004-.007a4.98 4.98 0 0 1-2.18-2.574c-.116-.31-.477-.472-.744-.28Z" clip-rule="evenodd"/>
+                  </svg>
+                  Fire Now
+                </button>
+
+                <!-- Job History -->
+                <div>
+                  <div class="text-[10px] text-tokyo-muted uppercase tracking-wider font-semibold mb-2">Job History</div>
+                  <div x-show="jobsLoading" class="text-center text-tokyo-muted text-xs py-4">Loading...</div>
+                  <div x-show="!jobsLoading && jobs.length === 0" class="text-center text-tokyo-muted text-xs py-4">No jobs yet</div>
+                  <div class="space-y-1" x-show="!jobsLoading">
+                    <template x-for="job in jobs" :key="job.id">
+                      <div style="background:rgba(30,30,46,0.6);border:1px solid rgba(255,255,255,0.05);border-radius:10px;overflow:hidden;">
+                        <!-- Job header (tappable) -->
+                        <button @click="expandedJob = expandedJob === job.id ? null : job.id"
+                                class="w-full flex items-center gap-2 px-3 py-2.5 text-left">
+                          <span class="w-2 h-2 rounded-full shrink-0"
+                                :class="{
+                                  'bg-green-400': job.status === 'completed',
+                                  'bg-red-400': job.status === 'failed',
+                                  'bg-amber-400': job.status === 'running',
+                                  'bg-cyan-400': job.status === 'scheduled',
+                                  'bg-violet-400': job.status === 'needs_review'
+                                }"></span>
+                          <span class="text-[11px] text-tokyo-text flex-1 truncate"
+                                x-text="job.status === 'scheduled' ? (job.scheduledFor ? new Date(job.scheduledFor).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Scheduled') : (job.created ? new Date(job.created).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '')"></span>
+                          <span class="text-[9px] px-1.5 py-0.5 rounded font-medium"
+                                :class="{
+                                  'bg-green-500/15 text-green-400': job.status === 'completed',
+                                  'bg-red-500/15 text-red-400': job.status === 'failed',
+                                  'bg-amber-500/15 text-amber-400': job.status === 'running',
+                                  'bg-cyan-500/15 text-cyan-400': job.status === 'scheduled',
+                                  'bg-violet-500/15 text-violet-400': job.status === 'needs_review'
+                                }"
+                                x-text="job.status"></span>
+                          <span x-show="job.duration" class="text-[10px] text-tokyo-muted shrink-0" x-text="job.duration"></span>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                               class="w-3.5 h-3.5 text-tokyo-muted transition-transform shrink-0"
+                               :class="expandedJob === job.id ? 'rotate-90' : ''">
+                            <path fill-rule="evenodd" d="m8.25 4.5 7.5 7.5-7.5 7.5" clip-rule="evenodd"/>
+                          </svg>
+                        </button>
+                        <!-- Expanded job summary -->
+                        <div x-show="expandedJob === job.id" x-collapse
+                             class="px-3 pb-3 border-t border-white/5">
+                          <div class="text-[11px] text-tokyo-muted mt-2 leading-relaxed whitespace-pre-line"
+                               x-text="job.summary || 'No summary available'"></div>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
               </div>
             </div>
           </template>
