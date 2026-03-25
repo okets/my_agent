@@ -38,8 +38,8 @@
   --glass-border-strong: rgba(255, 255, 255, 0.08);
 
   /* Chat bubbles */
-  --bubble-assistant: rgba(255, 255, 255, 0.03);
-  --bubble-user: rgba(122, 162, 247, 0.12);
+  --bubble-assistant: rgba(28, 24, 48, 0.8);
+  --bubble-user: rgba(120, 90, 180, 0.35);
 
   /* Theme colors - Tokyo Night inspired (dark) - softer, NOT pitch black */
   --color-bg: #1a1b26;
@@ -413,9 +413,36 @@ footer textarea:focus {
   animation: messageIn 0.25s ease-out both;
 }
 
+/* ── Chat background (midnight purple + diagonal lines) ──── */
+.chat-bg-pattern {
+  background: linear-gradient(170deg, #1e1a2e 0%, #1a1630 50%, #211b35 100%);
+  position: relative;
+}
+
+.chat-bg-pattern::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 15px,
+    rgba(187, 154, 247, 0.07) 15px,
+    rgba(187, 154, 247, 0.07) 16px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.chat-bg-pattern > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* ── Assistant message bubble ───────────────────────────────────── */
 .assistant-bubble {
   background: var(--bubble-assistant);
+  border: 1px solid rgba(187, 154, 247, 0.1);
 }
 
 /* ── User message bubble ────────────────────────────────────────── */
@@ -1043,12 +1070,11 @@ textarea:focus-visible {
 
 /* Subtle hover feedback on messages */
 .user-bubble:hover {
-  background: rgba(122, 162, 247, 0.15);
+  background: rgba(120, 90, 180, 0.45);
 }
 
 .assistant-bubble:hover {
-  background: var(--bubble-assistant);
-  filter: brightness(0.95);
+  background: rgba(28, 24, 48, 0.9);
 }
 
 /* ── Compose box enhancements ─────────────────────────────────── */
@@ -1263,6 +1289,31 @@ button[title="Rename conversation"]:active {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* ── Home widget grid (container-query responsive) ──────────────── */
+
+.home-widget-grid {
+  grid-template-columns: 1fr;
+}
+
+/* 2x2 when container >= 680px (each col gets ~330px+) */
+@container (min-width: 680px) {
+  .home-widget-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 4x1 when container >= 1300px (needs room for Notebook tabs) */
+@container (min-width: 1300px) {
+  .home-widget-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Widgets align to top, don't stretch empty ones */
+.home-widget-grid {
+  align-items: start;
 }
 
 /* ── Timeline widget ─────────────────────────────────────────────── */

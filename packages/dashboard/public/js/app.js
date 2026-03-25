@@ -69,7 +69,7 @@ function chat() {
     // Tab system (workspace layout)
     // ─────────────────────────────────────────────────────────────────
     openTabs: [
-      { id: "home", type: "home", title: "Home", icon: "🏠", closeable: false },
+      { id: "home", type: "home", title: "Home", icon: ICONS.home, closeable: false },
     ],
     activeTab: "home",
 
@@ -734,6 +734,21 @@ function chat() {
       if (diffHours < 24) return `${diffHours}h ago`;
       if (diffDays < 7) return `${diffDays}d ago`;
       return date.toLocaleDateString();
+    },
+
+    groupConversationsByDate(conversations) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekAgo = new Date(today.getTime() - 7 * 86400000);
+      const groups = { today: [], thisWeek: [], earlier: [] };
+      for (const conv of conversations) {
+        if (!conv.turnCount || conv.turnCount === 0) continue;
+        const d = new Date(conv.updated);
+        if (d >= today) groups.today.push(conv);
+        else if (d >= weekAgo) groups.thisWeek.push(conv);
+        else groups.earlier.push(conv);
+      }
+      return groups;
     },
 
     getLastAssistantSnippet() {
@@ -1856,7 +1871,7 @@ function chat() {
         id: tabId,
         type: "notebook",
         title: titles[name] || name,
-        icon: "📝",
+        icon: ICONS.edit,
         closeable: true,
         data: {
           file: name,
@@ -1870,7 +1885,7 @@ function chat() {
         id: `conv-${conv.id}`,
         type: "conversation",
         title: conv.title || "External Chat",
-        icon: "💬",
+        icon: ICONS.chat,
         closeable: true,
         data: {
           conversationId: conv.id,
@@ -1906,7 +1921,7 @@ function chat() {
           id: tabId,
           type: "conversation",
           title: conv.title || "Conversation",
-          icon: "💬",
+          icon: ICONS.chat,
           closeable: true,
           data: {
             conversationId: conv.id,
@@ -2017,7 +2032,7 @@ function chat() {
               id: "home",
               type: "home",
               title: "Home",
-              icon: "🏠",
+              icon: ICONS.home,
               closeable: false,
             });
           }
@@ -3571,7 +3586,7 @@ function chat() {
           id: "calendar",
           type: "calendar",
           title: "Calendar",
-          icon: "📅",
+          icon: ICONS.calendar,
           closeable: true,
         });
       }
@@ -3632,7 +3647,7 @@ function chat() {
       this.chatContext = {
         type: "calendar",
         title: rangeText,
-        icon: "📅",
+        icon: ICONS.calendar,
         dateRange: {
           start: this.calendarViewStart.toISOString(),
           end: this.calendarViewEnd.toISOString(),
@@ -3823,7 +3838,7 @@ function chat() {
         id: tabId,
         type: "event",
         title: eventData.title,
-        icon: "📅",
+        icon: ICONS.calendar,
         closeable: true,
         data: { event: eventData },
       });
@@ -4070,7 +4085,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
       this.chatContext = {
         type: "event",
-        icon: "📅",
+        icon: ICONS.calendar,
         title: this.selectedEvent.title,
         data: {
           uid: this.selectedEvent.id,
@@ -4181,7 +4196,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
           id: "settings",
           type: "settings",
           title: "Settings",
-          icon: "⚙️",
+          icon: ICONS.gear,
           closeable: true,
         });
         this.$nextTick(() => {
@@ -4833,7 +4848,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         id: tabId,
         type: "space",
         title: name,
-        icon: "\u{1F4C1}",
+        icon: ICONS.folder,
         closeable: true,
         data: { name },
       });
@@ -4844,7 +4859,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         id: "spaces-browser",
         type: "spaces-browser",
         title: "Spaces",
-        icon: "\u{1F4C1}",
+        icon: ICONS.folder,
         closeable: true,
       });
     },
@@ -4962,7 +4977,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         id: tabId,
         type: "automation",
         title: automation?.name || id,
-        icon: "\u{1F525}",
+        icon: ICONS.fire,
         closeable: true,
         data: { automationId: id },
       });
@@ -4973,7 +4988,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         id: "automations-browser",
         type: "automations-browser",
         title: "Automations",
-        icon: "\u{1F525}",
+        icon: ICONS.fire,
         closeable: true,
       });
     },
@@ -5102,7 +5117,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         id: "notebook-browser",
         type: "notebook-browser",
         title: "Notebook",
-        icon: "📓",
+        icon: ICONS.notebook,
         closeable: true,
       });
 
@@ -5166,7 +5181,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         id: "memory-search",
         type: "memory-search",
         title: "Memory Search",
-        icon: "🔍",
+        icon: ICONS.search,
         closeable: true,
       });
     },

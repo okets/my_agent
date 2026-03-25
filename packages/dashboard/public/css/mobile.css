@@ -132,6 +132,65 @@
     background: rgba(255, 255, 255, 0.05);
   }
 
+  /* ── Mobile widget cards (2x2 grid) ───────────────────────── */
+  .mobile-widget-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 12px;
+    border-radius: var(--radius-lg);
+    background: var(--glass-bg-strong, rgba(30, 30, 46, 0.8));
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease;
+    -webkit-tap-highlight-color: transparent;
+    text-align: left;
+    width: 100%;
+  }
+
+  .mobile-widget-card:active {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .mobile-widget-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .mobile-widget-icon.text-tokyo-blue {
+    background: rgba(122, 162, 247, 0.15);
+  }
+
+  .mobile-widget-icon.text-tokyo-orange {
+    background: rgba(255, 158, 100, 0.15);
+  }
+
+  .mobile-widget-icon.text-tokyo-purple {
+    background: rgba(187, 154, 247, 0.15);
+  }
+
+  .mobile-widget-icon.text-tokyo-green {
+    background: rgba(158, 206, 106, 0.15);
+  }
+
+  .mobile-widget-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    margin-top: 2px;
+  }
+
+  .mobile-widget-count {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
   /* ── Content panel (top) ─────────────────────────────────────
      Height is percentage-based: fills remaining space after
      header and chat panel take their share.
@@ -173,7 +232,6 @@
     /* Elevated surface — ABOVE popovers (z-index > 30) */
     position: relative;
     z-index: 40;
-    background: var(--color-panel);
     border-radius: 16px 16px 0 0;
     border-top: 1px solid var(--border-muted);
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
@@ -199,13 +257,25 @@
     background: var(--color-blue);
   }
 
+  /* ── Chat peek elevated (no bg, just shadow) ─────────────── */
+  .chat-peek-elevated {
+    background: var(--color-panel);
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5), 0 -2px 8px rgba(0, 0, 0, 0.3);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* When expanded, shadow wraps the whole panel */
+  .mobile-chat-panel.chat-bg-pattern {
+    box-shadow: 0 -6px 40px rgba(30, 22, 48, 0.6), 0 -2px 12px rgba(0, 0, 0, 0.4);
+    border-top: 1px solid rgba(187, 154, 247, 0.12);
+  }
+
   /* ── Chat peek content layout ────────────────────────────── */
   .chat-peek-content {
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 4px 12px;
-    cursor: pointer;
+    padding: 0;
     /* Entire peek area is a touch/swipe target */
     touch-action: none;
   }
@@ -309,7 +379,6 @@
   }
 
   :root.light .mobile-chat-panel {
-    background: var(--color-surface);
     border-top-color: var(--border-muted);
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
   }
@@ -385,6 +454,7 @@
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: none;
     padding: 0 16px 16px;
   }
 

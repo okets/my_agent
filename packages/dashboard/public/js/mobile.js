@@ -20,7 +20,7 @@
 
 /* ── Constants ─────────────────────────────────────────────────── */
 
-const CHAT_RATIO_PEEK = 8;
+const CHAT_RATIO_PEEK = 12;
 const CHAT_RATIO_HALF = 50;
 const CHAT_RATIO_FULL = 92;
 const CHAT_RATIO_PRESETS = [CHAT_RATIO_PEEK, CHAT_RATIO_HALF, CHAT_RATIO_FULL];
@@ -88,6 +88,7 @@ document.addEventListener("alpine:init", () => {
     isMobile: isMobileLayout(),
     chatState: "peek", // derived from _chatRatio: 'peek' | 'half' | 'full'
     _chatRatio: CHAT_RATIO_PEEK,
+    _lastExpandedState: "half", // remember last non-peek state for restore-on-focus
     popover: null, // null | { type: string, data: any }
     keyboardHeight: 0,
     reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -99,6 +100,11 @@ document.addEventListener("alpine:init", () => {
       if (!this.isMobile) return;
       if (state !== "peek" && state !== "half" && state !== "full") return;
 
+      // Remember last expanded state for restore-on-focus
+      if (state !== "peek") {
+        this._lastExpandedState = state;
+      }
+
       const ratio =
         state === "peek"
           ? CHAT_RATIO_PEEK
@@ -106,6 +112,21 @@ document.addEventListener("alpine:init", () => {
             ? CHAT_RATIO_HALF
             : CHAT_RATIO_FULL;
       setChatRatio(ratio);
+
+      // Auto-focus the chat textarea when expanding from peek
+      if (state !== "peek") {
+        requestAnimationFrame(() => {
+          const ta = document.querySelector(
+            ".mobile-chat-panel textarea, .mobile-chat-panel .compose-box textarea",
+          );
+          if (ta) ta.focus();
+        });
+      }
+    },
+
+    /** Expand to previous state (half or full), defaulting to half */
+    restoreChat() {
+      this.expandChat(this._lastExpandedState || "half");
     },
 
     collapseChat() {
@@ -487,17 +508,17 @@ function initSheetGesture(el, options) {
     }
   }
 
-  // Listen on the whole element — dismiss activates only when scrolled to top
-  // and swiping in the dismiss direction
-  el.addEventListener("touchstart", onTouchStart, { passive: true });
-  el.addEventListener("touchmove", onTouchMove, { passive: false });
-  el.addEventListener("touchend", onTouchEnd, { passive: true });
+  // Listen in CAPTURE phase so we intercept before scrollable children consume events.
+  // passive: false on touchmove so we can preventDefault() when dragging.
+  el.addEventListener("touchstart", onTouchStart, { passive: true, capture: true });
+  el.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
+  el.addEventListener("touchend", onTouchEnd, { passive: true, capture: true });
 
   // Return cleanup function
   return function cleanup() {
-    el.removeEventListener("touchstart", onTouchStart);
-    el.removeEventListener("touchmove", onTouchMove);
-    el.removeEventListener("touchend", onTouchEnd);
+    el.removeEventListener("touchstart", onTouchStart, { capture: true });
+    el.removeEventListener("touchmove", onTouchMove, { capture: true });
+    el.removeEventListener("touchend", onTouchEnd, { capture: true });
     if (rafId) cancelAnimationFrame(rafId);
   };
 }

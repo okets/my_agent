@@ -251,7 +251,7 @@
                 : 'text-tokyo-muted hover:text-tokyo-text bg-transparent border-b-transparent hover:bg-white/5'
             "
           >
-            <span x-text="openTabs.find(t => t.id === 'home')?.icon || '🏠'" class="text-sm"></span>
+            <span x-html="openTabs.find(t => t.id === 'home')?.icon || ICONS.home" class="text-sm"></span>
             <span class="max-w-24 truncate">Home</span>
           </button>
           <!-- Scrollable tabs -->
@@ -266,7 +266,7 @@
                     : 'text-tokyo-muted hover:text-tokyo-text bg-transparent border-transparent hover:bg-white/5'
                 "
               >
-                <span x-text="tab.icon" class="text-sm"></span>
+                <span x-html="tab.icon" class="text-sm"></span>
                 <span x-text="tab.title" class="max-w-24 truncate"></span>
                 <!-- Close button (only for closeable tabs) -->
                 <span
@@ -297,11 +297,12 @@
           <!-- ======================================================== -->
           <div
             x-show="activeTab === 'home' || $store.mobile.isMobile"
-            class="p-6 !overflow-clip"
+            class="p-3 sm:p-4 lg:p-6 !overflow-clip"
+            style="container-type: inline-size;"
             x-cloak
           >
-            <!-- Header with status icons -->
-            <div class="flex items-center justify-between mb-6">
+            <!-- Header with status icons (desktop only — mobile has its own header) -->
+            <div class="hidden sm:flex items-center justify-between mb-3 sm:mb-4 lg:mb-6">
               <h1 class="text-2xl font-bold">Dashboard</h1>
               <div class="flex items-center gap-3 text-xs text-tokyo-muted">
                 <!-- Transport status icons with notification dot -->
@@ -356,74 +357,96 @@
               </div>
             </div>
 
-            <!-- Mobile: Stacked compact cards (< 640px) -->
-            <div class="sm:hidden space-y-2 mb-4">
-              <div class="glass-strong rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-                   @click="openSpacesBrowser()">
-                <div class="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
-                    <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.622 4H12.5A1.5 1.5 0 0 1 14 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9Z"/>
+            <!-- Mobile: Status bar (transport + memory icons) — above widgets -->
+            <div class="sm:hidden flex items-center justify-between px-1 mb-2">
+              <div class="flex items-center gap-3">
+                <template x-for="channel in channels" :key="channel.id">
+                  <button
+                    @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('settings', null, $event.currentTarget) : openSettingsSection('settings-transports')"
+                    class="flex items-center gap-1.5 text-[11px] text-tokyo-muted"
+                  >
+                    <span class="channel-icon w-4 h-4" x-html="channel.icon"></span>
+                    <span
+                      class="w-1.5 h-1.5 rounded-full"
+                      :class="{
+                        'bg-green-400': channel.status === 'connected',
+                        'bg-amber-400': channel.status === 'connecting',
+                        'bg-red-400': channel.status === 'error' || channel.status === 'disconnected',
+                        'bg-gray-500': channel.status === 'logged_out'
+                      }"
+                    ></span>
+                  </button>
+                </template>
+                <button
+                  @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('settings', null, $event.currentTarget) : openSettingsSection('settings-memory')"
+                  class="flex items-center gap-1.5 text-[11px] text-tokyo-muted"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                    <path d="M10 1a6 6 0 0 0-3.815 10.631C7.237 12.5 8 13.443 8 14.456v.644a.75.75 0 0 0 .572.729 6.016 6.016 0 0 0 2.856 0A.75.75 0 0 0 12 15.1v-.644c0-1.013.762-1.957 1.815-2.825A6 6 0 0 0 10 1ZM8.863 17.414a.75.75 0 0 0-.226 1.483 9.066 9.066 0 0 0 2.726 0 .75.75 0 0 0-.226-1.483 7.553 7.553 0 0 1-2.274 0Z"/>
                   </svg>
-                  <span class="text-sm text-white/80">Spaces</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-white/40" x-text="$store.spaces.items.length"></span>
-                  <svg class="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                  </svg>
-                </div>
+                  <span
+                    class="w-1.5 h-1.5 rounded-full"
+                    :class="{
+                      'bg-green-400': memoryStatus?.pluginState === 'active',
+                      'bg-red-400': memoryStatus?.pluginState === 'error',
+                      'bg-orange-400 animate-pulse': memoryStatus?.pluginState === 'connecting',
+                      'bg-gray-500': memoryStatus?.pluginState === 'not_set_up'
+                    }"
+                  ></span>
+                </button>
               </div>
-              <div class="glass-strong rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-                   @click="openAutomationsBrowser()">
-                <div class="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
-                    <path fill-rule="evenodd" d="M8.074.945A4.993 4.993 0 0 0 6 5v.032c.004.6.114 1.176.311 1.709.16.428-.204.91-.61.7a5.023 5.023 0 0 1-1.868-1.677c-.202-.304-.648-.363-.848-.058a6 6 0 1 0 8.017-1.901l-.004-.007a4.98 4.98 0 0 1-2.18-2.574c-.116-.31-.477-.472-.744-.28Zm.78 6.178a3.001 3.001 0 1 1-3.473 4.341c-.205-.365.215-.694.62-.59a4.008 4.008 0 0 0 1.828.047c.96-.2 1.747-.918 2.08-1.36a.55.55 0 0 0-.054-.678Z" clip-rule="evenodd"/>
-                  </svg>
-                  <span class="text-sm text-white/80">Automations</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-white/40" x-text="$store.automations.items.filter(a => a.status === 'active').length + ' active'"></span>
-                  <svg class="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                  </svg>
-                </div>
-              </div>
-              <div class="glass-strong rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-                   @click="$store.mobile.openPopoverWithFocus('notebook-browser')">
-                <div class="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
-                    <path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h7A2.5 2.5 0 0 1 14 4.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5v-7Z"/>
-                  </svg>
-                  <span class="text-sm text-white/80">Notebook</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <svg class="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                  </svg>
-                </div>
-              </div>
-              <div class="glass-strong rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-                   @click="$store.mobile.expandChat('half')">
-                <div class="flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
-                    <path d="M1 8.74c0 .983.713 1.825 1.69 1.943.764.092 1.534.164 2.31.216v2.351a.75.75 0 0 0 1.28.53l2.51-2.51c.182-.181.427-.29.687-.312A24.673 24.673 0 0 0 12.31 10.7c.978-.128 1.69-.962 1.69-1.96V4.26c0-.998-.712-1.832-1.69-1.96A24.885 24.885 0 0 0 8 2c-1.395 0-2.76.098-4.31.3C2.713 2.435 2 3.262 2 4.26v4.48h-.5A.5.5 0 0 0 1 8.74Z"/>
-                  </svg>
-                  <span class="text-sm text-white/80">Conversations</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-white/40" x-text="conversations.length"></span>
-                  <svg class="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                  </svg>
-                </div>
-              </div>
+              <span class="text-[11px] text-tokyo-muted" x-text="formatTimeNow()"></span>
             </div>
 
-            <!-- Home 2x2 grid (desktop only) -->
-            <div class="hidden sm:grid sm:grid-cols-2 gap-4 mb-4">
+            <!-- Mobile: 2x2 widget grid (< 640px) -->
+            <div class="sm:hidden grid grid-cols-2 gap-2 mb-3">
+              <!-- Spaces -->
+              <button class="mobile-widget-card" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('spaces-browser') : openSpacesBrowser()">
+                <div class="mobile-widget-icon text-tokyo-blue">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
+                    <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.622 4H12.5A1.5 1.5 0 0 1 14 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9Z"/>
+                  </svg>
+                </div>
+                <span class="mobile-widget-label">Spaces</span>
+                <span class="mobile-widget-count" x-text="$store.spaces.items.length || '0'"></span>
+              </button>
+              <!-- Automations -->
+              <button class="mobile-widget-card" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('automations-browser') : openAutomationsBrowser()">
+                <div class="mobile-widget-icon text-tokyo-orange">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
+                    <path fill-rule="evenodd" d="M8.074.945A4.993 4.993 0 0 0 6 5v.032c.004.6.114 1.176.311 1.709.16.428-.204.91-.61.7a5.023 5.023 0 0 1-1.868-1.677c-.202-.304-.648-.363-.848-.058a6 6 0 1 0 8.017-1.901l-.004-.007a4.98 4.98 0 0 1-2.18-2.574c-.116-.31-.477-.472-.744-.28Zm.78 6.178a3.001 3.001 0 1 1-3.473 4.341c-.205-.365.215-.694.62-.59a4.008 4.008 0 0 0 1.828.047c.96-.2 1.747-.918 2.08-1.36a.55.55 0 0 0-.054-.678Z" clip-rule="evenodd"/>
+                  </svg>
+                </div>
+                <span class="mobile-widget-label">Automations</span>
+                <span class="mobile-widget-count" x-text="$store.automations.items.filter(a => a.status === 'active').length + ' active'"></span>
+              </button>
+              <!-- Notebook -->
+              <button class="mobile-widget-card" @click="$store.mobile.openPopoverWithFocus('notebook-browser')">
+                <div class="mobile-widget-icon text-tokyo-purple">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
+                    <path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h7A2.5 2.5 0 0 1 14 4.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5v-7Z"/>
+                  </svg>
+                </div>
+                <span class="mobile-widget-label">Notebook</span>
+                <span class="mobile-widget-count">Browse</span>
+              </button>
+              <!-- Conversations -->
+              <button class="mobile-widget-card" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('conversations-browser') : null">
+                <div class="mobile-widget-icon text-tokyo-green">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
+                    <path d="M1 8.74c0 .983.713 1.825 1.69 1.943.764.092 1.534.164 2.31.216v2.351a.75.75 0 0 0 1.28.53l2.51-2.51c.182-.181.427-.29.687-.312A24.673 24.673 0 0 0 12.31 10.7c.978-.128 1.69-.962 1.69-1.96V4.26c0-.998-.712-1.832-1.69-1.96A24.885 24.885 0 0 0 8 2c-1.395 0-2.76.098-4.31.3C2.713 2.435 2 3.262 2 4.26v4.48h-.5A.5.5 0 0 0 1 8.74Z"/>
+                  </svg>
+                </div>
+                <span class="mobile-widget-label">Conversations</span>
+                <span class="mobile-widget-count" x-text="conversations.length"></span>
+              </button>
+            </div>
+
+            <!-- Home widget grid: container-query responsive -->
+            <div class="hidden sm:grid home-widget-grid gap-3 mb-4">
 
             <!-- Spaces Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden">
+            <div class="glass-strong rounded-xl overflow-hidden flex flex-col">
               <!-- Header -->
               <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
                 <h2 class="text-sm font-semibold text-tokyo-text flex items-center gap-2">
@@ -434,8 +457,8 @@
                 </h2>
                 <span class="text-xs text-tokyo-muted" x-text="$store.spaces.items.length + ' total'"></span>
               </div>
-              <!-- Space list (compact, max 5 shown) -->
-              <div class="max-h-[200px] overflow-y-auto">
+              <!-- Space list -->
+              <div class="flex-1 overflow-y-auto max-h-[280px]">
                 <template x-if="$store.spaces.items.length === 0">
                   <div class="px-4 py-6 text-center text-xs text-tokyo-muted">
                     No spaces yet
@@ -477,7 +500,7 @@
             </div>
 
             <!-- Automations Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden">
+            <div class="glass-strong rounded-xl overflow-hidden flex flex-col">
               <!-- Header -->
               <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
                 <h2 class="text-sm font-semibold text-tokyo-text flex items-center gap-2">
@@ -488,8 +511,8 @@
                 </h2>
                 <span class="text-xs text-tokyo-muted" x-text="$store.automations.items.filter(a => a.status === 'active').length + ' active'"></span>
               </div>
-              <!-- Automation list (compact, max 5 shown) -->
-              <div class="max-h-[200px] overflow-y-auto">
+              <!-- Automation list -->
+              <div class="flex-1 overflow-y-auto max-h-[280px]">
                 <template x-if="$store.automations.items.length === 0">
                   <div class="px-4 py-6 text-center text-xs text-tokyo-muted">
                     No automations yet
@@ -539,7 +562,7 @@
             </div>
 
             <!-- Notebook Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden">
+            <div class="glass-strong rounded-xl overflow-hidden flex flex-col">
               <!-- Tab bar - 4 tabs -->
               <div class="flex border-b border-white/5">
                 <button
@@ -554,7 +577,7 @@
                   :class="notebookTab === 'lists' ? 'text-tokyo-blue border-b-2 border-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text'"
                   class="flex-1 px-2 py-2 text-[11px] font-medium truncate transition-colors"
                 >
-                  Lists &amp; Reference
+                  Lists
                 </button>
                 <button
                   @click="setNotebookTab('daily')"
@@ -580,7 +603,7 @@
               </div>
 
               <!-- Content area - file list per category -->
-              <div class="p-3 min-h-[100px] max-h-[180px] overflow-y-auto">
+              <div class="p-3 flex-1 overflow-y-auto max-h-[280px] min-h-[80px]">
                 <!-- Loading state -->
                 <template x-if="notebookLoading">
                   <div
@@ -883,7 +906,7 @@
             </div>
 
             <!-- Conversations Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden">
+            <div class="glass-strong rounded-xl overflow-hidden flex flex-col">
               <!-- Header -->
               <div
                 class="flex items-center justify-between px-4 py-3 border-b border-white/5"
@@ -945,7 +968,7 @@
               </div>
 
               <!-- Conversation list -->
-              <div class="max-h-[320px] overflow-y-auto">
+              <div class="flex-1 overflow-y-auto max-h-[280px]">
                 <!-- Search loading -->
                 <div
                   x-show="convWidgetSearchOpen && convSearchLoading"
@@ -1067,7 +1090,7 @@
                 <h2
                   class="text-sm font-semibold text-tokyo-text uppercase tracking-wide flex items-center gap-2"
                 >
-                  <span class="text-base">📅</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#9ece6a" class="w-5 h-5"><path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z" clip-rule="evenodd"/></svg>
                   Timeline
                 </h2>
                 <div class="flex items-center gap-3">
@@ -1075,7 +1098,7 @@
                     @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('calendar', null, $event.currentTarget) : openCalendar()"
                     class="text-xs text-tokyo-muted hover:text-tokyo-blue transition-colors flex items-center gap-1"
                   >
-                    📅 Calendar
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#9ece6a" class="w-4 h-4"><path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z" clip-rule="evenodd"/></svg> Calendar
                     <span
                       class="transition-transform group-hover:translate-x-0.5"
                       >→</span
@@ -5066,7 +5089,7 @@
           </div>
 
           <button
-            @click="openTab({ id: 'settings', type: 'settings', title: 'Settings', icon: '⚙️', closeable: true })"
+            @click="openTab({ id: 'settings', type: 'settings', title: 'Settings', icon: ICONS.gear, closeable: true })"
             class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0"
             :class="activeTab === 'settings' ? 'bg-tokyo-blue/15 text-tokyo-blue' : 'hover:bg-tokyo-card text-tokyo-muted hover:text-tokyo-text'"
             title="Settings"
@@ -5232,7 +5255,7 @@
         <!-- Chat messages -->
         <main
           x-ref="messagesContainer"
-          class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
+          class="chat-bg-pattern flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4"
         >
           <!-- Welcome state (no messages) -->
           <template x-if="messages.length === 0">
@@ -5735,7 +5758,7 @@
                   <div
                     class="flex items-center gap-1 px-2 py-1 rounded-md bg-tokyo-purple/10 text-tokyo-purple text-[11px]"
                   >
-                    <span x-text="chatContext?.icon" class="text-xs"></span>
+                    <span x-html="chatContext?.icon" class="text-xs"></span>
                     <span
                       x-text="chatContext?.title"
                       class="max-w-24 truncate"
@@ -7338,27 +7361,9 @@
 
           <!-- Notebook Browser popover (M6-S3) - 4 category organization -->
           <template x-if="$store.mobile.popover?.type === 'notebook-browser'">
-            <div class="flex flex-col gap-3">
+            <div class="flex flex-col gap-3" x-data="{ expanded: null }">
               <div class="flex items-center justify-between">
-                <h2
-                  class="text-lg font-bold text-tokyo-text flex items-center gap-2"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke-width="1.5"
-                    stroke="currentColor"
-                    class="w-5 h-5 text-tokyo-blue"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M16.5 3.75V16.5L12 14.25 7.5 16.5V3.75m9 0H18A2.25 2.25 0 0 1 20.25 6v12A2.25 2.25 0 0 1 18 20.25H6A2.25 2.25 0 0 1 3.75 18V6A2.25 2.25 0 0 1 6 3.75h1.5m9 0h-9"
-                    />
-                  </svg>
-                  <span>Notebook</span>
-                </h2>
+                <h2 class="text-lg font-bold text-tokyo-text">Notebook</h2>
                 <button
                   @click="loadNotebookTree()"
                   class="text-xs text-tokyo-muted hover:text-tokyo-text"
@@ -7379,369 +7384,190 @@
               <template x-if="!notebookLoading && notebookTree.length > 0">
                 <div class="space-y-2">
                   <!-- Operations -->
-                  <div x-data="{ expanded: true }">
-                    <button
-                      @click="expanded = !expanded"
-                      class="w-full flex items-center gap-2 px-3 py-2 rounded-lg glass-strong"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke-width="1.5"
-                        stroke="currentColor"
-                        class="w-4 h-4 text-tokyo-muted transition-transform"
-                        :class="expanded ? 'rotate-90' : ''"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="m8.25 4.5 7.5 7.5-7.5 7.5"
-                        />
+                  <div style="background:rgba(30,30,46,0.8);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;">
+                    <button @click="expanded = expanded === 'operations' ? null : 'operations'"
+                      class="w-full flex items-center gap-3 p-3 text-left">
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                           style="background:rgba(122,162,247,0.15);">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#7aa2f7" class="w-5 h-5"><path fill-rule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.378 2H4.5Z" clip-rule="evenodd"/></svg>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="text-[13px] font-semibold text-tokyo-text">Operations</div>
+                        <div class="text-[10px] text-tokyo-muted">Current state, rules</div>
+                      </div>
+                      <span class="text-[10px] px-2 py-0.5 rounded-full shrink-0"
+                            style="background:rgba(122,162,247,0.1);color:#7aa2f7;"
+                            x-text="notebookCategoryFiles.orders.length"></span>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                           class="w-4 h-4 text-tokyo-muted transition-transform" :class="expanded === 'operations' ? 'rotate-90' : ''">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
                       </svg>
-                      <span
-                        class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide"
-                        >Operations</span
-                      >
-                      <span
-                        class="text-[10px] text-tokyo-muted/60 ml-auto"
-                        x-text="notebookCategoryFiles.orders.length"
-                      ></span>
                     </button>
-                    <div
-                      x-show="expanded"
-                      x-collapse
-                      class="pl-3 mt-1 space-y-1"
-                    >
-                      <template
-                        x-for="file in notebookCategoryFiles.orders"
-                        :key="file.path"
-                      >
-                        <button
-                          @click="$store.mobile.openPopoverWithFocus('notebook-file', { path: file.path, name: file.name })"
-                          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-blue/10 transition-colors"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke-width="1.5"
-                            stroke="currentColor"
-                            class="w-4 h-4 text-tokyo-muted"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-                            />
+                    <div x-show="expanded === 'operations'" x-collapse
+                         class="border-t border-white/5 px-2 pb-2">
+                      <template x-for="file in notebookCategoryFiles.orders" :key="file.path">
+                        <button @click="$store.mobile.openPopoverWithFocus('notebook-file', { path: file.path, name: file.name })"
+                                class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(122,162,247,0.08)] transition-colors text-left mt-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#7aa2f7" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
                           </svg>
-                          <span
-                            class="text-sm truncate"
-                            x-text="file.name.replace('.md', '')"
-                          ></span>
+                          <span class="text-[13px] text-tokyo-text truncate" x-text="file.name.replace('.md', '')"></span>
                         </button>
                       </template>
-                      <template
-                        x-if="notebookCategoryFiles.orders.length === 0"
-                      >
-                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">
-                          No files
-                        </p>
-                      </template>
-                    </div>
-                  </div>
-                  <!-- Lists & Reference -->
-                  <div x-data="{ expanded: true }">
-                    <button
-                      @click="expanded = !expanded"
-                      class="w-full flex items-center gap-2 px-3 py-2 rounded-lg glass-strong"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke-width="1.5"
-                        stroke="currentColor"
-                        class="w-4 h-4 text-tokyo-muted transition-transform"
-                        :class="expanded ? 'rotate-90' : ''"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="m8.25 4.5 7.5 7.5-7.5 7.5"
-                        />
-                      </svg>
-                      <span
-                        class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide"
-                        >Lists &amp; Reference</span
-                      >
-                      <span
-                        class="text-[10px] text-tokyo-muted/60 ml-auto"
-                        x-text="notebookCategoryFiles.lists.length"
-                      ></span>
-                    </button>
-                    <div
-                      x-show="expanded"
-                      x-collapse
-                      class="pl-3 mt-1 space-y-1"
-                    >
-                      <template
-                        x-for="file in notebookCategoryFiles.lists"
-                        :key="file.path"
-                      >
-                        <button
-                          @click="$store.mobile.openPopoverWithFocus('notebook-file', { path: file.path, name: file.name })"
-                          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-blue/10 transition-colors"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke-width="1.5"
-                            stroke="currentColor"
-                            class="w-4 h-4 text-tokyo-muted"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-                            />
-                          </svg>
-                          <span
-                            class="text-sm truncate"
-                            x-text="file.name.replace('.md', '')"
-                          ></span>
-                        </button>
-                      </template>
-                      <template x-if="notebookCategoryFiles.lists.length === 0">
-                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">
-                          No files
-                        </p>
-                      </template>
-                    </div>
-                  </div>
-                  <!-- Daily -->
-                  <div x-data="{ expanded: false }">
-                    <button
-                      @click="expanded = !expanded"
-                      class="w-full flex items-center gap-2 px-3 py-2 rounded-lg glass-strong"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke-width="1.5"
-                        stroke="currentColor"
-                        class="w-4 h-4 text-tokyo-muted transition-transform"
-                        :class="expanded ? 'rotate-90' : ''"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="m8.25 4.5 7.5 7.5-7.5 7.5"
-                        />
-                      </svg>
-                      <span
-                        class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide"
-                        >Daily</span
-                      >
-                      <span
-                        class="text-[10px] text-tokyo-muted/60 ml-auto"
-                        x-text="notebookCategoryFiles.daily.length"
-                      ></span>
-                    </button>
-                    <div
-                      x-show="expanded"
-                      x-collapse
-                      class="pl-3 mt-1 space-y-1"
-                    >
-                      <template
-                        x-for="file in notebookCategoryFiles.daily"
-                        :key="file.path"
-                      >
-                        <button
-                          @click="$store.mobile.openPopoverWithFocus('notebook-file', { path: file.path, name: file.name })"
-                          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-green/10 transition-colors"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke-width="1.5"
-                            stroke="currentColor"
-                            class="w-4 h-4 text-tokyo-muted"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"
-                            />
-                          </svg>
-                          <span
-                            class="text-sm truncate"
-                            x-text="file.name.replace('.md', '')"
-                          ></span>
-                        </button>
-                      </template>
-                      <template x-if="notebookCategoryFiles.daily.length === 0">
-                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">
-                          No daily logs
-                        </p>
-                      </template>
-                    </div>
-                  </div>
-                  <!-- Knowledge -->
-                  <div x-data="{ expanded: false }">
-                    <button
-                      @click="expanded = !expanded"
-                      class="w-full flex items-center gap-2 px-3 py-2 rounded-lg glass-strong"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke-width="1.5"
-                        stroke="currentColor"
-                        class="w-4 h-4 text-tokyo-muted transition-transform"
-                        :class="expanded ? 'rotate-90' : ''"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="m8.25 4.5 7.5 7.5-7.5 7.5"
-                        />
-                      </svg>
-                      <span
-                        class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide"
-                        >Knowledge</span
-                      >
-                      <span
-                        class="text-[10px] text-tokyo-muted/60 ml-auto"
-                        x-text="notebookCategoryFiles.knowledge.length"
-                      ></span>
-                    </button>
-                    <div
-                      x-show="expanded"
-                      x-collapse
-                      class="pl-3 mt-1 space-y-1"
-                    >
-                      <template
-                        x-for="file in notebookCategoryFiles.knowledge"
-                        :key="file.path"
-                      >
-                        <button
-                          @click="$store.mobile.openPopoverWithFocus('notebook-file', { path: file.path, name: file.name })"
-                          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-purple/10 transition-colors"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke-width="1.5"
-                            stroke="currentColor"
-                            class="w-4 h-4 text-tokyo-muted"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"
-                            />
-                          </svg>
-                          <span
-                            class="text-sm truncate"
-                            x-text="file.name.replace('.md', '')"
-                          ></span>
-                        </button>
-                      </template>
-                      <template
-                        x-if="notebookCategoryFiles.knowledge.length === 0"
-                      >
-                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">
-                          No knowledge entries
-                        </p>
+                      <template x-if="notebookCategoryFiles.orders.length === 0">
+                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">No files</p>
                       </template>
                     </div>
                   </div>
 
-                  <!-- Skills (M6.8-S6) -->
-                  <div x-data="{ expanded: true }">
-                    <button
-                      @click="expanded = !expanded"
-                      class="w-full flex items-center gap-2 px-3 py-2 rounded-lg glass-strong"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke-width="1.5"
-                        stroke="currentColor"
-                        class="w-4 h-4 text-tokyo-muted transition-transform"
-                        :class="expanded ? 'rotate-90' : ''"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="m8.25 4.5 7.5 7.5-7.5 7.5"
-                        />
+                  <!-- Lists & Reference -->
+                  <div style="background:rgba(30,30,46,0.8);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;">
+                    <button @click="expanded = expanded === 'lists' ? null : 'lists'"
+                      class="w-full flex items-center gap-3 p-3 text-left">
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                           style="background:rgba(187,154,247,0.15);">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#bb9af7" class="w-5 h-5"><path d="M7 3a1 1 0 0 0 0 2h6a1 1 0 1 0 0-2H7ZM4 7a1 1 0 0 1 1-1h10a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1ZM2 11a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-4Z"/></svg>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="text-[13px] font-semibold text-tokyo-text">Lists &amp; Reference</div>
+                        <div class="text-[10px] text-tokyo-muted">Contacts, todos, preferences</div>
+                      </div>
+                      <span class="text-[10px] px-2 py-0.5 rounded-full shrink-0"
+                            style="background:rgba(187,154,247,0.1);color:#bb9af7;"
+                            x-text="notebookCategoryFiles.lists.length"></span>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                           class="w-4 h-4 text-tokyo-muted transition-transform" :class="expanded === 'lists' ? 'rotate-90' : ''">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
                       </svg>
-                      <span
-                        class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide"
-                        >Skills</span
-                      >
-                      <span
-                        class="text-[10px] text-tokyo-muted/60 ml-auto"
-                        x-text="skillsList.length"
-                      ></span>
                     </button>
-                    <div
-                      x-show="expanded"
-                      x-collapse
-                      class="pl-3 mt-1 space-y-1"
-                    >
+                    <div x-show="expanded === 'lists'" x-collapse
+                         class="border-t border-white/5 px-2 pb-2">
+                      <template x-for="file in notebookCategoryFiles.lists" :key="file.path">
+                        <button @click="$store.mobile.openPopoverWithFocus('notebook-file', { path: file.path, name: file.name })"
+                                class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(187,154,247,0.08)] transition-colors text-left mt-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#bb9af7" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+                          </svg>
+                          <span class="text-[13px] text-tokyo-text truncate" x-text="file.name.replace('.md', '')"></span>
+                        </button>
+                      </template>
+                      <template x-if="notebookCategoryFiles.lists.length === 0">
+                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">No files</p>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Daily -->
+                  <div style="background:rgba(30,30,46,0.8);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;">
+                    <button @click="expanded = expanded === 'daily' ? null : 'daily'"
+                      class="w-full flex items-center gap-3 p-3 text-left">
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                           style="background:rgba(158,206,106,0.15);">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#9ece6a" class="w-5 h-5"><path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Z" clip-rule="evenodd"/></svg>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="text-[13px] font-semibold text-tokyo-text">Daily</div>
+                        <div class="text-[10px] text-tokyo-muted">Daily logs &amp; summaries</div>
+                      </div>
+                      <span class="text-[10px] px-2 py-0.5 rounded-full shrink-0"
+                            style="background:rgba(158,206,106,0.1);color:#9ece6a;"
+                            x-text="notebookCategoryFiles.daily.length"></span>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                           class="w-4 h-4 text-tokyo-muted transition-transform" :class="expanded === 'daily' ? 'rotate-90' : ''">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
+                      </svg>
+                    </button>
+                    <div x-show="expanded === 'daily'" x-collapse
+                         class="border-t border-white/5 px-2 pb-2">
+                      <template x-for="file in notebookCategoryFiles.daily" :key="file.path">
+                        <button @click="$store.mobile.openPopoverWithFocus('notebook-file', { path: file.path, name: file.name })"
+                                class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(158,206,106,0.08)] transition-colors text-left mt-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#9ece6a" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+                          </svg>
+                          <span class="text-[13px] text-tokyo-text truncate" x-text="file.name.replace('.md', '')"></span>
+                        </button>
+                      </template>
+                      <template x-if="notebookCategoryFiles.daily.length === 0">
+                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">No files</p>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Knowledge -->
+                  <div style="background:rgba(30,30,46,0.8);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;">
+                    <button @click="expanded = expanded === 'knowledge' ? null : 'knowledge'"
+                      class="w-full flex items-center gap-3 p-3 text-left">
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                           style="background:rgba(224,122,95,0.15);">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#e07a5f" class="w-5 h-5"><path d="M10 1a6 6 0 0 0-3.815 10.631C7.237 12.5 8 13.443 8 14.456v.644a.75.75 0 0 0 .572.729 6.016 6.016 0 0 0 2.856 0A.75.75 0 0 0 12 15.1v-.644c0-1.013.762-1.957 1.815-2.825A6 6 0 0 0 10 1ZM8.863 17.414a.75.75 0 0 0-.226 1.483 9.066 9.066 0 0 0 2.726 0 .75.75 0 0 0-.226-1.483 7.553 7.553 0 0 1-2.274 0Z"/></svg>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="text-[13px] font-semibold text-tokyo-text">Knowledge</div>
+                        <div class="text-[10px] text-tokyo-muted">Learned facts &amp; context</div>
+                      </div>
+                      <span class="text-[10px] px-2 py-0.5 rounded-full shrink-0"
+                            style="background:rgba(224,122,95,0.1);color:#e07a5f;"
+                            x-text="notebookCategoryFiles.knowledge.length"></span>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                           class="w-4 h-4 text-tokyo-muted transition-transform" :class="expanded === 'knowledge' ? 'rotate-90' : ''">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
+                      </svg>
+                    </button>
+                    <div x-show="expanded === 'knowledge'" x-collapse
+                         class="border-t border-white/5 px-2 pb-2">
+                      <template x-for="file in notebookCategoryFiles.knowledge" :key="file.path">
+                        <button @click="$store.mobile.openPopoverWithFocus('notebook-file', { path: file.path, name: file.name })"
+                                class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(224,122,95,0.08)] transition-colors text-left mt-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#e07a5f" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+                          </svg>
+                          <span class="text-[13px] text-tokyo-text truncate" x-text="file.name.replace('.md', '')"></span>
+                        </button>
+                      </template>
+                      <template x-if="notebookCategoryFiles.knowledge.length === 0">
+                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">No files</p>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Skills -->
+                  <div style="background:rgba(30,30,46,0.8);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;">
+                    <button @click="expanded = expanded === 'skills' ? null : 'skills'"
+                      class="w-full flex items-center gap-3 p-3 text-left">
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                           style="background:rgba(255,158,100,0.15);">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#ff9e64" class="w-5 h-5"><path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"/></svg>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="text-[13px] font-semibold text-tokyo-text">Skills</div>
+                        <div class="text-[10px] text-tokyo-muted">Capabilities &amp; actions</div>
+                      </div>
+                      <span class="text-[10px] px-2 py-0.5 rounded-full shrink-0"
+                            style="background:rgba(255,158,100,0.1);color:#ff9e64;"
+                            x-text="skillsList.length"></span>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+                           class="w-4 h-4 text-tokyo-muted transition-transform" :class="expanded === 'skills' ? 'rotate-90' : ''">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
+                      </svg>
+                    </button>
+                    <div x-show="expanded === 'skills'" x-collapse
+                         class="border-t border-white/5 px-2 pb-2">
                       <!-- User skills -->
                       <template x-if="userSkills.length > 0">
                         <div>
-                          <div
-                            class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1"
-                          >
-                            Your skills
-                          </div>
-                          <template
-                            x-for="skill in userSkills"
-                            :key="skill.name"
-                          >
-                            <button
-                              @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
-                              class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-purple/10 transition-colors text-left"
-                              :class="skill.disabled ? 'opacity-50' : ''"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke-width="1.5"
-                                stroke="currentColor"
-                                class="w-4 h-4 text-tokyo-purple"
-                              >
-                                <path
-                                  stroke-linecap="round"
-                                  stroke-linejoin="round"
-                                  d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
-                                />
+                          <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1 mt-1">Your skills</div>
+                          <template x-for="skill in userSkills" :key="skill.name">
+                            <button @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
+                                    class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(255,158,100,0.08)] transition-colors text-left mt-1"
+                                    :class="skill.disabled ? 'opacity-50' : ''">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#ff9e64" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"/>
                               </svg>
-                              <span
-                                class="text-sm truncate flex-1"
-                                x-text="skill.name"
-                              ></span>
-                              <span
-                                x-show="skill.disabled"
-                                class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400"
-                                >off</span
-                              >
-                              <span
-                                class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400"
-                                >user</span
-                              >
+                              <span class="text-[13px] text-tokyo-text truncate flex-1" x-text="skill.name"></span>
+                              <span x-show="skill.disabled"
+                                    class="text-[9px] px-1 py-px rounded bg-red-500/15 text-red-400">off</span>
+                              <span class="text-[9px] px-1 py-px rounded bg-purple-500/15 text-purple-400">user</span>
                             </button>
                           </template>
                         </div>
@@ -7749,54 +7575,25 @@
                       <!-- System/curated skills -->
                       <template x-if="systemSkills.length > 0">
                         <div>
-                          <div
-                            class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1"
-                            x-text="userSkills.length > 0 ? 'System' : ''"
-                          ></div>
-                          <template
-                            x-for="skill in systemSkills"
-                            :key="skill.name"
-                          >
-                            <button
-                              @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
-                              class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-tokyo-purple/10 transition-colors text-left"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke-width="1.5"
-                                stroke="currentColor"
-                                class="w-4 h-4 text-tokyo-purple"
-                              >
-                                <path
-                                  stroke-linecap="round"
-                                  stroke-linejoin="round"
-                                  d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"
-                                />
+                          <div class="text-[9px] uppercase tracking-wider text-tokyo-muted/50 px-3 py-1 mt-1"
+                               x-text="userSkills.length > 0 ? 'System' : ''"></div>
+                          <template x-for="skill in systemSkills" :key="skill.name">
+                            <button @click="$store.mobile.openPopoverWithFocus('skill-detail', { name: skill.name })"
+                                    class="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[rgba(255,158,100,0.08)] transition-colors text-left mt-1">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#ff9e64" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z"/>
                               </svg>
-                              <span
-                                class="text-sm truncate flex-1"
-                                x-text="skill.name"
-                              ></span>
-                              <span
-                                x-show="skill.audience === 'worker'"
-                                class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400"
-                                >worker</span
-                              >
-                              <span
-                                x-show="skill.audience === 'conversation'"
-                                class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400"
-                                >conversation</span
-                              >
+                              <span class="text-[13px] text-tokyo-text truncate flex-1" x-text="skill.name"></span>
+                              <span x-show="skill.audience === 'worker'"
+                                    class="text-[9px] px-1 py-px rounded bg-cyan-500/15 text-cyan-400">worker</span>
+                              <span x-show="skill.audience === 'conversation'"
+                                    class="text-[9px] px-1 py-px rounded bg-green-500/15 text-green-400">conversation</span>
                             </button>
                           </template>
                         </div>
                       </template>
                       <template x-if="skillsList.length === 0">
-                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">
-                          No skills yet
-                        </p>
+                        <p class="text-xs text-tokyo-muted/50 px-3 py-2 italic">No skills yet</p>
                       </template>
                     </div>
                   </div>
@@ -7902,84 +7699,279 @@
           </template>
 
 
-          <!-- Conversation preview popover -->
-          <template x-if="$store.mobile.popover?.type === 'conversation'">
-            <div class="space-y-0" x-data="{}">
-              <!-- Header: title + resume + close -->
-              <div class="flex items-start justify-between gap-3 mb-4">
-                <div class="flex-1 min-w-0">
-                  <h2
-                    class="text-base font-semibold text-tokyo-text truncate"
-                    x-text="$store.mobile.popover?.data?.title || 'Conversation'"
-                  ></h2>
-                  <span
-                    class="text-xs text-tokyo-muted"
-                    x-text="($store.mobile.popover?.data?.turns?.length || 0) + ' messages'"
-                  ></span>
-                </div>
-                <div class="flex items-center gap-2 shrink-0">
-                  <button
-                    @click="resumeConversation($store.mobile.popover?.data?.conversationId); $store.mobile.closePopoverWithFocus()"
-                    class="px-4 py-2 text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90 transition-opacity min-h-[36px]"
-                  >
-                    Resume
-                  </button>
-                  <button
-                    @click="$store.mobile.closePopoverWithFocus()"
-                    class="w-8 h-8 flex items-center justify-center text-tokyo-muted hover:text-tokyo-text"
-                  >
-                    &times;
-                  </button>
-                </div>
+          <!-- Conversations browser popover (mobile) -->
+          <template x-if="$store.mobile.popover?.type === 'conversations-browser'">
+            <div class="space-y-1" x-data="{ groups: groupConversationsByDate(conversations) }"
+                 x-effect="groups = groupConversationsByDate(conversations)">
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-base font-semibold text-tokyo-text">Conversations</h2>
+                <button
+                  @click="$store.mobile.closePopoverWithFocus(); $nextTick(() => { createNewConversation(); $store.mobile.expandChat('full') })"
+                  class="text-xs text-tokyo-blue px-2.5 py-1.5 rounded-lg bg-tokyo-blue/10 hover:bg-tokyo-blue/15 transition-colors font-medium"
+                >+ New chat</button>
               </div>
-              <!-- Loading state -->
-              <div
-                x-show="$store.mobile.popover?.data?.loading"
-                class="text-center py-8 text-tokyo-muted text-sm"
-              >
-                Loading...
-              </div>
-              <!-- Transcript -->
-              <div
-                x-show="!$store.mobile.popover?.data?.loading"
-                class="space-y-3"
-              >
-                <template
-                  x-for="turn in ($store.mobile.popover?.data?.turns || [])"
-                  :key="turn.timestamp || turn.id"
-                >
-                  <div
-                    :class="turn.role === 'user' ? 'flex justify-end' : 'flex justify-start'"
-                  >
-                    <div
-                      class="max-w-[85%] rounded-2xl px-3 py-2 text-sm"
-                      :class="turn.role === 'user' ? 'user-bubble' : 'assistant-bubble'"
+
+              <!-- Today group -->
+              <template x-if="groups.today.length > 0">
+                <div>
+                  <div class="text-[10px] text-tokyo-muted uppercase tracking-wider font-semibold px-1 mb-1.5 mt-2">Today</div>
+                  <template x-for="conv in groups.today" :key="conv.id">
+                    <button
+                      @click="$store.mobile.closePopoverWithFocus(); $nextTick(() => openConversationPreview(conv))"
+                      class="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 active:bg-white/8 transition-colors text-left"
                     >
-                      <div
-                        class="chat-md"
-                        x-html="renderMarkdown(turn.content || turn.text || '')"
-                      ></div>
-                      <div class="flex items-center justify-end gap-1.5 mt-1">
-                        <template x-if="turn.channel && turn.channel !== 'web'">
-                          <span
-                            class="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-tokyo-muted"
-                          >
-                            <span
-                              class="w-2.5 h-2.5"
-                              x-html="getChannelBadgeIcon(turn.channel)"
-                            ></span>
-                            <span x-text="turn.channel"></span>
-                          </span>
-                        </template>
-                        <span
-                          class="text-tokyo-muted"
-                          style="font-size: 11px"
-                          x-text="turn.timestamp ? new Date(turn.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : ''"
-                        ></span>
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                          <span class="text-[13px] font-medium text-tokyo-text truncate flex-1" x-text="conv.title || 'New conversation'"></span>
+                          <span class="text-[10px] text-tokyo-muted shrink-0" x-text="conv.updated ? formatRelativeTime(conv.updated) : ''"></span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-0.5">
+                          <span class="text-[11px] text-tokyo-muted truncate flex-1" x-text="conv.preview || ''"></span>
+                          <span class="text-[10px] text-tokyo-muted/50 shrink-0" x-text="(conv.turnCount || 0) + ' msgs'"></span>
+                        </div>
+                      </div>
+                    </button>
+                  </template>
+                </div>
+              </template>
+
+              <!-- This week group -->
+              <template x-if="groups.thisWeek.length > 0">
+                <div>
+                  <div class="text-[10px] text-tokyo-muted uppercase tracking-wider font-semibold px-1 mb-1.5 mt-3">This week</div>
+                  <template x-for="conv in groups.thisWeek" :key="conv.id">
+                    <button
+                      @click="$store.mobile.closePopoverWithFocus(); $nextTick(() => openConversationPreview(conv))"
+                      class="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 active:bg-white/8 transition-colors text-left"
+                    >
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                          <span class="text-[13px] font-medium text-tokyo-text truncate flex-1" x-text="conv.title || 'New conversation'"></span>
+                          <span class="text-[10px] text-tokyo-muted shrink-0" x-text="conv.updated ? formatRelativeTime(conv.updated) : ''"></span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-0.5">
+                          <span class="text-[11px] text-tokyo-muted truncate flex-1" x-text="conv.preview || ''"></span>
+                          <span class="text-[10px] text-tokyo-muted/50 shrink-0" x-text="(conv.turnCount || 0) + ' msgs'"></span>
+                        </div>
+                      </div>
+                    </button>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Earlier group -->
+              <template x-if="groups.earlier.length > 0">
+                <div>
+                  <div class="text-[10px] text-tokyo-muted uppercase tracking-wider font-semibold px-1 mb-1.5 mt-3">Earlier</div>
+                  <template x-for="conv in groups.earlier" :key="conv.id">
+                    <button
+                      @click="$store.mobile.closePopoverWithFocus(); $nextTick(() => openConversationPreview(conv))"
+                      class="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 active:bg-white/8 transition-colors text-left"
+                    >
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                          <span class="text-[13px] font-medium text-tokyo-text truncate flex-1" x-text="conv.title || 'New conversation'"></span>
+                          <span class="text-[10px] text-tokyo-muted shrink-0" x-text="conv.updated ? formatRelativeTime(conv.updated) : ''"></span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-0.5">
+                          <span class="text-[11px] text-tokyo-muted truncate flex-1" x-text="conv.preview || ''"></span>
+                          <span class="text-[10px] text-tokyo-muted/50 shrink-0" x-text="(conv.turnCount || 0) + ' msgs'"></span>
+                        </div>
+                      </div>
+                    </button>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Empty state -->
+              <template x-if="groups.today.length === 0 && groups.thisWeek.length === 0 && groups.earlier.length === 0">
+                <div class="text-center text-tokyo-muted text-sm py-8">No conversations yet</div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Spaces browser popover (mobile) -->
+          <template x-if="$store.mobile.popover?.type === 'spaces-browser'">
+            <div class="space-y-3">
+              <h2 class="text-base font-semibold text-tokyo-text">Spaces</h2>
+              <template x-if="$store.spaces.items.length === 0">
+                <div class="text-center text-tokyo-muted text-sm py-8">
+                  No spaces yet
+                </div>
+              </template>
+              <template x-for="space in $store.spaces.items" :key="space.name">
+                <div
+                  class="w-full glass-strong rounded-lg px-4 py-3 flex items-center gap-3 text-left"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5 text-tokyo-blue shrink-0">
+                    <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.622 4H12.5A1.5 1.5 0 0 1 14 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9Z"/>
+                  </svg>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-tokyo-text truncate" x-text="space.name"></div>
+                    <div class="flex gap-1 mt-0.5 flex-wrap" x-show="space.tags?.length">
+                      <template x-for="tag in (space.tags || []).slice(0, 3)" :key="tag">
+                        <span class="text-[9px] px-1 py-px rounded bg-tokyo-blue/10 text-tokyo-blue/70" x-text="tag"></span>
+                      </template>
+                    </div>
+                  </div>
+                  <svg x-show="space.path" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3 text-tokyo-muted shrink-0">
+                    <path fill-rule="evenodd" d="M4.22 11.78a.75.75 0 0 1 0-1.06L9.44 5.5H5.75a.75.75 0 0 1 0-1.5h5.5a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V6.56l-5.22 5.22a.75.75 0 0 1-1.06 0Z" clip-rule="evenodd"/>
+                  </svg>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Automations browser popover (mobile) -->
+          <template x-if="$store.mobile.popover?.type === 'automations-browser'">
+            <div class="space-y-3" x-data="{ expanded: null }">
+              <h2 class="text-base font-semibold text-tokyo-text">Automations</h2>
+              <template x-if="$store.automations.items.length === 0">
+                <div class="text-center text-tokyo-muted text-sm py-8">No automations yet</div>
+              </template>
+              <div class="space-y-1.5">
+                <template x-for="automation in $store.automations.items" :key="automation.id">
+                  <div style="background:rgba(30,30,46,0.8);border-radius:12px;overflow:hidden;"
+                       :style="expanded === automation.id ? 'border:1px solid rgba(122,162,247,0.2)' : 'border:1px solid rgba(255,255,255,0.06)'">
+                    <!-- Header (always visible, tappable) -->
+                    <button
+                      @click="expanded = expanded === automation.id ? null : automation.id"
+                      class="w-full flex items-center gap-3 p-3 text-left"
+                    >
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                           style="background:rgba(158,206,106,0.15);">
+                        <span class="w-2.5 h-2.5 rounded-full"
+                              :class="automation.status === 'active' ? 'bg-green-400' : 'bg-gray-500'"></span>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="text-[13px] font-semibold text-tokyo-text truncate" x-text="automation.name"></div>
+                        <div class="flex gap-1 mt-0.5 flex-wrap">
+                          <template x-for="tt in automation.triggerTypes" :key="tt">
+                            <span class="text-[9px] px-1 py-px rounded font-medium"
+                                  :class="{
+                                    'bg-cyan-500/15 text-cyan-400': tt === 'schedule',
+                                    'bg-green-500/15 text-green-400': tt === 'channel',
+                                    'bg-amber-500/15 text-amber-400': tt === 'watch',
+                                    'bg-violet-500/15 text-violet-400': tt === 'manual'
+                                  }"
+                                  x-text="tt"></span>
+                          </template>
+                        </div>
+                      </div>
+                      <span class="text-[10px] text-tokyo-muted shrink-0" x-show="automation.jobCount > 0"
+                            x-text="automation.jobCount + ' jobs'"></span>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                           class="w-4 h-4 text-tokyo-muted transition-transform shrink-0"
+                           :class="expanded === automation.id ? 'rotate-90' : ''">
+                        <path fill-rule="evenodd" d="m8.25 4.5 7.5 7.5-7.5 7.5" clip-rule="evenodd"/>
+                      </svg>
+                    </button>
+
+                    <!-- Expanded detail panel -->
+                    <div x-show="expanded === automation.id" x-collapse
+                         class="border-t border-white/5 px-3 pb-3"
+                         style="background:rgba(0,0,0,0.15);">
+                      <!-- Stats row -->
+                      <div class="flex gap-2 mt-2 mb-2">
+                        <div class="flex-1 rounded-lg p-2" style="background:rgba(30,30,46,0.5);">
+                          <div class="text-[9px] text-tokyo-muted uppercase tracking-wide">Last run</div>
+                          <div class="text-[11px] text-tokyo-text mt-0.5"
+                               x-text="automation.lastFiredAt ? new Date(automation.lastFiredAt).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Never'"></div>
+                        </div>
+                        <div class="flex-1 rounded-lg p-2" style="background:rgba(30,30,46,0.5);">
+                          <div class="text-[9px] text-tokyo-muted uppercase tracking-wide">Status</div>
+                          <div class="text-[11px] mt-0.5"
+                               :class="automation.status === 'active' ? 'text-green-400' : 'text-tokyo-muted'"
+                               x-text="automation.status === 'active' ? 'Active' : 'Inactive'"></div>
+                        </div>
+                      </div>
+                      <!-- Action buttons -->
+                      <div class="flex gap-2 mt-2">
+                        <button
+                          @click.stop="$store.mobile.closePopoverWithFocus(); $nextTick(() => { $store.mobile.expandChat('full'); inputText = 'Fire the ' + automation.name + ' automation now'; })"
+                          class="flex-1 py-2 px-3 rounded-lg text-[11px] font-semibold text-white text-center"
+                          style="background:linear-gradient(135deg,#7c3aed,#ec4899);">
+                          Fire Now
+                        </button>
+                        <button
+                          @click.stop="$store.mobile.closePopoverWithFocus()"
+                          class="py-2 px-4 rounded-lg text-[11px] text-tokyo-muted text-center"
+                          style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);"
+                          x-text="(automation.jobCount || 0) + ' jobs'">
+                        </button>
                       </div>
                     </div>
                   </div>
                 </template>
+              </div>
+            </div>
+          </template>
+
+          <!-- Conversation preview popover -->
+          <template x-if="$store.mobile.popover?.type === 'conversation'">
+            <div class="flex flex-col h-full" x-data="{}">
+              <!-- Header: back + title + metadata -->
+              <div class="pb-3 border-b border-white/5">
+                <div class="flex items-center gap-2 mb-2">
+                  <button
+                    @click="$store.mobile.openPopoverWithFocus('conversations-browser')"
+                    class="w-8 h-8 flex items-center justify-center text-tokyo-blue hover:text-tokyo-text rounded-lg transition-colors shrink-0"
+                    aria-label="Back to conversations"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+                      <path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 0 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd"/>
+                    </svg>
+                  </button>
+                  <div class="flex-1 min-w-0">
+                    <h2 class="text-base font-semibold text-tokyo-text truncate"
+                        x-text="$store.mobile.popover?.data?.title || 'Conversation'"></h2>
+                    <div class="flex items-center gap-1.5 text-[10px] text-tokyo-muted">
+                      <span x-text="($store.mobile.popover?.data?.turns?.length || 0) + ' messages'"></span>
+                    </div>
+                  </div>
+                </div>
+                <!-- Resume button — full width, immediately visible -->
+                <button
+                  @click="resumeConversation($store.mobile.popover?.data?.conversationId); $store.mobile.closePopoverWithFocus()"
+                  class="w-full py-2.5 px-4 text-[13px] font-semibold text-white rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                    <path d="M2 10a8 8 0 1 1 16 0 8 8 0 0 1-16 0Zm6.39-2.908a.75.75 0 0 1 .766.027l3.5 2.25a.75.75 0 0 1 0 1.262l-3.5 2.25A.75.75 0 0 1 8 12.25v-4.5a.75.75 0 0 1 .39-.658Z"/>
+                  </svg>
+                  Resume conversation
+                </button>
+              </div>
+
+              <!-- Loading state -->
+              <div x-show="$store.mobile.popover?.data?.loading"
+                   class="flex-1 flex items-center justify-center text-tokyo-muted text-sm">
+                Loading...
+              </div>
+
+              <!-- Transcript preview -->
+              <div x-show="!$store.mobile.popover?.data?.loading" class="flex-1 overflow-y-auto mt-3">
+                <div class="text-[10px] text-tokyo-muted uppercase tracking-wider mb-2">Transcript preview</div>
+                <div class="space-y-3">
+                  <template x-for="turn in ($store.mobile.popover?.data?.turns || [])"
+                            :key="turn.timestamp || turn.id">
+                    <div :class="turn.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                      <div class="max-w-[85%] rounded-2xl px-3 py-2 text-sm"
+                           :class="turn.role === 'user' ? 'user-bubble rounded-br-sm' : 'assistant-bubble rounded-bl-sm'">
+                        <div class="chat-md" x-html="renderMarkdown(turn.content || turn.text || '')"></div>
+                        <div class="flex items-center justify-end gap-1.5 mt-1">
+                          <template x-if="turn.channel && turn.channel !== 'web'">
+                            <span class="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-tokyo-muted">
+                              <span class="w-2.5 h-2.5" x-html="getChannelBadgeIcon(turn.channel)"></span>
+                              <span x-text="turn.channel"></span>
+                            </span>
+                          </template>
+                          <span class="text-tokyo-muted" style="font-size: 11px"
+                                x-text="turn.timestamp ? new Date(turn.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : ''"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
           </template>
@@ -8118,7 +8110,12 @@
         x-init="$nextTick(() => { if (typeof initChatSheetGesture === 'function') initChatSheetGesture($el) })"
         x-effect="if ($store.mobile.isMobile && $store.mobile.chatState !== 'peek') { if (typeof announceMobile === 'function') announceMobile('Chat ' + ($store.mobile.chatState === 'full' ? 'fully expanded' : 'expanded')) } else if ($store.mobile.isMobile) { if (typeof announceMobile === 'function') announceMobile('Chat collapsed') }"
         class="mobile-chat-panel md:hidden"
-        :class="{ 'dragging': false, 'relative z-[10000]': needsAuth }"
+        :class="{
+          'dragging': false,
+          'relative z-[10000]': needsAuth,
+          'chat-bg-pattern': $store.mobile.chatState !== 'peek',
+          'chat-peek-elevated': $store.mobile.chatState === 'peek'
+        }"
         role="region"
         aria-label="Chat"
       >
@@ -8129,82 +8126,80 @@
           aria-hidden="true"
         ></div>
 
-        <!-- Peek state: snippet + mini compose -->
+        <!-- Peek state: full compose bar (matches expanded mode) -->
         <div
           x-show="$store.mobile.chatState === 'peek'"
           class="chat-peek-content"
-          @click="$store.mobile.expandChat('half')"
+          @click="$store.mobile.restoreChat()"
         >
-          <div class="chat-peek-snippet">
-            <!-- Agent avatar -->
-            <div
-              class="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-semibold text-white shrink-0"
-              style="background: linear-gradient(135deg, #a855f7, #ec4899)"
-              x-text="headerInitial"
-            ></div>
-            <!-- Conversation title + last message -->
-            <span
-              x-show="!isResponding"
-              class="truncate flex items-center gap-1.5"
-            >
-              <span
-                class="text-tokyo-text font-medium"
-                x-text="currentTitle || agentNickname"
-              ></span>
-              <span class="text-tokyo-muted/50">&middot;</span>
-              <span
-                class="text-tokyo-muted truncate"
-                x-text="getLastAssistantSnippet()"
-              ></span>
-            </span>
-            <span x-show="isResponding" class="flex items-center gap-1">
-              <span class="typing-dots"
-                ><span></span><span></span><span></span
-              ></span>
-              <span class="text-tokyo-muted text-xs">Typing...</span>
-            </span>
-          </div>
-          <div class="chat-peek-compose" @click.stop>
-            <!-- Expand hint chevron -->
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              class="w-3.5 h-3.5 text-tokyo-muted/40 shrink-0"
-              @click="$store.mobile.expandChat('half')"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M9.47 6.47a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 1 1-1.06 1.06L10 8.06l-3.72 3.72a.75.75 0 0 1-1.06-1.06l4.25-4.25Z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            <input
-              type="text"
-              class="chat-peek-input"
-              placeholder="Message..."
-              x-model="inputText"
-              :disabled="isCurrentConversationReadOnly"
-              @keydown.enter.prevent="sendMessage()"
-              @focus="$store.mobile.expandChat('half')"
-            />
-            <button
-              class="chat-peek-send"
-              :disabled="!inputText.trim() || isResponding"
-              @click.stop="sendMessage()"
-              aria-label="Send message"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                class="w-4 h-4"
-              >
-                <path
-                  d="M3.105 2.288a.75.75 0 0 0-.826.95l1.414 4.926A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.115A28.897 28.897 0 0 0 3.105 2.288Z"
-                />
-              </svg>
-            </button>
+          <div class="chat-compose-bar shrink-0 p-2">
+            <div class="compose-box">
+              <div class="px-3 py-2">
+                <textarea
+                  x-model="inputText"
+                  rows="1"
+                  :placeholder="isCurrentConversationReadOnly ? 'Read-only' : 'Message...'"
+                  :disabled="isCurrentConversationReadOnly"
+                  class="w-full bg-transparent text-sm text-tokyo-text placeholder-tokyo-muted resize-none outline-none leading-relaxed"
+                  style="max-height: 3rem"
+                  @keydown.enter="if (!$event.shiftKey && !isCurrentConversationReadOnly) { $event.preventDefault(); sendMessage(); }"
+                  @focus="$store.mobile.restoreChat()"
+                ></textarea>
+              </div>
+              <div class="action-bar flex items-center gap-2 px-2 py-1">
+                <div class="flex items-center gap-1 flex-1 min-w-0">
+                  <!-- Model selector -->
+                  <div class="relative shrink-0" x-data="{ modelOpen: false }">
+                    <button
+                      @click.stop="modelOpen = !modelOpen"
+                      @click.outside="modelOpen = false"
+                      class="model-badge"
+                    >
+                      <span class="model-name" x-text="modelDisplayName"></span>
+                      <svg viewBox="0 0 16 16" fill="currentColor" class="w-3 h-3 ml-0.5 opacity-50">
+                        <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/>
+                      </svg>
+                    </button>
+                    <div
+                      x-show="modelOpen"
+                      x-transition
+                      class="absolute bottom-full left-0 mb-1 w-40 rounded-lg bg-tokyo-panel border border-tokyo-muted/20 shadow-lg overflow-hidden z-50"
+                      x-cloak
+                    >
+                      <template x-for="model in modelOptions" :key="model.id">
+                        <button
+                          @click="onModelChange(model.id); modelOpen = false"
+                          class="w-full text-left px-3 py-2 text-xs transition-colors"
+                          :class="selectedModel === model.id ? 'bg-tokyo-blue/15 text-tokyo-blue' : 'text-tokyo-text hover:bg-tokyo-card/50'"
+                          x-text="model.name"
+                        ></button>
+                      </template>
+                    </div>
+                  </div>
+                  <!-- Reasoning toggle -->
+                  <label
+                    class="reasoning-toggle shrink-0"
+                    :class="{ 'active': reasoningEnabled, 'disabled': isHaikuModel }"
+                  >
+                    <input type="checkbox" x-model="reasoningEnabled" :disabled="isHaikuModel" class="sr-only"/>
+                    <svg viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5">
+                      <path d="M8 0a.75.75 0 0 1 .7.48l1.17 3.15 3.15 1.17a.75.75 0 0 1 0 1.4l-3.15 1.17-1.17 3.15a.75.75 0 0 1-1.4 0L6.13 7.37 2.98 6.2a.75.75 0 0 1 0-1.4l3.15-1.17L7.3.48A.75.75 0 0 1 8 0Zm4.5 9a.5.5 0 0 1 .47.33l.5 1.35 1.35.5a.5.5 0 0 1 0 .94l-1.35.5-.5 1.35a.5.5 0 0 1-.94 0l-.5-1.35-1.35-.5a.5.5 0 0 1 0-.94l1.35-.5.5-1.35A.5.5 0 0 1 12.5 9Z"/>
+                    </svg>
+                  </label>
+                </div>
+                <!-- Send button -->
+                <button
+                  class="send-btn"
+                  :disabled="(!inputText.trim() && attachments.length === 0) || isResponding"
+                  @click.stop="sendMessage()"
+                  aria-label="Send"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                    <path d="M3.105 2.288a.75.75 0 0 0-.826.95l1.414 4.926A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.115A28.897 28.897 0 0 0 3.105 2.288Z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -8357,7 +8352,7 @@
                         class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-tokyo-purple/10 text-tokyo-purple text-[10px] max-w-[120px] shrink-0"
                       >
                         <span
-                          x-text="chatContext?.icon"
+                          x-html="chatContext?.icon"
                           class="text-[10px]"
                         ></span>
                         <span
@@ -8481,6 +8476,7 @@
     <script src="js/chat-controls.js?v=__BUILD_VERSION__"></script>
     <script src="js/calendar.js?v=__BUILD_VERSION__"></script>
     <script src="js/components.js?v=__BUILD_VERSION__"></script>
+    <script src="js/icons.js?v=__BUILD_VERSION__"></script>
     <script src="js/app.js?v=__BUILD_VERSION__"></script>
   </body>
 </html>
