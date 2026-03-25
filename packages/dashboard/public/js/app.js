@@ -4928,6 +4928,20 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       }
     },
 
+    // ─── Timeline Navigation ──────────────────────────────────────────
+
+    openTimelineItem(item) {
+      if (item.itemType === 'event') {
+        // Calendar events — open calendar tab with event selected
+        this.switchTab('calendar');
+        return;
+      }
+      // Jobs and projected items — open parent automation detail
+      if (item.automationId) {
+        this.openAutomationDetail(item.automationId);
+      }
+    },
+
     // ─── Automations ───────────────────────────────────────────────────
 
     openAutomationDetail(id) {
