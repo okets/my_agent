@@ -138,9 +138,6 @@ function chat() {
     todayEvents: [], // Events for today (mini calendar list)
     upcomingEvents: [], // Events for next 7 days (timeline)
 
-    // Automation system events
-    showSystemEvents: true, // Toggle automation events visibility
-
     // Event modal
     eventModalOpen: false,
     editingEvent: null, // Event being edited (null = creating new)
@@ -3516,7 +3513,6 @@ function chat() {
 
       this.calendar = CalendarModule.initCalendar(el, {
         visibleCalendars,
-        showSystemEvents: this.showSystemEvents,
         onEventClick: (event, el) => {
           this.openEventTab(event);
         },
@@ -3757,11 +3753,9 @@ function chat() {
       });
 
       // Re-add timeline source if visible
-      if (this.showSystemEvents) {
-        this.calendar.addEventSource({
-          events: fetchTimelineEvents,
-        });
-      }
+      this.calendar.addEventSource({
+        events: fetchTimelineEvents,
+      });
     },
 
 

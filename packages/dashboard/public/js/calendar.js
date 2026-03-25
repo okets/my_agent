@@ -88,7 +88,6 @@ function initCalendar(el, options = {}) {
     onEventResize,
     onDatesSet,
     visibleCalendars = [],
-    showSystemEvents = true,
   } = options;
 
   const calendar = new FullCalendar.Calendar(el, {
@@ -154,19 +153,15 @@ function initCalendar(el, options = {}) {
           console.error("[Calendar] Failed to fetch events:", err);
         },
       },
-      ...(showSystemEvents
-        ? [
-            {
-              events: fetchTimelineEvents,
-              failure: (err) => {
-                console.error(
-                  "[Calendar] Failed to fetch timeline events:",
-                  err,
-                );
-              },
-            },
-          ]
-        : []),
+      {
+        events: fetchTimelineEvents,
+        failure: (err) => {
+          console.error(
+            "[Calendar] Failed to fetch timeline events:",
+            err,
+          );
+        },
+      },
     ],
 
     // Event handlers
