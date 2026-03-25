@@ -4864,6 +4864,10 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       this.openTabs = [...this.openTabs];
     },
 
+    runToolSpace(spaceName) {
+      this.sendMessage(`Run ${spaceName}`);
+    },
+
     async updateSpaceField(name, field, value) {
       try {
         const resp = await fetch(
