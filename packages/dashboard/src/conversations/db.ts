@@ -236,6 +236,9 @@ export class ConversationDatabase {
       ON automations(status);
     `);
 
+    // M7-S6: Drop legacy work_loop_runs table (replaced by automation jobs)
+    this.db.exec("DROP TABLE IF EXISTS work_loop_runs");
+
     // M7-S3: Jobs table (derived from JSONL files, for timeline queries)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS jobs (

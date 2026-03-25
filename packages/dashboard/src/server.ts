@@ -18,9 +18,7 @@ import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerNotebookRoutes } from "./routes/notebook.js";
 import { registerMemoryRoutes } from "./routes/memory.js";
 import { registerConversationSearchRoutes } from "./routes/conversation-search.js";
-import { registerWorkLoopRoutes } from "./routes/work-loop.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
-import { registerWorkPatternsSettingsRoutes } from "./routes/work-patterns-settings.js";
 import { registerSkillRoutes } from "./routes/skills.js";
 import { registerSpaceRoutes } from "./routes/spaces.js";
 import { registerAutomationRoutes } from "./routes/automations.js";
@@ -40,7 +38,6 @@ import type {
 } from "@my-agent/core";
 import type { StatePublisher } from "./state/state-publisher.js";
 import type { ConversationSearchService } from "./conversations/search-service.js";
-import type { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
 
 export interface ServerOptions {
   agentDir: string;
@@ -67,7 +64,6 @@ declare module "fastify" {
     searchService: SearchService | null;
     pluginRegistry: PluginRegistry | null;
     conversationSearchService: ConversationSearchService | null;
-    workLoopScheduler: WorkLoopScheduler | null;
     conversationInitiator: {
       alert(prompt: string): Promise<boolean>;
       initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
@@ -164,7 +160,6 @@ export async function createServer(
   fastify.decorate("searchService", null);
   fastify.decorate("pluginRegistry", null);
   fastify.decorate("conversationSearchService", null);
-  fastify.decorate("workLoopScheduler", null);
   fastify.decorate("conversationInitiator", null);
   fastify.decorate("postResponseHooks", null);
   fastify.decorate("skillService", new SkillService(agentDir));
@@ -256,14 +251,8 @@ export async function createServer(
     { prefix: "/api/conversations" },
   );
 
-  // Register work loop routes (M6.6-S2)
-  await registerWorkLoopRoutes(fastify);
-
   // Register settings routes (M6.9-S2)
   await registerSettingsRoutes(fastify);
-
-  // Register work patterns settings routes (M6.9-S2, spec §3.2)
-  await registerWorkPatternsSettingsRoutes(fastify);
 
   // Legacy notebook API - read runtime files (backward compatibility)
   // TODO: Remove after migration to notebook/ is complete

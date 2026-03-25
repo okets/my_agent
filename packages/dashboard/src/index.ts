@@ -53,7 +53,6 @@ async function main() {
   server.searchService = app.searchService;
   server.pluginRegistry = app.pluginRegistry;
   server.conversationSearchService = app.conversationSearchService;
-  server.workLoopScheduler = app.workLoopScheduler;
   server.conversationInitiator = app.conversationInitiator;
   server.postResponseHooks = app.postResponseHooks;
 
