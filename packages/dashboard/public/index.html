@@ -7850,7 +7850,7 @@
                 </template>
                 <div class="space-y-1.5">
                   <template x-for="automation in $store.automations.items" :key="automation.id">
-                    <button @click="selected = automation"
+                    <button @click="selected = automation; chatContext = { type: 'automation', title: automation.name, icon: ICONS.fire, automationId: automation.id, automationName: automation.name }"
                             class="w-full flex items-center gap-3 p-3 rounded-xl text-left"
                             style="background:rgba(30,30,46,0.8);border:1px solid rgba(255,255,255,0.06);">
                       <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
@@ -7888,7 +7888,7 @@
               <div x-show="selected" class="flex flex-col gap-3">
                 <!-- Header with back -->
                 <div class="flex items-center gap-2">
-                  <button @click="selected = null; jobs = []; expandedJob = null"
+                  <button @click="selected = null; jobs = []; expandedJob = null; chatContext = { type: 'automations', title: 'Automations', icon: ICONS.fire }"
                           class="w-8 h-8 flex items-center justify-center text-tokyo-blue hover:text-tokyo-text rounded-lg transition-colors shrink-0">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
                       <path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 0 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd"/>

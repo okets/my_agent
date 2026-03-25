@@ -570,6 +570,80 @@ function chat() {
         }
       });
 
+      // Sync mobile popover state to chatContext
+      Alpine.effect(() => {
+        const mobile = Alpine.store("mobile");
+        if (!mobile?.isMobile) return;
+        const popover = mobile.popover;
+        if (!popover) {
+          // Popover closed — clear context
+          self.chatContext = null;
+          return;
+        }
+        // Map popover types to chat context
+        const type = popover.type;
+        if (type === "automations-browser") {
+          // If an automation is auto-selected via data, use it
+          const autoId = popover.data?.autoSelectId;
+          const automation = autoId
+            ? Alpine.store("automations").items.find((a) => a.id === autoId)
+            : null;
+          self.chatContext = automation
+            ? {
+                type: "automation",
+                title: automation.name,
+                icon: ICONS.fire,
+                automationId: automation.id,
+                automationName: automation.name,
+              }
+            : { type: "automations", title: "Automations", icon: ICONS.fire };
+        } else if (type === "notebook-file") {
+          self.chatContext = {
+            type: "notebook",
+            title: popover.data?.name || "Notebook",
+            icon: ICONS.notebook,
+            file: popover.data?.path,
+          };
+        } else if (type === "notebook-browser") {
+          self.chatContext = {
+            type: "notebook",
+            title: "Notebook",
+            icon: ICONS.notebook,
+          };
+        } else if (type === "conversation") {
+          self.chatContext = {
+            type: "conversation",
+            title: popover.data?.title || "Conversation",
+            icon: ICONS.chat,
+            conversationId: popover.data?.conversationId,
+          };
+        } else if (type === "conversations-browser") {
+          self.chatContext = {
+            type: "conversations",
+            title: "Conversations",
+            icon: ICONS.chat,
+          };
+        } else if (type === "spaces-browser") {
+          self.chatContext = {
+            type: "spaces",
+            title: "Spaces",
+            icon: ICONS.folder,
+          };
+        } else if (type === "calendar" || type === "event") {
+          self.chatContext = {
+            type: "calendar",
+            title: "Calendar",
+            icon: ICONS.calendar,
+          };
+        } else if (type === "skill-detail") {
+          self.chatContext = {
+            type: "skill",
+            title: popover.data?.name || "Skill",
+            icon: ICONS.sparkle,
+          };
+        }
+      });
+
       // Load memory data (M6-S3)
       this.loadNotebookTree();
       this.loadSkills();
