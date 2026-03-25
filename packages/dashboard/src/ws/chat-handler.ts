@@ -288,7 +288,7 @@ export async function registerChatWebSocket(
       reasoning?: boolean,
       model?: string,
       attachments?: Array<{ filename: string; base64Data: string; mimeType: string }>,
-      context?: { type: string; title: string; file?: string; taskId?: string; automationId?: string; automationName?: string } | null,
+      context?: { type: string; title: string; file?: string; taskId?: string; automationId?: string; automationName?: string; spaceName?: string; conversationId?: string } | null,
     ): Promise<void> {
       const textContent = content.trim().toLowerCase();
 

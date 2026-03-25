@@ -168,9 +168,9 @@ export class SessionManager {
   private activeQuery: Query | null = null;
   private messageIndex = 0;
   private promptBuilder: SystemPromptBuilder | null = null;
-  private activeTaskContext: { taskId: string; title: string } | null = null;
-  private activeAutomationContext: {
-    automationId: string;
+  private activeViewContext: {
+    type: 'space' | 'automation' | 'conversation' | 'notebook' | 'calendar';
+    id: string;
     name: string;
   } | null = null;
   private agentDir: string | null = null;
@@ -186,14 +186,9 @@ export class SessionManager {
     this.channel = channel;
   }
 
-  /** Set task context for the next query (cleared after use) */
-  setTaskContext(taskId: string, title: string): void {
-    this.activeTaskContext = { taskId, title };
-  }
-
-  /** Set automation context for the next query (cleared after use) */
-  setAutomationContext(automationId: string, name: string): void {
-    this.activeAutomationContext = { automationId, name };
+  /** Set view context for the next query (cleared after use) */
+  setViewContext(type: string, id: string, name: string): void {
+    this.activeViewContext = { type: type as any, id, name };
   }
 
   /**
@@ -328,12 +323,10 @@ export class SessionManager {
       conversationId: this.conversationId,
       messageIndex: this.messageIndex,
       activeWorkingAgents,
-      activeTaskContext: this.activeTaskContext,
-      activeAutomationContext: this.activeAutomationContext,
+      activeViewContext: this.activeViewContext,
     };
     // Clear after use — only applies to this message
-    this.activeTaskContext = null;
-    this.activeAutomationContext = null;
+    this.activeViewContext = null;
 
     const systemPrompt = await this.promptBuilder!.build(buildContext);
 

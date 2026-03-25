@@ -29,9 +29,9 @@ export interface BuildContext {
   messageIndex: number;
   hasPendingEscalations?: boolean;
   activeWorkingAgents?: string[];
-  activeTaskContext?: { taskId: string; title: string } | null;
-  activeAutomationContext?: {
-    automationId: string;
+  activeViewContext?: {
+    type: 'space' | 'automation' | 'conversation' | 'notebook' | 'calendar';
+    id: string;
     name: string;
   } | null;
 }
@@ -124,17 +124,12 @@ export class SystemPromptBuilder {
       );
     }
 
-    // Task context: tell conversation Nina when the user is viewing a specific task
-    if (context.activeTaskContext) {
+    // View context: tell conversation Nina what the user is currently viewing
+    if (context.activeViewContext) {
+      const v = context.activeViewContext;
+      const typeLabel = v.type.charAt(0).toUpperCase() + v.type.slice(1);
       dynamicParts.push(
-        `[Active Task View]\nThe user is currently viewing task: "${context.activeTaskContext.title}" (${context.activeTaskContext.taskId})\nIf they ask about "this task" or request changes, use revise_task with this task ID.\n[End Active Task View]`,
-      );
-    }
-
-    // Automation context: tell conversation Nina when the user is viewing a specific automation
-    if (context.activeAutomationContext) {
-      dynamicParts.push(
-        `[Active Automation View]\nThe user is viewing automation: "${context.activeAutomationContext.name}" (${context.activeAutomationContext.automationId})\nIf they ask about "this automation" or want changes, use the automation tools.\n[End Active Automation View]`,
+        `[Active ${typeLabel} View]\nThe user is viewing ${v.type}: "${v.name}" (${v.id})\nIf they ask about "this ${v.type}" or want changes, use the relevant ${v.type} tools.\n[End Active ${typeLabel} View]`,
       );
     }
 
