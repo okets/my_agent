@@ -8,10 +8,17 @@
 import type { Automation, Job } from "@my-agent/core";
 import { resolveTimezone } from "../utils/timezone.js";
 import type { AutomationManager } from "./automation-manager.js";
-import type { AutomationExecutor, ExecutionResult } from "./automation-executor.js";
+import type {
+  AutomationExecutor,
+  ExecutionResult,
+} from "./automation-executor.js";
 import type { AutomationJobService } from "./automation-job-service.js";
 
-export type JobEventName = "job:created" | "job:completed" | "job:failed" | "job:needs_review";
+export type JobEventName =
+  | "job:created"
+  | "job:completed"
+  | "job:failed"
+  | "job:needs_review";
 
 export interface AutomationProcessorConfig {
   automationManager: AutomationManager;
@@ -66,10 +73,7 @@ export class AutomationProcessor {
     triggerContext?: Record<string, unknown>,
   ): Promise<void> {
     // 1. Create job
-    const job = this.config.jobService.createJob(
-      automation.id,
-      triggerContext,
-    );
+    const job = this.config.jobService.createJob(automation.id, triggerContext);
     this.config.onJobEvent?.("job:created", job);
 
     // 2. Execute

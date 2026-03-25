@@ -146,9 +146,7 @@ export class AppConversationService {
   get onConversationInactive() {
     return this.manager.onConversationInactive;
   }
-  set onConversationInactive(
-    cb: ((oldConvId: string) => void) | undefined,
-  ) {
+  set onConversationInactive(cb: ((oldConvId: string) => void) | undefined) {
     this.manager.onConversationInactive = cb;
   }
 }
@@ -253,10 +251,7 @@ export class AppAutomationService {
     return automation;
   }
 
-  async fire(
-    id: string,
-    context?: Record<string, unknown>,
-  ): Promise<void> {
+  async fire(id: string, context?: Record<string, unknown>): Promise<void> {
     const automation = this.manager.findById(id);
     if (!automation) throw new Error(`Automation ${id} not found`);
     await this.processor.fire(automation, context);
@@ -269,7 +264,8 @@ export class AppAutomationService {
       throw new Error(`Job ${jobId} is ${job.status}, not in needs_review`);
     }
     const automation = this.manager.findById(job.automationId);
-    if (!automation) throw new Error(`Automation ${job.automationId} not found`);
+    if (!automation)
+      throw new Error(`Automation ${job.automationId} not found`);
     await this.processor.resume(automation, job, userInput);
   }
 }
@@ -481,14 +477,14 @@ export class App extends EventEmitter {
         );
 
         app.transportManager.onMessage((transportId, messages) => {
-          app.channelMessageHandler!.handleMessages(transportId, messages).catch(
-            (err) => {
+          app
+            .channelMessageHandler!.handleMessages(transportId, messages)
+            .catch((err) => {
               console.error(
                 `[Transports] Error handling messages from ${transportId}:`,
                 err,
               );
-            },
-          );
+            });
         });
       }
 
@@ -536,7 +532,9 @@ export class App extends EventEmitter {
         fireAutomation: async (id, context) =>
           app.automations?.fire(id, context),
         getRecentJobsForAutomation: (id, withinMs) =>
-          app.conversationManager.getConversationDb().getRecentJobCount(id, withinMs),
+          app.conversationManager
+            .getConversationDb()
+            .getRecentJobCount(id, withinMs),
       });
     }
 
@@ -677,10 +675,7 @@ export class App extends EventEmitter {
         });
         app.pluginRegistry.register(ollamaPlugin);
 
-        if (
-          process.env.OLLAMA_HOST &&
-          embeddingsConfig.plugin === "ollama"
-        ) {
+        if (process.env.OLLAMA_HOST && embeddingsConfig.plugin === "ollama") {
           console.log(
             `Using embeddings config: plugin=${embeddingsConfig.plugin}, host=${embeddingsConfig.host}`,
           );
@@ -766,8 +761,7 @@ export class App extends EventEmitter {
                 );
               }
             } catch (err) {
-              const errMsg =
-                err instanceof Error ? err.message : String(err);
+              const errMsg = err instanceof Error ? err.message : String(err);
               app.pluginRegistry.setIntended(restorePluginId);
               app.pluginRegistry.setDegraded({
                 healthy: false,
@@ -871,7 +865,6 @@ export class App extends EventEmitter {
       await checkSkillsHealth(agentDir);
     }
 
-
     // ── SpaceSyncService + space-tools MCP (M7-S1) ──
     if (hatched) {
       try {
@@ -920,7 +913,9 @@ export class App extends EventEmitter {
       try {
         const migrated = migrateWorkPatternsToAutomations(agentDir);
         if (migrated > 0) {
-          console.log(`[Migration] Created ${migrated} automation manifest(s) from work-patterns`);
+          console.log(
+            `[Migration] Created ${migrated} automation manifest(s) from work-patterns`,
+          );
         }
       } catch (err) {
         console.warn(
@@ -1032,9 +1027,7 @@ export class App extends EventEmitter {
         app.watchTriggerService = watchTriggerService;
 
         // Re-sync watchers when automation manifests change
-        app.automationSyncService.on("sync", () =>
-          watchTriggerService.sync(),
-        );
+        app.automationSyncService.on("sync", () => watchTriggerService.sync());
 
         // Mount failure -> alert user
         watchTriggerService.on("mount_failure", async ({ path, attempts }) => {
@@ -1084,10 +1077,7 @@ export class App extends EventEmitter {
 
     // Connect memory + automation services to state publisher
     if (app.statePublisher) {
-      app.statePublisher.setMemoryServices(
-        app.memoryDb,
-        app.pluginRegistry,
-      );
+      app.statePublisher.setMemoryServices(app.memoryDb, app.pluginRegistry);
       app.statePublisher.setAutomationServices(
         app.automationManager,
         app.automationJobService,
@@ -1182,7 +1172,10 @@ export class App extends EventEmitter {
     }
 
     // ── Service namespaces (event-emitting wrappers) ──
-    app.conversations = new AppConversationService(app.conversationManager, app);
+    app.conversations = new AppConversationService(
+      app.conversationManager,
+      app,
+    );
     app.calendar = new AppCalendarService(app);
     app.memory = new AppMemoryService(app);
     app.spaces = new AppSpaceService(

@@ -30,7 +30,7 @@ export interface BuildContext {
   hasPendingEscalations?: boolean;
   activeWorkingAgents?: string[];
   activeViewContext?: {
-    type: 'space' | 'automation' | 'conversation' | 'notebook' | 'calendar';
+    type: "space" | "automation" | "conversation" | "notebook" | "calendar";
     id: string;
     name: string;
   } | null;

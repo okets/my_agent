@@ -14,10 +14,7 @@ export class AutomationSyncService extends EventEmitter {
   private fileWatcher: FileWatcher;
   private manager: AutomationManager;
 
-  constructor(config: {
-    automationsDir: string;
-    manager: AutomationManager;
-  }) {
+  constructor(config: { automationsDir: string; manager: AutomationManager }) {
     super();
     this.manager = config.manager;
     this.fileWatcher = new FileWatcher({

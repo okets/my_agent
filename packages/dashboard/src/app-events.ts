@@ -27,10 +27,7 @@ export interface AppEventMap {
   "memory:changed": [];
 
   // Channel events (forwarded from TransportManager)
-  "channel:status_changed": [
-    transportId: string,
-    status: TransportStatus,
-  ];
+  "channel:status_changed": [transportId: string, status: TransportStatus];
   "channel:qr_code": [transportId: string, qrDataUrl: string];
   "channel:pairing_code": [transportId: string, pairingCode: string];
   "channel:paired": [transportId: string];

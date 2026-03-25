@@ -21,10 +21,7 @@ export class AutomationJobService {
   /**
    * Create a new job. Appends to {automationId}.jsonl, inserts into agent.db, creates run dir.
    */
-  createJob(
-    automationId: string,
-    context?: Record<string, unknown>,
-  ): Job {
+  createJob(automationId: string, context?: Record<string, unknown>): Job {
     const id = `job-${randomUUID()}`;
     const now = new Date().toISOString();
     const runDir = this.createRunDir(automationId, id);
@@ -95,7 +92,9 @@ export class AutomationJobService {
     });
 
     if (!result) {
-      throw new Error(`Job ${jobId} not found in JSONL for automation ${automationId}`);
+      throw new Error(
+        `Job ${jobId} not found in JSONL for automation ${automationId}`,
+      );
     }
 
     const updatedJob: Job = result;
@@ -154,9 +153,9 @@ export class AutomationJobService {
    * Re-index all JSONL files into agent.db (for rebuild from disk).
    */
   async reindexAll(): Promise<number> {
-    const jsonlFiles = fs.readdirSync(this.automationsDir).filter(
-      (f) => f.endsWith(".jsonl"),
-    );
+    const jsonlFiles = fs
+      .readdirSync(this.automationsDir)
+      .filter((f) => f.endsWith(".jsonl"));
 
     let count = 0;
     for (const file of jsonlFiles) {
@@ -281,14 +280,22 @@ export class AutomationJobService {
       }
     }
     data[jobId] = sessionId;
-    fs.writeFileSync(sidecarPath, JSON.stringify(data, null, 2) + "\n", "utf-8");
+    fs.writeFileSync(
+      sidecarPath,
+      JSON.stringify(data, null, 2) + "\n",
+      "utf-8",
+    );
   }
 
   /**
    * Read SDK session ID from sidecar file.
    */
   getSessionId(automationId: string, jobId: string): string | null {
-    const sidecarPath = path.join(this.automationsDir, ".sessions", `${automationId}.json`);
+    const sidecarPath = path.join(
+      this.automationsDir,
+      ".sessions",
+      `${automationId}.json`,
+    );
     if (!fs.existsSync(sidecarPath)) return null;
     try {
       const data = JSON.parse(fs.readFileSync(sidecarPath, "utf-8"));
@@ -302,12 +309,7 @@ export class AutomationJobService {
    * Create ephemeral run directory.
    */
   private createRunDir(automationId: string, jobId: string): string {
-    const runDir = path.join(
-      this.automationsDir,
-      ".runs",
-      automationId,
-      jobId,
-    );
+    const runDir = path.join(this.automationsDir, ".runs", automationId, jobId);
     fs.mkdirSync(runDir, { recursive: true });
 
     const automationName = automationId; // Will be enriched by caller if needed

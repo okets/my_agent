@@ -27,15 +27,7 @@ import { buildWorkingNinaPrompt } from "./working-nina-prompt.js";
 import { extractDeliverable } from "./deliverable-utils.js";
 
 /** Working Nina's allowed tools */
-const WORKER_TOOLS = [
-  "Bash",
-  "Read",
-  "Write",
-  "Edit",
-  "Glob",
-  "Grep",
-  "Skill",
-];
+const WORKER_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill"];
 
 export interface AutomationExecutorConfig {
   automationManager: AutomationManager;
@@ -98,13 +90,19 @@ export class AutomationExecutor {
 
         return result;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         this.config.jobService.updateJob(job.id, {
           status: "failed",
           completed: new Date().toISOString(),
           summary: `Error: ${errorMessage}`,
         });
-        return { success: false, work: "", deliverable: null, error: errorMessage };
+        return {
+          success: false,
+          work: "",
+          deliverable: null,
+          error: errorMessage,
+        };
       }
     }
 
@@ -121,14 +119,11 @@ export class AutomationExecutor {
       const brainConfig = loadConfig();
       const model = automation.manifest.model ?? brainConfig.model;
 
-      const basePrompt = await buildWorkingNinaPrompt(
-        this.config.agentDir,
-        {
-          taskTitle: automation.manifest.name,
-          taskId: automation.id,
-          taskDir: job.run_dir,
-        },
-      );
+      const basePrompt = await buildWorkingNinaPrompt(this.config.agentDir, {
+        taskTitle: automation.manifest.name,
+        taskId: automation.id,
+        taskDir: job.run_dir,
+      });
 
       // Resolve referenced spaces for context
       const spaces: Space[] = [];
@@ -212,7 +207,11 @@ export class AutomationExecutor {
 
       // 8. Store session ID in sidecar file
       if (sdkSessionId) {
-        this.config.jobService.storeSessionId(automation.id, job.id, sdkSessionId);
+        this.config.jobService.storeSessionId(
+          automation.id,
+          job.id,
+          sdkSessionId,
+        );
       }
 
       // 9. Update job
@@ -269,7 +268,12 @@ export class AutomationExecutor {
     job: Job,
     userInput: string,
     storedSessionId: string | null,
-  ): Promise<{ success: boolean; status: string; summary?: string; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    status: string;
+    summary?: string;
+    error?: string;
+  }> {
     // Fall back to sidecar file if no session ID passed
     const effectiveSessionId =
       storedSessionId ??
@@ -287,7 +291,9 @@ export class AutomationExecutor {
         try {
           // Resume the SDK session with user input as the prompt
           const brainConfig = loadConfig();
-          const automation = this.config.automationManager.findById(job.automationId);
+          const automation = this.config.automationManager.findById(
+            job.automationId,
+          );
           const model = automation?.manifest.model ?? brainConfig.model;
 
           const query = createBrainQuery(userInput, {
@@ -333,7 +339,11 @@ export class AutomationExecutor {
           // Store updated session ID in sidecar
           const finalSessionId = newSessionId ?? effectiveSessionId;
           if (finalSessionId) {
-            this.config.jobService.storeSessionId(job.automationId, job.id, finalSessionId);
+            this.config.jobService.storeSessionId(
+              job.automationId,
+              job.id,
+              finalSessionId,
+            );
           }
 
           // Check if the resumed session also requests review
@@ -344,7 +354,10 @@ export class AutomationExecutor {
 
           this.config.jobService.updateJob(job.id, {
             status: finalStatus,
-            completed: finalStatus === "completed" ? new Date().toISOString() : undefined,
+            completed:
+              finalStatus === "completed"
+                ? new Date().toISOString()
+                : undefined,
             summary,
             sdk_session_id: newSessionId ?? effectiveSessionId,
           });
@@ -353,7 +366,11 @@ export class AutomationExecutor {
             `[AutomationExecutor] Job ${job.id} resumed -> ${finalStatus}`,
           );
 
-          return { success: finalStatus === "completed", status: finalStatus, summary };
+          return {
+            success: finalStatus === "completed",
+            status: finalStatus,
+            summary,
+          };
         } catch (resumeErr) {
           console.warn(
             `[AutomationExecutor] Session resume failed for job ${job.id}, marking as failed`,
@@ -369,7 +386,11 @@ export class AutomationExecutor {
         summary: "Session resume failed — no stored session available",
       });
 
-      return { success: false, status: "failed", error: "No session to resume" };
+      return {
+        success: false,
+        status: "failed",
+        error: "No session to resume",
+      };
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       this.config.jobService.updateJob(job.id, {

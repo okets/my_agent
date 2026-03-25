@@ -21,14 +21,14 @@ export interface ExtractedTask {
 
 export interface AutomationMatch {
   automationId: string;
-  confidence: number;        // 0-1
-  extractedContext: Record<string, unknown>;  // structured data extracted from message
+  confidence: number; // 0-1
+  extractedContext: Record<string, unknown>; // structured data extracted from message
 }
 
 export interface AutomationHint {
   id: string;
   name: string;
-  hints: string;      // comma-separated hint keywords from trigger config
+  hints: string; // comma-separated hint keywords from trigger config
   description: string; // first line of automation body
 }
 
@@ -36,13 +36,16 @@ export interface ExtractionResult {
   shouldCreateTask: boolean;
   task?: ExtractedTask;
   tasks?: ExtractedTask[]; // For multi-task extraction
-  matchedAutomation?: AutomationMatch;  // if message matches an active automation
+  matchedAutomation?: AutomationMatch; // if message matches an active automation
 }
 
 /**
  * Build the extraction system prompt with current timestamp
  */
-function buildExtractionPrompt(currentTime: Date, automationHints?: AutomationHint[]): string {
+function buildExtractionPrompt(
+  currentTime: Date,
+  automationHints?: AutomationHint[],
+): string {
   const isoTime = currentTime.toISOString();
   // Example timestamps for prompt examples
   const oneMinuteLater = new Date(
@@ -118,7 +121,7 @@ or (automation match):
   // Append active automation hints if available
   if (automationHints && automationHints.length > 0) {
     basePrompt += `\n\nACTIVE AUTOMATIONS (check these FIRST before creating a new task):
-${automationHints.map(h => `- ID: "${h.id}" | Name: "${h.name}" | Hints: ${h.hints} | ${h.description}`).join("\n")}
+${automationHints.map((h) => `- ID: "${h.id}" | Name: "${h.name}" | Hints: ${h.hints} | ${h.description}`).join("\n")}
 
 If the user's message matches an automation:
 Return: {"shouldCreateTask": false, "matchedAutomation": {"automationId": "<id>", "confidence": 0.0-1.0, "extractedContext": {<structured data from message>}}}
@@ -180,10 +183,9 @@ function normalizeExtractedTask(raw: any): ExtractedTask {
   }));
 
   const validNotifyValues = ["immediate", "debrief", "none"] as const;
-  const notifyOnCompletion =
-    validNotifyValues.includes(raw.notifyOnCompletion)
-      ? (raw.notifyOnCompletion as "immediate" | "debrief" | "none")
-      : undefined;
+  const notifyOnCompletion = validNotifyValues.includes(raw.notifyOnCompletion)
+    ? (raw.notifyOnCompletion as "immediate" | "debrief" | "none")
+    : undefined;
 
   return {
     title: String(raw.title ?? ""),
@@ -216,7 +218,11 @@ export async function extractTaskFromMessage(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const response = await runExtraction(prompt, currentTime, automationHints);
+      const response = await runExtraction(
+        prompt,
+        currentTime,
+        automationHints,
+      );
 
       // Parse JSON response
       const jsonMatch = response.match(/\{[\s\S]*\}/);

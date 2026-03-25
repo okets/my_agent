@@ -222,9 +222,9 @@ export class AutomationManager {
   async syncAll(): Promise<number> {
     if (!fs.existsSync(this.automationsDir)) return 0;
 
-    const files = fs.readdirSync(this.automationsDir).filter(
-      (f) => f.endsWith(".md"),
-    );
+    const files = fs
+      .readdirSync(this.automationsDir)
+      .filter((f) => f.endsWith(".md"));
 
     let count = 0;
     for (const file of files) {

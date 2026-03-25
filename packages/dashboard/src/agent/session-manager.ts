@@ -155,7 +155,14 @@ interface StreamOptions {
 }
 
 /** Conversation Nina's allowed tools — single source of truth for buildQuery and skill filtering */
-const CONVERSATION_TOOLS = ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "Skill"];
+const CONVERSATION_TOOLS = [
+  "Read",
+  "Glob",
+  "Grep",
+  "WebSearch",
+  "WebFetch",
+  "Skill",
+];
 
 export class SessionManager {
   private conversationId: string;
@@ -169,7 +176,7 @@ export class SessionManager {
   private messageIndex = 0;
   private promptBuilder: SystemPromptBuilder | null = null;
   private activeViewContext: {
-    type: 'space' | 'automation' | 'conversation' | 'notebook' | 'calendar';
+    type: "space" | "automation" | "conversation" | "notebook" | "calendar";
     id: string;
     name: string;
   } | null = null;
@@ -226,7 +233,10 @@ export class SessionManager {
     );
 
     // Disable skills whose required tools aren't available in Conversation Nina's session
-    this.disabledSkills = await filterSkillsByTools(agentDir, CONVERSATION_TOOLS);
+    this.disabledSkills = await filterSkillsByTools(
+      agentDir,
+      CONVERSATION_TOOLS,
+    );
   }
 
   async *streamMessage(
