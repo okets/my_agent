@@ -206,7 +206,7 @@ export type {
 export { SpaceSyncService, isToolSpace } from './spaces/index.js'
 export type {
   Automation, AutomationManifest, TriggerConfig,
-  Job, JobStatus, AutomationDeliveryAction, CreateAutomationInput,
+  Job, JobStatus, CreateAutomationInput,
 } from './spaces/index.js'
 
 // Memory system
