@@ -7825,6 +7825,7 @@
           <!-- Automations browser popover (mobile) -->
           <template x-if="$store.mobile.popover?.type === 'automations-browser'">
             <div x-data="{ selected: null, jobs: [], jobsLoading: false, expandedJob: null }"
+                 x-init="$nextTick(() => { const autoId = $store.mobile.popover?.data?.autoSelectId; if (autoId) { selected = $store.automations.items.find(a => a.id === autoId) || null; } })"
                  x-effect="if (selected) { jobsLoading = true; expandedJob = null; fetch('/api/timeline?automationId=' + encodeURIComponent(selected.id) + '&limit=20').then(r => r.json()).then(d => { jobs = (d.pastJobs || []).concat((d.futureRuns || []).map(r => ({...r, status: 'scheduled', summary: 'Scheduled run'}))); jobsLoading = false; }).catch(() => { jobsLoading = false; }) }">
 
               <!-- LIST VIEW (no automation selected) -->

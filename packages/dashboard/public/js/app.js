@@ -4956,13 +4956,22 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
     openTimelineItem(item) {
       if (item.itemType === 'event') {
-        // Calendar events — open calendar tab with event selected
-        this.switchTab('calendar');
+        // Calendar events — open calendar tab or popover
+        if (this.$store.mobile.isMobile) {
+          this.$store.mobile.openPopoverWithFocus('calendar', null);
+        } else {
+          this.switchTab('calendar');
+        }
         return;
       }
       // Jobs and projected items — open parent automation detail
       if (item.automationId) {
-        this.openAutomationDetail(item.automationId);
+        if (this.$store.mobile.isMobile) {
+          // Open automations popover with this automation pre-selected
+          this.$store.mobile.openPopoverWithFocus('automations-browser', { autoSelectId: item.automationId });
+        } else {
+          this.openAutomationDetail(item.automationId);
+        }
       }
     },
 
