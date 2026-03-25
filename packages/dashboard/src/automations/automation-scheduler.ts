@@ -71,7 +71,7 @@ export class AutomationScheduler {
       );
       for (const trigger of scheduleTriggers) {
         if (!trigger.cron) continue;
-        if (this.isCronDue(trigger.cron, automation.id, now, tz)) {
+        if (this.isCronDue(trigger.cron, automation, now, tz)) {
           // Fire-and-forget: processor handles concurrency
           this.config.processor
             .fire(automation, { trigger: "schedule" })
@@ -92,7 +92,7 @@ export class AutomationScheduler {
    */
   isCronDue(
     cron: string,
-    automationId: string,
+    automation: { id: string; manifest: { handler?: string } },
     now: Date,
     tz: string,
   ): boolean {
@@ -102,16 +102,32 @@ export class AutomationScheduler {
         currentDate: now,
       });
       const prev = interval.prev().toDate();
+
       // Check if last cron tick is after the most recent job for this automation
       const lastJob = this.config.jobService.listJobs({
-        automationId,
+        automationId: automation.id,
         limit: 1,
       })[0];
-      if (!lastJob) return true; // Never ran
-      return prev > new Date(lastJob.created);
+
+      // Also check by handler key — handles ID renames across migrations
+      // (e.g. old "daily-summary" → new "debrief" both use handler "debrief-prep")
+      let lastHandlerJob: { created: string } | undefined = lastJob;
+      if (!lastJob && automation.manifest.handler) {
+        const allRecent = this.config.jobService.listJobs({ limit: 20 });
+        const handlerAutomations = this.config.automationManager
+          .list()
+          .filter((a) => a.manifest.handler === automation.manifest.handler)
+          .map((a) => a.id);
+        lastHandlerJob = allRecent.find((j) =>
+          handlerAutomations.includes(j.automationId),
+        );
+      }
+
+      if (!lastHandlerJob) return true; // Never ran under any ID
+      return prev > new Date(lastHandlerJob.created);
     } catch {
       console.warn(
-        `[AutomationScheduler] Invalid cron for ${automationId}: ${cron}`,
+        `[AutomationScheduler] Invalid cron for ${automation.id}: ${cron}`,
       );
       return false;
     }

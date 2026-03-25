@@ -2,7 +2,7 @@
  * Knowledge Staging
  *
  * Manages the knowledge/extracted/ work queue.
- * Permanent facts sit here until the morning brief proposes them.
+ * Permanent facts sit here until the debrief proposes them.
  *
  * Design spec: docs/sprints/m6.6-s6-knowledge-lifecycle/design.md Section 4.5
  */

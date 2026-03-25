@@ -957,6 +957,7 @@ export class App extends EventEmitter {
           automationManager: app.automationManager,
           executor: app.automationExecutor,
           jobService: app.automationJobService,
+          agentDir,
           onJobEvent: (event, job) => {
             app.statePublisher?.publishJobs();
             app.emit(event, job);

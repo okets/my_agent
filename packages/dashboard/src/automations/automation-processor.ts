@@ -6,6 +6,7 @@
  */
 
 import type { Automation, Job } from "@my-agent/core";
+import { resolveTimezone } from "../utils/timezone.js";
 import type { AutomationManager } from "./automation-manager.js";
 import type { AutomationExecutor, ExecutionResult } from "./automation-executor.js";
 import type { AutomationJobService } from "./automation-job-service.js";
@@ -16,6 +17,7 @@ export interface AutomationProcessorConfig {
   automationManager: AutomationManager;
   executor: AutomationExecutor;
   jobService: AutomationJobService;
+  agentDir: string;
   /** Optional callback fired with granular job lifecycle events */
   onJobEvent?: (event: JobEventName, job: Job) => void;
   /** Optional ConversationInitiator for proactive notifications */
@@ -154,9 +156,25 @@ export class AutomationProcessor {
     const ci = this.config.conversationInitiator;
 
     if (notify === "immediate" && ci) {
+      // Resolve user's local time so the brain doesn't guess the time of day
+      let localTimeContext = "";
+      try {
+        const tz = await resolveTimezone(this.config.agentDir);
+        const localTime = new Date().toLocaleString("en-US", {
+          timeZone: tz,
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+          weekday: "short",
+        });
+        localTimeContext = ` User's local time: ${localTime} (${tz}).`;
+      } catch {
+        // Timezone unavailable — brain will use its own judgment
+      }
+
       const prompt = result.success
-        ? `Automation "${automation.manifest.name}" completed. Job ${jobId}. Summary: ${result.work?.slice(0, 500)}.`
-        : `Automation "${automation.manifest.name}" failed. Error: ${result.error}`;
+        ? `Automation "${automation.manifest.name}" completed. Job ${jobId}.${localTimeContext} Summary: ${result.work?.slice(0, 500)}.`
+        : `Automation "${automation.manifest.name}" failed.${localTimeContext} Error: ${result.error}`;
       const alerted = await ci.alert(prompt);
       if (!alerted) {
         await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });

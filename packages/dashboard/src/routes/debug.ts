@@ -724,7 +724,7 @@ export async function registerDebugRoutes(
    *
    * - alert: inject into active conversation
    * - initiate: start new conversation on preferred channel
-   * - auto: try alert, fall back to initiate (morning brief flow)
+   * - auto: try alert, fall back to initiate (debrief delivery flow)
    */
   fastify.post<{
     Body: { mode?: string; prompt?: string };
@@ -739,7 +739,7 @@ export async function registerDebugRoutes(
     const mode = request.body?.mode || "auto";
     const prompt =
       request.body?.prompt ||
-      "The morning brief is ready. Ask the user if they'd like to go through it now.";
+      "The debrief is ready. Ask the user if they'd like to go through it now.";
 
     if (mode === "alert") {
       const alerted = await initiator.alert(prompt);
@@ -753,7 +753,7 @@ export async function registerDebugRoutes(
       return { mode: "initiate", conversation: conv };
     }
 
-    // auto: morning brief flow
+    // auto: debrief delivery flow
     const alerted = await initiator.alert(prompt);
     if (!alerted) {
       const conv = await initiator.initiate({
