@@ -188,15 +188,13 @@
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
               class="w-5 h-5"
             >
-              <path
-                fill-rule="evenodd"
-                d="M10 2a6 6 0 0 0-6 6c0 1.887-.454 3.665-1.257 5.234a.75.75 0 0 0 .515 1.076 32.91 32.91 0 0 0 3.256.508 3.5 3.5 0 0 0 6.972 0 32.903 32.903 0 0 0 3.256-.508.75.75 0 0 0 .515-1.076A11.448 11.448 0 0 1 16 8a6 6 0 0 0-6-6Zm0 14.5a2 2 0 0 1-1.95-1.557 33.54 33.54 0 0 0 3.9 0A2 2 0 0 1 10 16.5Z"
-                clip-rule="evenodd"
-              />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
             </svg>
             <span
               x-show="pendingNotificationCount > 0"
@@ -213,15 +211,14 @@
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
               class="w-5 h-5"
             >
-              <path
-                fill-rule="evenodd"
-                d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.115l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.54a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.992 6.992 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
-                clip-rule="evenodd"
-              />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
             </svg>
           </button>
         </div>
@@ -401,43 +398,43 @@
             <!-- Mobile: 2x2 widget grid (< 640px) -->
             <div class="sm:hidden grid grid-cols-2 gap-2 mb-3">
               <!-- Spaces -->
-              <button class="mobile-widget-card" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('spaces-browser') : openSpacesBrowser()">
+              <button class="mobile-widget-card tint-spaces" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('spaces-browser') : openSpacesBrowser()">
                 <div class="mobile-widget-icon text-tokyo-blue">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
                     <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.622 4H12.5A1.5 1.5 0 0 1 14 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9Z"/>
                   </svg>
                 </div>
-                <span class="mobile-widget-label">Spaces</span>
+                <span class="mobile-widget-label spaces">Spaces</span>
                 <span class="mobile-widget-count" x-text="$store.spaces.items.length || '0'"></span>
               </button>
               <!-- Automations -->
-              <button class="mobile-widget-card" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('automations-browser') : openAutomationsBrowser()">
+              <button class="mobile-widget-card tint-automations" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('automations-browser') : openAutomationsBrowser()">
                 <div class="mobile-widget-icon text-tokyo-orange">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
                     <path fill-rule="evenodd" d="M8.074.945A4.993 4.993 0 0 0 6 5v.032c.004.6.114 1.176.311 1.709.16.428-.204.91-.61.7a5.023 5.023 0 0 1-1.868-1.677c-.202-.304-.648-.363-.848-.058a6 6 0 1 0 8.017-1.901l-.004-.007a4.98 4.98 0 0 1-2.18-2.574c-.116-.31-.477-.472-.744-.28Zm.78 6.178a3.001 3.001 0 1 1-3.473 4.341c-.205-.365.215-.694.62-.59a4.008 4.008 0 0 0 1.828.047c.96-.2 1.747-.918 2.08-1.36a.55.55 0 0 0-.054-.678Z" clip-rule="evenodd"/>
                   </svg>
                 </div>
-                <span class="mobile-widget-label">Automations</span>
+                <span class="mobile-widget-label automations">Automations</span>
                 <span class="mobile-widget-count" x-text="$store.automations.items.filter(a => a.status === 'active').length + ' active'"></span>
               </button>
               <!-- Notebook -->
-              <button class="mobile-widget-card" @click="$store.mobile.openPopoverWithFocus('notebook-browser')">
+              <button class="mobile-widget-card tint-notebook" @click="$store.mobile.openPopoverWithFocus('notebook-browser')">
                 <div class="mobile-widget-icon text-tokyo-purple">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
                     <path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h7A2.5 2.5 0 0 1 14 4.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5v-7Z"/>
                   </svg>
                 </div>
-                <span class="mobile-widget-label">Notebook</span>
+                <span class="mobile-widget-label notebook">Notebook</span>
                 <span class="mobile-widget-count">Browse</span>
               </button>
               <!-- Conversations -->
-              <button class="mobile-widget-card" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('conversations-browser') : null">
+              <button class="mobile-widget-card tint-conversations" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('conversations-browser') : null">
                 <div class="mobile-widget-icon text-tokyo-green">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
                     <path d="M1 8.74c0 .983.713 1.825 1.69 1.943.764.092 1.534.164 2.31.216v2.351a.75.75 0 0 0 1.28.53l2.51-2.51c.182-.181.427-.29.687-.312A24.673 24.673 0 0 0 12.31 10.7c.978-.128 1.69-.962 1.69-1.96V4.26c0-.998-.712-1.832-1.69-1.96A24.885 24.885 0 0 0 8 2c-1.395 0-2.76.098-4.31.3C2.713 2.435 2 3.262 2 4.26v4.48h-.5A.5.5 0 0 0 1 8.74Z"/>
                   </svg>
                 </div>
-                <span class="mobile-widget-label">Conversations</span>
+                <span class="mobile-widget-label conversations">Conversations</span>
                 <span class="mobile-widget-count" x-text="conversations.length"></span>
               </button>
             </div>
@@ -446,17 +443,17 @@
             <div class="hidden sm:grid home-widget-grid gap-3 mb-4">
 
             <!-- Spaces Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden flex flex-col">
+            <div class="glass-strong section-tint-spaces rounded-xl overflow-hidden flex flex-col">
               <!-- Header -->
-              <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                <h2 class="text-sm font-semibold text-tokyo-text flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
+              <button @click="openSpacesBrowser()" class="flex items-center justify-between px-4 py-3 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer">
+                <h2 class="text-sm font-semibold flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-blue">
                     <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.879a1.5 1.5 0 0 1 1.06.44l1.122 1.12A1.5 1.5 0 0 0 9.622 4H12.5A1.5 1.5 0 0 1 14 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9Z"/>
                   </svg>
-                  Spaces
+                  <span class="section-label-spaces">Spaces</span>
                 </h2>
-                <span class="text-xs text-tokyo-muted" x-text="$store.spaces.items.length + ' total'"></span>
-              </div>
+                <span class="section-count" x-text="$store.spaces.items.length + ' total'"></span>
+              </button>
               <!-- Space list -->
               <div class="flex-1 overflow-y-auto max-h-[280px]">
                 <template x-if="$store.spaces.items.length === 0">
@@ -500,17 +497,17 @@
             </div>
 
             <!-- Automations Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden flex flex-col">
-              <!-- Header -->
-              <div class="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                <h2 class="text-sm font-semibold text-tokyo-text flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-muted">
+            <div class="glass-strong section-tint-automations rounded-xl overflow-hidden flex flex-col">
+              <!-- Header (clickable → opens automations browser tab) -->
+              <button @click="openAutomationsBrowser()" class="flex items-center justify-between px-4 py-3 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer">
+                <h2 class="text-sm font-semibold flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-orange">
                     <path fill-rule="evenodd" d="M8.074.945A4.993 4.993 0 0 0 6 5v.032c.004.6.114 1.176.311 1.709.16.428-.204.91-.61.7a5.023 5.023 0 0 1-1.868-1.677c-.202-.304-.648-.363-.848-.058a6 6 0 1 0 8.017-1.901l-.004-.007a4.98 4.98 0 0 1-2.18-2.574c-.116-.31-.477-.472-.744-.28Zm.78 6.178a3.001 3.001 0 1 1-3.473 4.341c-.205-.365.215-.694.62-.59a4.008 4.008 0 0 0 1.828.047c.96-.2 1.747-.918 2.08-1.36a.55.55 0 0 0-.054-.678Z" clip-rule="evenodd"/>
                   </svg>
-                  Automations
+                  <span class="section-label-automations">Automations</span>
                 </h2>
-                <span class="text-xs text-tokyo-muted" x-text="$store.automations.items.filter(a => a.status === 'active').length + ' active'"></span>
-              </div>
+                <span class="section-count section-count-automations" x-text="$store.automations.items.filter(a => a.status === 'active').length + ' active'"></span>
+              </button>
               <!-- Automation list -->
               <div class="flex-1 overflow-y-auto max-h-[280px]">
                 <template x-if="$store.automations.items.length === 0">
@@ -535,8 +532,8 @@
                           <span
                             class="text-[9px] px-1 py-px rounded font-medium"
                             :class="{
-                              'bg-cyan-500/15 text-cyan-400': tt === 'schedule',
-                              'bg-green-500/15 text-green-400': tt === 'channel',
+                              'bg-green-500/15 text-green-400': tt === 'schedule',
+                              'bg-[rgba(224,122,95,0.15)] text-[#e07a5f]': tt === 'channel',
                               'bg-amber-500/15 text-amber-400': tt === 'watch',
                               'bg-violet-500/15 text-violet-400': tt === 'manual'
                             }"
@@ -562,33 +559,42 @@
             </div>
 
             <!-- Notebook Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden flex flex-col">
+            <div class="glass-strong section-tint-notebook rounded-xl overflow-hidden flex flex-col">
+              <!-- Header with Notebook label -->
+              <div class="flex items-center justify-between px-4 py-2 border-b border-white/5">
+                <h2 class="text-sm font-semibold flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-3.5 h-3.5 text-tokyo-purple">
+                    <path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h7A2.5 2.5 0 0 1 14 4.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 11.5v-7Z"/>
+                  </svg>
+                  <span class="section-label-notebook">Notebook</span>
+                </h2>
+              </div>
               <!-- Tab bar - 4 tabs -->
               <div class="flex border-b border-white/5">
                 <button
                   @click="setNotebookTab('orders')"
-                  :class="notebookTab === 'orders' ? 'text-tokyo-blue border-b-2 border-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text'"
+                  :class="notebookTab === 'orders' ? 'text-tokyo-purple border-b-2 border-tokyo-purple' : 'text-tokyo-muted hover:text-tokyo-text'"
                   class="flex-1 px-2 py-2 text-[11px] font-medium truncate transition-colors"
                 >
                   Operations
                 </button>
                 <button
                   @click="setNotebookTab('lists')"
-                  :class="notebookTab === 'lists' ? 'text-tokyo-blue border-b-2 border-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text'"
+                  :class="notebookTab === 'lists' ? 'text-tokyo-purple border-b-2 border-tokyo-purple' : 'text-tokyo-muted hover:text-tokyo-text'"
                   class="flex-1 px-2 py-2 text-[11px] font-medium truncate transition-colors"
                 >
                   Lists
                 </button>
                 <button
                   @click="setNotebookTab('daily')"
-                  :class="notebookTab === 'daily' ? 'text-tokyo-blue border-b-2 border-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text'"
+                  :class="notebookTab === 'daily' ? 'text-tokyo-purple border-b-2 border-tokyo-purple' : 'text-tokyo-muted hover:text-tokyo-text'"
                   class="flex-1 px-2 py-2 text-[11px] font-medium truncate transition-colors"
                 >
                   Daily
                 </button>
                 <button
                   @click="setNotebookTab('knowledge')"
-                  :class="notebookTab === 'knowledge' ? 'text-tokyo-blue border-b-2 border-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text'"
+                  :class="notebookTab === 'knowledge' ? 'text-tokyo-purple border-b-2 border-tokyo-purple' : 'text-tokyo-muted hover:text-tokyo-text'"
                   class="flex-1 px-2 py-2 text-[11px] font-medium truncate transition-colors"
                 >
                   Knowledge
@@ -906,19 +912,17 @@
             </div>
 
             <!-- Conversations Widget -->
-            <div class="glass-strong rounded-xl overflow-hidden flex flex-col">
+            <div class="glass-strong section-tint-conversations rounded-xl overflow-hidden flex flex-col">
               <!-- Header -->
               <div
                 class="flex items-center justify-between px-4 py-3 border-b border-white/5"
               >
-                <h2
-                  class="text-sm font-semibold text-tokyo-text flex items-center gap-2"
-                >
+                <h2 class="text-sm font-semibold flex items-center gap-2">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 16 16"
                     fill="currentColor"
-                    class="w-3.5 h-3.5 text-tokyo-muted"
+                    class="w-3.5 h-3.5 text-tokyo-green"
                   >
                     <path
                       fill-rule="evenodd"
@@ -926,7 +930,7 @@
                       clip-rule="evenodd"
                     />
                   </svg>
-                  Conversations
+                  <span class="section-label-conversations">Conversations</span>
                 </h2>
                 <!-- Search toggle -->
                 <button
@@ -1085,20 +1089,20 @@
             </div><!-- end Home 2x2 grid -->
 
             <!-- Timeline Section -->
-            <div class="timeline-section mt-6 mx-0 px-4 py-4 relative">
+            <div class="timeline-section section-tint-timeline mt-6 mx-0 px-4 py-4 relative">
               <div class="flex items-center justify-between mb-4">
                 <h2
-                  class="text-sm font-semibold text-tokyo-text uppercase tracking-wide flex items-center gap-2"
+                  class="text-sm font-semibold uppercase tracking-wide flex items-center gap-2"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#9ece6a" class="w-5 h-5"><path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z" clip-rule="evenodd"/></svg>
-                  Timeline
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-tokyo-cyan"><path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z" clip-rule="evenodd"/></svg>
+                  <span class="text-tokyo-cyan">Timeline</span>
                 </h2>
                 <div class="flex items-center gap-3">
                   <button
                     @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('calendar', null, $event.currentTarget) : openCalendar()"
-                    class="text-xs text-tokyo-muted hover:text-tokyo-blue transition-colors flex items-center gap-1"
+                    class="text-xs text-tokyo-muted hover:text-tokyo-cyan transition-colors flex items-center gap-1"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#9ece6a" class="w-4 h-4"><path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z" clip-rule="evenodd"/></svg> Calendar
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z" clip-rule="evenodd"/></svg> Calendar
                     <span
                       class="transition-transform group-hover:translate-x-0.5"
                       >→</span
@@ -1137,13 +1141,11 @@
                 x-if="timelineItems.length === 0 || !timelineItems.some(i => i.isPast)"
               >
                 <div class="now-marker flex items-center gap-3 mb-3">
-                  <span
-                    class="text-xs font-semibold text-red-400 uppercase tracking-wide whitespace-nowrap"
-                  >
-                    Now <span x-text="formatTimeNow()"></span>
+                  <span class="now-marker-text whitespace-nowrap">
+                    &#8212; NOW <span x-text="formatTimeNow()"></span> &#8212;
                   </span>
                   <div
-                    class="flex-1 h-px bg-gradient-to-r from-red-400/50 to-transparent"
+                    class="flex-1 h-px bg-gradient-to-r from-[#f7768e]/50 to-transparent"
                   ></div>
                 </div>
               </template>
@@ -1189,13 +1191,12 @@
                       <div class="now-marker flex items-center py-2">
                         <div class="w-14 shrink-0"></div>
                         <div class="flex-1 flex items-center gap-2">
-                          <div class="h-0.5 w-8 bg-tokyo-red"></div>
-                          <span
-                            class="text-[10px] font-bold text-tokyo-red uppercase tracking-wider whitespace-nowrap"
-                            >Now <span x-text="formatTimeNow()"></span
-                          ></span>
+                          <div class="h-0.5 w-8 bg-[#f7768e]"></div>
+                          <span class="now-marker-text whitespace-nowrap"
+                            >&#8212; NOW <span x-text="formatTimeNow()"></span> &#8212;</span
+                          >
                           <div
-                            class="flex-1 h-0.5 bg-gradient-to-r from-tokyo-red to-transparent"
+                            class="flex-1 h-0.5 bg-gradient-to-r from-[#f7768e] to-transparent"
                           ></div>
                         </div>
                       </div>
@@ -1221,9 +1222,10 @@
 
                     <!-- Timeline item: [TIME] [BULLET] [CARD] -->
                     <div class="flex items-start py-0.5">
-                      <!-- Time (left of bullet) -->
+                      <!-- Time (left of bullet) — blue for past, green for future -->
                       <span
-                        class="w-14 text-[10px] font-medium text-tokyo-text/50 text-right pr-1 pt-1.5 shrink-0"
+                        class="w-14 timeline-time text-right pr-1 pt-1.5 shrink-0"
+                        :class="item.isPast ? 'past' : 'future'"
                         x-text="formatTimelineTime(item)"
                       ></span>
 
@@ -1274,12 +1276,13 @@
                             x-if="(item.itemType === 'job' || item.itemType === 'projected') && item.triggerType"
                           >
                             <span
-                              class="px-1 py-0.5 text-[9px] rounded font-medium"
+                              class="source-badge"
                               :class="{
-                                'bg-blue-500/15 text-blue-400': item.triggerType === 'schedule',
-                                'bg-green-500/15 text-green-400': item.triggerType === 'channel',
-                                'bg-amber-500/15 text-amber-400': item.triggerType === 'watch',
-                                'bg-violet-500/15 text-violet-400': item.triggerType === 'manual'
+                                'schedule': item.triggerType === 'schedule' && !item.isOneOff,
+                                'channel': item.triggerType === 'channel',
+                                'watch': item.triggerType === 'watch',
+                                'one-off': item.isOneOff,
+                                'manual': item.triggerType === 'manual' && !item.isOneOff
                               }"
                               x-text="item.isOneOff ? 'one-off' : item.triggerType"
                             ></span>
@@ -1331,13 +1334,12 @@
                   <div class="now-marker flex items-center py-2">
                     <div class="w-14 shrink-0"></div>
                     <div class="flex-1 flex items-center gap-2">
-                      <div class="h-0.5 w-8 bg-tokyo-red"></div>
-                      <span
-                        class="text-[10px] font-bold text-tokyo-red uppercase tracking-wider whitespace-nowrap"
-                        >Now <span x-text="formatTimeNow()"></span
-                      ></span>
+                      <div class="h-0.5 w-8 bg-[#f7768e]"></div>
+                      <span class="now-marker-text whitespace-nowrap"
+                        >&#8212; NOW <span x-text="formatTimeNow()"></span> &#8212;</span
+                      >
                       <div
-                        class="flex-1 h-0.5 bg-gradient-to-r from-tokyo-red to-transparent"
+                        class="flex-1 h-0.5 bg-gradient-to-r from-[#f7768e] to-transparent"
                       ></div>
                     </div>
                   </div>
@@ -4211,8 +4213,8 @@
                           <span
                             class="text-[10px] px-1.5 py-0.5 rounded font-medium"
                             :class="{
-                              'bg-cyan-500/15 text-cyan-400': tt === 'schedule',
-                              'bg-green-500/15 text-green-400': tt === 'channel',
+                              'bg-green-500/15 text-green-400': tt === 'schedule',
+                              'bg-[rgba(224,122,95,0.15)] text-[#e07a5f]': tt === 'channel',
                               'bg-amber-500/15 text-amber-400': tt === 'watch',
                               'bg-violet-500/15 text-violet-400': tt === 'manual'
                             }"
@@ -4704,8 +4706,8 @@
                           <span
                             class="text-[10px] px-1.5 py-0.5 rounded font-medium mr-2"
                             :class="{
-                              'bg-cyan-500/15 text-cyan-400': trigger.type === 'schedule',
-                              'bg-green-500/15 text-green-400': trigger.type === 'channel',
+                              'bg-green-500/15 text-green-400': trigger.type === 'schedule',
+                              'bg-[rgba(224,122,95,0.15)] text-[#e07a5f]': trigger.type === 'channel',
                               'bg-amber-500/15 text-amber-400': trigger.type === 'watch',
                               'bg-violet-500/15 text-violet-400': trigger.type === 'manual'
                             }"
@@ -5031,24 +5033,22 @@
           </div>
 
           <!-- Settings button -->
-          <!-- Notification bell (M5-S4) -->
+          <!-- Notification bell (M5-S4) — outline style -->
           <button
             @click="showNotificationPanel = !showNotificationPanel; if(showNotificationPanel) requestNotifications()"
-            class="relative w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0"
-            :class="showNotificationPanel ? 'bg-tokyo-orange/15 text-tokyo-orange' : 'hover:bg-tokyo-card text-tokyo-muted hover:text-tokyo-text'"
+            class="relative w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0 header-icon"
+            :class="showNotificationPanel ? 'bg-tokyo-orange/15 !text-tokyo-orange' : 'hover:bg-tokyo-card'"
             title="Notifications"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
               class="w-4 h-4"
             >
-              <path
-                fill-rule="evenodd"
-                d="M10 2a6 6 0 0 0-6 6c0 1.887-.454 3.665-1.257 5.234a.75.75 0 0 0 .515 1.076 32.91 32.91 0 0 0 3.256.508 3.5 3.5 0 0 0 6.972 0 32.903 32.903 0 0 0 3.256-.508.75.75 0 0 0 .515-1.076A11.448 11.448 0 0 1 16 8a6 6 0 0 0-6-6Zm0 14.5a2 2 0 0 1-1.95-1.557 33.54 33.54 0 0 0 3.9 0A2 2 0 0 1 10 16.5Z"
-                clip-rule="evenodd"
-              />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
             </svg>
             <!-- Badge for pending count -->
             <span
@@ -5090,21 +5090,20 @@
 
           <button
             @click="openTab({ id: 'settings', type: 'settings', title: 'Settings', icon: ICONS.gear, closeable: true })"
-            class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0"
-            :class="activeTab === 'settings' ? 'bg-tokyo-blue/15 text-tokyo-blue' : 'hover:bg-tokyo-card text-tokyo-muted hover:text-tokyo-text'"
+            class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors shrink-0 header-icon"
+            :class="activeTab === 'settings' ? 'bg-tokyo-blue/15 !text-tokyo-blue' : 'hover:bg-tokyo-card'"
             title="Settings"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
               class="w-4 h-4"
             >
-              <path
-                fill-rule="evenodd"
-                d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.115l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.54a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.992 6.992 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
-                clip-rule="evenodd"
-              />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
             </svg>
           </button>
         </header>
@@ -6279,9 +6278,10 @@
                         'bg-purple-400': item.itemType === 'event' && !['completed'].includes(item.status),
                       }"
                     ></span>
-                    <!-- Time -->
+                    <!-- Time — blue for past, green for future -->
                     <span
-                      class="text-xs text-tokyo-text/50 shrink-0"
+                      class="text-xs timeline-time shrink-0"
+                      :class="item.isPast ? 'past' : 'future'"
                       x-text="formatTimelineTime(item)"
                     ></span>
                     <!-- Title + badges -->
@@ -7864,8 +7864,8 @@
                           <template x-for="tt in automation.triggerTypes" :key="tt">
                             <span class="text-[9px] px-1 py-px rounded font-medium"
                                   :class="{
-                                    'bg-cyan-500/15 text-cyan-400': tt === 'schedule',
-                                    'bg-green-500/15 text-green-400': tt === 'channel',
+                                    'bg-green-500/15 text-green-400': tt === 'schedule',
+                                    'bg-[rgba(224,122,95,0.15)] text-[#e07a5f]': tt === 'channel',
                                     'bg-amber-500/15 text-amber-400': tt === 'watch',
                                     'bg-violet-500/15 text-violet-400': tt === 'manual'
                                   }"
@@ -7902,8 +7902,8 @@
                       <template x-for="tt in (selected?.triggerTypes || [])" :key="tt">
                         <span class="text-[9px] px-1 py-px rounded font-medium"
                               :class="{
-                                'bg-cyan-500/15 text-cyan-400': tt === 'schedule',
-                                'bg-green-500/15 text-green-400': tt === 'channel',
+                                'bg-green-500/15 text-green-400': tt === 'schedule',
+                                'bg-[rgba(224,122,95,0.15)] text-[#e07a5f]': tt === 'channel',
                                 'bg-amber-500/15 text-amber-400': tt === 'watch',
                                 'bg-violet-500/15 text-violet-400': tt === 'manual'
                               }"
