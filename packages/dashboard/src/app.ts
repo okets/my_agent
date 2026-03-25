@@ -75,6 +75,7 @@ import { ConnectionRegistry } from "./ws/connection-registry.js";
 import { AppChatService } from "./chat/chat-service.js";
 import { AppAuthService } from "./auth/auth-service.js";
 import { AppDebugService } from "./debug/app-debug-service.js";
+import { migrateWorkPatternsToAutomations } from "./migrations/work-patterns-to-automations.js";
 import type { Automation } from "@my-agent/core";
 import type { ConversationDatabase } from "./conversations/db.js";
 import type { Conversation } from "./conversations/types.js";
@@ -935,6 +936,21 @@ export class App extends EventEmitter {
       } catch (err) {
         console.warn(
           "Failed to initialize spaces:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    // ── Migration: work-patterns → automations (M7-S6) ──
+    if (hatched) {
+      try {
+        const migrated = migrateWorkPatternsToAutomations(agentDir);
+        if (migrated > 0) {
+          console.log(`[Migration] Created ${migrated} automation manifest(s) from work-patterns`);
+        }
+      } catch (err) {
+        console.warn(
+          "[Migration] work-patterns migration failed:",
           err instanceof Error ? err.message : String(err),
         );
       }
