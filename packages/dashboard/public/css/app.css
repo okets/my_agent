@@ -31,11 +31,32 @@
   --border-muted: rgba(255, 255, 255, 0.1);
   --border-accent: rgba(122, 162, 247, 0.3);
 
-  /* Glass backgrounds - match new palette */
+  /* Glass backgrounds - match new palette (richer purple-tinted) */
   --glass-bg: rgba(26, 27, 38, 0.6);
-  --glass-bg-strong: rgba(31, 35, 53, 0.85);
+  --glass-bg-strong: rgba(30, 30, 46, 0.85);
   --glass-border: rgba(255, 255, 255, 0.06);
   --glass-border-strong: rgba(255, 255, 255, 0.08);
+
+  /* Header icon color (soft gray) */
+  --header-icon-color: #a9b1d6;
+
+  /* Section label colors — each section has distinct color */
+  --section-color-spaces: #7aa2f7;           /* Blue */
+  --section-color-automations: #ff9e64;      /* Orange - distinct from green */
+  --section-color-notebook: #bb9af7;         /* Purple */
+  --section-color-conversations: #9ece6a;    /* Green */
+
+  /* Timeline source badge colors */
+  --badge-schedule-bg: rgba(158, 206, 106, 0.2);
+  --badge-schedule-text: #9ece6a;
+  --badge-channel-bg: rgba(224, 122, 95, 0.2);
+  --badge-channel-text: #e07a5f;
+  --badge-watch-bg: rgba(224, 175, 104, 0.2);
+  --badge-watch-text: #e0af68;
+  --badge-oneoff-bg: rgba(187, 154, 247, 0.2);
+  --badge-oneoff-text: #bb9af7;
+  --badge-routine-bg: rgba(125, 207, 255, 0.2);
+  --badge-routine-text: #7dcfff;
 
   /* Chat bubbles */
   --bubble-assistant: rgba(28, 24, 48, 0.8);
@@ -790,7 +811,7 @@ body.sidebar-resizing {
 
 /* Send button — V1 solid coral style */
 .send-btn {
-  background: #e07a5f;
+  background: #e07a5f !important;
   border: none;
   color: white;
   padding: 7px 8px;
@@ -799,17 +820,17 @@ body.sidebar-resizing {
   cursor: pointer;
 }
 
-.send-btn:hover {
-  background: #d4694f;
+.send-btn:hover:not(:disabled) {
+  background: #d4694f !important;
 }
 
-.send-btn:active {
-  background: #c85a40;
+.send-btn:active:not(:disabled) {
+  background: #c85a40 !important;
 }
 
 .send-btn:disabled {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.3);
+  background: rgba(224, 122, 95, 0.4) !important;
+  color: rgba(255, 255, 255, 0.5);
   cursor: default;
 }
 
@@ -1323,9 +1344,55 @@ button[title="Rename conversation"]:active {
   align-items: start;
 }
 
+/* ── Section background tints (~4% opacity for subtle identity) ──── */
+.section-tint-spaces {
+  background: linear-gradient(
+    135deg,
+    rgba(122, 162, 247, 0.12) 0%,
+    rgba(122, 162, 247, 0.03) 100%
+  );
+  border-color: rgba(122, 162, 247, 0.18);
+}
+
+.section-tint-automations {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 158, 100, 0.12) 0%,
+    rgba(255, 158, 100, 0.03) 100%
+  );
+  border-color: rgba(255, 158, 100, 0.18);
+}
+
+.section-tint-notebook {
+  background: linear-gradient(
+    135deg,
+    rgba(187, 154, 247, 0.12) 0%,
+    rgba(187, 154, 247, 0.03) 100%
+  );
+  border-color: rgba(187, 154, 247, 0.18);
+}
+
+.section-tint-conversations {
+  background: linear-gradient(
+    135deg,
+    rgba(158, 206, 106, 0.12) 0%,
+    rgba(158, 206, 106, 0.03) 100%
+  );
+  border-color: rgba(158, 206, 106, 0.18);
+}
+
+.section-tint-timeline {
+  background: linear-gradient(
+    135deg,
+    rgba(125, 207, 255, 0.08) 0%,
+    rgba(125, 207, 255, 0.02) 100%
+  );
+  border-color: rgba(125, 207, 255, 0.15);
+}
+
 /* ── Timeline widget ─────────────────────────────────────────────── */
 
-/* Timeline section container */
+/* Timeline section container — background handled by section-tint-timeline */
 .timeline-section {
   background: var(--color-panel);
   border: 1px solid var(--border-muted);
@@ -1335,6 +1402,16 @@ button[title="Rename conversation"]:active {
   overflow: clip !important;
   overflow-x: clip !important;
   overflow-y: clip !important;
+}
+
+/* When tinted, use the gradient instead */
+.timeline-section.section-tint-timeline {
+  background: linear-gradient(
+    135deg,
+    rgba(125, 207, 255, 0.05) 0%,
+    var(--color-panel) 100%
+  );
+  border-color: rgba(125, 207, 255, 0.12);
 }
 
 /* Scroll-to-now shortcut button */
@@ -1369,9 +1446,107 @@ button[title="Rename conversation"]:active {
   background: var(--color-card);
 }
 
-/* NOW marker styling */
+/* NOW marker styling — em-dashes, bold coral */
 .now-marker {
-  color: var(--color-red);
+  color: #f7768e;
+}
+
+.now-marker-text {
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #f7768e;
+}
+
+/* Header icons — outline style, soft gray */
+.header-icon {
+  color: var(--header-icon-color);
+}
+
+.header-icon:hover {
+  color: var(--color-text);
+}
+
+/* Section/Widget label colors */
+.section-label-spaces {
+  color: var(--section-color-spaces);
+}
+
+.section-label-automations {
+  color: var(--section-color-automations);
+}
+
+.section-label-notebook {
+  color: var(--section-color-notebook);
+}
+
+.section-label-conversations {
+  color: var(--section-color-conversations);
+}
+
+/* Timeline source badges — distinct colors per trigger type */
+.source-badge {
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 500;
+  border-radius: 4px;
+}
+
+.source-badge.schedule {
+  background: var(--badge-schedule-bg);
+  color: var(--badge-schedule-text);
+}
+
+.source-badge.channel {
+  background: var(--badge-channel-bg);
+  color: var(--badge-channel-text);
+}
+
+.source-badge.watch {
+  background: var(--badge-watch-bg);
+  color: var(--badge-watch-text);
+}
+
+.source-badge.one-off {
+  background: var(--badge-oneoff-bg);
+  color: var(--badge-oneoff-text);
+}
+
+.source-badge.routine {
+  background: var(--badge-routine-bg);
+  color: var(--badge-routine-text);
+}
+
+.source-badge.manual {
+  background: var(--badge-oneoff-bg);
+  color: var(--badge-oneoff-text);
+}
+
+/* Timeline time labels — blue for past, green for future */
+.timeline-time {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.timeline-time.past {
+  color: #7aa2f7;
+}
+
+.timeline-time.future {
+  color: #9ece6a;
+}
+
+/* Section counts — muted gray by default */
+.section-count {
+  color: #565f89;
+  font-size: 12px;
+}
+
+/* Automations count in green to match label */
+.section-count-automations {
+  color: var(--section-color-automations);
 }
 
 /* TODAY badge */

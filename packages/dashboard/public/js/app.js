@@ -282,6 +282,13 @@ function chat() {
       return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     },
 
+    formatDateTimeNow() {
+      const now = new Date();
+      const date = now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+      const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `${date}, ${time}`;
+    },
+
     modelOptions: [
       { id: "claude-sonnet-4-6", name: "Sonnet" },
       { id: "claude-haiku-4-5", name: "Haiku" },

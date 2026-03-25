@@ -123,9 +123,14 @@
     justify-content: center;
     border: none;
     background: transparent;
-    color: var(--color-muted);
+    color: #a9b1d6; /* soft gray for outline icons */
     cursor: pointer;
     border-radius: 8px;
+    transition: color 150ms ease;
+  }
+
+  .mobile-header-btn:hover {
+    color: var(--color-text);
   }
 
   .mobile-header-btn:active {
@@ -140,13 +145,36 @@
     gap: 4px;
     padding: 12px;
     border-radius: var(--radius-lg);
-    background: var(--glass-bg-strong, rgba(30, 30, 46, 0.8));
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(30, 30, 46, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     cursor: pointer;
-    transition: background 150ms ease, border-color 150ms ease;
+    transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
     -webkit-tap-highlight-color: transparent;
     text-align: left;
     width: 100%;
+  }
+
+  /* Section-tinted mobile widget cards — more vibrant */
+  .mobile-widget-card.tint-spaces {
+    background: linear-gradient(135deg, rgba(122, 162, 247, 0.15) 0%, rgba(30, 30, 46, 0.85) 100%);
+    border-color: rgba(122, 162, 247, 0.22);
+  }
+
+  .mobile-widget-card.tint-automations {
+    background: linear-gradient(135deg, rgba(255, 158, 100, 0.15) 0%, rgba(30, 30, 46, 0.85) 100%);
+    border-color: rgba(255, 158, 100, 0.22);
+  }
+
+  .mobile-widget-card.tint-notebook {
+    background: linear-gradient(135deg, rgba(187, 154, 247, 0.15) 0%, rgba(30, 30, 46, 0.85) 100%);
+    border-color: rgba(187, 154, 247, 0.22);
+  }
+
+  .mobile-widget-card.tint-conversations {
+    background: linear-gradient(135deg, rgba(158, 206, 106, 0.15) 0%, rgba(30, 30, 46, 0.85) 100%);
+    border-color: rgba(158, 206, 106, 0.22);
   }
 
   .mobile-widget-card:active {
@@ -182,13 +210,29 @@
   .mobile-widget-label {
     font-size: 13px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.85);
     margin-top: 2px;
+  }
+
+  /* Colored widget labels matching section colors */
+  .mobile-widget-label.spaces {
+    color: var(--section-color-spaces, #7aa2f7);
+  }
+
+  .mobile-widget-label.automations {
+    color: var(--section-color-automations, #ff9e64);
+  }
+
+  .mobile-widget-label.notebook {
+    color: var(--section-color-notebook, #bb9af7);
+  }
+
+  .mobile-widget-label.conversations {
+    color: var(--section-color-conversations, #9ece6a);
   }
 
   .mobile-widget-count {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
+    color: #565f89;
   }
 
   /* ── Content panel (top) ─────────────────────────────────────
@@ -333,8 +377,8 @@
   .chat-peek-send {
     width: 32px;
     height: 32px;
-    border-radius: 50%;
-    background: #e07a5f;
+    border-radius: 8px;
+    background: #e07a5f !important;
     border: none;
     color: white;
     display: flex;
@@ -344,13 +388,13 @@
     flex-shrink: 0;
   }
 
-  .chat-peek-send:active {
-    background: #d4694f;
+  .chat-peek-send:active:not(:disabled) {
+    background: #d4694f !important;
   }
 
   .chat-peek-send:disabled {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.3);
+    background: rgba(224, 122, 95, 0.4) !important;
+    color: rgba(255, 255, 255, 0.5);
   }
 
   /* ── Chat messages area (half/full states) ───────────────── */
