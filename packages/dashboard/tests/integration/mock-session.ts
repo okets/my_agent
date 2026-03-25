@@ -31,16 +31,9 @@ export interface MockSessionOptions {
 class MockSessionManager {
   private options: MockSessionOptions;
   private sessionId: string;
-  private taskContext: { taskId: string; title: string } | null = null;
-
   constructor(conversationId: string, options: MockSessionOptions) {
     this.options = options;
     this.sessionId = `mock-session-${conversationId}`;
-  }
-
-  /** Called by ChatService when task context is provided */
-  setTaskContext(taskId: string, title: string): void {
-    this.taskContext = { taskId, title };
   }
 
   /** Called by ChatService after streaming to persist the session ID */
