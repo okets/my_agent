@@ -123,12 +123,8 @@ function chat() {
     todayEvents: [], // Events for today (mini calendar list)
     upcomingEvents: [], // Events for next 7 days (timeline)
 
-    // Work loop system events
-    showSystemEvents: true, // Toggle work loop events visibility
-    workLoopPatterns: [], // Work loop job patterns from API
-    workLoopJobDetail: null, // { name, displayName, cadence, model, lastRun, nextRun, prompts, runs }
-    workLoopExpandedRun: null, // ID of expanded run in activity log
-    workLoopShowPrompts: false, // Whether prompts section is expanded
+    // Automation system events
+    showSystemEvents: true, // Toggle automation events visibility
 
     // Event modal
     eventModalOpen: false,
@@ -1756,10 +1752,6 @@ function chat() {
             this.chatContext.automationName = tab.title;
           }
 
-          // Reload job detail when switching to a workloop tab
-          if (tab.type === "workloop" && tab.data?.jobName) {
-            this.loadWorkLoopJobDetail(tab.data.jobName);
-          }
         }
       }
 
@@ -3442,8 +3434,6 @@ function chat() {
         this.updateCalendarContext();
       }
 
-      // Load work loop patterns for sidebar
-      this.loadWorkLoopPatterns();
     },
 
     /**
@@ -3650,94 +3640,14 @@ function chat() {
         },
       });
 
-      // Re-add work loop source if visible
+      // Re-add timeline source if visible
       if (this.showSystemEvents) {
         this.calendar.addEventSource({
-          url: "/api/work-loop/events",
-          method: "GET",
+          events: fetchTimelineEvents,
         });
       }
     },
 
-    /**
-     * Load work loop patterns for sidebar display
-     */
-    async loadWorkLoopPatterns() {
-      try {
-        const res = await fetch("/api/work-loop/status");
-        if (res.ok) {
-          const data = await res.json();
-          this.workLoopPatterns = data.patterns || [];
-        }
-      } catch (err) {
-        console.error("[App] Failed to load work loop patterns:", err);
-      }
-    },
-
-    /**
-     * Open a work loop job tab (or refresh if already open)
-     */
-    async openWorkLoopTab(jobName) {
-      const tabId = `workloop-${jobName}`;
-
-      // If tab already open, refresh and switch
-      const existing = this.openTabs.find((t) => t.id === tabId);
-      if (existing) {
-        this.switchTab(tabId);
-        await this.loadWorkLoopJobDetail(jobName);
-        return;
-      }
-
-      // Fetch job detail from API
-      await this.loadWorkLoopJobDetail(jobName);
-
-      this.openTab({
-        id: tabId,
-        type: "workloop",
-        title: this.workLoopJobDetail?.displayName || jobName,
-        icon: "\u{1F504}",
-        closeable: true,
-        data: { jobName, file: "notebook/config/work-patterns.md" },
-      });
-    },
-
-    /**
-     * Load work loop job detail from API
-     */
-    async loadWorkLoopJobDetail(jobName) {
-      try {
-        const res = await fetch(
-          `/api/work-loop/jobs/${encodeURIComponent(jobName)}`,
-        );
-        if (res.ok) {
-          this.workLoopJobDetail = await res.json();
-        } else {
-          // Clear stale data on non-OK response (fixes calendar showing wrong job data)
-          this.workLoopJobDetail = null;
-        }
-      } catch (err) {
-        console.error("[App] Failed to load work loop job detail:", err);
-        this.workLoopJobDetail = null;
-      }
-    },
-
-    /**
-     * Trigger a work loop job manually
-     */
-    async triggerWorkLoopJob(jobName) {
-      try {
-        const res = await fetch(
-          `/api/work-loop/trigger/${encodeURIComponent(jobName)}`,
-          { method: "POST" },
-        );
-        const data = await res.json();
-        // Open the tab (will show the new run in history)
-        await this.openWorkLoopTab(jobName);
-        this.refreshCalendar();
-      } catch (err) {
-        console.error("[App] Failed to trigger job:", err);
-      }
-    },
 
     /**
      * Open event modal for creating/editing
@@ -3856,16 +3766,10 @@ function chat() {
      * If the event has a linked taskId, opens the task view instead
      */
     async openEventTab(event) {
-      // Work loop events: open job tab (desktop) or popover (mobile)
+      // Automation events: open automation detail tab
       const extProps = event.extendedProps || {};
-      if (extProps.type === "work-loop") {
-        const mobile = Alpine.store("mobile");
-        if (mobile && mobile.isMobile) {
-          await this.loadWorkLoopJobDetail(extProps.jobName);
-          mobile.openPopoverWithFocus("workloop", this.workLoopJobDetail);
-        } else {
-          this.openWorkLoopTab(extProps.jobName);
-        }
+      if (extProps.type === "automation" && extProps.automationId) {
+        this.openAutomationDetail(extProps.automationId);
         return;
       }
 
