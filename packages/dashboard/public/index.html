@@ -428,7 +428,7 @@
                 <span class="mobile-widget-count">Browse</span>
               </button>
               <!-- Conversations -->
-              <button class="mobile-widget-card tint-conversations" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('conversations-browser') : null">
+              <button class="mobile-widget-card tint-conversations" @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('conversations-browser') : openTab({ id: 'conversations-browser', type: 'conversations-browser', title: 'Conversations', icon: ICONS.chat, closeable: true })">
                 <div class="mobile-widget-icon text-tokyo-green">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-5 h-5">
                     <path d="M1 8.74c0 .983.713 1.825 1.69 1.943.764.092 1.534.164 2.31.216v2.351a.75.75 0 0 0 1.28.53l2.51-2.51c.182-.181.427-.29.687-.312A24.673 24.673 0 0 0 12.31 10.7c.978-.128 1.69-.962 1.69-1.96V4.26c0-.998-.712-1.832-1.69-1.96A24.885 24.885 0 0 0 8 2c-1.395 0-2.76.098-4.31.3C2.713 2.435 2 3.262 2 4.26v4.48h-.5A.5.5 0 0 0 1 8.74Z"/>
@@ -918,11 +918,12 @@
 
             <!-- Conversations Widget -->
             <div class="glass-strong section-tint-conversations rounded-xl overflow-hidden flex flex-col">
-              <!-- Header -->
-              <div
-                class="flex items-center justify-between px-4 py-3 border-b border-white/5"
+              <!-- Header (entire bar clickable → opens conversations browser) -->
+              <button
+                @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('conversations-browser') : openTab({ id: 'conversations-browser', type: 'conversations-browser', title: 'Conversations', icon: ICONS.chat, closeable: true })"
+                class="flex items-center justify-between px-4 py-3 border-b border-white/5 w-full text-left hover:bg-white/5 transition-colors cursor-pointer"
               >
-                <button @click="$store.mobile.isMobile ? $store.mobile.openPopoverWithFocus('conversations-browser') : switchTab('home')" class="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer">
+                <h2 class="text-sm font-semibold flex items-center gap-2">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 16 16"
@@ -935,29 +936,10 @@
                       clip-rule="evenodd"
                     />
                   </svg>
-                  <span class="text-sm font-semibold section-label-conversations">Conversations</span>
-                </button>
-                <!-- Search toggle -->
-                <button
-                  @click="convWidgetSearchOpen = !convWidgetSearchOpen; if (convWidgetSearchOpen) $nextTick(() => $refs.convWidgetSearchInput?.focus())"
-                  class="w-6 h-6 flex items-center justify-center rounded-md transition-colors"
-                  :class="convWidgetSearchOpen ? 'bg-tokyo-blue/20 text-tokyo-blue' : 'text-tokyo-muted hover:text-tokyo-text hover:bg-tokyo-card/50'"
-                  title="Search conversations"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                    class="w-3.5 h-3.5"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                </button>
-              </div>
+                  <span class="section-label-conversations">Conversations</span>
+                </h2>
+                <span class="text-tokyo-muted text-[10px]">View all</span>
+              </button>
 
               <!-- Collapsible search input -->
               <div
@@ -4249,6 +4231,48 @@
               </div>
               <div x-show="$store.automations.items.length === 0" class="text-center text-tokyo-muted text-sm py-12">
                 No automations yet. Use the chat to create one.
+              </div>
+            </div>
+          </template>
+
+          <!-- ======================================================== -->
+          <!-- Conversations Browser Tab                               -->
+          <!-- ======================================================== -->
+          <template
+            x-if="openTabs.find(t => t.id === activeTab && t.type === 'conversations-browser')"
+          >
+            <div class="p-6 overflow-auto h-full" x-data="{ search: '' }">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-tokyo-text">All Conversations</h2>
+                <input
+                  x-model="search"
+                  type="text"
+                  placeholder="Search conversations..."
+                  class="text-xs bg-tokyo-card/50 border border-white/10 rounded-md px-3 py-1.5 text-tokyo-text placeholder:text-tokyo-muted outline-none focus:border-tokyo-blue/50 w-48"
+                />
+              </div>
+              <div class="space-y-2">
+                <template x-for="conv in conversations.filter(c => c.turnCount > 0 && (!search || (c.title || '').toLowerCase().includes(search.toLowerCase())))" :key="conv.id">
+                  <button
+                    @click="openConversationPreview(conv)"
+                    class="w-full glass-strong rounded-lg px-4 py-3 flex items-start gap-3 hover:bg-white/5 transition-colors text-left"
+                  >
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-tokyo-text truncate flex-1" x-text="conv.title || 'New conversation'"></span>
+                        <span class="text-[10px] text-tokyo-muted shrink-0" x-text="conv.updated ? formatRelativeTime(conv.updated) : ''"></span>
+                      </div>
+                      <div class="flex items-center gap-2 mt-0.5">
+                        <span class="text-[11px] text-tokyo-muted truncate flex-1" x-text="conv.preview || ''"></span>
+                        <span class="text-[10px] text-tokyo-muted/60 shrink-0" x-text="(conv.turnCount || 0) + ' msgs'"></span>
+                      </div>
+                    </div>
+                    <span class="text-[10px] text-tokyo-blue opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1">View &rarr;</span>
+                  </button>
+                </template>
+              </div>
+              <div x-show="conversations.filter(c => c.turnCount > 0).length === 0" class="text-center text-tokyo-muted text-sm py-12">
+                No conversations yet.
               </div>
             </div>
           </template>
