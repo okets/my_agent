@@ -73,7 +73,6 @@ export async function registerAutomationRoutes(
         notify: automation.manifest.notify,
         autonomy: automation.manifest.autonomy,
         once: automation.manifest.once,
-        delivery: automation.manifest.delivery,
         created: automation.manifest.created,
         instructions: automation.instructions,
         jobs: jobs.map((j) => ({

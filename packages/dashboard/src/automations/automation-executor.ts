@@ -454,21 +454,6 @@ export class AutomationExecutor {
     let message = `Execute automation: "${automation.manifest.name}"`;
     message += `\n\n${automation.instructions}`;
 
-    // Deliverable instructions
-    if (automation.manifest.delivery?.length) {
-      message += `\n\n## Output Format
-
-Complete the automation. Structure your response as follows:
-
-First, write your reasoning, research, and analysis.
-
-Then produce your final deliverable wrapped in XML tags:
-
-<deliverable>
-[Your standalone message goes here]
-</deliverable>`;
-    }
-
     return message;
   }
 }

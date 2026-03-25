@@ -401,23 +401,20 @@ export class AppChatService {
       storedSid,
     );
 
-    // ── Task context ────────────────────────────────────────────
-    if (options?.context?.type === "task" && options.context.taskId) {
-      sessionManager.setTaskContext(
-        options.context.taskId,
-        options.context.title,
-      );
-    }
-
-    // ── Automation context ───────────────────────────────────────
-    if (
-      options?.context?.type === "automation" &&
-      options.context.automationId
-    ) {
-      sessionManager.setAutomationContext(
-        options.context.automationId,
-        options.context.automationName || options.context.title || "",
-      );
+    // ── View context (generic) ────────────────────────────────────
+    if (options?.context) {
+      const ctx = options.context;
+      if (ctx.type === 'automation' && ctx.automationId) {
+        sessionManager.setViewContext('automation', ctx.automationId, ctx.automationName || ctx.title || '');
+      } else if (ctx.type === 'space' && ctx.spaceName) {
+        sessionManager.setViewContext('space', ctx.spaceName, ctx.title || ctx.spaceName);
+      } else if (ctx.type === 'conversation' && ctx.conversationId) {
+        sessionManager.setViewContext('conversation', ctx.conversationId, ctx.title || '');
+      } else if (ctx.type === 'notebook' && ctx.file) {
+        sessionManager.setViewContext('notebook', ctx.file, ctx.title || '');
+      } else if (ctx.type === 'calendar') {
+        sessionManager.setViewContext('calendar', 'calendar', ctx.title || 'Calendar');
+      }
     }
 
     // ── Process attachments ─────────────────────────────────────

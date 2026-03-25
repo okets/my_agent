@@ -196,10 +196,12 @@ function chat() {
       const wsJobs = Alpine.store("jobs")?.items || [];
       const allJobs = [...wsJobs, ...this.timelineOlderJobs];
       const seenJobIds = new Set();
+      const automationItems = Alpine.store("automations")?.items || [];
       for (const job of allJobs) {
         if (seenJobIds.has(job.id)) continue;
         seenJobIds.add(job.id);
         const created = new Date(job.created);
+        const automation = automationItems.find((a) => a.id === job.automationId);
         items.push({
           id: `job-${job.id}`,
           sortDate: created,
@@ -210,6 +212,8 @@ function chat() {
           title: job.automationName || job.automationId,
           summary: job.summary,
           triggerType: job.triggerType,
+          automationId: job.automationId,
+          isOneOff: automation?.once === true || automation?.once === 1,
           job: job,
         });
       }
@@ -244,6 +248,8 @@ function chat() {
           title: proj.automationName || proj.automationId,
           summary: null,
           triggerType: "schedule",
+          automationId: proj.automationId,
+          isOneOff: false,
         });
       }
 
@@ -1753,7 +1759,6 @@ function chat() {
             icon: tab.icon,
             file: tab.data?.file,
             conversationId: tab.data?.conversationId,
-            taskId: tab.data?.task?.id,
           };
 
           // Add space name to chat context for space tabs
@@ -3778,7 +3783,7 @@ function chat() {
 
     /**
      * Open event in a dedicated tab (Outlook-style appointment view)
-     * If the event has a linked taskId, opens the task view instead
+     * Opens the relevant detail view for the event type
      */
     async openEventTab(event) {
       // Automation events: open automation detail tab
@@ -4864,6 +4869,10 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       this.openTabs = [...this.openTabs];
     },
 
+    runToolSpace(spaceName) {
+      this.sendMessage(`Run ${spaceName}`);
+    },
+
     async updateSpaceField(name, field, value) {
       try {
         const resp = await fetch(
@@ -4925,6 +4934,20 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         this.openTabs = [...this.openTabs];
       } catch (err) {
         console.error("Failed to load file:", err);
+      }
+    },
+
+    // ─── Timeline Navigation ──────────────────────────────────────────
+
+    openTimelineItem(item) {
+      if (item.itemType === 'event') {
+        // Calendar events — open calendar tab with event selected
+        this.switchTab('calendar');
+        return;
+      }
+      // Jobs and projected items — open parent automation detail
+      if (item.automationId) {
+        this.openAutomationDetail(item.automationId);
       }
     },
 

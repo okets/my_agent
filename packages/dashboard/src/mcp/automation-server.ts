@@ -63,14 +63,6 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         .boolean()
         .optional()
         .describe("true = fire once and auto-disable"),
-      delivery: z
-        .array(
-          z.object({
-            channel: z.enum(["whatsapp", "email", "dashboard"]),
-            content: z.string().optional(),
-          }),
-        )
-        .optional(),
     },
     async (args) => {
       try {
@@ -84,10 +76,6 @@ export function createAutomationServer(deps: AutomationServerDeps) {
             notify: args.notify,
             autonomy: args.autonomy,
             once: args.once,
-            delivery: args.delivery?.map((d) => ({
-              ...d,
-              status: "pending" as const,
-            })),
           },
         });
 

@@ -23,12 +23,6 @@ export interface TriggerConfig {
   interval?: number;
 }
 
-export interface AutomationDeliveryAction {
-  channel: "whatsapp" | "email" | "dashboard";
-  content?: string;
-  status?: "pending" | "completed" | "failed";
-}
-
 export interface AutomationManifest {
   name: string;
   status: "active" | "disabled";
@@ -39,7 +33,6 @@ export interface AutomationManifest {
   persist_session?: boolean;
   autonomy?: "full" | "cautious" | "review";
   once?: boolean;
-  delivery?: AutomationDeliveryAction[];
   created: string;
   /** System automations are infrastructure — hidden from user, protected from modification */
   system?: boolean;
@@ -92,5 +85,4 @@ export interface CreateAutomationInput {
   persist_session?: boolean;
   autonomy?: "full" | "cautious" | "review";
   once?: boolean;
-  delivery?: AutomationDeliveryAction[];
 }

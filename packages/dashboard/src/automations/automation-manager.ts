@@ -52,7 +52,6 @@ export class AutomationManager {
       persist_session: input.manifest.persist_session,
       autonomy: input.manifest.autonomy ?? "full",
       once: input.manifest.once,
-      delivery: input.manifest.delivery,
       created: input.manifest.created ?? new Date().toISOString(),
     };
 
@@ -167,7 +166,6 @@ export class AutomationManager {
           persistSession: dbRow.persistSession,
           autonomy: dbRow.autonomy,
           once: dbRow.once,
-          delivery: dbRow.delivery ?? undefined,
           created: dbRow.created,
           indexedAt: dbRow.indexedAt,
           system: dbRow.system,
@@ -197,7 +195,6 @@ export class AutomationManager {
         persist_session: row.persistSession,
         autonomy: (row.autonomy as "full" | "cautious" | "review") ?? "full",
         once: row.once,
-        delivery: row.delivery ? JSON.parse(row.delivery) : undefined,
         created: row.created,
       };
 
@@ -255,9 +252,6 @@ export class AutomationManager {
       persistSession: automation.manifest.persist_session,
       autonomy: automation.manifest.autonomy,
       once: automation.manifest.once,
-      delivery: automation.manifest.delivery
-        ? JSON.stringify(automation.manifest.delivery)
-        : undefined,
       created: automation.manifest.created,
       indexedAt: automation.indexedAt,
       system: automation.manifest.system,
@@ -283,7 +277,6 @@ export class AutomationManager {
     if (manifest.autonomy && manifest.autonomy !== "full")
       fm.autonomy = manifest.autonomy;
     if (manifest.once) fm.once = manifest.once;
-    if (manifest.delivery) fm.delivery = manifest.delivery;
 
     return fm;
   }
@@ -303,7 +296,6 @@ export class AutomationManager {
       persist_session: (data.persist_session as boolean) ?? false,
       autonomy: (data.autonomy as "full" | "cautious" | "review") ?? "full",
       once: (data.once as boolean) ?? false,
-      delivery: data.delivery as AutomationManifest["delivery"] | undefined,
       created: (data.created as string) ?? new Date().toISOString(),
       system: (data.system as boolean) ?? undefined,
       handler: (data.handler as string) ?? undefined,

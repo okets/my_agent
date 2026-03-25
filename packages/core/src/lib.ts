@@ -22,7 +22,7 @@ export type {
 } from '@anthropic-ai/claude-agent-sdk'
 
 // MCP servers (M6.5-S1)
-export { createMemoryServer, createChannelServer, createTaskServer } from './mcp/index.js'
+export { createMemoryServer, createChannelServer } from './mcp/index.js'
 export type { MemoryServerDeps } from './mcp/index.js'
 
 // Subagent definitions (M6.5-S1)
@@ -204,9 +204,11 @@ export type {
   SpaceSyncPayload,
 } from './spaces/index.js'
 export { SpaceSyncService, isToolSpace } from './spaces/index.js'
+export { readFrontmatter, parseFrontmatterContent } from './metadata/frontmatter.js'
+export type { FrontmatterResult } from './metadata/frontmatter.js'
 export type {
   Automation, AutomationManifest, TriggerConfig,
-  Job, JobStatus, AutomationDeliveryAction, CreateAutomationInput,
+  Job, JobStatus, CreateAutomationInput,
 } from './spaces/index.js'
 
 // Memory system

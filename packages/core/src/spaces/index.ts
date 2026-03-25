@@ -13,7 +13,6 @@ export type { SpaceSyncServiceOptions, SpaceSyncPayload } from './space-sync-ser
 
 export type {
   TriggerConfig,
-  AutomationDeliveryAction,
   AutomationManifest,
   Automation,
   JobStatus,

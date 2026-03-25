@@ -66,7 +66,6 @@ describe("Automations + Jobs tables in agent.db", () => {
       persistSession: false,
       autonomy: "full",
       once: false,
-      delivery: JSON.stringify([{ channel: "dashboard" }]),
       created: "2026-03-23T00:00:00Z",
       indexedAt: "2026-03-23T10:00:00Z",
     });
@@ -85,9 +84,6 @@ describe("Automations + Jobs tables in agent.db", () => {
     expect(automation!.persistSession).toBe(false);
     expect(automation!.autonomy).toBe("full");
     expect(automation!.once).toBe(false);
-    expect(JSON.parse(automation!.delivery!)).toEqual([
-      { channel: "dashboard" },
-    ]);
     expect(automation!.created).toBe("2026-03-23T00:00:00Z");
     expect(automation!.indexedAt).toBe("2026-03-23T10:00:00Z");
   });

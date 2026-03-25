@@ -71,10 +71,14 @@ export interface Turn {
 
 // Context from dashboard (what user is currently viewing)
 export interface ViewContext {
-  type: "notebook" | "conversation" | "settings";
+  type: string;
   title: string;
   icon?: string;
   file?: string; // For notebook tabs
+  taskId?: string;
+  automationId?: string;
+  automationName?: string;
+  spaceName?: string;
   conversationId?: string; // For external conversation tabs
 }
 

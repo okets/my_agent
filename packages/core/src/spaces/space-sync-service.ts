@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { dirname, basename } from 'path'
-import { parse } from 'yaml'
 import { FileWatcher, type FileChange } from '../sync/file-watcher.js'
+import { parseFrontmatterContent } from '../metadata/frontmatter.js'
 import type { SpaceManifest } from './types.js'
 
 export interface SpaceSyncServiceOptions {
@@ -71,7 +71,7 @@ export class SpaceSyncService extends EventEmitter {
 
   private parseSpaceManifest(change: FileChange): SpaceSyncPayload | null {
     try {
-      const { data, body } = this.parseFrontmatter(change.content)
+      const { data, body } = parseFrontmatterContent(change.content)
       const manifest = data as Partial<SpaceManifest>
       const name = this.extractSpaceName(change.relativePath)
       if (!name) return null
@@ -101,21 +101,4 @@ export class SpaceSyncService extends EventEmitter {
     return basename(dir)
   }
 
-  private parseFrontmatter(content: string): { data: Record<string, unknown>; body: string } {
-    if (!content.startsWith('---\n') && !content.startsWith('---\r\n')) {
-      return { data: {}, body: content }
-    }
-
-    const closingIndex = content.indexOf('\n---', 4)
-    if (closingIndex === -1) {
-      return { data: {}, body: content }
-    }
-
-    const yamlStr = content.slice(4, closingIndex)
-    let body = content.slice(closingIndex + 4)
-    if (body.startsWith('\n')) body = body.slice(1)
-
-    const data = parse(yamlStr) ?? {}
-    return { data, body }
-  }
 }

@@ -258,10 +258,6 @@ describe("AutomationManager", () => {
         persist_session: true,
         autonomy: "cautious",
         once: true,
-        delivery: [
-          { channel: "whatsapp", content: "Done" },
-          { channel: "dashboard" },
-        ],
       },
     });
 
@@ -271,6 +267,5 @@ describe("AutomationManager", () => {
     expect(readBack!.manifest.persist_session).toBe(true);
     expect(readBack!.manifest.autonomy).toBe("cautious");
     expect(readBack!.manifest.once).toBe(true);
-    expect(readBack!.manifest.delivery).toHaveLength(2);
   });
 });

@@ -782,15 +782,14 @@ export class ConversationDatabase {
     persistSession?: boolean;
     autonomy?: string;
     once?: boolean;
-    delivery?: string;
     created: string;
     indexedAt: string;
     system?: boolean;
     handler?: string;
   }): void {
     const stmt = this.db.prepare(`
-      INSERT INTO automations (id, name, status, trigger_config, spaces, model, notify, persist_session, autonomy, once, delivery, created, indexed_at, system, handler)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO automations (id, name, status, trigger_config, spaces, model, notify, persist_session, autonomy, once, created, indexed_at, system, handler)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         status = excluded.status,
@@ -801,7 +800,6 @@ export class ConversationDatabase {
         persist_session = excluded.persist_session,
         autonomy = excluded.autonomy,
         once = excluded.once,
-        delivery = excluded.delivery,
         indexed_at = excluded.indexed_at,
         system = excluded.system,
         handler = excluded.handler
@@ -818,7 +816,6 @@ export class ConversationDatabase {
       automation.persistSession ? 1 : 0,
       automation.autonomy ?? "full",
       automation.once ? 1 : 0,
-      automation.delivery ?? null,
       automation.created,
       automation.indexedAt,
       automation.system ? 1 : 0,
@@ -841,7 +838,6 @@ export class ConversationDatabase {
     persistSession: boolean;
     autonomy: string;
     once: boolean;
-    delivery: string | null;
     created: string;
     indexedAt: string;
     system: boolean;
@@ -868,7 +864,6 @@ export class ConversationDatabase {
     persistSession: boolean;
     autonomy: string;
     once: boolean;
-    delivery: string | null;
     created: string;
     indexedAt: string;
     system: boolean;
@@ -902,7 +897,6 @@ export class ConversationDatabase {
     persistSession: boolean;
     autonomy: string;
     once: boolean;
-    delivery: string | null;
     created: string;
     indexedAt: string;
     system: boolean;
@@ -919,7 +913,6 @@ export class ConversationDatabase {
       persistSession: !!row.persist_session,
       autonomy: row.autonomy,
       once: !!row.once,
-      delivery: row.delivery,
       created: row.created,
       indexedAt: row.indexed_at,
       system: !!row.system,
