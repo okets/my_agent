@@ -363,18 +363,7 @@ describe("M6.6 Memory Lifecycle E2E", () => {
       rmSync(coldDir, { recursive: true, force: true });
     });
 
-    it("15b: cold start with no work-patterns does not crash", async () => {
-      const { loadWorkPatterns } =
-        await import("../../src/scheduler/work-patterns.js");
-
-      const coldDir = mkdtempSync(join(tmpdir(), "no-patterns-"));
-      mkdirSync(join(coldDir, "notebook", "config"), { recursive: true });
-
-      const patterns = await loadWorkPatterns(coldDir);
-      expect(Array.isArray(patterns)).toBe(true);
-
-      rmSync(coldDir, { recursive: true, force: true });
-    });
+    // 15b removed in M7-S6 — work-patterns replaced by automation manifests
 
     it("16: concurrent staging writes do not corrupt files", async () => {
       const concurrentDir = mkdtempSync(join(tmpdir(), "concurrent-"));

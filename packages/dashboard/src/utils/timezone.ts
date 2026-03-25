@@ -26,7 +26,7 @@ export async function resolveTimezone(agentDir: string): Promise<string> {
   return "UTC";
 }
 
-function isValidTimezone(tz: string): boolean {
+export function isValidTimezone(tz: string): boolean {
   try {
     Intl.DateTimeFormat(undefined, { timeZone: tz });
     return true;

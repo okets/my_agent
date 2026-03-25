@@ -217,10 +217,27 @@ export class ConversationDatabase {
       );
     `);
 
+    // M7-S6: Add system + handler columns (safe if already exist)
+    const automationCols = this.db
+      .prepare("PRAGMA table_info(automations)")
+      .all() as any[];
+    const automationColNames = automationCols.map((c: any) => c.name);
+    if (!automationColNames.includes("system")) {
+      this.db.exec(
+        "ALTER TABLE automations ADD COLUMN system INTEGER DEFAULT 0",
+      );
+    }
+    if (!automationColNames.includes("handler")) {
+      this.db.exec("ALTER TABLE automations ADD COLUMN handler TEXT");
+    }
+
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_automations_status
       ON automations(status);
     `);
+
+    // M7-S6: Drop legacy work_loop_runs table (replaced by automation jobs)
+    this.db.exec("DROP TABLE IF EXISTS work_loop_runs");
 
     // M7-S3: Jobs table (derived from JSONL files, for timeline queries)
     this.db.exec(`
@@ -768,10 +785,12 @@ export class ConversationDatabase {
     delivery?: string;
     created: string;
     indexedAt: string;
+    system?: boolean;
+    handler?: string;
   }): void {
     const stmt = this.db.prepare(`
-      INSERT INTO automations (id, name, status, trigger_config, spaces, model, notify, persist_session, autonomy, once, delivery, created, indexed_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO automations (id, name, status, trigger_config, spaces, model, notify, persist_session, autonomy, once, delivery, created, indexed_at, system, handler)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         name = excluded.name,
         status = excluded.status,
@@ -783,7 +802,9 @@ export class ConversationDatabase {
         autonomy = excluded.autonomy,
         once = excluded.once,
         delivery = excluded.delivery,
-        indexed_at = excluded.indexed_at
+        indexed_at = excluded.indexed_at,
+        system = excluded.system,
+        handler = excluded.handler
     `);
 
     stmt.run(
@@ -800,6 +821,8 @@ export class ConversationDatabase {
       automation.delivery ?? null,
       automation.created,
       automation.indexedAt,
+      automation.system ? 1 : 0,
+      automation.handler ?? null,
     );
   }
 
@@ -821,6 +844,8 @@ export class ConversationDatabase {
     delivery: string | null;
     created: string;
     indexedAt: string;
+    system: boolean;
+    handler: string | null;
   } | null {
     const row = this.db
       .prepare("SELECT * FROM automations WHERE id = ?")
@@ -829,7 +854,10 @@ export class ConversationDatabase {
     return this.rowToAutomation(row);
   }
 
-  listAutomations(filter?: { status?: string }): Array<{
+  listAutomations(filter?: {
+    status?: string;
+    excludeSystem?: boolean;
+  }): Array<{
     id: string;
     name: string;
     status: string;
@@ -843,6 +871,8 @@ export class ConversationDatabase {
     delivery: string | null;
     created: string;
     indexedAt: string;
+    system: boolean;
+    handler: string | null;
   }> {
     let sql = "SELECT * FROM automations WHERE 1=1";
     const params: any[] = [];
@@ -850,6 +880,10 @@ export class ConversationDatabase {
     if (filter?.status) {
       sql += " AND status = ?";
       params.push(filter.status);
+    }
+
+    if (filter?.excludeSystem) {
+      sql += " AND (system = 0 OR system IS NULL)";
     }
 
     sql += " ORDER BY name";
@@ -871,6 +905,8 @@ export class ConversationDatabase {
     delivery: string | null;
     created: string;
     indexedAt: string;
+    system: boolean;
+    handler: string | null;
   } {
     return {
       id: row.id,
@@ -886,6 +922,8 @@ export class ConversationDatabase {
       delivery: row.delivery,
       created: row.created,
       indexedAt: row.indexed_at,
+      system: !!row.system,
+      handler: row.handler ?? null,
     };
   }
 
@@ -1020,6 +1058,7 @@ export class ConversationDatabase {
     before?: string;
     after?: string;
     limit?: number;
+    automationId?: string;
   }): Array<{
     id: string;
     automationId: string;
@@ -1049,6 +1088,10 @@ export class ConversationDatabase {
     if (options.after) {
       sql += " AND j.created > ?";
       params.push(options.after);
+    }
+    if (options.automationId) {
+      sql += " AND j.automation_id = ?";
+      params.push(options.automationId);
     }
 
     sql += " ORDER BY j.created DESC LIMIT ?";

@@ -1,4 +1,19 @@
 /**
+ * Format a duration in milliseconds to a human-readable string.
+ */
+function formatDuration(ms) {
+  if (ms < 1000) return ms + "ms";
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return secs + "s";
+  const mins = Math.floor(secs / 60);
+  const remSecs = secs % 60;
+  if (mins < 60) return mins + "m " + remSecs + "s";
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return hrs + "h " + remMins + "m";
+}
+
+/**
  * Alpine.js chat component
  */
 function chat() {
@@ -123,12 +138,8 @@ function chat() {
     todayEvents: [], // Events for today (mini calendar list)
     upcomingEvents: [], // Events for next 7 days (timeline)
 
-    // Work loop system events
-    showSystemEvents: true, // Toggle work loop events visibility
-    workLoopPatterns: [], // Work loop job patterns from API
-    workLoopJobDetail: null, // { name, displayName, cadence, model, lastRun, nextRun, prompts, runs }
-    workLoopExpandedRun: null, // ID of expanded run in activity log
-    workLoopShowPrompts: false, // Whether prompts section is expanded
+    // Automation system events
+    showSystemEvents: true, // Toggle automation events visibility
 
     // Event modal
     eventModalOpen: false,
@@ -1756,10 +1767,6 @@ function chat() {
             this.chatContext.automationName = tab.title;
           }
 
-          // Reload job detail when switching to a workloop tab
-          if (tab.type === "workloop" && tab.data?.jobName) {
-            this.loadWorkLoopJobDetail(tab.data.jobName);
-          }
         }
       }
 
@@ -3442,8 +3449,6 @@ function chat() {
         this.updateCalendarContext();
       }
 
-      // Load work loop patterns for sidebar
-      this.loadWorkLoopPatterns();
     },
 
     /**
@@ -3650,94 +3655,14 @@ function chat() {
         },
       });
 
-      // Re-add work loop source if visible
+      // Re-add timeline source if visible
       if (this.showSystemEvents) {
         this.calendar.addEventSource({
-          url: "/api/work-loop/events",
-          method: "GET",
+          events: fetchTimelineEvents,
         });
       }
     },
 
-    /**
-     * Load work loop patterns for sidebar display
-     */
-    async loadWorkLoopPatterns() {
-      try {
-        const res = await fetch("/api/work-loop/status");
-        if (res.ok) {
-          const data = await res.json();
-          this.workLoopPatterns = data.patterns || [];
-        }
-      } catch (err) {
-        console.error("[App] Failed to load work loop patterns:", err);
-      }
-    },
-
-    /**
-     * Open a work loop job tab (or refresh if already open)
-     */
-    async openWorkLoopTab(jobName) {
-      const tabId = `workloop-${jobName}`;
-
-      // If tab already open, refresh and switch
-      const existing = this.openTabs.find((t) => t.id === tabId);
-      if (existing) {
-        this.switchTab(tabId);
-        await this.loadWorkLoopJobDetail(jobName);
-        return;
-      }
-
-      // Fetch job detail from API
-      await this.loadWorkLoopJobDetail(jobName);
-
-      this.openTab({
-        id: tabId,
-        type: "workloop",
-        title: this.workLoopJobDetail?.displayName || jobName,
-        icon: "\u{1F504}",
-        closeable: true,
-        data: { jobName, file: "notebook/config/work-patterns.md" },
-      });
-    },
-
-    /**
-     * Load work loop job detail from API
-     */
-    async loadWorkLoopJobDetail(jobName) {
-      try {
-        const res = await fetch(
-          `/api/work-loop/jobs/${encodeURIComponent(jobName)}`,
-        );
-        if (res.ok) {
-          this.workLoopJobDetail = await res.json();
-        } else {
-          // Clear stale data on non-OK response (fixes calendar showing wrong job data)
-          this.workLoopJobDetail = null;
-        }
-      } catch (err) {
-        console.error("[App] Failed to load work loop job detail:", err);
-        this.workLoopJobDetail = null;
-      }
-    },
-
-    /**
-     * Trigger a work loop job manually
-     */
-    async triggerWorkLoopJob(jobName) {
-      try {
-        const res = await fetch(
-          `/api/work-loop/trigger/${encodeURIComponent(jobName)}`,
-          { method: "POST" },
-        );
-        const data = await res.json();
-        // Open the tab (will show the new run in history)
-        await this.openWorkLoopTab(jobName);
-        this.refreshCalendar();
-      } catch (err) {
-        console.error("[App] Failed to trigger job:", err);
-      }
-    },
 
     /**
      * Open event modal for creating/editing
@@ -3856,16 +3781,10 @@ function chat() {
      * If the event has a linked taskId, opens the task view instead
      */
     async openEventTab(event) {
-      // Work loop events: open job tab (desktop) or popover (mobile)
+      // Automation events: open automation detail tab
       const extProps = event.extendedProps || {};
-      if (extProps.type === "work-loop") {
-        const mobile = Alpine.store("mobile");
-        if (mobile && mobile.isMobile) {
-          await this.loadWorkLoopJobDetail(extProps.jobName);
-          mobile.openPopoverWithFocus("workloop", this.workLoopJobDetail);
-        } else {
-          this.openWorkLoopTab(extProps.jobName);
-        }
+      if (extProps.type === "automation" && extProps.automationId) {
+        this.openAutomationDetail(extProps.automationId);
         return;
       }
 
@@ -5065,13 +4984,71 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
           },
           instructions: data.instructions,
           jobs: data.jobs,
+          jobHistory: [],
+          jobHistoryLoading: true,
           loaded: true,
         };
+        this.openTabs = [...this.openTabs];
+
+        // Fetch job history from timeline API
+        this.loadAutomationJobHistory(id);
       } catch (err) {
         console.error("Failed to load automation:", err);
       }
       tab.loading = false;
       this.openTabs = [...this.openTabs];
+    },
+
+    async loadAutomationJobHistory(automationId) {
+      const tab = this.openTabs.find(
+        (t) => t.id === `automation-${automationId}`,
+      );
+      if (!tab) return;
+      try {
+        const resp = await fetch(
+          `/api/timeline?automationId=${encodeURIComponent(automationId)}&limit=20`,
+        );
+        const data = await resp.json();
+        const history = [];
+
+        // Past jobs
+        for (const job of data.pastJobs || []) {
+          const duration =
+            job.completed && job.created
+              ? formatDuration(
+                  new Date(job.completed) - new Date(job.created),
+                )
+              : null;
+          history.push({
+            id: job.id,
+            automationName: job.automationName,
+            status: job.status,
+            created: job.created,
+            completed: job.completed,
+            summary: job.summary,
+            duration,
+          });
+        }
+
+        // Future projected runs
+        for (const run of data.futureRuns || []) {
+          history.push({
+            id: run.id,
+            automationName: run.automationName,
+            status: "scheduled",
+            scheduledFor: run.scheduledFor,
+            summary: "Scheduled run",
+          });
+        }
+
+        tab.data.jobHistory = history;
+        tab.data.jobHistoryLoading = false;
+        this.openTabs = [...this.openTabs];
+      } catch (err) {
+        console.error("Failed to load job history:", err);
+        tab.data.jobHistoryLoading = false;
+        this.openTabs = [...this.openTabs];
+      }
     },
 
     async fireAutomation(id) {

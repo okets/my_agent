@@ -346,6 +346,7 @@ export async function loadAutomationHints(
       if (!fmMatch) continue
       const data = parseYaml(fmMatch[1]) as Record<string, unknown>
       if (data.status !== 'active') continue
+      if (data.system === true) continue
       const name = (data.name as string) ?? file.replace('.md', '')
       const triggers = (data.trigger ?? []) as Array<Record<string, unknown>>
       const hints = triggers

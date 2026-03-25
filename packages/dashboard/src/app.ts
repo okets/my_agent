@@ -56,7 +56,7 @@ import {
   MockTransportPlugin,
   ChannelMessageHandler,
 } from "./channels/index.js";
-import { WorkLoopScheduler } from "./scheduler/work-loop-scheduler.js";
+
 import { ConversationInitiator } from "./agent/conversation-initiator.js";
 import { PostResponseHooks } from "./conversations/post-response-hooks.js";
 import { SessionRegistry } from "./agent/session-registry.js";
@@ -75,6 +75,8 @@ import { ConnectionRegistry } from "./ws/connection-registry.js";
 import { AppChatService } from "./chat/chat-service.js";
 import { AppAuthService } from "./auth/auth-service.js";
 import { AppDebugService } from "./debug/app-debug-service.js";
+import { migrateWorkPatternsToAutomations } from "./migrations/work-patterns-to-automations.js";
+import { createDebriefAutomationAdapter } from "./mcp/debrief-automation-adapter.js";
 import type { Automation } from "@my-agent/core";
 import type { ConversationDatabase } from "./conversations/db.js";
 import type { Conversation } from "./conversations/types.js";
@@ -311,7 +313,6 @@ export class App extends EventEmitter {
   notificationService: NotificationService | null = null;
 
   // Work loop
-  workLoopScheduler: WorkLoopScheduler | null = null;
 
   // Memory
   memoryDb: MemoryDb | null = null;
@@ -620,39 +621,8 @@ export class App extends EventEmitter {
       console.log("[ConversationInitiator] Initialized");
     }
 
-    // ── WorkLoopScheduler (M6.6-S2) ──
-    if (hatched) {
-      try {
-        const db = app.conversationManager.getDb();
-        app.workLoopScheduler = new WorkLoopScheduler({
-          db,
-          agentDir,
-          pollIntervalMs: 60_000,
-          notificationService: app.notificationService ?? undefined,
-          conversationInitiator: app.conversationInitiator ?? undefined,
-        });
-        await app.workLoopScheduler.start();
-        console.log("Work loop scheduler started");
-      } catch (err) {
-        console.warn(
-          "Failed to initialize work loop scheduler:",
-          err instanceof Error ? err.message : String(err),
-        );
-      }
-    }
-
-    // Wire fact extraction → work loop logging (M6.6-S3)
-    if (app.abbreviationQueue && app.workLoopScheduler) {
-      const scheduler = app.workLoopScheduler;
-      app.abbreviationQueue.onExtractionComplete = (result) => {
-        scheduler.logExternalRun(
-          "fact-extraction",
-          result.durationMs,
-          `Extracted ${result.newFactCount} new facts from conversation ${result.conversationId}`,
-          result.error,
-        );
-      };
-    }
+    // WorkLoopScheduler removed in M7-S6 — jobs are now automation manifests
+    // executed via AutomationExecutor + built-in handler registry
 
     // ── StatePublisher ──
     if (hatched && connectionRegistry) {
@@ -836,7 +806,6 @@ export class App extends EventEmitter {
         app.syncService.on("sync", () => {
           app.emit("memory:changed");
           getPromptBuilder()?.invalidateCache();
-          app.workLoopScheduler?.reloadPatterns().catch(() => {});
         });
 
         console.log("Memory file watcher started");
@@ -882,12 +851,18 @@ export class App extends EventEmitter {
     // ── MCP servers ──
     if (app.searchService) {
       const notebookDir = join(agentDir, "notebook");
+      // Create debrief adapter backed by automation system (lazy — scheduler may init later)
+      const debriefAdapter = createDebriefAutomationAdapter(
+        () => app.automationJobService,
+        agentDir,
+      );
+
       initMcpServers(
         app.searchService,
         notebookDir,
         app.conversationSearchService ?? undefined,
         app.conversationManager ?? undefined,
-        app.workLoopScheduler ?? undefined,
+        debriefAdapter,
       );
     }
 
@@ -935,6 +910,21 @@ export class App extends EventEmitter {
       } catch (err) {
         console.warn(
           "Failed to initialize spaces:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    // ── Migration: work-patterns → automations (M7-S6) ──
+    if (hatched) {
+      try {
+        const migrated = migrateWorkPatternsToAutomations(agentDir);
+        if (migrated > 0) {
+          console.log(`[Migration] Created ${migrated} automation manifest(s) from work-patterns`);
+        }
+      } catch (err) {
+        console.warn(
+          "[Migration] work-patterns migration failed:",
           err instanceof Error ? err.message : String(err),
         );
       }
@@ -1221,10 +1211,6 @@ export class App extends EventEmitter {
    * Graceful shutdown — stop all services in reverse initialization order.
    */
   async shutdown(): Promise<void> {
-    if (this.workLoopScheduler) {
-      await this.workLoopScheduler.stop();
-      console.log("Work loop scheduler stopped.");
-    }
     if (this.calendarScheduler) {
       this.calendarScheduler.stop();
       console.log("Calendar scheduler stopped.");

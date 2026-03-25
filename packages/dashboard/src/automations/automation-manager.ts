@@ -119,6 +119,10 @@ export class AutomationManager {
       throw new Error(`Automation not found: ${id}`);
     }
 
+    if (existing.manifest.system) {
+      throw new Error(`Cannot modify system automation: ${id}`);
+    }
+
     const updatedManifest: AutomationManifest = {
       ...existing.manifest,
       ...changes,
@@ -145,6 +149,9 @@ export class AutomationManager {
    */
   disable(id: string): void {
     const existing = this.read(id);
+    if (existing?.manifest.system) {
+      throw new Error(`Cannot disable system automation: ${id}`);
+    }
     if (!existing) {
       // If file doesn't exist, just update DB
       const dbRow = this.db.getAutomation(id);
@@ -163,6 +170,8 @@ export class AutomationManager {
           delivery: dbRow.delivery ?? undefined,
           created: dbRow.created,
           indexedAt: dbRow.indexedAt,
+          system: dbRow.system,
+          handler: dbRow.handler ?? undefined,
         });
       }
       return;
@@ -174,7 +183,7 @@ export class AutomationManager {
   /**
    * List automations from agent.db.
    */
-  list(filter?: { status?: string }): Automation[] {
+  list(filter?: { status?: string; excludeSystem?: boolean }): Automation[] {
     const rows = this.db.listAutomations(filter);
     return rows.map((row) => {
       const triggerConfig = JSON.parse(row.triggerConfig);
@@ -251,6 +260,8 @@ export class AutomationManager {
         : undefined,
       created: automation.manifest.created,
       indexedAt: automation.indexedAt,
+      system: automation.manifest.system,
+      handler: automation.manifest.handler,
     });
   }
 
@@ -294,6 +305,8 @@ export class AutomationManager {
       once: (data.once as boolean) ?? false,
       delivery: data.delivery as AutomationManifest["delivery"] | undefined,
       created: (data.created as string) ?? new Date().toISOString(),
+      system: (data.system as boolean) ?? undefined,
+      handler: (data.handler as string) ?? undefined,
     };
   }
 }

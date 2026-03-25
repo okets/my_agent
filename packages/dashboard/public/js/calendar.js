@@ -6,6 +6,75 @@
  */
 
 /**
+ * Map automation job status to calendar event color.
+ */
+const timelineStatusColors = {
+  completed: "#22c55e", // green
+  failed: "#ef4444", // red
+  needs_review: "#f59e0b", // amber
+  running: "#3b82f6", // blue
+  scheduled: "#22d3ee", // cyan
+};
+
+/**
+ * Fetch timeline events (past jobs + future runs) for FullCalendar.
+ * Used as a custom event source function.
+ */
+async function fetchTimelineEvents(fetchInfo, successCallback, failureCallback) {
+  try {
+    const params = new URLSearchParams({
+      after: fetchInfo.start.toISOString(),
+      before: fetchInfo.end.toISOString(),
+      limit: "200",
+    });
+    const res = await fetch(`/api/timeline?${params}`);
+    if (!res.ok) {
+      failureCallback(new Error(`Timeline API returned ${res.status}`));
+      return;
+    }
+    const data = await res.json();
+    const events = [];
+
+    // Past jobs
+    for (const job of data.pastJobs || []) {
+      events.push({
+        id: job.id,
+        title: job.automationName || "Automation",
+        start: job.created,
+        end: job.completed || undefined,
+        color: timelineStatusColors[job.status] || "#6b7280",
+        extendedProps: {
+          type: "automation",
+          jobId: job.id,
+          automationId: job.automationId,
+          status: job.status,
+        },
+      });
+    }
+
+    // Future projected runs
+    for (const run of data.futureRuns || []) {
+      events.push({
+        id: run.id,
+        title: run.automationName + " (scheduled)",
+        start: run.scheduledFor,
+        color: timelineStatusColors.scheduled,
+        extendedProps: {
+          type: "automation",
+          automationId: run.automationId,
+          status: "scheduled",
+          projected: true,
+        },
+      });
+    }
+
+    successCallback(events);
+  } catch (err) {
+    failureCallback(err);
+  }
+}
+
+/**
  * Initialize FullCalendar on a DOM element
  * @param {HTMLElement} el - Container element
  * @param {Object} options - Configuration options
@@ -70,7 +139,7 @@ function initCalendar(el, options = {}) {
       },
     },
 
-    // Event sources: CalDAV + Work Loop (conditional)
+    // Event sources: CalDAV + Timeline (automations)
     eventSources: [
       {
         url: "/api/calendar/events",
@@ -88,11 +157,10 @@ function initCalendar(el, options = {}) {
       ...(showSystemEvents
         ? [
             {
-              url: "/api/work-loop/events",
-              method: "GET",
+              events: fetchTimelineEvents,
               failure: (err) => {
                 console.error(
-                  "[Calendar] Failed to fetch work loop events:",
+                  "[Calendar] Failed to fetch timeline events:",
                   err,
                 );
               },

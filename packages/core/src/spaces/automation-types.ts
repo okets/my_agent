@@ -41,6 +41,10 @@ export interface AutomationManifest {
   once?: boolean;
   delivery?: AutomationDeliveryAction[];
   created: string;
+  /** System automations are infrastructure — hidden from user, protected from modification */
+  system?: boolean;
+  /** Built-in handler key (e.g. "debrief-prep") — skips SDK session, calls registered TypeScript function */
+  handler?: string;
 }
 
 export interface Automation {

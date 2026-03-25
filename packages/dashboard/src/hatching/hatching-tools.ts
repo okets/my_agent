@@ -1,6 +1,13 @@
 import { z } from "zod";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parse, stringify } from "yaml";
 import {
   query,
@@ -21,6 +28,37 @@ import {
 } from "@my-agent/core";
 import type { ServerMessage, ChatControl } from "../ws/protocol.js";
 import { buildHatchingPrompt } from "./hatching-prompt.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/** Copy automation templates to agentDir/automations/, replacing placeholders */
+function createAutomationManifests(agentDir: string): void {
+  const templatesDir = join(__dirname, "templates");
+  const automationsDir = join(agentDir, "automations");
+
+  if (!existsSync(templatesDir)) return;
+
+  mkdirSync(automationsDir, { recursive: true });
+
+  const createdDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const templateFiles = readdirSync(templatesDir).filter((f) =>
+    f.endsWith(".md"),
+  );
+
+  for (const file of templateFiles) {
+    // Template filename: debrief-automation.md → output: debrief.md
+    // Template filename: system-daily-summary.md → output: system-daily-summary.md
+    const outputName = file.replace("-automation", "");
+    const outputPath = join(automationsDir, outputName);
+
+    // Don't overwrite existing automations (idempotent)
+    if (existsSync(outputPath)) continue;
+
+    let content = readFileSync(join(templatesDir, file), "utf-8");
+    content = content.replace(/\{\{created_date\}\}/g, createdDate);
+    writeFileSync(outputPath, content, "utf-8");
+  }
+}
 
 interface HatchingSessionCallbacks {
   send: (msg: ServerMessage) => void;
@@ -244,6 +282,9 @@ export function createHatchingSession(
             "utf-8",
           );
         }
+
+        // Create automation manifests from templates
+        createAutomationManifests(agentDir);
 
         // Mark as hatched
         await writeHatchedMarker(agentDir);

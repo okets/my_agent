@@ -23,13 +23,20 @@ import {
 
 describe("Agent Debug Scenario (headless)", () => {
   let harness: AppHarness;
+  let savedApiKey: string | undefined;
 
   beforeEach(async () => {
+    // Isolate from production env — tests expect no auth configured
+    savedApiKey = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
     harness = await AppHarness.create();
   });
 
   afterEach(async () => {
     await harness.shutdown();
+    if (savedApiKey !== undefined) {
+      process.env.ANTHROPIC_API_KEY = savedApiKey;
+    }
   });
 
   // ─── getBrainStatus ────────────────────────────────────────────────────────

@@ -27,6 +27,7 @@ export async function registerAutomationRoutes(
           id: a.id,
           name: a.manifest.name,
           status: a.manifest.status,
+          system: a.manifest.system ?? false,
           trigger: a.manifest.trigger,
           spaces: a.manifest.spaces ?? [],
           model: a.manifest.model,
@@ -230,6 +231,77 @@ export async function registerAutomationRoutes(
             ),
           );
         return { ok: true, message: "Job resumed" };
+      } catch (err) {
+        return reply.code(400).send({
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      }
+    },
+  );
+
+  // PATCH /api/automations/:id — update automation manifest fields
+  fastify.patch<{
+    Params: { id: string };
+    Body: Record<string, unknown>;
+  }>("/api/automations/:id", async (request, reply) => {
+    const app = fastify.app;
+    if (!app?.automationManager) {
+      return reply.code(503).send({ error: "Automations not initialized" });
+    }
+
+    const automation = app.automations.findById(request.params.id);
+    if (!automation) {
+      return reply.code(404).send({ error: "Automation not found" });
+    }
+
+    if (automation.manifest.system) {
+      return reply
+        .code(403)
+        .send({ error: "Cannot modify system automation" });
+    }
+
+    try {
+      const updated = app.automationManager.update(
+        request.params.id,
+        request.body as Record<string, unknown>,
+      );
+      app.emit("automation:updated", updated);
+      return {
+        id: updated.id,
+        name: updated.manifest.name,
+        status: updated.manifest.status,
+      };
+    } catch (err) {
+      return reply.code(400).send({
+        error: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  });
+
+  // DELETE /api/automations/:id — delete (disable) an automation
+  fastify.delete<{ Params: { id: string } }>(
+    "/api/automations/:id",
+    async (request, reply) => {
+      const app = fastify.app;
+      if (!app?.automationManager) {
+        return reply.code(503).send({ error: "Automations not initialized" });
+      }
+
+      const automation = app.automations.findById(request.params.id);
+      if (!automation) {
+        return reply.code(404).send({ error: "Automation not found" });
+      }
+
+      if (automation.manifest.system) {
+        return reply
+          .code(403)
+          .send({ error: "Cannot delete system automation" });
+      }
+
+      try {
+        app.automationManager.disable(request.params.id);
+        app.emit("automation:deleted", request.params.id);
+        return { ok: true, message: "Automation disabled" };
       } catch (err) {
         return reply.code(400).send({
           error: err instanceof Error ? err.message : "Unknown error",

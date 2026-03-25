@@ -2644,98 +2644,154 @@
                 </div>
               </div>
 
-              <!-- Debrief section (M6.9-S2) -->
-              <div id="settings-debrief" class="glass-strong rounded-xl p-5">
+              <!-- Automation Schedules section -->
+              <div id="settings-automations" class="glass-strong rounded-xl p-5"
+                x-data="{
+                  automationSchedules: [],
+                  schedulesLoading: true,
+                  editingCron: null,
+                  editCronValue: '',
+                  scheduleStatus: '',
+                  async loadSchedules() {
+                    this.schedulesLoading = true;
+                    try {
+                      const resp = await fetch('/api/automations');
+                      const data = await resp.json();
+                      this.automationSchedules = (data.automations || []).map(a => ({
+                        id: a.id,
+                        name: a.name,
+                        status: a.status,
+                        system: a.system || false,
+                        cron: (a.trigger || []).find(t => t.type === 'schedule')?.cron || '',
+                        model: a.model || '',
+                      }));
+                    } catch (err) {
+                      console.error('Failed to load automation schedules:', err);
+                    }
+                    this.schedulesLoading = false;
+                  },
+                  startEditCron(automation) {
+                    if (automation.system) return;
+                    this.editingCron = automation.id;
+                    this.editCronValue = automation.cron;
+                  },
+                  async saveCron(automation) {
+                    try {
+                      const trigger = [{ type: 'schedule', cron: this.editCronValue }];
+                      const resp = await fetch('/api/automations/' + encodeURIComponent(automation.id), {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ trigger }),
+                      });
+                      if (resp.ok) {
+                        automation.cron = this.editCronValue;
+                        this.scheduleStatus = 'saved';
+                        setTimeout(() => this.scheduleStatus = '', 2000);
+                      } else {
+                        this.scheduleStatus = 'error';
+                        setTimeout(() => this.scheduleStatus = '', 2000);
+                      }
+                    } catch (err) {
+                      console.error('Failed to save cron:', err);
+                      this.scheduleStatus = 'error';
+                      setTimeout(() => this.scheduleStatus = '', 2000);
+                    }
+                    this.editingCron = null;
+                  },
+                  cancelEditCron() { this.editingCron = null; },
+                }"
+                x-init="loadSchedules()"
+              >
                 <h3
                   class="text-sm font-semibold text-tokyo-text mb-4 flex items-center gap-2"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    class="w-4 h-4 text-tokyo-blue"
-                  >
-                    <path
-                      d="M10 2a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 2ZM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM15.657 5.404a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM6.464 14.596a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM18 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 18 10ZM5 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 5 10ZM14.596 15.657a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 1 0-1.06 1.06l1.06 1.061ZM5.404 6.464a.75.75 0 0 0 1.06-1.06L5.403 4.343a.75.75 0 0 0-1.06 1.06l1.06 1.061Z"
-                    />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-tokyo-blue">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clip-rule="evenodd" />
                   </svg>
-                  Debrief
+                  Automation Schedules
                 </h3>
-                <div class="space-y-4">
-                  <!-- Time + Timezone row -->
-                  <div class="grid grid-cols-2 gap-4">
-                    <div>
-                      <label class="block text-xs text-tokyo-muted mb-1.5"
-                        >Delivery time</label
-                      >
-                      <input
-                        type="time"
-                        x-model="briefTime"
-                        class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label class="block text-xs text-tokyo-muted mb-1.5"
-                        >Timezone</label
-                      >
-                      <input
-                        type="text"
-                        x-model="briefTimezone"
-                        placeholder="e.g. Europe/Paris"
-                        class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors placeholder-tokyo-muted/50"
-                      />
-                    </div>
+
+                <!-- Loading -->
+                <template x-if="schedulesLoading">
+                  <div class="text-xs text-tokyo-muted py-4 text-center">Loading schedules...</div>
+                </template>
+
+                <!-- Schedule list -->
+                <template x-if="!schedulesLoading">
+                  <div class="space-y-2">
+                    <!-- Status message -->
+                    <div
+                      x-show="scheduleStatus"
+                      x-transition
+                      class="text-xs mb-2"
+                      :class="scheduleStatus === 'saved' ? 'text-green-400' : 'text-red-400'"
+                      x-text="scheduleStatus === 'saved' ? 'Schedule updated' : 'Failed to update'"
+                    ></div>
+
+                    <!-- User automations (editable) -->
+                    <template x-for="auto in automationSchedules.filter(a => !a.system)" :key="auto.id">
+                      <div class="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-white/5 transition-colors">
+                        <span
+                          class="w-2 h-2 rounded-full shrink-0"
+                          :class="auto.status === 'active' ? 'bg-green-400' : 'bg-gray-400'"
+                        ></span>
+                        <span class="text-sm text-tokyo-text flex-1 min-w-0 truncate" x-text="auto.name"></span>
+                        <template x-if="editingCron !== auto.id">
+                          <div class="flex items-center gap-2">
+                            <code class="text-xs text-tokyo-muted bg-white/5 px-2 py-0.5 rounded" x-text="auto.cron || 'No schedule'"></code>
+                            <button
+                              @click="startEditCron(auto)"
+                              class="text-[10px] text-tokyo-blue hover:text-blue-300 transition-colors"
+                            >Edit</button>
+                          </div>
+                        </template>
+                        <template x-if="editingCron === auto.id">
+                          <div class="flex items-center gap-2">
+                            <input
+                              type="text"
+                              x-model="editCronValue"
+                              @keydown.enter="saveCron(auto)"
+                              @keydown.escape="cancelEditCron()"
+                              class="w-36 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-tokyo-text focus:outline-none focus:border-blue-500/50"
+                              placeholder="0 8 * * *"
+                            />
+                            <button
+                              @click="saveCron(auto)"
+                              class="text-[10px] text-green-400 hover:text-green-300"
+                            >Save</button>
+                            <button
+                              @click="cancelEditCron()"
+                              class="text-[10px] text-tokyo-muted hover:text-tokyo-text"
+                            >Cancel</button>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- System automations (read-only) -->
+                    <template x-if="automationSchedules.filter(a => a.system).length > 0">
+                      <div class="mt-3 pt-3 border-t border-white/5">
+                        <div class="text-[10px] text-tokyo-muted uppercase tracking-wide mb-2">System Automations</div>
+                        <template x-for="auto in automationSchedules.filter(a => a.system)" :key="auto.id">
+                          <div class="flex items-center gap-3 py-1.5 px-3 text-tokyo-muted">
+                            <span
+                              class="w-2 h-2 rounded-full shrink-0"
+                              :class="auto.status === 'active' ? 'bg-green-400/50' : 'bg-gray-400/50'"
+                            ></span>
+                            <span class="text-xs flex-1 min-w-0 truncate" x-text="auto.name"></span>
+                            <code class="text-[10px] bg-white/5 px-2 py-0.5 rounded" x-text="auto.cron || 'No schedule'"></code>
+                            <span class="text-[9px] px-1 py-px rounded bg-white/5">read-only</span>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- Empty state -->
+                    <template x-if="automationSchedules.length === 0">
+                      <div class="text-xs text-tokyo-muted py-4 text-center">No automations configured</div>
+                    </template>
                   </div>
-                  <!-- Model selector row -->
-                  <div>
-                    <label class="block text-xs text-tokyo-muted mb-1.5"
-                      >Model</label
-                    >
-                    <select
-                      x-model="briefModel"
-                      class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
-                      style="
-                        background-color: rgba(30, 30, 46, 0.9);
-                        color: #e5e7eb;
-                      "
-                    >
-                      <option
-                        value="haiku"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Haiku — Fast and lightweight
-                      </option>
-                      <option
-                        value="sonnet"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Sonnet — Balanced
-                      </option>
-                      <option
-                        value="opus"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Opus — Most capable
-                      </option>
-                    </select>
-                  </div>
-                  <!-- Save row -->
-                  <div class="flex items-center justify-between pt-1">
-                    <span
-                      class="text-xs transition-opacity"
-                      :class="preferencesStatus === 'saved' ? 'text-green-400 opacity-100' : preferencesStatus === 'error' ? 'text-red-400 opacity-100' : 'opacity-0'"
-                      x-text="preferencesStatus === 'saved' ? 'Preferences saved' : preferencesStatus === 'error' ? 'Failed to save' : ''"
-                    ></span>
-                    <button
-                      @click="savePreferences()"
-                      :disabled="savingPreferences"
-                      class="px-4 py-1.5 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25 hover:border-blue-500/35 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span x-show="!savingPreferences">Save</span>
-                      <span x-show="savingPreferences">Saving…</span>
-                    </button>
-                  </div>
-                </div>
+                </template>
               </div>
 
               <!-- AI Connection section -->
@@ -4022,237 +4078,6 @@
             </div>
           </template>
 
-          <!-- ======================================================== -->
-          <!-- Work Loop Job Tab                                         -->
-          <!-- ======================================================== -->
-          <template
-            x-if="openTabs.find(t => t.id === activeTab)?.type === 'workloop'"
-          >
-            <div class="h-full flex flex-col p-6 overflow-auto">
-              <template x-if="workLoopJobDetail">
-                <div>
-                  <!-- Header: Title + Status + Actions -->
-                  <div class="flex items-start justify-between gap-4 mb-6">
-                    <div class="flex items-start gap-4 min-w-0 flex-1">
-                      <div
-                        class="w-4 h-4 rounded-full shrink-0 mt-1.5 bg-violet-500/50"
-                      ></div>
-                      <div class="min-w-0 flex-1">
-                        <h1
-                          class="text-2xl font-bold text-tokyo-text truncate"
-                          x-text="workLoopJobDetail.displayName"
-                        ></h1>
-                        <div class="flex items-center gap-2 mt-1">
-                          <span
-                            class="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400"
-                            x-text="workLoopJobDetail.cadence"
-                          ></span>
-                          <span
-                            class="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400"
-                            x-text="'model: ' + workLoopJobDetail.model"
-                          ></span>
-                        </div>
-                      </div>
-                    </div>
-                    <!-- Run Now button -->
-                    <button
-                      @click="triggerWorkLoopJob(workLoopJobDetail.name)"
-                      class="cal-action-btn cal-action-btn-cta"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        class="w-4 h-4"
-                      >
-                        <path
-                          d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.344-5.891a1.5 1.5 0 000-2.538L6.3 2.841z"
-                        />
-                      </svg>
-                      <span>Run Now</span>
-                    </button>
-                  </div>
-
-                  <!-- Schedule Info -->
-                  <div class="grid grid-cols-2 gap-4 mb-6">
-                    <div class="glass-strong rounded-xl p-3">
-                      <div
-                        class="text-[10px] text-gray-500 uppercase tracking-wide mb-1"
-                      >
-                        Last Run
-                      </div>
-                      <div
-                        class="text-sm text-gray-300"
-                        x-text="workLoopJobDetail.lastRun ? new Date(workLoopJobDetail.lastRun).toLocaleString() : 'Never'"
-                      ></div>
-                    </div>
-                    <div class="glass-strong rounded-xl p-3">
-                      <div
-                        class="text-[10px] text-gray-500 uppercase tracking-wide mb-1"
-                      >
-                        Next Run
-                      </div>
-                      <div
-                        class="text-sm text-gray-300"
-                        x-text="workLoopJobDetail.nextRun ? new Date(workLoopJobDetail.nextRun).toLocaleString() : 'Unknown'"
-                      ></div>
-                    </div>
-                  </div>
-
-                  <!-- Prompts (collapsible) -->
-                  <template x-if="workLoopJobDetail.prompts">
-                    <div class="mb-6">
-                      <button
-                        @click="workLoopShowPrompts = !workLoopShowPrompts"
-                        class="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3 hover:text-gray-200 transition-colors"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="w-3.5 h-3.5 transition-transform"
-                          :class="workLoopShowPrompts ? 'rotate-90' : ''"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M9 5l7 7-7 7"
-                          />
-                        </svg>
-                        Prompts
-                      </button>
-                      <template x-if="workLoopShowPrompts">
-                        <div class="space-y-3">
-                          <div>
-                            <div
-                              class="text-[10px] text-gray-500 uppercase tracking-wide mb-1"
-                            >
-                              System Prompt
-                            </div>
-                            <pre
-                              class="text-xs text-gray-300 whitespace-pre-wrap p-3 rounded-lg max-h-48 overflow-y-auto"
-                              style="background: rgba(0, 0, 0, 0.3)"
-                              x-text="workLoopJobDetail.prompts.system"
-                            ></pre>
-                          </div>
-                          <div>
-                            <div
-                              class="text-[10px] text-gray-500 uppercase tracking-wide mb-1"
-                            >
-                              User Prompt Template
-                            </div>
-                            <pre
-                              class="text-xs text-gray-300 whitespace-pre-wrap p-3 rounded-lg max-h-48 overflow-y-auto"
-                              style="background: rgba(0, 0, 0, 0.3)"
-                              x-text="workLoopJobDetail.prompts.userTemplate"
-                            ></pre>
-                          </div>
-                        </div>
-                      </template>
-                    </div>
-                  </template>
-
-                  <!-- Activity Log (Run History) -->
-                  <div>
-                    <h2 class="text-sm font-semibold text-gray-300 mb-3">
-                      Activity Log
-                    </h2>
-                    <div class="space-y-2">
-                      <template
-                        x-for="run in workLoopJobDetail.runs"
-                        :key="run.id"
-                      >
-                        <div
-                          class="glass-strong rounded-xl p-3 cursor-pointer hover:bg-white/5 transition-colors"
-                          @click="workLoopExpandedRun = workLoopExpandedRun === run.id ? null : run.id"
-                        >
-                          <!-- Run summary row -->
-                          <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                              <span
-                                class="text-[10px] px-1.5 py-0.5 rounded"
-                                :class="run.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                                         run.status === 'failed' ? 'bg-red-500/20 text-red-400' :
-                                         'bg-gray-500/20 text-gray-400'"
-                                x-text="run.status"
-                              ></span>
-                              <span
-                                class="text-xs text-gray-400"
-                                x-text="new Date(run.started_at).toLocaleString()"
-                              ></span>
-                            </div>
-                            <div
-                              class="flex items-center gap-3 text-xs text-gray-500"
-                            >
-                              <span
-                                x-show="run.duration_ms"
-                                x-text="(run.duration_ms / 1000).toFixed(1) + 's'"
-                              ></span>
-                              <span
-                                x-show="run.output"
-                                x-text="run.output?.length + ' chars'"
-                              ></span>
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="w-3.5 h-3.5 transition-transform"
-                                :class="workLoopExpandedRun === run.id ? 'rotate-180' : ''"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                stroke-width="2"
-                              >
-                                <path
-                                  stroke-linecap="round"
-                                  stroke-linejoin="round"
-                                  d="M19 9l-7 7-7-7"
-                                />
-                              </svg>
-                            </div>
-                          </div>
-
-                          <!-- Expanded: output or error -->
-                          <template x-if="workLoopExpandedRun === run.id">
-                            <div class="mt-3 pt-3 border-t border-white/5">
-                              <template x-if="run.error">
-                                <div
-                                  class="p-2 rounded bg-red-500/10 border border-red-500/20 text-red-300 text-xs mb-2"
-                                  x-text="run.error"
-                                ></div>
-                              </template>
-                              <template x-if="run.output">
-                                <pre
-                                  class="text-xs text-gray-300 whitespace-pre-wrap max-h-60 overflow-y-auto p-2 rounded"
-                                  style="background: rgba(0, 0, 0, 0.3)"
-                                  x-text="run.output"
-                                ></pre>
-                              </template>
-                            </div>
-                          </template>
-                        </div>
-                      </template>
-
-                      <template
-                        x-if="!workLoopJobDetail.runs || workLoopJobDetail.runs.length === 0"
-                      >
-                        <p class="text-xs text-gray-500 py-4 text-center">
-                          No runs yet
-                        </p>
-                      </template>
-                    </div>
-                  </div>
-                </div>
-              </template>
-
-              <!-- Loading state -->
-              <template x-if="!workLoopJobDetail">
-                <div class="flex items-center justify-center h-full">
-                  <p class="text-sm text-gray-500">Loading job details...</p>
-                </div>
-              </template>
-            </div>
-          </template>
 
           <!-- ======================================================== -->
           <!-- Spaces Browser Tab                                       -->
@@ -4831,60 +4656,75 @@
                     </div>
                   </template>
 
-                  <!-- Job history -->
+                  <!-- Job History Timeline -->
                   <div>
-                    <h3 class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide mb-2">Recent Jobs</h3>
-                    <div class="space-y-1">
-                      <template x-for="job in $store.jobs.items.filter(j => j.automationId === tab.data.automationId).slice(0, 20)" :key="job.id">
-                        <div x-data="{ expanded: false }">
-                          <div
-                            @click="expanded = !expanded"
-                            class="glass-strong rounded-lg px-3 py-2 flex items-center gap-3 text-xs cursor-pointer hover:bg-white/5 transition-colors"
-                            :class="{ 'border-l-2 border-amber-400': job.status === 'needs_review' }"
-                          >
-                            <!-- Status dot -->
-                            <span
-                              class="w-2 h-2 rounded-full shrink-0"
-                              :class="{
-                                'bg-green-400': job.status === 'completed',
-                                'bg-red-400': job.status === 'failed',
-                                'bg-amber-400': job.status === 'needs_review',
-                                'bg-blue-400 animate-pulse': job.status === 'running',
-                                'bg-gray-400': job.status === 'pending'
-                              }"
-                            ></span>
-                            <!-- Summary -->
-                            <span class="flex-1 text-tokyo-text/80 truncate" x-text="job.summary || job.status"></span>
-                            <!-- Trigger badge -->
-                            <span
-                              x-show="job.triggerType"
-                              class="text-[9px] px-1 py-px rounded font-medium shrink-0"
-                              :class="{
-                                'bg-cyan-500/15 text-cyan-400': job.triggerType === 'schedule',
-                                'bg-green-500/15 text-green-400': job.triggerType === 'channel',
-                                'bg-amber-500/15 text-amber-400': job.triggerType === 'watch',
-                                'bg-violet-500/15 text-violet-400': job.triggerType === 'manual'
-                              }"
-                              x-text="job.triggerType"
-                            ></span>
-                            <!-- Time -->
-                            <span class="text-[10px] text-tokyo-muted shrink-0" x-text="new Date(job.created).toLocaleString()"></span>
-                            <!-- Expand indicator -->
-                            <span class="text-tokyo-muted text-[10px] shrink-0 transition-transform" :class="{ 'rotate-180': expanded }">▼</span>
-                          </div>
-                          <!-- Expanded summary -->
-                          <div
-                            x-show="expanded"
-                            x-transition
-                            class="mt-1 ml-5 px-3 py-2 text-xs text-tokyo-text/70 whitespace-pre-wrap border-l-2 border-tokyo-blue/20"
-                            x-text="job.summary || 'No summary available'"
-                          ></div>
+                    <h3 class="text-xs font-semibold text-tokyo-muted uppercase tracking-wide mb-3">Job History</h3>
+                    <!-- Loading state -->
+                    <template x-if="tab.data.jobHistoryLoading">
+                      <div class="text-xs text-tokyo-muted py-4 text-center">Loading job history...</div>
+                    </template>
+                    <!-- Timeline list -->
+                    <template x-if="!tab.data.jobHistoryLoading">
+                      <div>
+                        <!-- Vertical timeline -->
+                        <div class="relative ml-3 border-l border-white/10 space-y-0">
+                          <template x-for="entry in (tab.data.jobHistory || [])" :key="entry.id">
+                            <div class="relative pl-5 pb-4" x-data="{ expanded: false }">
+                              <!-- Timeline dot -->
+                              <span
+                                class="absolute left-[-5px] top-2 w-2.5 h-2.5 rounded-full border-2 border-[#1f2335]"
+                                :class="{
+                                  'bg-green-400': entry.status === 'completed',
+                                  'bg-red-400': entry.status === 'failed',
+                                  'bg-amber-400': entry.status === 'needs_review',
+                                  'bg-blue-400 animate-pulse': entry.status === 'running',
+                                  'bg-cyan-400': entry.status === 'scheduled',
+                                  'bg-gray-400': !['completed','failed','needs_review','running','scheduled'].includes(entry.status)
+                                }"
+                              ></span>
+                              <!-- Entry card -->
+                              <div
+                                @click="expanded = !expanded"
+                                class="glass-strong rounded-lg px-3 py-2 cursor-pointer hover:bg-white/5 transition-colors"
+                              >
+                                <div class="flex items-center justify-between gap-2">
+                                  <div class="flex items-center gap-2 min-w-0">
+                                    <span
+                                      class="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0"
+                                      :class="{
+                                        'bg-green-500/20 text-green-400': entry.status === 'completed',
+                                        'bg-red-500/20 text-red-400': entry.status === 'failed',
+                                        'bg-amber-500/20 text-amber-400': entry.status === 'needs_review',
+                                        'bg-blue-500/20 text-blue-400': entry.status === 'running',
+                                        'bg-cyan-500/20 text-cyan-400': entry.status === 'scheduled',
+                                        'bg-gray-500/20 text-gray-400': !['completed','failed','needs_review','running','scheduled'].includes(entry.status)
+                                      }"
+                                      x-text="entry.status"
+                                    ></span>
+                                    <span class="text-xs text-tokyo-text/80 truncate" x-text="entry.summary || entry.automationName || ''"></span>
+                                  </div>
+                                  <div class="flex items-center gap-2 shrink-0">
+                                    <span x-show="entry.duration" class="text-[10px] text-tokyo-muted" x-text="entry.duration"></span>
+                                    <span class="text-[10px] text-tokyo-muted" x-text="new Date(entry.created || entry.scheduledFor).toLocaleString()"></span>
+                                    <span class="text-tokyo-muted text-[10px] transition-transform" :class="{ 'rotate-180': expanded }">&#x25BC;</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <!-- Expanded detail -->
+                              <div
+                                x-show="expanded"
+                                x-transition
+                                class="mt-1 px-3 py-2 text-xs text-tokyo-text/70 whitespace-pre-wrap border-l-2 border-tokyo-blue/20"
+                                x-text="entry.summary || 'No details available'"
+                              ></div>
+                            </div>
+                          </template>
                         </div>
-                      </template>
-                      <template x-if="$store.jobs.items.filter(j => j.automationId === tab.data.automationId).length === 0">
-                        <div class="text-xs text-tokyo-muted py-4 text-center">No jobs yet</div>
-                      </template>
-                    </div>
+                        <template x-if="(tab.data.jobHistory || []).length === 0">
+                          <div class="text-xs text-tokyo-muted py-4 text-center">No jobs yet</div>
+                        </template>
+                      </div>
+                    </template>
                   </div>
                 </div>
               </template>
@@ -7255,98 +7095,62 @@
                 </div>
               </div>
 
-              <!-- Debrief section (mobile, M6.9-S2) -->
+              <!-- Automation Schedules section (mobile) -->
               <div
-                id="mobile-settings-debrief"
+                id="mobile-settings-automations"
                 class="glass-strong rounded-xl p-4"
+                x-data="{
+                  mobileSchedules: [],
+                  mobileSchedulesLoading: true,
+                  async loadMobileSchedules() {
+                    this.mobileSchedulesLoading = true;
+                    try {
+                      const resp = await fetch('/api/automations');
+                      const data = await resp.json();
+                      this.mobileSchedules = (data.automations || []).map(a => ({
+                        id: a.id,
+                        name: a.name,
+                        status: a.status,
+                        system: a.system || false,
+                        cron: (a.trigger || []).find(t => t.type === 'schedule')?.cron || '',
+                      }));
+                    } catch (err) {
+                      console.error('Failed to load schedules:', err);
+                    }
+                    this.mobileSchedulesLoading = false;
+                  },
+                }"
+                x-init="loadMobileSchedules()"
               >
                 <h3
                   class="text-sm font-semibold text-tokyo-text mb-3 flex items-center gap-2"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    class="w-4 h-4 text-tokyo-blue"
-                  >
-                    <path
-                      d="M10 2a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 2ZM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM15.657 5.404a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM6.464 14.596a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.061-1.06ZM18 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 18 10ZM5 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 5 10ZM14.596 15.657a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 1 0-1.06 1.06l1.06 1.061ZM5.404 6.464a.75.75 0 0 0 1.06-1.06L5.403 4.343a.75.75 0 0 0-1.06 1.06l1.06 1.061Z"
-                    />
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-tokyo-blue">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clip-rule="evenodd" />
                   </svg>
-                  Debrief
+                  Schedules
                 </h3>
-                <div class="space-y-3">
-                  <div class="grid grid-cols-2 gap-3">
-                    <div>
-                      <label class="block text-xs text-tokyo-muted mb-1"
-                        >Time</label
-                      >
-                      <input
-                        type="time"
-                        x-model="briefTime"
-                        class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label class="block text-xs text-tokyo-muted mb-1"
-                        >Timezone</label
-                      >
-                      <input
-                        type="text"
-                        x-model="briefTimezone"
-                        placeholder="UTC"
-                        class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors placeholder-tokyo-muted/50"
-                      />
-                    </div>
+                <template x-if="mobileSchedulesLoading">
+                  <div class="text-xs text-tokyo-muted py-2 text-center">Loading...</div>
+                </template>
+                <template x-if="!mobileSchedulesLoading">
+                  <div class="space-y-1.5">
+                    <template x-for="auto in mobileSchedules" :key="auto.id">
+                      <div class="flex items-center gap-2 py-1">
+                        <span
+                          class="w-2 h-2 rounded-full shrink-0"
+                          :class="auto.status === 'active' ? 'bg-green-400' : 'bg-gray-400'"
+                        ></span>
+                        <span class="text-xs text-tokyo-text flex-1 truncate" x-text="auto.name"></span>
+                        <code class="text-[10px] text-tokyo-muted bg-white/5 px-1.5 py-0.5 rounded" x-text="auto.cron || '—'"></code>
+                        <span x-show="auto.system" class="text-[9px] text-tokyo-muted bg-white/5 px-1 py-px rounded">sys</span>
+                      </div>
+                    </template>
+                    <template x-if="mobileSchedules.length === 0">
+                      <div class="text-xs text-tokyo-muted py-2 text-center">No automations</div>
+                    </template>
                   </div>
-                  <div>
-                    <label class="block text-xs text-tokyo-muted mb-1"
-                      >Model</label
-                    >
-                    <select
-                      x-model="briefModel"
-                      class="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-tokyo-text focus:outline-none focus:border-blue-500/50 transition-colors cursor-pointer"
-                      style="
-                        background-color: rgba(30, 30, 46, 0.9);
-                        color: #e5e7eb;
-                      "
-                    >
-                      <option
-                        value="haiku"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Haiku
-                      </option>
-                      <option
-                        value="sonnet"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Sonnet
-                      </option>
-                      <option
-                        value="opus"
-                        style="background-color: #1f2335; color: #e5e7eb"
-                      >
-                        Opus
-                      </option>
-                    </select>
-                  </div>
-                  <div class="flex items-center justify-between pt-0.5">
-                    <span
-                      class="text-xs transition-opacity"
-                      :class="preferencesStatus === 'saved' ? 'text-green-400 opacity-100' : preferencesStatus === 'error' ? 'text-red-400 opacity-100' : 'opacity-0'"
-                      x-text="preferencesStatus === 'saved' ? 'Saved' : preferencesStatus === 'error' ? 'Error' : ''"
-                    ></span>
-                    <button
-                      @click="savePreferences()"
-                      :disabled="savingPreferences"
-                      class="px-4 py-1.5 rounded-lg text-sm font-medium bg-blue-500/15 text-blue-400 border border-blue-500/20 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
-                    >
-                      <span x-show="!savingPreferences">Save</span>
-                      <span x-show="savingPreferences">Saving…</span>
-                    </button>
-                  </div>
-                </div>
+                </template>
               </div>
 
               <!-- AI Connection section (mobile) -->
@@ -8005,197 +7809,6 @@
             </div>
           </template>
 
-          <!-- Work Loop Job popover (M6.6-S2.5) -->
-          <template x-if="$store.mobile.popover?.type === 'workloop'">
-            <div
-              class="space-y-4"
-              x-data="{ expandedRun: null, showPrompts: false, get job() { return $store.mobile.popover?.data } }"
-            >
-              <!-- Header -->
-              <div class="flex items-start gap-3">
-                <div
-                  class="w-3 h-3 rounded-full shrink-0 mt-1.5 bg-violet-500/50"
-                ></div>
-                <div class="min-w-0 flex-1">
-                  <h2
-                    class="text-lg font-bold text-tokyo-text"
-                    x-text="job?.displayName || 'Job'"
-                  ></h2>
-                  <div class="flex items-center gap-2 mt-1">
-                    <span
-                      class="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400"
-                      x-text="job?.cadence"
-                    ></span>
-                    <span
-                      class="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400"
-                      x-text="'model: ' + job?.model"
-                    ></span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Schedule Info -->
-              <div class="glass-strong rounded-xl p-4">
-                <div class="divide-y divide-white/5">
-                  <div class="flex justify-between py-2 text-sm">
-                    <span class="text-gray-500">Last Run</span>
-                    <span
-                      class="text-gray-300"
-                      x-text="job?.lastRun ? new Date(job.lastRun).toLocaleString() : 'Never'"
-                    ></span>
-                  </div>
-                  <div class="flex justify-between py-2 text-sm">
-                    <span class="text-gray-500">Next Run</span>
-                    <span
-                      class="text-gray-300"
-                      x-text="job?.nextRun ? new Date(job.nextRun).toLocaleString() : 'Unknown'"
-                    ></span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Run Now button -->
-              <button
-                @click="triggerWorkLoopJob(job?.name); $store.mobile.closePopoverWithFocus()"
-                class="w-full py-2.5 rounded-xl text-sm font-medium text-white transition-all"
-                style="
-                  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
-                "
-              >
-                Run Now
-              </button>
-
-              <!-- Prompts (collapsible) -->
-              <template x-if="job?.prompts">
-                <div>
-                  <button
-                    @click="showPrompts = !showPrompts"
-                    class="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-2 hover:text-gray-200 transition-colors"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="w-3.5 h-3.5 transition-transform"
-                      :class="showPrompts ? 'rotate-90' : ''"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                    Prompts
-                  </button>
-                  <template x-if="showPrompts">
-                    <div class="space-y-3">
-                      <div>
-                        <div
-                          class="text-[10px] text-gray-500 uppercase tracking-wide mb-1"
-                        >
-                          System Prompt
-                        </div>
-                        <pre
-                          class="text-xs text-gray-300 whitespace-pre-wrap p-3 rounded-lg max-h-40 overflow-y-auto"
-                          style="background: rgba(0, 0, 0, 0.3)"
-                          x-text="job.prompts.system"
-                        ></pre>
-                      </div>
-                      <div>
-                        <div
-                          class="text-[10px] text-gray-500 uppercase tracking-wide mb-1"
-                        >
-                          User Prompt Template
-                        </div>
-                        <pre
-                          class="text-xs text-gray-300 whitespace-pre-wrap p-3 rounded-lg max-h-40 overflow-y-auto"
-                          style="background: rgba(0, 0, 0, 0.3)"
-                          x-text="job.prompts.userTemplate"
-                        ></pre>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-              </template>
-
-              <!-- Activity Log -->
-              <template x-if="job?.runs?.length > 0">
-                <div>
-                  <h3
-                    class="text-sm font-semibold text-tokyo-muted uppercase tracking-wide mb-2"
-                  >
-                    Activity Log
-                  </h3>
-                  <div class="space-y-2">
-                    <template x-for="run in job.runs" :key="run.id">
-                      <div
-                        class="glass-strong rounded-xl p-3 cursor-pointer"
-                        @click="expandedRun = expandedRun === run.id ? null : run.id"
-                      >
-                        <div class="flex items-center justify-between">
-                          <div class="flex items-center gap-2">
-                            <span
-                              class="text-[10px] px-1.5 py-0.5 rounded"
-                              :class="run.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                                       run.status === 'failed' ? 'bg-red-500/20 text-red-400' :
-                                       'bg-gray-500/20 text-gray-400'"
-                              x-text="run.status"
-                            ></span>
-                            <span
-                              class="text-xs text-gray-400"
-                              x-text="new Date(run.started_at).toLocaleString()"
-                            ></span>
-                          </div>
-                          <div
-                            class="flex items-center gap-2 text-xs text-gray-500"
-                          >
-                            <span
-                              x-show="run.duration_ms"
-                              x-text="(run.duration_ms / 1000).toFixed(1) + 's'"
-                            ></span>
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              class="w-3 h-3 transition-transform"
-                              :class="expandedRun === run.id ? 'rotate-180' : ''"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              stroke-width="2"
-                            >
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M19 9l-7 7-7-7"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                        <template x-if="expandedRun === run.id">
-                          <div class="mt-3 pt-3 border-t border-white/5">
-                            <template x-if="run.error">
-                              <div
-                                class="p-2 rounded bg-red-500/10 border border-red-500/20 text-red-300 text-xs mb-2"
-                                x-text="run.error"
-                              ></div>
-                            </template>
-                            <template x-if="run.output">
-                              <pre
-                                class="text-xs text-gray-300 whitespace-pre-wrap max-h-48 overflow-y-auto p-2 rounded"
-                                style="background: rgba(0, 0, 0, 0.3)"
-                                x-text="run.output"
-                              ></pre>
-                            </template>
-                          </div>
-                        </template>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </template>
 
           <!-- Conversation preview popover -->
           <template x-if="$store.mobile.popover?.type === 'conversation'">
