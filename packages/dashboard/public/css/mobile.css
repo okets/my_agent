@@ -314,6 +314,7 @@
   .chat-peek-elevated .chat-compose-bar {
     pointer-events: auto; /* re-enable on the compose bar itself */
     border-color: transparent !important; /* keep 1px space but invisible — no shift */
+    margin-top: auto; /* push to bottom of panel — matches expanded position */
   }
 
   .chat-peek-elevated .compose-box {

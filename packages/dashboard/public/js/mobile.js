@@ -20,7 +20,7 @@
 
 /* ── Constants ─────────────────────────────────────────────────── */
 
-const CHAT_RATIO_PEEK = 15;
+const CHAT_RATIO_PEEK = 18;
 const CHAT_RATIO_HALF = 50;
 const CHAT_RATIO_FULL = 92;
 const CHAT_RATIO_PRESETS = [CHAT_RATIO_PEEK, CHAT_RATIO_HALF, CHAT_RATIO_FULL];
@@ -132,6 +132,14 @@ document.addEventListener("alpine:init", () => {
     collapseChat() {
       if (!this.isMobile) return;
       setChatRatio(CHAT_RATIO_PEEK);
+
+      // Blur the textarea to dismiss keyboard
+      requestAnimationFrame(() => {
+        const ta = document.querySelector(
+          ".mobile-chat-panel textarea, .mobile-chat-panel .compose-box textarea",
+        );
+        if (ta) ta.blur();
+      });
     },
 
     toggleChat() {
@@ -688,6 +696,7 @@ function initChatSheetGesture(el) {
       return;
     }
 
+    let targetRatio;
     if (isFastSwipe) {
       /* Fast swipe: skip to next/previous preset based on direction */
       const direction = velocity > 0 ? 1 : -1; // positive = expanding
@@ -698,10 +707,22 @@ function initChatSheetGesture(el) {
         0,
         Math.min(CHAT_RATIO_PRESETS.length - 1, currentPresetIdx + direction),
       );
-      setChatRatio(CHAT_RATIO_PRESETS[targetIdx]);
+      targetRatio = CHAT_RATIO_PRESETS[targetIdx];
     } else {
       /* Slow drag: snap to nearest preset based on current position */
-      setChatRatio(nearestPreset(currentRatio));
+      targetRatio = nearestPreset(currentRatio);
+    }
+
+    setChatRatio(targetRatio);
+
+    /* Handle focus/blur based on target state */
+    const ta = el.querySelector("textarea");
+    if (targetRatio === CHAT_RATIO_PEEK) {
+      /* Collapsing to peek: blur to dismiss keyboard */
+      if (ta) ta.blur();
+    } else if (startRatio === CHAT_RATIO_PEEK) {
+      /* Expanding from peek: focus to bring up keyboard */
+      if (ta) requestAnimationFrame(() => ta.focus());
     }
   }
 
