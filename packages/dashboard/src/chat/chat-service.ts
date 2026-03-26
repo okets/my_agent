@@ -523,6 +523,8 @@ export class AppChatService {
     let thinkingText = "";
     let usage: { input: number; output: number } | undefined;
     let cost: number | undefined;
+    let hasSplit = false;
+    const originalTurnNumber = turnNumber;
 
     const conversation = await this.conversationManager.get(convId);
     const modelOverride = options?.model || conversation?.model || undefined;
@@ -557,6 +559,43 @@ export class AppChatService {
           case "thinking_end":
             yield { type: "thinking_end" as const };
             break;
+          case "tool_use_start": {
+            // Split on first tool use if there's meaningful text before it.
+            // This delivers the ack ("On it") as a complete message immediately,
+            // instead of making the user wait for the full tool execution.
+            if (!hasSplit && assistantContent.trim().length > 0) {
+              hasSplit = true;
+
+              // Close message 1 (no cost/usage — those come with the final done)
+              yield { type: "done" as const };
+
+              // Save message 1
+              const splitTurn: TranscriptTurn = {
+                type: "turn",
+                role: "assistant",
+                content: assistantContent,
+                timestamp: new Date().toISOString(),
+                turnNumber,
+                thinkingText: thinkingText || undefined,
+              };
+              await this.conversationManager.appendTurn(convId, splitTurn);
+
+              if (deps?.conversationSearchService && assistantContent) {
+                deps.conversationSearchService
+                  .indexTurn(convId, turnNumber, "assistant", assistantContent)
+                  .catch(() => {});
+              }
+
+              // Advance to message 2
+              turnNumber++;
+              assistantContent = "";
+              thinkingText = "";
+
+              yield { type: "turn_advanced" as const, turnNumber };
+              yield { type: "start" as const };
+            }
+            break;
+          }
           case "done":
             usage = event.usage;
             cost = event.cost;
@@ -573,24 +612,28 @@ export class AppChatService {
       }
 
       // ── Post-stream processing ──────────────────────────────────
-      const assistantTurn: TranscriptTurn = {
-        type: "turn",
-        role: "assistant",
-        content: assistantContent,
-        timestamp: new Date().toISOString(),
-        turnNumber,
-        thinkingText: thinkingText || undefined,
-        usage,
-        cost,
-      };
+      // Save message 2 (or the only message if no split occurred).
+      // Skip if split produced an empty message 2.
+      if (assistantContent.trim() || !hasSplit) {
+        const assistantTurn: TranscriptTurn = {
+          type: "turn",
+          role: "assistant",
+          content: assistantContent,
+          timestamp: new Date().toISOString(),
+          turnNumber,
+          thinkingText: thinkingText || undefined,
+          usage,
+          cost,
+        };
 
-      await this.conversationManager.appendTurn(convId, assistantTurn);
+        await this.conversationManager.appendTurn(convId, assistantTurn);
 
-      // Search indexing
-      if (deps?.conversationSearchService && assistantContent) {
-        deps.conversationSearchService
-          .indexTurn(convId, turnNumber, "assistant", assistantContent)
-          .catch(() => {});
+        // Search indexing
+        if (deps?.conversationSearchService && assistantContent) {
+          deps.conversationSearchService
+            .indexTurn(convId, turnNumber, "assistant", assistantContent)
+            .catch(() => {});
+        }
       }
 
       // Persist SDK session ID
@@ -606,12 +649,12 @@ export class AppChatService {
 
       log(`Turn ${turnNumber} completed for ${convId}`);
 
-      // Trigger naming at turn 5
-      if (turnNumber === 5) {
+      // Trigger naming at turn 5 (use original turn number, not split-advanced)
+      if (originalTurnNumber === 5) {
         this.triggerNaming(convId).catch(() => {});
       }
 
-      // Post-response hooks
+      // Post-response hooks (if split, include both halves for full context)
       if (deps?.postResponseHooks) {
         deps.postResponseHooks
           .run(convId, content.trim().toLowerCase(), assistantContent)

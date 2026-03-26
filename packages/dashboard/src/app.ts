@@ -1032,11 +1032,11 @@ export class App extends EventEmitter {
         // Mount failure -> alert user
         watchTriggerService.on("mount_failure", async ({ path, attempts }) => {
           if (app.conversationInitiator) {
-            const prompt = `[SYSTEM: Filesystem watch on "${path}" has failed after ${attempts} retry attempts. The mount may be down.]`;
+            const prompt = `A filesystem watch on "${path}" has failed after ${attempts} retry attempts. The mount may be down.\n\nYou are the conversation layer — let the user know about this infrastructure issue briefly. Don't be dramatic, just inform them so they can check if needed.`;
             const alerted = await app.conversationInitiator.alert(prompt);
             if (!alerted) {
               await app.conversationInitiator.initiate({
-                firstTurnPrompt: prompt,
+                firstTurnPrompt: `[SYSTEM: ${prompt}]`,
               });
             }
           }

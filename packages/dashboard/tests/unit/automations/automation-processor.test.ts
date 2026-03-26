@@ -209,7 +209,7 @@ describe("AutomationProcessor", () => {
     await processorWithCi.fire(automation);
 
     expect(mockAlert).toHaveBeenCalledTimes(1);
-    expect(mockAlert.mock.calls[0][0]).toContain("completed");
+    expect(mockAlert.mock.calls[0][0]).toContain("just finished");
   });
 
   it("should notify on needs_review regardless of notify setting", async () => {
@@ -241,6 +241,6 @@ describe("AutomationProcessor", () => {
     await processorWithCi.fire(automation);
 
     expect(mockAlert).toHaveBeenCalledTimes(1);
-    expect(mockAlert.mock.calls[0][0]).toContain("needs your review");
+    expect(mockAlert.mock.calls[0][0]).toContain("needs the user's input");
   });
 });

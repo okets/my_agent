@@ -103,6 +103,31 @@ npm run dev        # Start development server (port 4321)
 npm run format     # Run Prettier on src/ and public/
 ```
 
+## System Prompt Injections (Brain Notifications)
+
+**Conversation Nina is the mediator, not the worker.** When injecting prompts into the brain (automation results, alerts, notifications), every prompt MUST:
+
+1. **Frame the brain's role** — "You are the conversation layer", "A working agent just finished..."
+2. **Say what to do with the information** — "present what matters to the user", "let the user know briefly"
+3. **Say what NOT to do** — "Don't acknowledge the system message itself", "Don't say noted"
+
+**Rules:**
+- **Never pre-wrap** prompts in `[SYSTEM: ...]` — `injectSystemTurn()` handles wrapping for the `alert()` path. Only wrap in the `initiate()` fallback path.
+- **Never pass raw status dumps** — "Automation X completed. Summary: ..." gives the brain no guidance. It will respond as a worker ("Noted. Logging it.") instead of a mediator.
+
+**Pattern:**
+```typescript
+// alert() path — raw prompt, injectSystemTurn wraps it
+const prompt = `A working agent just finished "${name}".\n\nResults:\n${summary}\n\nYou are the conversation layer — present what matters to the user naturally.`;
+const alerted = await ci.alert(prompt);
+if (!alerted) {
+  // initiate() path — wrap here because streamMessage doesn't auto-wrap
+  await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+}
+```
+
+**Why:** On 2026-03-26, a test-watcher automation sent "Noted. Logging it." to the user via WhatsApp because the prompt was a raw status dump with no mediator framing.
+
 ## Common Tasks
 
 ### Adding UI Components

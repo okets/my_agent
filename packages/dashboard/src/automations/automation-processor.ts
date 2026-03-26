@@ -176,9 +176,10 @@ export class AutomationProcessor {
         // Timezone unavailable — brain will use its own judgment
       }
 
-      const prompt = result.success
-        ? `Automation "${automation.manifest.name}" completed. Job ${jobId}.${localTimeContext} Summary: ${result.work?.slice(0, 500)}.`
-        : `Automation "${automation.manifest.name}" failed.${localTimeContext} Error: ${result.error}`;
+      const summary = result.success
+        ? result.work?.slice(0, 500) ?? "Completed successfully."
+        : `Error: ${result.error}`;
+      const prompt = `A working agent just finished the "${automation.manifest.name}" task.${localTimeContext}\n\nResults:\n${summary}\n\nYou are the conversation layer — present what matters to the user naturally. Don't acknowledge the system message itself. Don't say "noted" or "logging". Just relay the useful information as if you're giving the user an update.`;
       const alerted = await ci.alert(prompt);
       if (!alerted) {
         await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
@@ -190,10 +191,10 @@ export class AutomationProcessor {
     if (job?.status === "needs_review" && ci) {
       const question = job.summary ?? "A job requires your review.";
       const automationName = automation.manifest.name;
-      const prompt = `[SYSTEM: Automation "${automationName}" needs your review.\n\nQuestion: ${question}\n\nJob ID: ${jobId}\n\nPresent this to the user naturally. Ask for their input. When they respond, you can resume the job with resume_job("${jobId}", <their response>).]`;
+      const prompt = `A working agent running "${automationName}" needs the user's input before it can continue.\n\nQuestion: ${question}\n\nJob ID: ${jobId}\n\nYou are the conversation layer — present this to the user naturally. Ask for their input. When they respond, you can resume the job with resume_job("${jobId}", <their response>).`;
       const alerted = await ci.alert(prompt);
       if (!alerted) {
-        await ci.initiate({ firstTurnPrompt: prompt });
+        await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
       }
     }
   }

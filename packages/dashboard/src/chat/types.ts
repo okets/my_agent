@@ -18,7 +18,8 @@ export type ChatEvent =
   | { type: "thinking_delta"; text: string }
   | { type: "thinking_end" }
   | { type: "done"; cost?: number; usage?: { input: number; output: number } }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "turn_advanced"; turnNumber: number };
 
 /** Result from ChatService.connect() */
 export interface ConnectResult {

@@ -155,7 +155,7 @@ export class ConversationInitiator {
     // Stream first turn from brain — agent speaks first
     const prompt =
       options?.firstTurnPrompt ||
-      "[SYSTEM: You are starting a new conversation. Greet the user naturally.]";
+      "[SYSTEM: You are reaching out to the user proactively. You are the conversation layer — explain briefly why you're messaging them. If you don't have a specific reason, let them know you're available.]";
     let response = "";
     for await (const event of this.sessionFactory.streamNewConversation(
       conv.id,

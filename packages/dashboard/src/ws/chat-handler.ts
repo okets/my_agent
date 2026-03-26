@@ -356,6 +356,12 @@ export async function registerChatWebSocket(
             );
           }
 
+          // Handle turn advancement from message split (internal bookkeeping)
+          if (event.type === "turn_advanced") {
+            currentTurnNumber = (event as { turnNumber: number }).turnNumber;
+            continue;
+          }
+
           const serverMsg = chatEventToServerMessage(event);
           if (serverMsg.type === "text_delta" && firstToken) {
             responseTimer.cancel();
@@ -411,5 +417,8 @@ function chatEventToServerMessage(event: ChatEvent): ServerMessage {
       return { type: "done", cost: event.cost, usage: event.usage };
     case "error":
       return { type: "error", message: event.message };
+    case "turn_advanced":
+      // Should be intercepted before reaching here; fallback to no-op
+      return { type: "start" };
   }
 }

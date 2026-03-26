@@ -9,7 +9,8 @@ export type StreamEvent =
       cost?: number;
       usage?: { input: number; output: number };
     }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "tool_use_start" };
 
 /**
  * Process SDK messages from a query async generator and yield StreamEvents.
@@ -41,6 +42,9 @@ export async function* processStream(
       switch (event.type) {
         case "content_block_start":
           currentBlockType = event.content_block?.type ?? null;
+          if (currentBlockType === "tool_use") {
+            yield { type: "tool_use_start" };
+          }
           break;
 
         case "content_block_delta":

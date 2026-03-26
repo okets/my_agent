@@ -69,7 +69,7 @@ describe("needs_review notification", () => {
     await processor.executeAndDeliver(makeAutomation());
 
     expect(alertFn).toHaveBeenCalledWith(
-      expect.stringContaining("needs your review"),
+      expect.stringContaining("needs the user's input"),
     );
     expect(alertFn).toHaveBeenCalledWith(
       expect.stringContaining("Should we deploy to production?"),
@@ -87,7 +87,7 @@ describe("needs_review notification", () => {
 
     expect(initiateFn).toHaveBeenCalledWith(
       expect.objectContaining({
-        firstTurnPrompt: expect.stringContaining("needs your review"),
+        firstTurnPrompt: expect.stringContaining("needs the user's input"),
       }),
     );
   });
@@ -137,7 +137,7 @@ describe("needs_review notification", () => {
 
     // Alert should NOT have been called for needs_review (only for immediate notify)
     const needsReviewCalls = alertFn.mock.calls.filter(
-      (call: [string]) => call[0].includes("needs your review"),
+      (call: [string]) => call[0].includes("needs the user's input"),
     );
     expect(needsReviewCalls.length).toBe(0);
   });
