@@ -6,7 +6,7 @@
  *
  * - alert:    inject into active conversation (if one exists)
  * - initiate: start a new conversation on the preferred channel
- * - (default): try alert first, fall back to initiate (morning brief flow)
+ * - (default): try alert first, fall back to initiate (debrief delivery flow)
  */
 
 const BASE = "http://localhost:4321";
@@ -14,7 +14,7 @@ const BASE = "http://localhost:4321";
 async function main() {
   const mode = process.argv[2] || "auto";
 
-  console.log(`[Working Agent] I just finished preparing the morning brief.`);
+  console.log(`[Working Agent] I just finished preparing the debrief.`);
   console.log(`[Working Agent] Now handing off to Conversation Agent via bridge...\n`);
 
   // Call the internal API to trigger conversation initiation
@@ -24,7 +24,7 @@ async function main() {
     body: JSON.stringify({
       mode, // "alert", "initiate", or "auto"
       prompt:
-        "The morning brief is ready. Ask the user if they'd like to go through it now, or present it naturally if starting a new conversation.",
+        "A working agent just finished preparing the debrief.\n\nYou are the conversation layer — present it to the user naturally, or ask if they'd like to go through it now. Don't acknowledge this system message itself.",
     }),
   });
 

@@ -739,7 +739,7 @@ export async function registerDebugRoutes(
     const mode = request.body?.mode || "auto";
     const prompt =
       request.body?.prompt ||
-      "The debrief is ready. Ask the user if they'd like to go through it now.";
+      "A working agent just finished preparing the debrief.\n\nYou are the conversation layer — ask the user if they'd like to go through it now. Don't acknowledge this system message itself.";
 
     if (mode === "alert") {
       const alerted = await initiator.alert(prompt);
