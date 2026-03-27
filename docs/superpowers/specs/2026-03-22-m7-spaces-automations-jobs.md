@@ -247,12 +247,14 @@ M7 preserves the existing brain/worker architecture. It does not redesign it.
 | | Conversation Nina (Brain) | Working Nina (Worker) |
 |---|---|---|
 | **Session** | Per-conversation, long-running (`SessionManager`) | Per-job, independent subprocess (`TaskExecutor`) |
-| **Tools** | Read, Glob, Grep, WebSearch, WebFetch, Skill (NO Bash/Write/Edit) | Bash, Read, Write, Edit, Glob, Grep, Skill (NO WebSearch/WebFetch) |
+| **Tools** | Read, Glob, Grep, WebSearch, WebFetch, Skill (NO Bash/Write/Edit) | Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, Skill (NO channel tools) |
 | **MCP** | automation-server, skill-server, memory, conversations, knowledge, debrief | memory, knowledge (subset) |
 | **Persona** | Full identity, personality, conversational | "Autonomous task execution agent, not conversational" |
 | **Bridge** | Receives completion via `ConversationInitiator.alert()` | Produces results, no way to reach user directly |
 
-**Key property:** Brain cannot execute work (no Bash/Write/Edit). Worker cannot talk to user (no channel tools). Clean separation enforced by tool restrictions (the `WORKER_TOOLS` constant in `task-executor.ts`).
+**Key property:** Brain cannot execute work (no Bash/Write/Edit). Worker cannot talk to user (no channel tools). Clean separation enforced by tool restrictions (the `WORKER_TOOLS` constant in `automation-executor.ts`).
+
+> **Updated 2026-03-27 (M7-S8):** `WORKER_TOOLS` now includes `WebSearch` and `WebFetch`. Workers need web access for data-gathering tasks (news, AQI, events). The brain/worker separation is enforced by channel tool restrictions, not web access restrictions.
 
 ### Workload Distribution
 
@@ -333,7 +335,7 @@ AutomationProcessor (adapts TaskProcessor pattern)
     │     └── Channel-specific formatting (WhatsApp limits, email rich — existing in TaskExecutor)
     ├── If notify=immediate → ConversationInitiator.alert()
     │     └── Falls back to ConversationInitiator.initiate() if no active conversation (15min threshold)
-    ├── If notify=debrief → batched for morning debrief
+    ├── If notify=debrief → collected by debrief reporter (see below)
     ├── If needs_review → ConversationInitiator.alert() with question from run directory
     └── App event emission → StatePublisher → WebSocket broadcast (dashboard real-time update)
 ```
@@ -668,7 +670,7 @@ New MCP server registered in the brain session:
 
 | Tool | Description | Used by |
 |---|---|---|
-| `create_automation` | Create a new automation manifest | Brain (from conversation) |
+| `create_automation` | Create a new automation manifest (writes `.md` file + DB) | Brain (from conversation) |
 | `fire_automation` | Trigger an automation with context | Brain (channel trigger), PostResponseHooks |
 | `list_automations` | Query active automations with filters | Brain (discovery, triage) |
 | `resume_job` | Resume a needs_review job with user input | Brain (HITL flow) |
@@ -761,6 +763,37 @@ WhatsApp images arrive as base64 `ImageBlock` in the brain's context (`brain.ts:
 - End state: 3 schedulers (Calendar, WorkLoop, Automation) — each with clear responsibility
 
 **`isDue()` reuse:** The `isDue()` function in `work-patterns.ts` (lines 60-206) with timezone awareness is production-tested. AutomationScheduler can reuse timezone resolution patterns. New automations use cron via `cron-parser`.
+
+### Debrief Pipeline (Updated 2026-03-27, M7-S8)
+
+The `notify: "debrief"` value connects worker automations to a collector-reporter pipeline:
+
+```
+Workers (notify: debrief, scheduled before reporter):
+  ├── thailand-news, chiang-mai-aqi, project-status, etc.
+  └── Each writes full output to {run_dir}/status-report.md
+
+Debrief Context (handler, no LLM):
+  └── debrief-context: reads summaries/properties/calendar/staged-knowledge
+      Produces: current-state.md (system prompt context, unchanged contract)
+
+Debrief Reporter (system job, scheduled, default 8 AM):
+  1. Runs debrief-context handler (refresh current-state.md)
+  2. Queries completed debrief-pending jobs since last report
+  3. Reads {run_dir}/status-report.md for each (fallback to summary column)
+  4. Assembles full brief as structured sections
+  5. Delivers via notify: immediate
+
+On-demand:
+  └── request_debrief MCP tool — shares collector logic with reporter
+```
+
+**Key properties:**
+- Workers are instruction-based automations with full tool access (including WebSearch/WebFetch)
+- Worker manifests MUST exist as `.md` files (filesystem is truth — `create_automation` writes manifests)
+- "Add X to the brief" = create a worker automation with `notify: debrief`
+- `needs_review` always alerts immediately regardless of `notify` setting
+- Workers schedule 1 hour before the debrief reporter
 
 ---
 

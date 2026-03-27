@@ -476,7 +476,7 @@ export class ChannelMessageHandler {
     }
 
     const textContent = contextPrefix + combinedContent;
-    const turnNumber = conversation.turnCount + 1;
+    let turnNumber = conversation.turnCount + 1;
     const userTimestamp = new Date().toISOString();
 
     // Process attachments and build ContentBlocks
@@ -579,9 +579,11 @@ export class ChannelMessageHandler {
     );
     sessionManager.setChannel(channelId);
 
-    // Stream brain response
+    // Stream brain response — split on first tool use so the ack
+    // is delivered immediately and the user doesn't wait in silence.
     let assistantContent = "";
     let firstToken = true;
+    let hasSplit = false;
     try {
       for await (const event of sessionManager.streamMessage(messageContent)) {
         if (event.type === "text_delta") {
@@ -599,6 +601,63 @@ export class ChannelMessageHandler {
             },
           );
         }
+
+        // Split on first tool use: send ack portion immediately
+        if (
+          event.type === "tool_use_start" &&
+          !hasSplit &&
+          assistantContent.trim().length > 0
+        ) {
+          hasSplit = true;
+
+          // Save and send message 1 (the ack)
+          const ackTurn: TranscriptTurn = {
+            type: "turn",
+            role: "assistant",
+            content: assistantContent,
+            timestamp: new Date().toISOString(),
+            turnNumber,
+            channel: channelId,
+          };
+          await this.deps.conversationManager.appendTurn(
+            conversation.id,
+            ackTurn,
+          );
+
+          const replyTo = first.groupId ?? first.from;
+          await this.deps.sendViaTransport(channelId, replyTo, {
+            content: assistantContent,
+          });
+
+          // Broadcast completed message 1 to web UI
+          this.deps.connectionRegistry.broadcastToConversation(
+            conversation.id,
+            { type: "done" },
+          );
+          this.deps.connectionRegistry.broadcastToConversation(
+            conversation.id,
+            {
+              type: "conversation_updated",
+              conversationId: conversation.id,
+              turn: {
+                role: "assistant",
+                content: assistantContent,
+                timestamp: ackTurn.timestamp,
+                turnNumber,
+              },
+            },
+          );
+
+          // Advance to message 2
+          turnNumber++;
+          assistantContent = "";
+
+          // Signal new message to web UI
+          this.deps.connectionRegistry.broadcastToConversation(
+            conversation.id,
+            { type: "start" },
+          );
+        }
       }
     } catch (err) {
       responseTimer.cancel();
@@ -611,8 +670,9 @@ export class ChannelMessageHandler {
       responseTimer.cancel();
     }
 
-    if (assistantContent) {
-      // Save assistant turn (inherit channel from the incoming message)
+    // Save and send message 2 (or the only message if no split occurred).
+    // Skip if split produced an empty message 2.
+    if (assistantContent.trim() || !hasSplit) {
       const assistantTurn: TranscriptTurn = {
         type: "turn",
         role: "assistant",

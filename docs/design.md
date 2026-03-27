@@ -895,3 +895,4 @@ Email channel plugin with **both roles** (dedicated + personal).
 _Design document created: 2026-02-12_
 _Updated: 2026-02-14 — Channel architecture, milestone clarifications_
 _Updated: 2026-02-27 — Session architecture: SDK session resumption replaces prompt injection (M6.5-S2)_
+_Updated: 2026-03-27 — M7-S8: Debrief worker architecture, WORKER_TOOLS includes WebSearch/WebFetch_
