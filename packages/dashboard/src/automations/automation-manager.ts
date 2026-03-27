@@ -235,6 +235,22 @@ export class AutomationManager {
       }
     }
 
+    // Audit: detect DB entries with no backing .md file (orphans).
+    // Filesystem is source of truth — orphaned DB entries are disabled.
+    const fileIds = new Set(files.map((f) => path.basename(f, ".md")));
+    const dbAutomations = this.list();
+    for (const automation of dbAutomations) {
+      if (
+        automation.manifest.status === "active" &&
+        !fileIds.has(automation.id)
+      ) {
+        console.warn(
+          `[AutomationSync] Orphan detected: "${automation.id}" is active in DB but has no .md file. Disabling.`,
+        );
+        this.disable(automation.id);
+      }
+    }
+
     return count;
   }
 
