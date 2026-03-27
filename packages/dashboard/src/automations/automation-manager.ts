@@ -196,6 +196,8 @@ export class AutomationManager {
         autonomy: (row.autonomy as "full" | "cautious" | "review") ?? "full",
         once: row.once,
         created: row.created,
+        handler: row.handler ?? undefined,
+        system: row.system ?? false,
       };
 
       return {
