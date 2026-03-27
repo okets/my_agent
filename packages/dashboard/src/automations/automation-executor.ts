@@ -26,8 +26,8 @@ import type { AutomationJobService } from "./automation-job-service.js";
 import { buildWorkingNinaPrompt } from "./working-nina-prompt.js";
 import { extractDeliverable } from "./deliverable-utils.js";
 
-/** Working Nina's allowed tools */
-const WORKER_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill"];
+/** Working Nina's allowed tools — full access including web for research workers */
+const WORKER_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill", "WebSearch", "WebFetch"];
 
 export interface AutomationExecutorConfig {
   automationManager: AutomationManager;

@@ -849,6 +849,7 @@ export class App extends EventEmitter {
       const debriefAdapter = createDebriefAutomationAdapter(
         () => app.automationJobService,
         agentDir,
+        () => app.conversationManager?.getConversationDb() ?? null,
       );
 
       initMcpServers(

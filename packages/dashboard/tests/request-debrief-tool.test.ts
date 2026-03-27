@@ -12,12 +12,12 @@ describe("request_debrief MCP tool", () => {
     const handler = createDebriefHandler(mockScheduler as any);
     const result = await handler();
 
-    expect(mockScheduler.hasRunToday).toHaveBeenCalledWith("debrief-prep");
+    expect(mockScheduler.hasRunToday).toHaveBeenCalledWith("debrief-context");
     expect(mockScheduler.handleDebriefPrep).not.toHaveBeenCalled();
     expect(result).toContain("Today's Debrief");
   });
 
-  it("triggers fresh debrief-prep when not run today", async () => {
+  it("triggers fresh debrief-context when not run today", async () => {
     const mockScheduler = {
       hasRunToday: vi.fn().mockReturnValue(false),
       getDebriefOutput: vi.fn(),

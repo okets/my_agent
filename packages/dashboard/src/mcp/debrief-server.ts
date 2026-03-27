@@ -3,7 +3,7 @@
  *
  * Exposes request_debrief for the brain to call when the user asks
  * "what's on my plate?" or similar. Returns cached debrief if already
- * run today, otherwise triggers a fresh debrief-prep job.
+ * run today, otherwise triggers a fresh debrief-context job.
  */
 
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
@@ -16,7 +16,7 @@ export interface DebriefSchedulerLike {
 
 export function createDebriefHandler(scheduler: DebriefSchedulerLike) {
   return async (): Promise<string> => {
-    if (scheduler.hasRunToday("debrief-prep")) {
+    if (scheduler.hasRunToday("debrief-context")) {
       const cached = scheduler.getDebriefOutput();
       if (cached) return cached;
     }

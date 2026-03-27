@@ -97,9 +97,12 @@ async function appendToDailyLog(
   }
 }
 
-// ─── Handler: debrief-prep ────────────────────────────────────────────────
+// ─── Handler: debrief-context ─────────────────────────────────────────────
+// Assembles notebook context into current-state.md for the system prompt.
+// Not user-facing — the debrief-reporter handler delivers the morning brief.
+// Renamed from debrief-prep in M7-S8.
 
-registerHandler("debrief-prep", async ({ agentDir }) => {
+registerHandler("debrief-context", async ({ agentDir }) => {
   const notebookDir = join(agentDir, "notebook");
   const sections: string[] = [];
 
@@ -217,6 +220,87 @@ registerHandler("debrief-prep", async ({ agentDir }) => {
   await appendToDailyLog(notebookDir, `- Debrief prep completed (${output.length} chars)`);
 
   return { success: true, work: output, deliverable: output };
+});
+
+// Backward-compat alias (old manifests may reference debrief-prep)
+registerHandler("debrief-prep", getHandler("debrief-context")!);
+
+// ─── Handler: debrief-reporter ───────────────────────────────────────────
+// Assembles the morning brief by:
+// 1. Running debrief-context to refresh current-state.md
+// 2. Collecting completed worker results (notify=debrief jobs)
+// 3. Reading each worker's status-report.md from their run directory
+// M7-S8: New handler for composable debrief pipeline.
+
+registerHandler("debrief-reporter", async ({ agentDir, db }) => {
+  const notebookDir = join(agentDir, "notebook");
+
+  // Step 1: Run debrief-context to refresh current-state.md
+  const contextHandler = getHandler("debrief-context");
+  if (contextHandler) {
+    await contextHandler({ agentDir, jobId: `context-${Date.now()}` });
+  }
+
+  // Step 2: Read the refreshed current-state.md (notebook context)
+  const currentStatePath = join(notebookDir, "operations", "current-state.md");
+  let notebookContext = "";
+  if (existsSync(currentStatePath)) {
+    notebookContext = await readFile(currentStatePath, "utf-8");
+  }
+
+  // Step 3: Collect worker results since last debrief reporter run
+  const workerSections: string[] = [];
+  if (db) {
+    // Find last reporter run to know the collection window
+    const lastRuns = db.listJobs({
+      automationId: "debrief-reporter",
+      status: "completed",
+      limit: 1,
+    });
+    // Default to 24h ago if no previous run
+    const since = lastRuns.length > 0
+      ? lastRuns[0].completed ?? new Date(Date.now() - 86400000).toISOString()
+      : new Date(Date.now() - 86400000).toISOString();
+
+    const pendingJobs = db.getDebriefPendingJobs(since);
+
+    for (const job of pendingJobs) {
+      let content = job.summary ?? "No output available.";
+
+      // Try to read full output from run directory
+      if (job.runDir) {
+        const reportPath = join(job.runDir, "status-report.md");
+        if (existsSync(reportPath)) {
+          try {
+            content = await readFile(reportPath, "utf-8");
+          } catch {
+            // Fall back to summary
+          }
+        }
+      }
+
+      workerSections.push(`## ${job.automationName}\n\n${content}`);
+    }
+  }
+
+  // Step 4: Assemble the full brief
+  const parts: string[] = [];
+
+  if (notebookContext) {
+    parts.push(notebookContext);
+  }
+
+  if (workerSections.length > 0) {
+    parts.push("---\n\n# Worker Reports\n\n" + workerSections.join("\n\n---\n\n"));
+  }
+
+  const brief = parts.length > 0
+    ? parts.join("\n\n")
+    : "No debrief content available. Workers may not have run yet.";
+
+  await appendToDailyLog(notebookDir, `- Debrief reporter assembled (${workerSections.length} worker reports)`);
+
+  return { success: true, work: brief, deliverable: brief };
 });
 
 // ─── Handler: daily-summary ──────────────────────────────────────────────

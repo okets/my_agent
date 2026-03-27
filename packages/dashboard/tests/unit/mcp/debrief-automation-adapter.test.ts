@@ -39,7 +39,7 @@ describe("Debrief Automation Adapter", () => {
 
   it("hasRunToday returns false when no jobs exist", () => {
     const adapter = createDebriefAutomationAdapter(() => jobService, tempDir);
-    expect(adapter.hasRunToday("debrief-prep")).toBe(false);
+    expect(adapter.hasRunToday("debrief-context")).toBe(false);
   });
 
   it("hasRunToday returns true when a completed debrief job exists today", () => {
@@ -49,7 +49,7 @@ describe("Debrief Automation Adapter", () => {
       instructions: "Prep debrief.",
       manifest: {
         trigger: [{ type: "manual" }],
-        handler: "debrief-prep",
+        handler: "debrief-context",
       },
     });
 
@@ -61,7 +61,7 @@ describe("Debrief Automation Adapter", () => {
     });
 
     const adapter = createDebriefAutomationAdapter(() => jobService, tempDir);
-    expect(adapter.hasRunToday("debrief-prep")).toBe(true);
+    expect(adapter.hasRunToday("debrief-context")).toBe(true);
   });
 
   it("getDebriefOutput returns job summary when completed job exists", () => {
@@ -70,7 +70,7 @@ describe("Debrief Automation Adapter", () => {
       instructions: "Prep debrief.",
       manifest: {
         trigger: [{ type: "manual" }],
-        handler: "debrief-prep",
+        handler: "debrief-context",
       },
     });
 
@@ -96,7 +96,7 @@ describe("Debrief Automation Adapter", () => {
       work: "Mock debrief output",
       deliverable: null,
     }));
-    registerHandler("debrief-prep", mockHandler);
+    registerHandler("debrief-reporter", mockHandler);
 
     const adapter = createDebriefAutomationAdapter(() => jobService, tempDir);
     const output = await adapter.handleDebriefPrep();
@@ -113,7 +113,7 @@ describe("Debrief Automation Adapter", () => {
     const adapter = createDebriefAutomationAdapter(() => service, tempDir);
 
     // Should not throw when service is null
-    expect(adapter.hasRunToday("debrief-prep")).toBe(false);
+    expect(adapter.hasRunToday("debrief-context")).toBe(false);
     expect(adapter.getDebriefOutput()).toBeNull();
 
     // Now provide the real service
@@ -123,7 +123,7 @@ describe("Debrief Automation Adapter", () => {
       instructions: "Prep debrief.",
       manifest: {
         trigger: [{ type: "manual" }],
-        handler: "debrief-prep",
+        handler: "debrief-context",
       },
     });
     const job = jobService.createJob("debrief");
@@ -133,7 +133,7 @@ describe("Debrief Automation Adapter", () => {
       summary: "Lazy init worked.",
     });
 
-    expect(adapter.hasRunToday("debrief-prep")).toBe(true);
+    expect(adapter.hasRunToday("debrief-context")).toBe(true);
     expect(adapter.getDebriefOutput()).toBe("Lazy init worked.");
   });
 });

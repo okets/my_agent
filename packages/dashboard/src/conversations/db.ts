@@ -1019,6 +1019,40 @@ export class ConversationDatabase {
     return rows.map((row) => this.rowToJob(row));
   }
 
+  /**
+   * Get completed jobs from automations with notify="debrief" since a given time.
+   * Used by the debrief reporter to collect worker results.
+   */
+  getDebriefPendingJobs(since: string): Array<{
+    jobId: string;
+    automationId: string;
+    automationName: string;
+    summary: string | null;
+    runDir: string | null;
+    completed: string | null;
+  }> {
+    const rows = this.db
+      .prepare(
+        `SELECT j.id, j.automation_id, a.name, j.summary, j.run_dir, j.completed
+         FROM jobs j
+         JOIN automations a ON j.automation_id = a.id
+         WHERE a.notify = 'debrief'
+           AND j.status = 'completed'
+           AND j.completed >= ?
+         ORDER BY j.completed ASC`,
+      )
+      .all(since) as any[];
+
+    return rows.map((row) => ({
+      jobId: row.id,
+      automationId: row.automation_id,
+      automationName: row.name,
+      summary: row.summary,
+      runDir: row.run_dir,
+      completed: row.completed,
+    }));
+  }
+
   private rowToJob(row: any): {
     id: string;
     automationId: string;
