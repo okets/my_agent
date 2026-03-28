@@ -250,18 +250,10 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
 
   // Step 3: Collect worker results since last debrief reporter run
   const workerSections: string[] = [];
-  console.log(`[debrief-reporter] db available: ${!!db}, has getDebriefPendingJobs: ${typeof db?.getDebriefPendingJobs}`);
   if (db) {
-    // Find last reporter run to know the collection window
-    const lastRuns = db.listJobs({
-      automationId: "debrief-reporter",
-      status: "completed",
-      limit: 1,
-    });
-    // Default to 24h ago if no previous run
-    const since = lastRuns.length > 0
-      ? lastRuns[0].completed ?? new Date(Date.now() - 86400000).toISOString()
-      : new Date(Date.now() - 86400000).toISOString();
+    // Collect worker results from the last 24 hours.
+    // Simple window — catches today's workers regardless of when the reporter last ran.
+    const since = new Date(Date.now() - 86400000).toISOString();
 
     console.log(`[debrief-reporter] Collecting worker results since: ${since}`);
     const pendingJobs = db.getDebriefPendingJobs(since);
