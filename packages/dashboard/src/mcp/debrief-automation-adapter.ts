@@ -8,6 +8,8 @@
  * M7-S8: Updated to use debrief-reporter (collector) instead of debrief-context.
  */
 
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { DebriefSchedulerLike } from "./debrief-server.js";
 import type { AutomationJobService } from "../automations/automation-job-service.js";
 import type { ConversationDatabase } from "../conversations/db.js";
@@ -42,29 +44,27 @@ export function createDebriefAutomationAdapter(
     },
 
     getDebriefOutput(): string | null {
-      const jobService = getJobService();
-      if (!jobService) return null;
-
-      // Check debrief-reporter first (full brief with worker reports)
-      const today = new Date().toISOString().split("T")[0];
-      const reporterJobs = jobService.listJobs({
-        automationId: "debrief-reporter",
-        status: "completed",
-        since: today,
-        limit: 1,
-      });
-      if (reporterJobs.length > 0 && reporterJobs[0].summary) {
-        return reporterJobs[0].summary;
+      // Read the assembled brief from disk (written by debrief-reporter handler)
+      const briefPath = join(agentDir, "notebook", "operations", "morning-brief.md");
+      if (existsSync(briefPath)) {
+        try {
+          return readFileSync(briefPath, "utf-8");
+        } catch {
+          // Fall through to DB lookup
+        }
       }
 
-      // Fall back to debrief-context (notebook context only)
-      const jobs = jobService.listJobs({
-        automationId: "debrief",
-        status: "completed",
-        since: today,
-        limit: 1,
-      });
-      return jobs.length > 0 ? (jobs[0].summary ?? null) : null;
+      // Fall back to current-state.md (notebook context only)
+      const statePath = join(agentDir, "notebook", "operations", "current-state.md");
+      if (existsSync(statePath)) {
+        try {
+          return readFileSync(statePath, "utf-8");
+        } catch {
+          // Fall through
+        }
+      }
+
+      return null;
     },
 
     async handleDebriefPrep(): Promise<string> {

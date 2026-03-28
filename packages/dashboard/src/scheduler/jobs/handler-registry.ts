@@ -250,6 +250,7 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
 
   // Step 3: Collect worker results since last debrief reporter run
   const workerSections: string[] = [];
+  console.log(`[debrief-reporter] db available: ${!!db}, has getDebriefPendingJobs: ${typeof db?.getDebriefPendingJobs}`);
   if (db) {
     // Find last reporter run to know the collection window
     const lastRuns = db.listJobs({
@@ -262,7 +263,9 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
       ? lastRuns[0].completed ?? new Date(Date.now() - 86400000).toISOString()
       : new Date(Date.now() - 86400000).toISOString();
 
+    console.log(`[debrief-reporter] Collecting worker results since: ${since}`);
     const pendingJobs = db.getDebriefPendingJobs(since);
+    console.log(`[debrief-reporter] Found ${pendingJobs.length} worker reports`);
 
     for (const job of pendingJobs) {
       let content = job.summary ?? "No output available.";
@@ -298,7 +301,15 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
     ? parts.join("\n\n")
     : "No debrief content available. Workers may not have run yet.";
 
-  await appendToDailyLog(notebookDir, `- Debrief reporter assembled (${workerSections.length} worker reports)`);
+  // Write the assembled brief to disk so the MCP tool and future queries can read it
+  const briefPath = join(notebookDir, "operations", "morning-brief.md");
+  const opsDir = join(notebookDir, "operations");
+  if (!existsSync(opsDir)) {
+    await mkdir(opsDir, { recursive: true });
+  }
+  await writeFile(briefPath, brief, "utf-8");
+
+  await appendToDailyLog(notebookDir, `- Debrief reporter assembled (${workerSections.length} worker reports, ${brief.length} chars)`);
 
   return { success: true, work: brief, deliverable: brief };
 });

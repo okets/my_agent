@@ -64,22 +64,12 @@ describe("Debrief Automation Adapter", () => {
     expect(adapter.hasRunToday("debrief-context")).toBe(true);
   });
 
-  it("getDebriefOutput returns job summary when completed job exists", () => {
-    manager.create({
-      name: "Debrief",
-      instructions: "Prep debrief.",
-      manifest: {
-        trigger: [{ type: "manual" }],
-        handler: "debrief-context",
-      },
-    });
-
-    const job = jobService.createJob("debrief");
-    jobService.updateJob(job.id, {
-      status: "completed",
-      completed: new Date().toISOString(),
-      summary: "Today's debrief summary.",
-    });
+  it("getDebriefOutput returns brief from file when it exists", () => {
+    // Write morning-brief.md to the expected location
+    const opsDir = join(tempDir, "notebook", "operations");
+    mkdirSync(opsDir, { recursive: true });
+    const { writeFileSync } = require("fs");
+    writeFileSync(join(opsDir, "morning-brief.md"), "Today's debrief summary.");
 
     const adapter = createDebriefAutomationAdapter(() => jobService, tempDir);
     expect(adapter.getDebriefOutput()).toBe("Today's debrief summary.");
@@ -134,6 +124,11 @@ describe("Debrief Automation Adapter", () => {
     });
 
     expect(adapter.hasRunToday("debrief-context")).toBe(true);
+    // getDebriefOutput reads from file, not DB — write the file
+    const opsDir = join(tempDir, "notebook", "operations");
+    mkdirSync(opsDir, { recursive: true });
+    const { writeFileSync } = require("fs");
+    writeFileSync(join(opsDir, "morning-brief.md"), "Lazy init worked.");
     expect(adapter.getDebriefOutput()).toBe("Lazy init worked.");
   });
 });
