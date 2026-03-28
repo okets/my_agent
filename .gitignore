@@ -30,6 +30,9 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 
+# Claude Code
+.claude/
+
 # Calendar prototype
 prototypes/calendar/radicale-venv/
 prototypes/calendar/radicale-data/
