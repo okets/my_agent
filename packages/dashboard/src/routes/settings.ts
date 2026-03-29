@@ -199,7 +199,7 @@ export async function registerSettingsRoutes(
 
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) {
-        return reply.code(500).send({ models: [] } as any);
+        return { models: [] };
       }
 
       try {
