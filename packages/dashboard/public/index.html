@@ -2911,6 +2911,68 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Desktop Control -->
+              <div class="glass-strong rounded-xl p-5">
+                <h3 class="text-sm font-semibold text-white/90 mb-3">Desktop Control</h3>
+
+                <div x-data="{ status: null }" x-init="
+                  fetch('/api/debug/desktop-status')
+                    .then(r => r.json())
+                    .then(d => status = d)
+                    .catch(() => {})
+                ">
+                  <!-- Status indicator -->
+                  <div class="flex items-center gap-2 mb-3">
+                    <template x-if="status && status.available">
+                      <span class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span class="text-xs text-white/70">Enabled</span>
+                        <span class="text-xs text-white/40" x-text="'(' + (status.displayServer || 'unknown').toUpperCase() + ')'"></span>
+                      </span>
+                    </template>
+                    <template x-if="status && !status.available">
+                      <span class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-white/20"></span>
+                        <span class="text-xs text-white/40">Not Available</span>
+                      </span>
+                    </template>
+                    <template x-if="!status">
+                      <span class="text-xs text-white/30">Loading...</span>
+                    </template>
+                  </div>
+
+                  <!-- Capabilities grid -->
+                  <template x-if="status && status.available">
+                    <div class="grid grid-cols-2 gap-1.5 mb-3">
+                      <template x-for="[cap, enabled] of Object.entries(status.capabilities)" :key="cap">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-xs" :class="enabled ? 'text-emerald-400' : 'text-white/20'" x-text="enabled ? '✓' : '✗'"></span>
+                          <span class="text-xs text-white/50 capitalize" x-text="cap.replace(/([A-Z])/g, ' $1').trim()"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- Computer Use status -->
+                  <template x-if="status && status.available && status.computerUseAvailable">
+                    <div class="flex items-center gap-1.5 mb-3">
+                      <span class="w-2 h-2 rounded-full bg-violet-400"></span>
+                      <span class="text-xs text-white/50">Computer Use API connected</span>
+                    </div>
+                  </template>
+
+                  <!-- Setup needed -->
+                  <template x-if="status && status.setupNeeded && status.setupNeeded.length > 0">
+                    <div class="mt-2 p-3 rounded-lg bg-white/5 border border-white/10">
+                      <p class="text-xs text-amber-400/80 mb-1">Missing tools:</p>
+                      <template x-for="item in status.setupNeeded" :key="item">
+                        <p class="text-xs text-white/40 font-mono" x-text="item"></p>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
             </div>
           </div>
 
