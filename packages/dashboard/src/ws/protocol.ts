@@ -200,6 +200,11 @@ export type ServerMessage =
       timestamp: number;
     }
   | { type: "state:jobs"; jobs: JobSnapshot[]; timestamp: number }
+  | {
+      type: "state:screenshot";
+      screenshot: ScreenshotSnapshot;
+      timestamp: number;
+    }
   | { type: "state:skills"; timestamp: number };
 
 // ─── State Sync Messages ───────────────────────────────────────────────────
@@ -286,6 +291,20 @@ export interface JobSnapshot {
   completed?: string;
   summary?: string;
   triggerType?: string;
+}
+
+export interface ScreenshotSnapshot {
+  id: string;
+  filename: string;
+  url: string;
+  timestamp: string;
+  contextType: "job" | "conversation";
+  contextId: string;
+  automationId?: string;
+  tag: "keep" | "skip";
+  description?: string;
+  width: number;
+  height: number;
 }
 
 // Notification payload for WebSocket transport
