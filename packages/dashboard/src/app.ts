@@ -1148,6 +1148,8 @@ export class App extends EventEmitter {
         backend,
         computerUse,
         visualService: app.visualActionService,
+        rateLimiter: app.desktopRateLimiter ?? undefined,
+        auditLogger: app.desktopAuditLogger ?? undefined,
       });
       addMcpServer("desktop-tools", desktopServer);
 

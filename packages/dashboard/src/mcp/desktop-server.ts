@@ -15,6 +15,8 @@ export function createDesktopServer(deps: {
   backend: DesktopBackend | null;
   computerUse: ComputerUseService | null;
   visualService?: VisualActionService;
+  rateLimiter?: { check(): { allowed: boolean; reason?: string } };
+  auditLogger?: { log(entry: { tool: string; instruction?: string; timestamp: string }): void };
 }) {
   const desktopTaskTool = tool(
     "desktop_task",
@@ -35,6 +37,21 @@ export function createDesktopServer(deps: {
       timeoutMs: z.number().optional().describe("Timeout in milliseconds (default: 120000)"),
     },
     async (args) => {
+      // Safety: rate limit check
+      if (deps.rateLimiter) {
+        const check = deps.rateLimiter.check();
+        if (!check.allowed) {
+          return {
+            content: [{ type: "text" as const, text: check.reason ?? "Rate limit exceeded" }],
+            isError: true,
+          };
+        }
+      }
+      // Safety: audit log
+      if (deps.auditLogger) {
+        deps.auditLogger.log({ tool: "desktop_task", instruction: args.instruction, timestamp: new Date().toISOString() });
+      }
+
       if (!deps.computerUse) {
         return {
           content: [
