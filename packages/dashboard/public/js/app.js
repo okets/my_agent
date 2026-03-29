@@ -211,6 +211,7 @@ function chat() {
           triggerType: job.triggerType,
           automationId: job.automationId,
           isOneOff: automation?.once === true || automation?.once === 1,
+          screenshots: Alpine.store("screenshots")?.forJob(job.id) || [],
           job: job,
         });
       }
