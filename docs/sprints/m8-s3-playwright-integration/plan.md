@@ -4,7 +4,15 @@
 
 **Goal:** Wire Playwright browser screenshots into the VisualActionService pipeline so they appear in the dashboard timeline and chat — unified visual audit trail across desktop control and browser automation. Add hatching + settings for Playwright browser installation.
 
-**Architecture:** Playwright MCP is already registered (stdio transport, `@playwright/mcp`). Browser binaries need installation (`npx playwright install`). Screenshots from `browser_take_screenshot` are intercepted and stored via VisualActionService. Hatching and settings follow the S2 desktop control pattern (silent check + guided install + toggle).
+**Architecture:** Playwright MCP stays always-registered (stdio transport, `@playwright/mcp` — current behavior). Browser binaries need installation (`npx playwright install`). A custom MCP tool `browser_screenshot_and_store` wraps Playwright's screenshot and stores the result via VisualActionService — this avoids the infeasible approach of intercepting internal SDK tool results. Hatching and settings follow the S2 desktop control pattern (silent check + guided install + toggle). Toggle state persisted to file.
+
+**Key review findings applied:**
+- C1: Can't intercept MCP tool results (SDK internal) → wrapper MCP tool instead
+- C2: Browser install blocks event loop → async spawn with polling
+- I1: Hatching tool must be in allowedTools array
+- I2: Toggle state persisted to `.playwright-enabled` file (not module-level variable)
+- I3: Playwright MCP always registered (don't gate on browser availability)
+- I4: Chat rendering of Playwright screenshots added as explicit task
 
 **Tech Stack:** TypeScript, `@playwright/mcp` (already installed), Fastify, Alpine.js, vitest
 
@@ -19,22 +27,24 @@
 
 | File | Responsibility |
 |------|----------------|
-| `packages/dashboard/src/playwright/playwright-status.ts` | Detect installed browsers, check Playwright readiness |
-| `packages/dashboard/src/playwright/playwright-screenshot-bridge.ts` | Intercept Playwright screenshots, store via VAS |
-| `packages/dashboard/src/routes/playwright-routes.ts` | API endpoints: status, install, toggle |
+| `packages/dashboard/src/playwright/playwright-status.ts` | Detect installed browsers, check Playwright readiness, async install |
+| `packages/dashboard/src/playwright/playwright-screenshot-bridge.ts` | Wrapper MCP tool that takes screenshot + stores via VAS |
+| `packages/dashboard/src/routes/playwright-routes.ts` | API endpoints: status, install (async), toggle (file-persisted) |
 | `packages/dashboard/tests/unit/playwright/playwright-status.test.ts` | Status detection tests |
 | `packages/dashboard/tests/unit/playwright/playwright-screenshot-bridge.test.ts` | Screenshot bridge tests |
+| `packages/dashboard/tests/unit/routes/playwright-routes.test.ts` | Route tests |
 
 ### Modified Files
 
 | File | Change |
 |------|--------|
-| `packages/dashboard/src/hatching/hatching-tools.ts` | Add `get_playwright_status` tool |
+| `packages/dashboard/src/hatching/hatching-tools.ts` | Add `get_playwright_status` tool + add to allowedTools array |
 | `packages/dashboard/src/hatching/hatching-prompt.ts` | Add Playwright setup step (step 8) |
-| `packages/dashboard/src/agent/session-manager.ts` | Conditionally register Playwright MCP based on browser availability |
-| `packages/dashboard/src/app.ts` | Wire Playwright status + screenshot bridge |
+| `packages/dashboard/src/app.ts` | Wire Playwright bridge, persist toggle state to file |
 | `packages/dashboard/src/server.ts` | Register Playwright routes |
-| `packages/dashboard/public/index.html` | Add Playwright settings section |
+| `packages/dashboard/public/index.html` | Add Playwright settings section (checkbox toggle pattern) |
+
+Note: `session-manager.ts` is NOT modified — Playwright MCP stays always-registered (current behavior). If browsers are missing, Playwright MCP itself returns errors, which is acceptable UX.
 
 ---
 
@@ -192,25 +202,41 @@ export async function detectPlaywrightStatus(
 }
 
 /**
- * Install Playwright browsers by running npx playwright install.
- * Returns stdout/stderr from the install process.
+ * Install Playwright browsers asynchronously using child_process.spawn.
+ * Does NOT block the event loop. Returns a promise that resolves when done.
  */
-export function installPlaywrightBrowsers(): {
+export function installPlaywrightBrowsers(): Promise<{
   success: boolean;
   output: string;
-} {
-  try {
-    const output = execFileSync("npx", ["playwright", "install"], {
-      encoding: "utf-8",
+}> {
+  return new Promise((resolve) => {
+    const { spawn } = require("child_process");
+    const proc = spawn("npx", ["playwright", "install"], {
+      stdio: ["ignore", "pipe", "pipe"],
       timeout: 300_000, // 5 minute timeout for downloads
     });
-    return { success: true, output };
-  } catch (err) {
-    return {
-      success: false,
-      output: err instanceof Error ? err.message : String(err),
-    };
-  }
+
+    let stdout = "";
+    let stderr = "";
+
+    proc.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    proc.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on("close", (code: number | null) => {
+      resolve({
+        success: code === 0,
+        output: code === 0 ? stdout : stderr || stdout,
+      });
+    });
+
+    proc.on("error", (err: Error) => {
+      resolve({ success: false, output: err.message });
+    });
+  });
 }
 ```
 
@@ -239,32 +265,46 @@ git commit -m "feat(dashboard): Playwright status detection — browser install 
 ```typescript
 // packages/dashboard/src/routes/playwright-routes.ts
 import type { FastifyInstance } from "fastify";
+import { existsSync, writeFileSync, unlinkSync } from "fs";
+import { join } from "path";
 import {
   detectPlaywrightStatus,
   installPlaywrightBrowsers,
 } from "../playwright/playwright-status.js";
 
-/** Persistent enabled state — toggled by user in settings. */
-let playwrightEnabled = true;
+/** Read enabled state from file flag (survives restarts). */
+function isEnabled(agentDir: string): boolean {
+  // Enabled by default — file presence means disabled
+  return !existsSync(join(agentDir, ".playwright-disabled"));
+}
 
-export function isPlaywrightEnabled(): boolean {
-  return playwrightEnabled;
+function setEnabled(agentDir: string, enabled: boolean): void {
+  const flagFile = join(agentDir, ".playwright-disabled");
+  if (enabled) {
+    try { unlinkSync(flagFile); } catch { /* noop */ }
+  } else {
+    writeFileSync(flagFile, "", "utf-8");
+  }
 }
 
 export async function registerPlaywrightRoutes(
   fastify: FastifyInstance,
 ): Promise<void> {
+  const agentDir = fastify.agentDir;
+
   fastify.get("/api/debug/playwright-status", async () => {
-    return detectPlaywrightStatus(playwrightEnabled);
+    return detectPlaywrightStatus(isEnabled(agentDir));
   });
 
   fastify.post("/api/debug/playwright-toggle", async () => {
-    playwrightEnabled = !playwrightEnabled;
-    return { enabled: playwrightEnabled };
+    const newState = !isEnabled(agentDir);
+    setEnabled(agentDir, newState);
+    return { enabled: newState };
   });
 
+  // Async install — does not block the event loop
   fastify.post("/api/debug/playwright-install", async () => {
-    const result = installPlaywrightBrowsers();
+    const result = await installPlaywrightBrowsers();
     return result;
   });
 }
@@ -298,17 +338,13 @@ git commit -m "feat(dashboard): Playwright API routes — status, toggle, instal
 
 ---
 
-## Task 3: Playwright Screenshot Bridge
+## Task 3: Playwright Screenshot Bridge (Wrapper MCP Tool)
 
 **Files:**
 - Create: `packages/dashboard/src/playwright/playwright-screenshot-bridge.ts`
 - Create: `packages/dashboard/tests/unit/playwright/playwright-screenshot-bridge.test.ts`
 
-The bridge intercepts Playwright screenshot results and stores them via VisualActionService. Since Playwright MCP runs as a stdio subprocess, we can't directly hook into its tool results. Instead, we watch for screenshot files in the working directory and capture them.
-
-Alternative approach: The brain already receives Playwright screenshots as base64 image content blocks in tool results. We can intercept at the Agent SDK response level — when the brain processes a `browser_take_screenshot` result, the bridge extracts the image and stores it.
-
-The simplest approach: provide a utility that the brain's post-response processing can call.
+**Why a wrapper tool:** The Agent SDK handles MCP tool results internally — our application code never sees the base64 image data from `browser_take_screenshot`. Instead of trying to intercept SDK internals, we create a custom MCP tool `browser_screenshot_and_store` that the brain calls instead. This tool takes a screenshot via Playwright's Node API directly (not through MCP), stores it via VAS, and returns the image to the brain.
 
 - [ ] **Step 1: Write the test file**
 
@@ -338,7 +374,7 @@ describe("PlaywrightScreenshotBridge", () => {
     const base64 = Buffer.from("fake-png-data").toString("base64");
     const context: AssetContext = { type: "conversation", id: "conv-1" };
 
-    const screenshot = bridge.captureFromBase64(base64, {
+    const screenshot = bridge.storeFromBase64(base64, {
       context,
       description: "Playwright: navigated to google.com",
     });
@@ -363,7 +399,7 @@ describe("PlaywrightScreenshotBridge", () => {
       automationId: "auto-1",
     };
 
-    const screenshot = bridge.captureFromBase64(base64, { context });
+    const screenshot = bridge.storeFromBase64(base64, { context });
     expect(screenshot.context.type).toBe("job");
   });
 
@@ -371,8 +407,8 @@ describe("PlaywrightScreenshotBridge", () => {
     const base64 = Buffer.from("data").toString("base64");
     const context: AssetContext = { type: "conversation", id: "conv-1" };
 
-    bridge.captureFromBase64(base64, { context, description: "first" });
-    bridge.captureFromBase64(base64, { context, description: "second" });
+    bridge.storeFromBase64(base64, { context, description: "first" });
+    bridge.storeFromBase64(base64, { context, description: "second" });
 
     const screenshots = vas.list(context);
     expect(screenshots).toHaveLength(2);
@@ -387,12 +423,18 @@ Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement the bridge**
 
+The bridge has two responsibilities:
+1. `storeFromBase64()` — utility to store any base64 image via VAS (reusable)
+2. `createScreenshotMcpTool()` — creates an MCP tool that the brain calls instead of raw `browser_take_screenshot`, which stores the result via VAS before returning it
+
 ```typescript
 // packages/dashboard/src/playwright/playwright-screenshot-bridge.ts
+import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
+import { z } from "zod";
 import type { AssetContext, Screenshot, ScreenshotTag } from "@my-agent/core";
 import type { VisualActionService } from "../visual/visual-action-service.js";
 
-interface CaptureOptions {
+interface StoreOptions {
   context: AssetContext;
   description?: string;
   tag?: ScreenshotTag;
@@ -401,23 +443,24 @@ interface CaptureOptions {
 }
 
 /**
- * Bridge between Playwright MCP screenshot results and VisualActionService.
+ * Bridge between Playwright screenshots and VisualActionService.
  *
- * Playwright MCP's browser_take_screenshot returns base64-encoded images.
- * This bridge takes those base64 strings and stores them through the
- * standard visual pipeline — JSONL index, StatePublisher events, dashboard rendering.
+ * Provides both a utility method (storeFromBase64) and an MCP server
+ * (createMcpServer) that wraps screenshot-taking with VAS storage.
+ *
+ * The MCP tool approach solves the fundamental problem: the Agent SDK
+ * handles Playwright MCP tool results internally — our application code
+ * never sees them. By providing our own screenshot tool that calls
+ * Playwright's Node API directly, we can store the screenshot via VAS
+ * before returning it to the brain.
  */
 export class PlaywrightScreenshotBridge {
   constructor(private readonly vas: VisualActionService) {}
 
   /**
-   * Capture a Playwright screenshot from a base64-encoded string.
-   * Called when the brain receives a browser_take_screenshot tool result.
+   * Store a base64-encoded screenshot via VisualActionService.
    */
-  captureFromBase64(
-    base64Data: string,
-    options: CaptureOptions,
-  ): Screenshot {
+  storeFromBase64(base64Data: string, options: StoreOptions): Screenshot {
     const image = Buffer.from(base64Data, "base64");
 
     return this.vas.store(
@@ -431,6 +474,98 @@ export class PlaywrightScreenshotBridge {
       options.tag ?? "keep",
     );
   }
+
+  /**
+   * Create an MCP server with a browser_screenshot_and_store tool.
+   * This tool takes a screenshot using Playwright and stores it via VAS.
+   * The brain should prefer this over raw browser_take_screenshot when
+   * screenshot audit trail is desired.
+   */
+  createMcpServer() {
+    const bridge = this;
+
+    const screenshotAndStoreTool = tool(
+      "browser_screenshot_and_store",
+      "Take a browser screenshot and store it in the visual audit trail. " +
+        "Use this instead of browser_take_screenshot when you want the screenshot " +
+        "to appear in the dashboard timeline. The screenshot is stored, served, " +
+        "and returned to you for analysis.",
+      {
+        url: z
+          .string()
+          .optional()
+          .describe("URL to navigate to before screenshotting (optional)"),
+        description: z
+          .string()
+          .optional()
+          .describe("Description of what this screenshot captures"),
+        fullPage: z
+          .boolean()
+          .optional()
+          .describe("Capture full scrollable page (default: viewport only)"),
+      },
+      async (args) => {
+        try {
+          // Use Playwright's Node API directly
+          const { chromium } = await import("playwright");
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage();
+
+          if (args.url) {
+            await page.goto(args.url, { waitUntil: "networkidle" });
+          }
+
+          const screenshotBuffer = await page.screenshot({
+            fullPage: args.fullPage ?? false,
+            type: "png",
+          });
+
+          const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
+          await browser.close();
+
+          // Store via VAS — this fires the StatePublisher event
+          const base64 = screenshotBuffer.toString("base64");
+          bridge.storeFromBase64(base64, {
+            context: { type: "conversation", id: "active" },
+            description:
+              args.description ??
+              `Playwright: ${args.url ?? "current page"}`,
+            width: viewport.width,
+            height: viewport.height,
+          });
+
+          // Return image to the brain for analysis
+          return {
+            content: [
+              {
+                type: "image" as const,
+                source: {
+                  type: "base64" as const,
+                  media_type: "image/png",
+                  data: base64,
+                },
+              },
+            ],
+          };
+        } catch (err) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Screenshot failed: ${err instanceof Error ? err.message : String(err)}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      },
+    );
+
+    return createSdkMcpServer({
+      name: "playwright-screenshot",
+      tools: [screenshotAndStoreTool],
+    });
+  }
 }
 ```
 
@@ -443,22 +578,21 @@ Expected: PASS (3 tests).
 
 ```bash
 git add packages/dashboard/src/playwright/playwright-screenshot-bridge.ts packages/dashboard/tests/unit/playwright/playwright-screenshot-bridge.test.ts
-git commit -m "feat(dashboard): Playwright screenshot bridge — stores browser screenshots via VAS"
+git commit -m "feat(dashboard): Playwright screenshot bridge — wrapper MCP tool + VAS storage"
 ```
 
 ---
 
-## Task 4: Wire Bridge into Agent Response Processing
+## Task 4: Wire Bridge MCP Server into App
 
 **Files:**
 - Modify: `packages/dashboard/src/app.ts`
-- Modify: `packages/dashboard/src/agent/session-manager.ts`
 
-This is the integration point. When the brain uses `browser_take_screenshot`, the result flows back as a tool_result content block with a base64 image. We need to intercept this and feed it to the bridge.
+The PlaywrightScreenshotBridge creates a custom MCP server with `browser_screenshot_and_store`. We register it alongside the existing Playwright MCP (which stays always-on). The brain gets both: raw Playwright tools for navigation/interaction, plus our wrapper tool for audited screenshots.
 
-- [ ] **Step 1: Read how tool results are currently processed**
+- [ ] **Step 1: Read app.ts to find the MCP server registration pattern**
 
-Read `packages/dashboard/src/agent/session-manager.ts` and the chat handler to understand where tool results from MCP servers are processed. Look for where response content blocks are iterated.
+Read `packages/dashboard/src/app.ts` — find where `addMcpServer()` is called for existing servers (desktop-tools, automation-tools, etc.).
 
 - [ ] **Step 2: Add PlaywrightScreenshotBridge to App**
 
@@ -478,66 +612,25 @@ In the constructor, after `visualActionService`:
 
 ```typescript
 this.playwrightBridge = new PlaywrightScreenshotBridge(this.visualActionService);
+
+// Register the Playwright screenshot MCP server
+const playwrightScreenshotServer = this.playwrightBridge.createMcpServer();
+addMcpServer("playwright-screenshot", playwrightScreenshotServer);
+console.log("[App] Playwright screenshot bridge MCP server registered");
 ```
 
-- [ ] **Step 3: Conditionally register Playwright MCP based on availability**
+Note: The existing Playwright MCP (`@playwright/mcp` via stdio) stays registered in session-manager.ts — it provides navigation, clicking, typing, etc. Our bridge MCP only adds the `browser_screenshot_and_store` tool for audited screenshots.
 
-In `session-manager.ts`, update the Playwright registration to check browser availability:
-
-```typescript
-import { detectPlaywrightStatus } from "../playwright/playwright-status.js";
-import { isPlaywrightEnabled } from "../routes/playwright-routes.js";
-
-// In initMcpServers():
-const pwStatus = await detectPlaywrightStatus();
-if (pwStatus.ready && isPlaywrightEnabled()) {
-  servers.playwright = {
-    type: "stdio" as const,
-    command: "npx",
-    args: ["@playwright/mcp"],
-  };
-  console.log("[SessionManager] Playwright MCP registered (browsers available)");
-} else {
-  console.log(
-    `[SessionManager] Playwright MCP not registered: installed=${pwStatus.installed}, ready=${pwStatus.ready}, enabled=${isPlaywrightEnabled()}`,
-  );
-}
-```
-
-- [ ] **Step 4: Wire screenshot interception into response processing**
-
-Find where the brain's response content blocks are processed (likely in the chat service or session iteration). Add a hook that checks for `browser_take_screenshot` tool results:
-
-```typescript
-// In the response processing loop (after tool results are received):
-// Check if this is a Playwright screenshot result
-if (
-  toolName === "mcp__playwright__browser_take_screenshot" &&
-  contentBlock.type === "image" &&
-  contentBlock.source?.type === "base64"
-) {
-  app.playwrightBridge.captureFromBase64(
-    contentBlock.source.data,
-    {
-      context: currentContext, // conversation or job context
-      description: `Playwright: ${toolInput?.filename || "browser screenshot"}`,
-    },
-  );
-}
-```
-
-Note: The exact integration point depends on how the existing code processes tool results. Read the code first and follow the existing pattern. The key is finding where image content blocks from MCP tool results are accessible.
-
-- [ ] **Step 5: Verify types compile**
+- [ ] **Step 3: Verify types compile**
 
 Run: `cd packages/dashboard && npx tsc --noEmit`
 Expected: Clean.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add packages/dashboard/src/app.ts packages/dashboard/src/agent/session-manager.ts
-git commit -m "feat(dashboard): wire Playwright bridge into App + conditional MCP registration"
+git add packages/dashboard/src/app.ts
+git commit -m "feat(dashboard): register Playwright screenshot bridge MCP server in App"
 ```
 
 ---
@@ -587,6 +680,8 @@ import { detectPlaywrightStatus } from "../playwright/playwright-status.js";
 ```
 
 Add `getPlaywrightStatusTool` to the tools array in `createHatchingTools`.
+
+**IMPORTANT:** Also add `"mcp__hatching-tools__get_playwright_status"` to the `allowedTools` array in the hatching query options (around line 362 of hatching-tools.ts). Without this, the LLM cannot call the tool.
 
 - [ ] **Step 3: Add Playwright step to hatching prompt**
 
@@ -782,11 +877,16 @@ If browsers not installed:
 ## Success Criteria
 
 - [ ] Playwright status detection identifies installed/missing browsers
+- [ ] Async browser install (does not block event loop)
+- [ ] Toggle state persisted to `.playwright-disabled` file (survives restarts)
 - [ ] Hatching step guides users through browser installation (matching desktop control pattern)
-- [ ] Settings UI shows Playwright status, toggle, and install button
-- [ ] Playwright MCP conditionally registered based on browser availability + toggle
-- [ ] PlaywrightScreenshotBridge stores browser screenshots via VisualActionService
-- [ ] Screenshots from `browser_take_screenshot` appear in dashboard timeline
-- [ ] Screenshots from `browser_take_screenshot` render inline in chat
+- [ ] Hatching tool added to allowedTools array
+- [ ] Settings UI shows Playwright status, toggle, and install button (checkbox pattern matching desktop)
+- [ ] Playwright MCP stays always-registered (current behavior — no conditional gating)
+- [ ] `browser_screenshot_and_store` MCP tool stores screenshots via VisualActionService
+- [ ] Screenshots from `browser_screenshot_and_store` appear in dashboard timeline
 - [ ] Retention/tagging from S1 applies to Playwright screenshots
 - [ ] All existing tests still pass
+
+**Explicitly deferred to S4 (Rich I/O):**
+- Chat-inline rendering of screenshots (screenshots appear in timeline but not yet rendered inline in conversation messages)
