@@ -24,7 +24,7 @@
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
-| **M8: Visual & Desktop Automation** | Planned | 5 sprints (visual pipeline, desktop control, Playwright integration, rich I/O, voice) |
+| **M8: Visual & Desktop Automation** | **Active** | 2/5 sprints done (S1 visual pipeline, S2 desktop control Linux), 1061 tests |
 | **M9: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M10: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M11: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -36,11 +36,11 @@
 ## Visual Timeline
 
 ```
-COMPLETED (M1–M6.10)
-════════════════════
+COMPLETED (M1–M7)
+═════════════════
 M1 Foundation ► M2 Web UI ► M3 WhatsApp ► M4 Notebook ► M4.5 Calendar ► M5 Tasks ► M6 Memory
 ► M6.5 SDK ► M6.7 Two-Agent ► M6.6 Lifecycle ► M6.9 Knowledge ► M6.8 Skills ► M6.10 Headless
-   All complete — 682 tests, 72 test files
+► M7 Spaces & Automations — 757 tests
 
 FUTURE (M8–M13) — ~21 sprints to release
 ═════════════════════════════════════════
@@ -704,8 +704,8 @@ Nina can see and interact with GUI applications. All visual actions (desktop con
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | Visual Action Pipeline | Planned | VisualActionService (capture/store/serve), screenshot tagging (agent tags keep/skip, pixel diff fallback), retention policy, asset serving route, dashboard screenshot rendering (timeline + inline), StatePublisher events |
-| S2 | Desktop Control — Linux X11 | Planned | DesktopBackend interface, X11Backend (nut-js + CLI fallback), ComputerUseService (Claude native computer use API bridge), MCP tools (desktop_task, desktop_screenshot, desktop_info) for both Conversation + Working Nina, safety hooks, desktop skill, environment detection, hatching step, settings UI |
+| S1 | Visual Action Pipeline | **Done** | VisualActionService (capture/store/serve), screenshot tagging (agent tags keep/skip, pixel diff fallback), retention policy, asset serving route, dashboard screenshot rendering (timeline + inline), StatePublisher events. 29 new tests. [plan](../sprints/m8-s1-visual-action-pipeline/plan.md) · [review](../sprints/m8-s1-visual-action-pipeline/review.md) · [test-report](../sprints/m8-s1-visual-action-pipeline/test-report.md) |
+| S2 | Desktop Control — Linux X11 | **Done** | DesktopBackend interface, X11Backend (xdotool + maim + wmctrl), ComputerUseService (Claude native computer use API bridge), MCP tools (desktop_task, desktop_screenshot, desktop_info) for both Conversation + Working Nina, safety hooks + rate limiter + audit logger, desktop skill, environment detection, hatching step, settings UI with enable/disable toggle + install button, setup script. 55 new tests. [plan](../sprints/m8-s2-desktop-control-linux/plan.md) · [review](../sprints/m8-s2-desktop-control-linux/review.md) · [test-report](../sprints/m8-s2-desktop-control-linux/test-report.md) |
 | S3 | Playwright Integration | Planned | Wire Playwright screenshots into VisualActionService, surface browser automation screenshots in timeline/chat, unified visual audit trail |
 | S4 | Rich I/O | Planned | Image passthrough (dashboard + WhatsApp), visual output tools, asset rendering in chat |
 | S5 | Voice | Planned | STT/TTS engine selection, dashboard audio playback, WhatsApp voice notes, streaming TTS, settings toggle |
@@ -868,7 +868,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Two-Agent Refactor   | Approved | M6.7        | [plans/2026-03-04-conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Skills Architecture  | Complete | M6.8        | [superpowers/specs/2026-03-15-skills-architecture-design.md](superpowers/specs/2026-03-15-skills-architecture-design.md) |
 | Release Roadmap      | Approved | M8–M13      | [superpowers/specs/2026-03-21-release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) |
-| Visual & Desktop Automation | Draft | M8 | [superpowers/specs/2026-03-29-m8-desktop-automation-design.md](superpowers/specs/2026-03-29-m8-desktop-automation-design.md) |
+| Visual & Desktop Automation | Approved | M8 | [superpowers/specs/2026-03-29-m8-desktop-automation-design.md](superpowers/specs/2026-03-29-m8-desktop-automation-design.md) |
 | Multimodal           | Idea     | M9          | TBD — rich input/output, visual thinking, voice mode, asset serving |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
 | Knowledge Lifecycle  | Approved | M6.9        | [sprints/m6.6-s6-knowledge-lifecycle/design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md) |
