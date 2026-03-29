@@ -7,6 +7,8 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { appendFile } from "fs/promises";
+import { join } from "path";
 import type { DesktopBackend, AssetContext, ScreenshotTag } from "@my-agent/core";
 import { VisualActionService } from "../visual/visual-action-service.js";
 import { computeDiffRatio, DIFF_THRESHOLD } from "../visual/screenshot-tagger.js";
@@ -19,6 +21,7 @@ export interface ComputerUseTask {
   model?: string;
   maxActions?: number;
   timeoutMs?: number;
+  logDir?: string;
 }
 
 export interface ComputerUseResult {
@@ -222,6 +225,19 @@ export class ComputerUseService {
           }, tag);
           screenshots.push({ id: ss.id, filename: ss.filename, path: ss.path, tag });
           previousBuffer = buffer;
+
+          // Log action to JSONL audit file
+          if (task.logDir) {
+            const actionEntry = {
+              action: input.action,
+              coordinate: input.coordinate,
+              text: input.text,
+              timestamp: new Date().toISOString(),
+              screenshotTag: tag,
+            };
+            const logPath = join(task.logDir, "desktop-actions.jsonl");
+            await appendFile(logPath, JSON.stringify(actionEntry) + "\n", "utf-8");
+          }
 
           // Build tool_result with screenshot
           toolResults.push({
