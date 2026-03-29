@@ -17,6 +17,7 @@ import {
   type Options,
 } from "@anthropic-ai/claude-agent-sdk";
 import { loadModels } from "@my-agent/core";
+import { detectDesktopEnvironment } from "../desktop/desktop-capability-detector.js";
 import {
   getPersonalities,
   writeIdentity,
@@ -214,6 +215,29 @@ export function createHatchingSession(
     },
   );
 
+  const getDesktopStatusTool = tool(
+    "get_desktop_status",
+    "Check whether desktop control is available on this machine. Returns display server type, whether a backend is ready, capabilities (screenshot, mouse, keyboard, window management), and a list of missing tools to install. Call this to decide whether to mention the desktop setup step to the user.",
+    {},
+    async () => {
+      const env = detectDesktopEnvironment();
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              hasDisplay: env.hasDisplay,
+              displayServer: env.displayServer,
+              backend: env.backend,
+              capabilities: env.capabilities,
+              setupNeeded: env.setupNeeded,
+            }),
+          },
+        ],
+      };
+    },
+  );
+
   const saveSetupTool = tool(
     "save_setup",
     "Finalize the hatching process with all collected information",
@@ -320,6 +344,7 @@ export function createHatchingSession(
       presentChoicesTool,
       requestComposeInputTool,
       getPersonalitiesTool,
+      getDesktopStatusTool,
       saveSetupTool,
     ],
   });
@@ -338,6 +363,7 @@ export function createHatchingSession(
         "mcp__hatching-tools__present_choices",
         "mcp__hatching-tools__request_compose_input",
         "mcp__hatching-tools__get_personalities",
+        "mcp__hatching-tools__get_desktop_status",
         "mcp__hatching-tools__save_setup",
       ],
     };
