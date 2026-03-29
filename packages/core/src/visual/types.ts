@@ -33,12 +33,3 @@ export interface Screenshot {
   height: number;
   sizeBytes: number;
 }
-
-export interface ScreenshotIndex {
-  /** Append a screenshot entry to the JSONL index */
-  append(screenshot: Screenshot): void;
-  /** Read all entries from the JSONL index */
-  readAll(): Screenshot[];
-  /** Update the tag of a screenshot by ID */
-  updateTag(id: string, tag: ScreenshotTag): void;
-}

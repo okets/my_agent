@@ -218,7 +218,6 @@ export type {
   CaptureOptions,
   ScreenshotMetadata,
   Screenshot,
-  ScreenshotIndex,
 } from './visual/index.js'
 
 // Memory system
