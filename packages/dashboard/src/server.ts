@@ -23,6 +23,7 @@ import { registerSkillRoutes } from "./routes/skills.js";
 import { registerSpaceRoutes } from "./routes/spaces.js";
 import { registerAutomationRoutes } from "./routes/automations.js";
 import { registerTimelineRoutes } from "./routes/timeline.js";
+import { registerAssetRoutes } from "./routes/asset-routes.js";
 import { SkillService } from "./services/skill-service.js";
 import type { ConversationManager } from "./conversations/index.js";
 import type { AbbreviationQueue } from "./conversations/abbreviation.js";
@@ -190,6 +191,9 @@ export async function createServer(
 
   // Register timeline routes (M7-S4)
   await registerTimelineRoutes(fastify);
+
+  // Register asset serving routes (M8-S1)
+  await registerAssetRoutes(fastify);
 
   // Register debug API routes (localhost-only)
   await fastify.register(
