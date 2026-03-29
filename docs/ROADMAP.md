@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-21 (Release roadmap planned: M7–M14)
+> **Updated:** 2026-03-29 (M8+M9 merged into M8: Visual & Desktop Automation; milestones renumbered M8–M13)
 
 ---
 
@@ -24,13 +24,12 @@
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
-| **M8: Desktop Automation**   | Planned | 2 sprints (Computer Use integration, cross-platform) |
-| **M9: Multimodal**           | Planned | 4 sprints (rich input, rich output + visual thinking, micro-websites, voice mode) |
-| **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
-| **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
-| **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
-| **M13: Platform Hardening**  | Planned | 3 sprints (auth, backup/restore, update mechanism) |
-| **M14: Release**             | Planned | 2 sprints (security audit, documentation + launch) |
+| **M8: Visual & Desktop Automation** | Planned | 5 sprints (visual pipeline, desktop control, Playwright integration, rich I/O, voice) |
+| **M9: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
+| **M10: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
+| **M11: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
+| **M12: Platform Hardening**  | Planned | 5 sprints (auth, backup/restore, update, macOS backend, Wayland backend) |
+| **M13: Release**             | Planned | 2 sprints (security audit, documentation + launch) |
 
 ---
 
@@ -43,10 +42,10 @@ M1 Foundation ► M2 Web UI ► M3 WhatsApp ► M4 Notebook ► M4.5 Calendar �
 ► M6.5 SDK ► M6.7 Two-Agent ► M6.6 Lifecycle ► M6.9 Knowledge ► M6.8 Skills ► M6.10 Headless
    All complete — 682 tests, 72 test files
 
-FUTURE (M7–M14) — ~22 sprints to release
+FUTURE (M8–M13) — ~21 sprints to release
 ═════════════════════════════════════════
-M7 Workspaces ──► M8 Desktop Auto ──► M9 Multimodal ──► M10 Channel SDK ──► M11 External Comms ──► M12 iOS ──► M13 Hardening ──► M14 Release
-  (2 sprints)       (2 sprints)         (4 sprints)       (4 sprints)          (2 sprints)          (3 sprints)   (3 sprints)       (2 sprints)
+M8 Visual+Desktop ──► M9 Channel SDK ──► M10 External Comms ──► M11 iOS ──► M12 Hardening ──► M13 Release
+  (5 sprints)           (4 sprints)         (2 sprints)           (3 sprints)   (5 sprints)       (2 sprints)
 ```
 
 ---
@@ -697,50 +696,34 @@ Persistent file-backed entities: Spaces (managed folders), Automations (standing
 
 ---
 
-### M8: Desktop Automation — PLANNED
+### M8: Visual & Desktop Automation — PLANNED
 
-Working Agents can control desktop applications via Claude Computer Use.
+Nina can see and interact with GUI applications. All visual actions (desktop control, Playwright, rich output) flow through a shared pipeline: capture → store → serve → render in dashboard. Merges the old M8 (Desktop Automation) and M9 (Multimodal) milestones, reordered by dependency.
 
-**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M8
-
-| Sprint | Name | Status | Scope |
-|--------|------|--------|-------|
-| S1 | Computer Use Integration | Planned | Wire Claude Computer Use tools (screenshot, mouse, keyboard) into the agentic task executor. Safety hooks (confirmation before destructive actions, screenshot audit log). Linux first. |
-| S2 | Cross-Platform + UX | Planned | macOS support (Accessibility API permissions flow), desktop automation skill for the brain, task result screenshots in dashboard. |
-
-**Key design questions (resolve during spec):**
-- Trust tier: per-task approval or workspace-level permission?
-- Screenshot storage and privacy
-- Rate limiting / timeout guards
-
-**Dependencies:** M7 (workspaces — desktop automation tasks benefit from persistent workspace context)
-
----
-
-### M9: Multimodal — PLANNED
-
-Nina goes beyond text — understanding images and voice, producing rich visual deliverables, thinking visually, and speaking back via TTS. Rich visual output is a key differentiator.
-
-**Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M9
+**Design spec:** [m8-desktop-automation-design.md](superpowers/specs/2026-03-29-m8-desktop-automation-design.md)
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | Rich Input | Planned | Image passthrough verification/fix (dashboard + WhatsApp). Voice messages: STT engine selection (Whisper or similar), audio → text pipeline, transcription in chat. Both channels. |
-| S2 | Rich Output + Visual Thinking | Planned | Asset storage + serving, deliverable types (text/image/file/html), inline rendering. MCP tools for Nina to generate visual artifacts mid-conversation (diagrams, formatted cards). "Visual communication" skill — behavioral guidance on when to reach for visuals vs. text. |
-| S3 | Micro-websites | Planned | Sandboxed iframe for task-generated HTML artifacts in chat. Interactive deliverables. Security (CSP, sandboxing). Preview for WhatsApp. |
-| S4 | Voice Mode | Planned | TTS engine (local/open — Qwen 3 TTS or similar). Dashboard audio playback. WhatsApp voice notes. Streaming TTS. Settings toggle. |
+| S1 | Visual Action Pipeline | Planned | VisualActionService (capture/store/serve), screenshot tagging (agent tags keep/skip, pixel diff fallback), retention policy, asset serving route, dashboard screenshot rendering (timeline + inline), StatePublisher events |
+| S2 | Desktop Control — Linux X11 | Planned | DesktopBackend interface, X11Backend (nut-js + CLI fallback), ComputerUseService (Claude native computer use API bridge), MCP tools (desktop_task, desktop_screenshot, desktop_info) for both Conversation + Working Nina, safety hooks, desktop skill, environment detection, hatching step, settings UI |
+| S3 | Playwright Integration | Planned | Wire Playwright screenshots into VisualActionService, surface browser automation screenshots in timeline/chat, unified visual audit trail |
+| S4 | Rich I/O | Planned | Image passthrough (dashboard + WhatsApp), visual output tools, asset rendering in chat |
+| S5 | Voice | Planned | STT/TTS engine selection, dashboard audio playback, WhatsApp voice notes, streaming TTS, settings toggle |
 
-**Key design questions (resolve during spec):**
-- STT/TTS: local models vs. cloud?
-- Asset storage: per-workspace, per-task, or global?
-- Voice mode: always on, toggle, or activation phrase?
-- Visual thinking: how does Nina decide when to produce a visual vs. text?
+**Key design decisions (resolved in spec):**
+- No dedicated Computer Use Agent — tools on Working Nina directly, safety via hooks + autonomy
+- Trust rule: user-initiated = proceed, agent-initiated = state app + reason, wait for approval
+- Native Claude computer use API (`computer_20251124` beta) for accuracy, bridged via MCP tool
+- Backend abstraction from day one for cross-platform (macOS + Wayland deferred to M12)
+- Dependencies managed via hatching + settings (auto-detect, guided install, graceful degradation)
 
-**Dependencies:** M8 (desktop automation — multimodal enriches all prior capabilities)
+**Dependencies:** M7 (automations — desktop tasks run as automations/jobs)
+
+**Deferred to M12 (Platform Hardening):** macOS backend, Wayland backend — blocked on hardware availability and KDE X11 sunset timeline (Plasma 6.8, October 2026)
 
 ---
 
-### M10: Channel SDK + Transports — PLANNED
+### M9: Channel SDK + Transports — PLANNED
 
 Mature the transport plugin interface into a proper SDK. Prove it with email (MS365) and Discord — two very different transport types (async polling vs. real-time websocket). If the SDK handles both cleanly, it handles anything.
 
@@ -760,13 +743,13 @@ Mature the transport plugin interface into a proper SDK. Prove it with email (MS
 - Message normalization: unified format across all transports?
 - Auth pattern: per-transport or shared framework?
 
-**Dependencies:** M9 (multimodal — transports need to carry rich content)
+**Dependencies:** M8 (visual & desktop — transports need to carry rich content)
 
-**Supersedes:** Old M9 (Email Integration) and old M10 (External Communications). Email becomes a transport; external routing moves to M11.
+**Supersedes:** Old M9 (Email Integration) and old M10 (External Communications). Email becomes a transport; external routing moves to M10.
 
 ---
 
-### M11: External Communications — PLANNED
+### M10: External Communications — PLANNED
 
 The agent communicates with people other than the owner, across all transports, via Working Agents.
 
@@ -782,13 +765,13 @@ The agent communicates with people other than the owner, across all transports, 
 - Ruleset storage: per-contact YAML or workspace-level config?
 - Approval UX: quick-approve vs. full review queue?
 
-**Dependencies:** M10 (Channel SDK — transports must exist before routing external messages through them)
+**Dependencies:** M9 (Channel SDK — transports must exist before routing external messages through them)
 
 **⚠️ Stashed Code:** M3-S4 stashed code is almost certainly incompatible with M6.7 architecture. Evaluate before attempting recovery — likely discard.
 
 ---
 
-### M12: iOS App — PLANNED
+### M11: iOS App — PLANNED
 
 Native iOS app for the agent. Push notifications, multimodal support, full assistant experience on mobile.
 
@@ -805,13 +788,13 @@ Native iOS app for the agent. Push notifications, multimodal support, full assis
 - SwiftUI vs. React Native vs. WebView wrapper?
 - Push notification delivery architecture
 
-**Dependencies:** M11 (external comms — iOS app benefits from all channels + multimodal being complete)
+**Dependencies:** M10 (external comms — iOS app benefits from all channels + multimodal being complete)
 
 ---
 
-### M13: Platform Hardening — PLANNED
+### M12: Platform Hardening — PLANNED
 
-Infrastructure that makes the agent safe, recoverable, and updatable.
+Infrastructure that makes the agent safe, recoverable, updatable, and cross-platform.
 
 **Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M13
 
@@ -820,17 +803,19 @@ Infrastructure that makes the agent safe, recoverable, and updatable.
 | S1 | Dashboard Authentication | Planned | Session-based auth for web UI. Login flow, session tokens, secure cookies. Multi-user foundation (owner + guests). |
 | S2 | Backup & Restore | Planned | Full/partial backup (`.my_agent/` + DBs + config). Restore with index rebuild. CLI commands. Automated pre-update backup. |
 | S3 | Update Mechanism | Planned | Version tracking, `my-agent update`, schema migrations, breaking change detection, rollback via backup. |
+| S4 | Desktop Control — macOS | Planned | MacBackend implementation (nut-js + screencapture + AppleScript), macOS environment detection, hatching flow updates. Deferred from M8 — blocked on hardware availability. |
+| S5 | Desktop Control — Wayland | Planned | WaylandBackend (ydotool + kdotool + PipeWire screen capture), KWin D-Bus integration. Deferred from M8 — needed when KDE drops X11 (Plasma 6.8, October 2026). Backend abstraction from M8-S2 makes this a swap, not a rewrite. |
 
 **Key design questions (resolve during spec):**
 - Auth: password/token or OAuth?
 - Backup format: tarball or structured export?
 - Update channel: git pull, npm, or custom registry?
 
-**Dependencies:** M12 (iOS app — hardening happens after all features are built)
+**Dependencies:** M11 (iOS app — hardening happens after all features are built)
 
 ---
 
-### M14: Release — PLANNED
+### M13: Release — PLANNED
 
 Everything is audited, documented, and ready for other people to use.
 
@@ -841,7 +826,7 @@ Everything is audited, documented, and ready for other people to use.
 | S1 | Security Audit | Planned | Review trust tiers, hooks, guardrails. Pen-test auth. Audit transport SDK auth flows. Review Computer Use safety hooks. Harden permissions. Fix findings. |
 | S2 | Documentation + Launch | Planned | User-facing README, getting started guide, hatching walkthrough, transport SDK guide, architecture overview. Examples. Landing page. License. |
 
-**Dependencies:** M13 (hardening — security audit reviews hardened platform)
+**Dependencies:** M12 (hardening — security audit reviews hardened platform)
 
 ---
 
@@ -882,7 +867,8 @@ Design specs define architecture before implementation. Each spec should be comp
 | settingSources       | Revised  | M6.5, M6.8  | [design/settings-sources-evaluation.md](design/settings-sources-evaluation.md) |
 | Two-Agent Refactor   | Approved | M6.7        | [plans/2026-03-04-conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Skills Architecture  | Complete | M6.8        | [superpowers/specs/2026-03-15-skills-architecture-design.md](superpowers/specs/2026-03-15-skills-architecture-design.md) |
-| Release Roadmap      | Approved | M7–M14      | [superpowers/specs/2026-03-21-release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) |
+| Release Roadmap      | Approved | M8–M13      | [superpowers/specs/2026-03-21-release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) |
+| Visual & Desktop Automation | Draft | M8 | [superpowers/specs/2026-03-29-m8-desktop-automation-design.md](superpowers/specs/2026-03-29-m8-desktop-automation-design.md) |
 | Multimodal           | Idea     | M9          | TBD — rich input/output, visual thinking, voice mode, asset serving |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
 | Knowledge Lifecycle  | Approved | M6.9        | [sprints/m6.6-s6-knowledge-lifecycle/design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md) |
@@ -907,30 +893,27 @@ FUTURE (linear chain to release)                                                
 M7 Workspaces ◄─────────────────────────────────────────────────────────────────┘
   │
   ▼
-M8 Desktop Automation
+M8 Visual & Desktop Automation
   │
   ▼
-M9 Multimodal
+M9 Channel SDK + Transports
   │
   ▼
-M10 Channel SDK + Transports
+M10 External Communications
   │
   ▼
-M11 External Communications
+M11 iOS App
   │
   ▼
-M12 iOS App
+M12 Platform Hardening (+ macOS/Wayland backends)
   │
   ▼
-M13 Platform Hardening
-  │
-  ▼
-M14 Release
+M13 Release
 ```
 
 **Completed critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8 → M6.10. All complete. 682 tests, 72 test files.
 
-**Future path:** M7 → M8 → M9 → M10 → M11 → M12 → M13 → M14. ~22 sprints. Each milestone builds on the previous. Minimal rework, natural progression.
+**Future path:** M7 → M8 → M9 → M10 → M11 → M12 → M13. ~21 sprints. Each milestone builds on the previous. Minimal rework, natural progression.
 
 **Release definition:** Anyone can hatch their own agent. Full multimodal communication. Owner + external contacts on WhatsApp, email, Discord. iOS app. Desktop automation. Persistent workspaces. Backup/restore/update. Secure and documented.
 
@@ -952,15 +935,15 @@ Quick fixes and small enhancements outside the milestone structure.
 
 ## Pre-Release Checklist
 
-Requirements that must be complete before public release. All tracked in milestones M13–M14.
+Requirements that must be complete before public release. All tracked in milestones M12–M13.
 
 | Item                         | Status  | Milestone | Notes                                                    |
 | ---------------------------- | ------- | --------- | -------------------------------------------------------- |
 | **Dashboard authentication** | Planned | M13-S1    | Session-based auth for web UI. Currently Tailscale-only. |
 | **Backup & Restore**        | Planned | M13-S2    | Full/partial backup + restore with index rebuild. CLI commands. |
 | **Update mechanism**         | Planned | M13-S3    | Version tracking, migrations, rollback via backup. |
-| **Security audit**           | Planned | M14-S1    | Review hooks, guardrails, trust tiers, transport auth, Computer Use safety. |
-| **Documentation**            | Planned | M14-S2    | User-facing README, setup guide, hatching walkthrough, transport SDK guide. |
+| **Security audit**           | Planned | M13-S1    | Review hooks, guardrails, trust tiers, transport auth, Computer Use safety. |
+| **Documentation**            | Planned | M13-S2    | User-facing README, setup guide, hatching walkthrough, transport SDK guide. |
 
 ---
 
