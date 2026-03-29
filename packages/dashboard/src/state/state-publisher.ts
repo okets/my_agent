@@ -20,6 +20,7 @@ import type {
   SpaceSnapshot,
   AutomationSnapshot,
   JobSnapshot,
+  ScreenshotSnapshot,
 } from "../ws/protocol.js";
 import type {
   CalendarEvent,
@@ -241,6 +242,18 @@ export class StatePublisher {
       this.jobsTimer = null;
       this._broadcastJobs();
     }, DEBOUNCE_MS);
+  }
+
+  /**
+   * Immediately broadcast a single screenshot event to all connected clients.
+   * No debouncing — screenshots are individual events.
+   */
+  publishScreenshot(snapshot: ScreenshotSnapshot): void {
+    this.registry.broadcastToAll({
+      type: "state:screenshot",
+      screenshot: snapshot,
+      timestamp: Date.now(),
+    });
   }
 
   /**
