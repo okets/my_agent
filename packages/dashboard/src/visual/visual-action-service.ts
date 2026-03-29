@@ -139,7 +139,7 @@ export class VisualActionService {
     for (const ss of screenshots) {
       const age = now - new Date(ss.timestamp).getTime();
       const isProtected = ss.description && protectedDescriptions.test(ss.description);
-      if (ss.tag === "skip" && age > retentionMs && !isProtected) {
+      if (ss.tag === "skip" && age >= retentionMs && !isProtected) {
         try {
           unlinkSync(ss.path);
           deleted++;
