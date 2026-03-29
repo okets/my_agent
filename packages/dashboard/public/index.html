@@ -1311,14 +1311,14 @@
                                   :alt="ss.description || 'Screenshot'"
                                   :title="ss.description || new Date(ss.timestamp).toLocaleTimeString()"
                                   class="h-16 rounded border border-white/10 cursor-pointer hover:border-white/30 transition-colors"
-                                  @click="$store.lightbox && $store.lightbox.open ? $store.lightbox.open(ss.url, ss.description) : window.open(ss.url, '_blank')"
+                                  @click.stop="$store.lightbox && $store.lightbox.open ? $store.lightbox.open(ss.url, ss.description) : window.open(ss.url, '_blank')"
                                 />
                               </template>
                             </div>
                             <template x-if="$store.screenshots.allForJob(item.job.id).length > item.screenshots.length">
                               <button
                                 class="text-xs text-white/40 hover:text-white/60 mt-1"
-                                @click="showAll = !showAll"
+                                @click.stop="showAll = !showAll"
                                 x-text="showAll ? 'Show fewer' : `Show all ${$store.screenshots.allForJob(item.job.id).length} screenshots`"
                               ></button>
                             </template>
