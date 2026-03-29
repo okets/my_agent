@@ -220,6 +220,17 @@ export type {
   Screenshot,
 } from './visual/index.js'
 
+// Desktop control types (M8-S2)
+export type {
+  DesktopCapabilities,
+  WindowInfo,
+  MonitorInfo,
+  DisplayInfo,
+  ScreenshotOptions,
+  DesktopBackend,
+  DesktopEnvironment,
+} from './desktop/index.js'
+
 // Memory system
 export {
   MemoryDb,
