@@ -23,7 +23,7 @@
 | **M6.9: Knowledge Lifecycle**| Complete | 7/7 sprints (S1-S5 incl. S2.5, S3.5), 593 tests |
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
-| **M7: Persistent Workspaces** | Planned | 2 sprints (workspace entity, lifecycle) |
+| **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
 | **M8: Desktop Automation**   | Planned | 2 sprints (Computer Use integration, cross-platform) |
 | **M9: Multimodal**           | Planned | 4 sprints (rich input, rich output + visual thinking, micro-websites, voice mode) |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
@@ -670,7 +670,7 @@ The knowledge system gets a lifecycle. Facts are classified at extraction (perma
 
 ---
 
-### M7: Spaces, Automations & Jobs — IN PROGRESS
+### M7: Spaces, Automations & Jobs — COMPLETE
 
 Persistent file-backed entities: Spaces (managed folders), Automations (standing instructions with triggers), Jobs (discrete execution units).
 
@@ -686,8 +686,8 @@ Persistent file-backed entities: Spaces (managed folders), Automations (standing
 | S6 | System Automations + Calendar | **Done** | Built-in handler registry, 5 work-loop jobs → automation manifests (system + user), WorkLoopScheduler removed (-3,000 lines), calendar rewired to timeline API, automation schedule editor in settings, system automation protection, startup migration from work-patterns, debrief automation adapter for MCP tool. [plan](../sprints/m7-s6-system-automations/plan.md) · [review](../sprints/m7-s6-system-automations/review.md) · [test-report](../sprints/m7-s6-system-automations/test-report.md) |
 | S6.5 | Repairs + Polish | **Done** | Design review fixes: wire openTimelineItem(), drop dead delivery field, desktop Home 2x2 grid, unify chat context (generic activeViewContext), dead code sweep (task-server, task remnants), referenced automations on space detail, space property view polish, shared parseFrontmatterContent in core, timeline polish. [plan](../sprints/m7-s6.5-repairs/plan.md) · [review](../sprints/m7-s6.5-repairs/review.md) · [test-report](../sprints/m7-s6.5-repairs/test-report.md) |
 | S7 | E2E Verification | **Superseded** | Original plan: 14 scripted test tasks. Real-world usage testing (S8) proved more effective — found 8 integration gaps that scripted tests wouldn't catch. Remaining E2E tests moved to S9. [plan](../sprints/m7-s7-e2e-verification/plan.md) |
-| S8 | Debrief Worker Architecture | **Done** | Fix 8 gaps found during real usage: WhatsApp message split, brain mediator framing, worker web access, manifest persistence, debrief worker pipeline (`notify: debrief` collector), debrief reporter system job, conversation voice (no tool narration). Validation: recreate user automations naturally through conversation. [plan](../sprints/m7-s8-debrief-workers/plan.md) |
-| S9 | E2E Test Suite | Planned | Scripted E2E tests from original S7 plan: unit tests (handler registry, protection, adapter), integration tests (migration, lifecycle, triggers, HITL), browser tests (calendar, settings UI), live E2E with real LLM calls. Adapted to test S8's worker architecture. [plan](../sprints/m7-s7-e2e-verification/plan.md) |
+| S8 | Debrief Worker Architecture | **Done** | Fix 8 gaps found during real usage: WhatsApp message split, brain mediator framing, worker web access, manifest persistence, debrief worker pipeline (`notify: debrief` collector), debrief reporter system job, conversation voice (no tool narration). Validation: recreate user automations naturally through conversation. [plan](../sprints/m7-s8-debrief-workers/plan.md) · [review](../sprints/m7-s8-debrief-workers/review.md) · [test-report](../sprints/m7-s8-debrief-workers/test-report.md) |
+| S9 | E2E Test Suite | **Done** | Real-system E2E tests: AppHarness extended with automation support, 14 headless tests (lifecycle, protection, triggers, HITL, debrief pipeline), 3 Playwright browser tests (calendar, settings, detail UI), 6 live LLM tests (Haiku handlers, SDK session, HITL resume). 23 new tests, 757 total passing. [plan](../sprints/m7-s9-e2e-test-suite/plan.md) · [review](../sprints/m7-s9-e2e-test-suite/review.md) |
 
 **Core principle:** Space = a folder with a SPACE.md manifest. The folder IS the space. agent.db indexes for search/listing but is derived and rebuildable.
 

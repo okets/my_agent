@@ -33,10 +33,15 @@ import {
   AppConversationService,
   AppCalendarService,
   AppMemoryService,
+  AppAutomationService,
 } from "../../src/app.js";
 import { AppChatService } from "../../src/chat/chat-service.js";
 import { AppDebugService } from "../../src/debug/app-debug-service.js";
 import { SessionRegistry } from "../../src/agent/session-registry.js";
+import { AutomationManager } from "../../src/automations/automation-manager.js";
+import { AutomationJobService } from "../../src/automations/automation-job-service.js";
+import { AutomationExecutor } from "../../src/automations/automation-executor.js";
+import { AutomationProcessor } from "../../src/automations/automation-processor.js";
 
 export interface CapturedBroadcast {
   type: string;
@@ -46,6 +51,8 @@ export interface CapturedBroadcast {
 export interface AppHarnessOptions {
   /** If true, initialize memory subsystem (MemoryDb + SyncService + SearchService) */
   withMemory?: boolean;
+  /** If true, wire up the full automation stack (Manager, JobService, Executor, Processor) */
+  withAutomations?: boolean;
 }
 
 /**
@@ -91,6 +98,14 @@ export class AppHarness {
   memoryDb: MemoryDb | null = null;
   syncService: SyncService | null = null;
   searchService: SearchService | null = null;
+
+  // Automation subsystem (withAutomations: true)
+  automations: AppAutomationService | null = null;
+  automationManager: AutomationManager | null = null;
+  automationJobService: AutomationJobService | null = null;
+  automationExecutor: AutomationExecutor | null = null;
+  automationProcessor: AutomationProcessor | null = null;
+  automationsDir: string | null = null;
 
   private constructor(agentDir: string) {
     this.agentDir = agentDir;
@@ -162,6 +177,42 @@ export class AppHarness {
     );
 
     const harness = new AppHarness(agentDir);
+
+    // Initialize automation subsystem if requested
+    if (options?.withAutomations) {
+      const automationsDir = path.join(agentDir, "automations");
+      fs.mkdirSync(automationsDir, { recursive: true });
+      harness.automationsDir = automationsDir;
+
+      const db = harness.conversationManager.getConversationDb();
+
+      harness.automationManager = new AutomationManager(automationsDir, db);
+      harness.automationJobService = new AutomationJobService(
+        automationsDir,
+        db,
+      );
+      harness.automationExecutor = new AutomationExecutor({
+        automationManager: harness.automationManager,
+        jobService: harness.automationJobService,
+        agentDir,
+        db,
+      });
+      harness.automationProcessor = new AutomationProcessor({
+        automationManager: harness.automationManager,
+        executor: harness.automationExecutor,
+        jobService: harness.automationJobService,
+        agentDir,
+        onJobEvent: (event, job) => {
+          harness.emitter.emit(event as any, job);
+        },
+      });
+      harness.automations = new AppAutomationService(
+        harness.automationManager,
+        harness.automationProcessor,
+        harness.automationJobService,
+        harness.emitter as any,
+      );
+    }
 
     // Initialize memory subsystem if requested
     if (options?.withMemory) {
