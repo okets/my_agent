@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { createDesktopServer } from "../../../src/mcp/desktop-server.js";
+import {
+  createDesktopServer,
+  handleDesktopTask,
+  handleDesktopScreenshot,
+  handleDesktopInfo,
+} from "../../../src/mcp/desktop-server.js";
 import type { DesktopBackend, DesktopCapabilities, DisplayInfo, WindowInfo } from "@my-agent/core";
+import type { DesktopServerDeps } from "../../../src/mcp/desktop-server.js";
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 
@@ -53,207 +59,203 @@ function makeBackend(overrides: Partial<DesktopBackend> = {}): DesktopBackend {
   };
 }
 
-/**
- * Simulate the desktop_task tool handler logic.
- * The actual MCP server is opaque, so we replicate the handler's
- * conditional checks to verify error paths.
- */
-function simulateDesktopTaskHandler(deps: {
-  computerUse: unknown | null;
-  rateLimiter?: { check(): { allowed: boolean; reason?: string } };
-}): { content: Array<{ type: string; text: string }>; isError?: boolean } {
-  if (deps.rateLimiter) {
-    const check = deps.rateLimiter.check();
-    if (!check.allowed) {
-      return {
-        content: [{ type: "text", text: check.reason ?? "Rate limit exceeded" }],
-        isError: true,
-      };
-    }
-  }
-  if (!deps.computerUse) {
-    return {
-      content: [{ type: "text", text: "Desktop computer use is not available. No ComputerUseService was configured." }],
-      isError: true,
-    };
-  }
-  return { content: [{ type: "text", text: "ok" }] };
-}
-
-/**
- * Simulate the desktop_screenshot tool handler logic.
- */
-function simulateDesktopScreenshotHandler(deps: {
-  backend: DesktopBackend | null;
-}): { content: Array<{ type: string; text?: string }>; isError?: boolean } {
-  if (!deps.backend) {
-    return {
-      content: [{ type: "text", text: "Desktop backend is not available. No display detected." }],
-      isError: true,
-    };
-  }
-  return { content: [{ type: "text", text: "ok" }] };
-}
-
-/**
- * Simulate the desktop_info tool handler logic for null backend.
- */
-function simulateDesktopInfoHandler(deps: {
-  backend: DesktopBackend | null;
-  computerUse: unknown | null;
-}, query: "windows" | "display" | "capabilities"): { content: Array<{ type: string; text: string }>; isError?: boolean } {
-  if (!deps.backend) {
-    if (query === "capabilities") {
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            capabilities: null,
-            platform: null,
-            computerUseAvailable: false,
-            available: false,
-            reason: "No desktop backend configured — no display detected.",
-          }),
-        }],
-      };
-    }
-    return {
-      content: [{ type: "text", text: "Desktop backend is not available. No display detected." }],
-      isError: true,
-    };
-  }
-  return { content: [{ type: "text", text: "ok" }] };
+function makeDeps(overrides: Partial<DesktopServerDeps> = {}): DesktopServerDeps {
+  return {
+    backend: null,
+    computerUse: null,
+    ...overrides,
+  };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("desktop-server", () => {
-  it("creates server without error when desktop is unavailable (null backend)", () => {
-    const server = createDesktopServer({ backend: null, computerUse: null });
-    expect(server).toBeDefined();
-  });
+  // ── isEnabled gate ──────────────────────────────────────────────────────────
 
-  it("desktop_info — returns capabilities when backend is available", async () => {
-    const backend = makeBackend();
-    const server = createDesktopServer({ backend, computerUse: null });
-
-    expect(server).toBeDefined();
-
-    // Test the logic directly via the backend
-    const capabilities = backend.capabilities();
-    expect(capabilities.screenshot).toBe(true);
-    expect(capabilities.mouse).toBe(true);
-  });
-
-  it("desktop_info — returns windows list when backend is available", async () => {
-    const backend = makeBackend();
-
-    const windows = await backend.listWindows();
-    expect(Array.isArray(windows)).toBe(true);
-    expect(windows.length).toBe(1);
-    expect(windows[0].title).toBe("Terminal");
-  });
-
-  it("desktop_info — returns display info when backend is available", async () => {
-    const backend = makeBackend();
-
-    const displayInfo = await backend.displayInfo();
-    expect(displayInfo.width).toBe(1920);
-    expect(displayInfo.height).toBe(1080);
-    expect(displayInfo.monitors.length).toBe(1);
-  });
-
-  it("creates server with all deps provided", () => {
-    const backend = makeBackend();
-    const server = createDesktopServer({ backend, computerUse: null });
-    expect(server).toBeDefined();
-  });
-
-  // ── Error path tests (M8-S2 trip review) ───────────────────────────────────
-
-  it("desktop_task — null computerUse returns error", () => {
-    const result = simulateDesktopTaskHandler({ computerUse: null });
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("No ComputerUseService was configured");
-  });
-
-  it("desktop_screenshot — null backend returns error", () => {
-    const result = simulateDesktopScreenshotHandler({ backend: null });
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("No display detected");
-  });
-
-  it("desktop_info — null backend returns helpful message for capabilities query", () => {
-    const result = simulateDesktopInfoHandler(
-      { backend: null, computerUse: null },
-      "capabilities",
-    );
-    // capabilities query returns a structured JSON, not an error
-    expect(result.isError).toBeUndefined();
-    const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.computerUseAvailable).toBe(false);
-    expect(parsed.available).toBe(false);
-    expect(parsed.reason).toContain("No desktop backend configured");
-  });
-
-  it("desktop_info — null backend returns error for windows query", () => {
-    const result = simulateDesktopInfoHandler(
-      { backend: null, computerUse: null },
-      "windows",
-    );
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("No display detected");
-  });
-
-  it("desktop_info — null backend returns error for display query", () => {
-    const result = simulateDesktopInfoHandler(
-      { backend: null, computerUse: null },
-      "display",
-    );
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("No display detected");
-  });
-
-  it("rate limiter blocks desktop_task when exceeded", () => {
-    const rateLimiter = {
-      check: () => ({ allowed: false, reason: "Too many requests — slow down" }),
-    };
-    const result = simulateDesktopTaskHandler({ computerUse: {}, rateLimiter });
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("Too many requests");
-  });
-
-  it("rate limiter allows desktop_task when not exceeded", () => {
-    const rateLimiter = {
-      check: () => ({ allowed: true }),
-    };
-    const result = simulateDesktopTaskHandler({
-      computerUse: {} /* mock non-null */,
-      rateLimiter,
+  describe("isEnabled gate", () => {
+    it("handleDesktopTask returns error when isEnabled returns false", async () => {
+      const deps = makeDeps({ isEnabled: () => false });
+      const result = await handleDesktopTask(deps, { instruction: "open browser" });
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toContain("Desktop control is disabled");
     });
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toBe("ok");
-  });
 
-  it("rate limiter uses default message when reason is absent", () => {
-    const rateLimiter = {
-      check: () => ({ allowed: false }),
-    };
-    const result = simulateDesktopTaskHandler({ computerUse: {}, rateLimiter });
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toBe("Rate limit exceeded");
-  });
-
-  it("server creates with rate limiter and audit logger deps", () => {
-    const backend = makeBackend();
-    const rateLimiter = { check: () => ({ allowed: true }) };
-    const auditLogger = { log: vi.fn() };
-    const server = createDesktopServer({
-      backend,
-      computerUse: null,
-      rateLimiter,
-      auditLogger,
+    it("handleDesktopScreenshot returns error when isEnabled returns false", async () => {
+      const deps = makeDeps({ isEnabled: () => false });
+      const result = await handleDesktopScreenshot(deps, {});
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toContain("Desktop control is disabled");
     });
-    expect(server).toBeDefined();
+
+    it("handleDesktopTask proceeds when isEnabled returns true (hits null computerUse)", async () => {
+      const deps = makeDeps({ isEnabled: () => true });
+      const result = await handleDesktopTask(deps, { instruction: "open browser" });
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toContain("No ComputerUseService was configured");
+    });
+
+    it("handleDesktopTask proceeds when isEnabled is not provided (default open)", async () => {
+      const deps = makeDeps();
+      const result = await handleDesktopTask(deps, { instruction: "open browser" });
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toContain("No ComputerUseService was configured");
+    });
+  });
+
+  // ── Rate limiter ────────────────────────────────────────────────────────────
+
+  describe("rate limiter", () => {
+    it("blocks desktop_task when rate limit exceeded", async () => {
+      const deps = makeDeps({
+        rateLimiter: { check: () => ({ allowed: false, reason: "Too many requests — slow down" }) },
+      });
+      const result = await handleDesktopTask(deps, { instruction: "click" });
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toContain("Too many requests");
+    });
+
+    it("uses default message when reason is absent", async () => {
+      const deps = makeDeps({
+        rateLimiter: { check: () => ({ allowed: false }) },
+      });
+      const result = await handleDesktopTask(deps, { instruction: "click" });
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toBe("Rate limit exceeded");
+    });
+
+    it("allows desktop_task when rate limiter passes", async () => {
+      const deps = makeDeps({
+        rateLimiter: { check: () => ({ allowed: true }) },
+      });
+      const result = await handleDesktopTask(deps, { instruction: "click" });
+      // Should proceed past rate limiter and hit null computerUse
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toContain("No ComputerUseService was configured");
+    });
+  });
+
+  // ── Audit logger ────────────────────────────────────────────────────────────
+
+  describe("audit logger", () => {
+    it("calls audit logger with correct tool name and instruction", async () => {
+      const log = vi.fn();
+      const deps = makeDeps({ auditLogger: { log } });
+      await handleDesktopTask(deps, { instruction: "open settings" });
+      expect(log).toHaveBeenCalledOnce();
+      expect(log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tool: "desktop_task",
+          instruction: "open settings",
+          timestamp: expect.any(String),
+        }),
+      );
+    });
+  });
+
+  // ── Null deps ───────────────────────────────────────────────────────────────
+
+  describe("null deps", () => {
+    it("handleDesktopTask with null computerUse returns error", async () => {
+      const deps = makeDeps();
+      const result = await handleDesktopTask(deps, { instruction: "click" });
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toContain("No ComputerUseService was configured");
+    });
+
+    it("handleDesktopScreenshot with null backend returns error", async () => {
+      const deps = makeDeps();
+      const result = await handleDesktopScreenshot(deps, {});
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toContain("No display detected");
+    });
+
+    it("handleDesktopInfo with null backend + capabilities returns helpful JSON (not error)", async () => {
+      const deps = makeDeps();
+      const result = await handleDesktopInfo(deps, { query: "capabilities" });
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse((result.content[0] as any).text);
+      expect(parsed.computerUseAvailable).toBe(false);
+      expect(parsed.available).toBe(false);
+      expect(parsed.reason).toContain("No desktop backend configured");
+    });
+
+    it("handleDesktopInfo with null backend + windows returns error", async () => {
+      const deps = makeDeps();
+      const result = await handleDesktopInfo(deps, { query: "windows" });
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toContain("No display detected");
+    });
+
+    it("handleDesktopInfo with null backend + display returns error", async () => {
+      const deps = makeDeps();
+      const result = await handleDesktopInfo(deps, { query: "display" });
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as any).text).toContain("No display detected");
+    });
+  });
+
+  // ── Happy paths (with mocks) ───────────────────────────────────────────────
+
+  describe("happy paths", () => {
+    it("handleDesktopScreenshot with mock backend returns image content block", async () => {
+      const backend = makeBackend();
+      const deps = makeDeps({ backend });
+      const result = await handleDesktopScreenshot(deps, {});
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0]).toMatchObject({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: "image/png",
+          data: expect.any(String),
+        },
+      });
+      // Verify the base64 decodes to our fake PNG
+      const data = (result.content[0] as any).source.data;
+      expect(Buffer.from(data, "base64").toString()).toBe("fake-png");
+    });
+
+    it("handleDesktopInfo with mock backend + capabilities returns JSON with platform", async () => {
+      const backend = makeBackend();
+      const deps = makeDeps({ backend, computerUse: null });
+      const result = await handleDesktopInfo(deps, { query: "capabilities" });
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse((result.content[0] as any).text);
+      expect(parsed.platform).toBe("x11");
+      expect(parsed.capabilities.screenshot).toBe(true);
+      expect(parsed.computerUseAvailable).toBe(false);
+    });
+
+    it("handleDesktopInfo with mock backend + windows returns JSON array", async () => {
+      const backend = makeBackend();
+      const deps = makeDeps({ backend });
+      const result = await handleDesktopInfo(deps, { query: "windows" });
+      expect(result.isError).toBeUndefined();
+      const parsed = JSON.parse((result.content[0] as any).text);
+      expect(Array.isArray(parsed.windows)).toBe(true);
+      expect(parsed.windows.length).toBe(1);
+      expect(parsed.windows[0].title).toBe("Terminal");
+    });
+  });
+
+  // ── Server creation ─────────────────────────────────────────────────────────
+
+  describe("server creation", () => {
+    it("createDesktopServer returns defined server with all deps", () => {
+      const backend = makeBackend();
+      const server = createDesktopServer({
+        backend,
+        computerUse: null,
+        rateLimiter: { check: () => ({ allowed: true }) },
+        auditLogger: { log: vi.fn() },
+        isEnabled: () => true,
+      });
+      expect(server).toBeDefined();
+    });
+
+    it("createDesktopServer returns defined server with null deps", () => {
+      const server = createDesktopServer({ backend: null, computerUse: null });
+      expect(server).toBeDefined();
+    });
   });
 });
