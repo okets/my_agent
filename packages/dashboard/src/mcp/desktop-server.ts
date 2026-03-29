@@ -17,6 +17,7 @@ export function createDesktopServer(deps: {
   visualService?: VisualActionService;
   rateLimiter?: { check(): { allowed: boolean; reason?: string } };
   auditLogger?: { log(entry: { tool: string; instruction?: string; timestamp: string }): void };
+  isEnabled?: () => boolean;
 }) {
   const desktopTaskTool = tool(
     "desktop_task",
@@ -37,6 +38,13 @@ export function createDesktopServer(deps: {
       timeoutMs: z.number().optional().describe("Timeout in milliseconds (default: 120000)"),
     },
     async (args) => {
+      // Check if desktop control is enabled
+      if (deps.isEnabled && !deps.isEnabled()) {
+        return {
+          content: [{ type: "text" as const, text: "Desktop control is disabled. Enable it in Settings > Desktop Control." }],
+          isError: true,
+        };
+      }
       // Safety: rate limit check
       if (deps.rateLimiter) {
         const check = deps.rateLimiter.check();
@@ -125,6 +133,12 @@ export function createDesktopServer(deps: {
         .describe("Capture a specific region instead of the full screen"),
     },
     async (args) => {
+      if (deps.isEnabled && !deps.isEnabled()) {
+        return {
+          content: [{ type: "text" as const, text: "Desktop control is disabled. Enable it in Settings > Desktop Control." }],
+          isError: true,
+        };
+      }
       if (!deps.backend) {
         return {
           content: [

@@ -1144,12 +1144,14 @@ export class App extends EventEmitter {
       });
 
       // Register desktop MCP server (always — returns helpful errors if no backend)
+      const enabledFlagPath = join(agentDir, ".desktop-enabled");
       const desktopServer = createDesktopServer({
         backend,
         computerUse,
         visualService: app.visualActionService,
         rateLimiter: app.desktopRateLimiter ?? undefined,
         auditLogger: app.desktopAuditLogger ?? undefined,
+        isEnabled: () => existsSync(enabledFlagPath),
       });
       addMcpServer("desktop-tools", desktopServer);
 
