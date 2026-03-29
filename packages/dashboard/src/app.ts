@@ -91,6 +91,13 @@ import {
 } from "./automations/index.js";
 import { createAutomationServer } from "./mcp/automation-server.js";
 import { VisualActionService } from "./visual/visual-action-service.js";
+import { detectDesktopEnvironment } from "./desktop/desktop-capability-detector.js";
+import { X11Backend } from "./desktop/x11-backend.js";
+import { ComputerUseService } from "./desktop/computer-use-service.js";
+import { createDesktopServer } from "./mcp/desktop-server.js";
+import { createDesktopRateLimiter, createDesktopAuditLogger } from "./hooks/desktop-hooks.js";
+import type { DesktopEnvironment, DesktopBackend } from "@my-agent/core";
+import Anthropic from "@anthropic-ai/sdk";
 
 // ─── Service Namespaces ──────────────────────────────────────────────────────
 // Thin wrappers that delegate reads and emit App events on mutations.
@@ -347,6 +354,13 @@ export class App extends EventEmitter {
 
   // Visual actions (screenshots)
   readonly visualActionService: VisualActionService;
+
+  // Desktop control (M8-S2)
+  desktopEnv: DesktopEnvironment | null = null;
+  desktopBackend: DesktopBackend | null = null;
+  desktopComputerUse: ComputerUseService | null = null;
+  desktopRateLimiter: ReturnType<typeof createDesktopRateLimiter> | null = null;
+  desktopAuditLogger: ReturnType<typeof createDesktopAuditLogger> | null = null;
 
   private constructor(agentDir: string, isHatched: boolean) {
     super();
@@ -1096,6 +1110,63 @@ export class App extends EventEmitter {
         },
       });
       addMcpServer("skills", skillServer);
+    }
+
+    // ── Desktop control (M8-S2) ──
+    {
+      const desktopEnv = detectDesktopEnvironment();
+      app.desktopEnv = desktopEnv;
+
+      // Create backend
+      let backend: DesktopBackend | null = null;
+      if (desktopEnv.backend === "x11") {
+        backend = new X11Backend({
+          hasXdotool: desktopEnv.tools.xdotool,
+          hasMaim: desktopEnv.tools.maim,
+          hasWmctrl: desktopEnv.tools.wmctrl,
+        });
+        app.desktopBackend = backend;
+      }
+
+      // Create ComputerUseService if backend + API key available
+      let computerUse: ComputerUseService | null = null;
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (backend && apiKey) {
+        const client = new Anthropic({ apiKey });
+        computerUse = new ComputerUseService(client, backend, app.visualActionService);
+        app.desktopComputerUse = computerUse;
+      }
+
+      // Safety hooks — standalone utilities for MCP tool handlers
+      app.desktopRateLimiter = createDesktopRateLimiter({ maxPerMinute: 30 });
+      app.desktopAuditLogger = createDesktopAuditLogger((entry) => {
+        console.log(`[Desktop] audit: ${entry.tool} at ${entry.timestamp}${entry.instruction ? ` — ${entry.instruction.slice(0, 80)}` : ""}`);
+      });
+
+      // Register desktop MCP server (always — returns helpful errors if no backend)
+      const desktopServer = createDesktopServer({
+        backend,
+        computerUse,
+        visualService: app.visualActionService,
+      });
+      addMcpServer("desktop-tools", desktopServer);
+
+      // Log desktop status
+      if (desktopEnv.hasDisplay) {
+        console.log(
+          `[Desktop] ${desktopEnv.displayServer} detected, backend: ${desktopEnv.backend ?? "none"}, ` +
+          `capabilities: screenshot=${desktopEnv.capabilities.screenshot}, mouse=${desktopEnv.capabilities.mouse}, ` +
+          `keyboard=${desktopEnv.capabilities.keyboard}, windowMgmt=${desktopEnv.capabilities.windowManagement}`,
+        );
+        if (!computerUse) {
+          console.log("[Desktop] ComputerUseService not available (missing API key or backend)");
+        }
+        if (desktopEnv.setupNeeded.length > 0) {
+          console.log(`[Desktop] Setup needed: ${desktopEnv.setupNeeded.join("; ")}`);
+        }
+      } else {
+        console.log("[Desktop] No display detected — desktop tools will return helpful errors");
+      }
     }
 
     // Connect memory + automation services to state publisher
