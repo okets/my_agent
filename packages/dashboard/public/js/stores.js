@@ -43,6 +43,32 @@ document.addEventListener("alpine:init", () => {
     },
   });
 
+  Alpine.store("screenshots", {
+    items: [],
+
+    add(screenshot) {
+      this.items.push(screenshot);
+    },
+
+    forJob(jobId) {
+      return this.items.filter(
+        (s) => s.contextType === "job" && s.contextId === jobId && s.tag === "keep",
+      );
+    },
+
+    allForJob(jobId) {
+      return this.items.filter(
+        (s) => s.contextType === "job" && s.contextId === jobId,
+      );
+    },
+
+    forConversation(conversationId) {
+      return this.items.filter(
+        (s) => s.contextType === "conversation" && s.contextId === conversationId,
+      );
+    },
+  });
+
   // 'connected' | 'reconnecting' | 'offline'
   Alpine.store("connection", {
     status: "connected",

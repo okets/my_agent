@@ -101,6 +101,11 @@ class NinaWebSocket {
                 Alpine.store("jobs").update(data.jobs || []);
               }
               break;
+            case "state:screenshot":
+              if (Alpine.store("screenshots")) {
+                Alpine.store("screenshots").add(data.screenshot);
+              }
+              break;
           }
         }
 
