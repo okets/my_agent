@@ -172,4 +172,52 @@ describe("VisualActionService", () => {
       expect(received[0].width).toBe(100);
     });
   });
+
+  describe("cleanup()", () => {
+    it("deletes skip-tagged screenshots older than retention period", async () => {
+      const context = { type: "job" as const, id: "job-1", automationId: "auto-1" };
+      const img = Buffer.from("data");
+
+      const kept = await service.store(img, { context, description: "kept", width: 100, height: 100 });
+      const skipped = await service.store(img, { context, description: "skipped", width: 100, height: 100 }, "skip");
+
+      // 0ms retention = delete all skip immediately
+      const deleted = service.cleanup(context, 0);
+      expect(deleted).toBe(1);
+
+      // Kept screenshot still exists
+      expect(existsSync(kept.path)).toBe(true);
+      // Skipped screenshot is gone
+      expect(existsSync(skipped.path)).toBe(false);
+
+      // Index only has the kept entry
+      const remaining = service.list(context);
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].tag).toBe("keep");
+    });
+
+    it("does not delete skip-tagged screenshots within retention period", async () => {
+      const context = { type: "job" as const, id: "job-1", automationId: "auto-1" };
+      const skipped = await service.store(Buffer.from("data"), { context, width: 100, height: 100 }, "skip");
+
+      // 1 hour retention — screenshot was just created
+      const deleted = service.cleanup(context, 60 * 60 * 1000);
+      expect(deleted).toBe(0);
+      expect(existsSync(skipped.path)).toBe(true);
+    });
+
+    it("never deletes screenshots with error/escalation descriptions", async () => {
+      const context = { type: "job" as const, id: "job-1", automationId: "auto-1" };
+      const errorSs = await service.store(
+        Buffer.from("data"),
+        { context, description: "Error during: click submit", width: 100, height: 100 },
+        "skip",
+      );
+
+      // 0ms retention — would delete normal skip screenshots
+      const deleted = service.cleanup(context, 0);
+      expect(deleted).toBe(0);
+      expect(existsSync(errorSs.path)).toBe(true);
+    });
+  });
 });

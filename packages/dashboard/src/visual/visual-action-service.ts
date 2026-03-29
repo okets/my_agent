@@ -13,8 +13,8 @@
  *   Conversation: /api/assets/conversation/{conversationId}/screenshots/{filename}
  */
 
-import fs from "node:fs";
-import path from "node:path";
+import fs, { unlinkSync, writeFileSync } from "node:fs";
+import path, { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Screenshot, ScreenshotMetadata, ScreenshotTag, AssetContext } from "@my-agent/core";
 
@@ -121,6 +121,45 @@ export class VisualActionService {
     });
 
     fs.writeFileSync(indexPath, updated.join("\n") + "\n");
+  }
+
+  /**
+   * Delete skip-tagged screenshots older than retentionMs, unless their description
+   * matches error/escalation patterns. Rewrites the JSONL index to reflect deletions.
+   * Returns the number of files deleted.
+   */
+  cleanup(context: AssetContext, retentionMs: number): number {
+    const dir = this.screenshotDir(context);
+    const screenshots = this.list(context);
+    const now = Date.now();
+    let deleted = 0;
+    const protectedDescriptions = /error|escalat/i;
+
+    const kept: Screenshot[] = [];
+    for (const ss of screenshots) {
+      const age = now - new Date(ss.timestamp).getTime();
+      const isProtected = ss.description && protectedDescriptions.test(ss.description);
+      if (ss.tag === "skip" && age > retentionMs && !isProtected) {
+        try {
+          unlinkSync(ss.path);
+          deleted++;
+        } catch {
+          deleted++;
+        }
+      } else {
+        kept.push(ss);
+      }
+    }
+
+    // Rewrite the index
+    const indexPath = join(dir, "index.jsonl");
+    if (kept.length === 0) {
+      try { unlinkSync(indexPath); } catch { /* noop */ }
+    } else {
+      writeFileSync(indexPath, kept.map((s) => JSON.stringify(s)).join("\n") + "\n", "utf-8");
+    }
+
+    return deleted;
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
