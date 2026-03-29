@@ -159,4 +159,17 @@ describe("VisualActionService", () => {
       service.updateTag(jobContext, "ss-nonexistent", "skip");
     }).toThrow();
   });
+
+  describe("onScreenshot callback", () => {
+    it("fires callback when screenshot is stored", async () => {
+      const received: any[] = [];
+      service.onScreenshot((ss) => received.push(ss));
+
+      const context = { type: "job" as const, id: "job-1", automationId: "auto-1" };
+      await service.store(Buffer.from("data"), { context, width: 100, height: 100 });
+
+      expect(received).toHaveLength(1);
+      expect(received[0].width).toBe(100);
+    });
+  });
 });

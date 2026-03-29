@@ -19,7 +19,13 @@ import { randomUUID } from "node:crypto";
 import type { Screenshot, ScreenshotMetadata, ScreenshotTag, AssetContext } from "@my-agent/core";
 
 export class VisualActionService {
+  private listeners: Array<(screenshot: Screenshot) => void> = [];
+
   constructor(private agentDir: string) {}
+
+  onScreenshot(callback: (screenshot: Screenshot) => void): void {
+    this.listeners.push(callback);
+  }
 
   /**
    * Store a screenshot PNG buffer to disk, append to JSONL index, return Screenshot metadata.
@@ -52,6 +58,10 @@ export class VisualActionService {
     };
 
     this.appendToIndex(dir, screenshot);
+
+    for (const listener of this.listeners) {
+      listener(screenshot);
+    }
 
     return screenshot;
   }
