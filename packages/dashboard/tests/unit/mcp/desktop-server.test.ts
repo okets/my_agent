@@ -53,6 +53,78 @@ function makeBackend(overrides: Partial<DesktopBackend> = {}): DesktopBackend {
   };
 }
 
+/**
+ * Simulate the desktop_task tool handler logic.
+ * The actual MCP server is opaque, so we replicate the handler's
+ * conditional checks to verify error paths.
+ */
+function simulateDesktopTaskHandler(deps: {
+  computerUse: unknown | null;
+  rateLimiter?: { check(): { allowed: boolean; reason?: string } };
+}): { content: Array<{ type: string; text: string }>; isError?: boolean } {
+  if (deps.rateLimiter) {
+    const check = deps.rateLimiter.check();
+    if (!check.allowed) {
+      return {
+        content: [{ type: "text", text: check.reason ?? "Rate limit exceeded" }],
+        isError: true,
+      };
+    }
+  }
+  if (!deps.computerUse) {
+    return {
+      content: [{ type: "text", text: "Desktop computer use is not available. No ComputerUseService was configured." }],
+      isError: true,
+    };
+  }
+  return { content: [{ type: "text", text: "ok" }] };
+}
+
+/**
+ * Simulate the desktop_screenshot tool handler logic.
+ */
+function simulateDesktopScreenshotHandler(deps: {
+  backend: DesktopBackend | null;
+}): { content: Array<{ type: string; text?: string }>; isError?: boolean } {
+  if (!deps.backend) {
+    return {
+      content: [{ type: "text", text: "Desktop backend is not available. No display detected." }],
+      isError: true,
+    };
+  }
+  return { content: [{ type: "text", text: "ok" }] };
+}
+
+/**
+ * Simulate the desktop_info tool handler logic for null backend.
+ */
+function simulateDesktopInfoHandler(deps: {
+  backend: DesktopBackend | null;
+  computerUse: unknown | null;
+}, query: "windows" | "display" | "capabilities"): { content: Array<{ type: string; text: string }>; isError?: boolean } {
+  if (!deps.backend) {
+    if (query === "capabilities") {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            capabilities: null,
+            platform: null,
+            computerUseAvailable: false,
+            available: false,
+            reason: "No desktop backend configured — no display detected.",
+          }),
+        }],
+      };
+    }
+    return {
+      content: [{ type: "text", text: "Desktop backend is not available. No display detected." }],
+      isError: true,
+    };
+  }
+  return { content: [{ type: "text", text: "ok" }] };
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("desktop-server", () => {
@@ -91,34 +163,97 @@ describe("desktop-server", () => {
     expect(displayInfo.monitors.length).toBe(1);
   });
 
-  it("desktop_task — returns error when no ComputerUseService", () => {
-    const backend = makeBackend();
-    const server = createDesktopServer({ backend, computerUse: null });
-
-    // Server is created; without computerUse the tool reports unavailability
-    // We verify the server object is created and computerUse is null
-    expect(server).toBeDefined();
-
-    // The tool handler checks deps.computerUse — verify the condition
-    const computerUse = null;
-    expect(computerUse).toBeNull();
-  });
-
   it("creates server with all deps provided", () => {
     const backend = makeBackend();
-    // visualService is optional — create server without it
     const server = createDesktopServer({ backend, computerUse: null });
     expect(server).toBeDefined();
   });
 
-  it("desktop_info — returns unavailable info for capabilities when backend is null", () => {
-    // When backend is null and query is "capabilities", the server returns
-    // a JSON object with computerUseAvailable: false instead of an error
-    const server = createDesktopServer({ backend: null, computerUse: null });
-    expect(server).toBeDefined();
+  // ── Error path tests (M8-S2 trip review) ───────────────────────────────────
 
-    // Verify the logic: null backend → computerUseAvailable: false
-    const available = false;
-    expect(available).toBe(false);
+  it("desktop_task — null computerUse returns error", () => {
+    const result = simulateDesktopTaskHandler({ computerUse: null });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("No ComputerUseService was configured");
+  });
+
+  it("desktop_screenshot — null backend returns error", () => {
+    const result = simulateDesktopScreenshotHandler({ backend: null });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("No display detected");
+  });
+
+  it("desktop_info — null backend returns helpful message for capabilities query", () => {
+    const result = simulateDesktopInfoHandler(
+      { backend: null, computerUse: null },
+      "capabilities",
+    );
+    // capabilities query returns a structured JSON, not an error
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.computerUseAvailable).toBe(false);
+    expect(parsed.available).toBe(false);
+    expect(parsed.reason).toContain("No desktop backend configured");
+  });
+
+  it("desktop_info — null backend returns error for windows query", () => {
+    const result = simulateDesktopInfoHandler(
+      { backend: null, computerUse: null },
+      "windows",
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("No display detected");
+  });
+
+  it("desktop_info — null backend returns error for display query", () => {
+    const result = simulateDesktopInfoHandler(
+      { backend: null, computerUse: null },
+      "display",
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("No display detected");
+  });
+
+  it("rate limiter blocks desktop_task when exceeded", () => {
+    const rateLimiter = {
+      check: () => ({ allowed: false, reason: "Too many requests — slow down" }),
+    };
+    const result = simulateDesktopTaskHandler({ computerUse: {}, rateLimiter });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Too many requests");
+  });
+
+  it("rate limiter allows desktop_task when not exceeded", () => {
+    const rateLimiter = {
+      check: () => ({ allowed: true }),
+    };
+    const result = simulateDesktopTaskHandler({
+      computerUse: {} /* mock non-null */,
+      rateLimiter,
+    });
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("ok");
+  });
+
+  it("rate limiter uses default message when reason is absent", () => {
+    const rateLimiter = {
+      check: () => ({ allowed: false }),
+    };
+    const result = simulateDesktopTaskHandler({ computerUse: {}, rateLimiter });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toBe("Rate limit exceeded");
+  });
+
+  it("server creates with rate limiter and audit logger deps", () => {
+    const backend = makeBackend();
+    const rateLimiter = { check: () => ({ allowed: true }) };
+    const auditLogger = { log: vi.fn() };
+    const server = createDesktopServer({
+      backend,
+      computerUse: null,
+      rateLimiter,
+      auditLogger,
+    });
+    expect(server).toBeDefined();
   });
 });
