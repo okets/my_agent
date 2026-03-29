@@ -90,6 +90,7 @@ import {
   WatchTriggerService,
 } from "./automations/index.js";
 import { createAutomationServer } from "./mcp/automation-server.js";
+import { VisualActionService } from "./visual/visual-action-service.js";
 
 // ─── Service Namespaces ──────────────────────────────────────────────────────
 // Thin wrappers that delegate reads and emit App events on mutations.
@@ -344,11 +345,15 @@ export class App extends EventEmitter {
   // Health
   healthMonitor: HealthMonitor | null = null;
 
+  // Visual actions (screenshots)
+  readonly visualActionService: VisualActionService;
+
   private constructor(agentDir: string, isHatched: boolean) {
     super();
     this.agentDir = agentDir;
     this.isHatched = isHatched;
     this.sessionRegistry = new SessionRegistry(5);
+    this.visualActionService = new VisualActionService(agentDir);
   }
 
   /**
@@ -641,6 +646,23 @@ export class App extends EventEmitter {
       });
       app.statePublisher.subscribeToApp(app);
       console.log("StatePublisher initialized");
+
+      // Wire VisualActionService → StatePublisher for live screenshot events
+      app.visualActionService.onScreenshot((screenshot) => {
+        app.statePublisher!.publishScreenshot({
+          id: screenshot.id,
+          filename: screenshot.filename,
+          url: app.visualActionService.url(screenshot),
+          timestamp: screenshot.timestamp,
+          contextType: screenshot.context.type,
+          contextId: screenshot.context.id,
+          automationId: screenshot.context.automationId,
+          tag: screenshot.tag,
+          description: screenshot.description,
+          width: screenshot.width,
+          height: screenshot.height,
+        });
+      });
     }
 
     // ── Memory system (M6-S2) ──
