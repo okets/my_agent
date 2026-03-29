@@ -258,4 +258,80 @@ describe("desktop-server", () => {
       expect(server).toBeDefined();
     });
   });
+
+  describe("logDir resolution", () => {
+    it("resolves logDir for job context", async () => {
+      const mockRun = vi.fn().mockResolvedValue({
+        success: true,
+        summary: "done",
+        screenshots: [],
+        actionsPerformed: 1,
+      });
+      const deps: DesktopServerDeps = {
+        backend: makeBackend(),
+        computerUse: { run: mockRun } as any,
+        visualService: { agentDir: "/tmp/test-agent" } as any,
+      };
+
+      await handleDesktopTask(deps, {
+        instruction: "test",
+        context: { type: "job", id: "job-1", automationId: "auto-1" },
+      });
+
+      expect(mockRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logDir: expect.stringContaining("automations/.runs/auto-1/job-1"),
+        }),
+      );
+    });
+
+    it("resolves logDir for conversation context", async () => {
+      const mockRun = vi.fn().mockResolvedValue({
+        success: true,
+        summary: "done",
+        screenshots: [],
+        actionsPerformed: 1,
+      });
+      const deps: DesktopServerDeps = {
+        backend: makeBackend(),
+        computerUse: { run: mockRun } as any,
+        visualService: { agentDir: "/tmp/test-agent" } as any,
+      };
+
+      await handleDesktopTask(deps, {
+        instruction: "send a message",
+        context: { type: "conversation", id: "conv-123" },
+      });
+
+      expect(mockRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logDir: expect.stringContaining("conversations/conv-123"),
+        }),
+      );
+    });
+
+    it("resolves fallback logDir when no context type matches", async () => {
+      const mockRun = vi.fn().mockResolvedValue({
+        success: true,
+        summary: "done",
+        screenshots: [],
+        actionsPerformed: 1,
+      });
+      const deps: DesktopServerDeps = {
+        backend: makeBackend(),
+        computerUse: { run: mockRun } as any,
+        visualService: { agentDir: "/tmp/test-agent" } as any,
+      };
+
+      await handleDesktopTask(deps, {
+        instruction: "test",
+      });
+
+      expect(mockRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logDir: expect.stringContaining("desktop-actions"),
+        }),
+      );
+    });
+  });
 });

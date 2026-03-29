@@ -70,15 +70,21 @@ export async function handleDesktopTask(
 
   try {
     // Resolve logDir for action audit trail (desktop-actions.jsonl)
-    // For job context, use the job's run directory. For conversation, skip logging.
+    // All desktop tasks get logged — user may not be watching (WhatsApp, away from screen)
     let logDir: string | undefined;
-    if (args.context?.type === "job" && args.context.automationId && deps.visualService) {
-      // The VAS knows the agentDir — derive run dir from context
+    if (deps.visualService) {
       const agentDir = (deps.visualService as any).agentDir;
       if (agentDir) {
         const { join } = await import("node:path");
         const { mkdirSync } = await import("node:fs");
-        logDir = join(agentDir, "automations", ".runs", args.context.automationId, args.context.id);
+        if (args.context?.type === "job" && args.context.automationId) {
+          logDir = join(agentDir, "automations", ".runs", args.context.automationId, args.context.id);
+        } else if (args.context?.type === "conversation") {
+          logDir = join(agentDir, "conversations", args.context.id);
+        } else {
+          // Fallback: log to a shared desktop-actions directory
+          logDir = join(agentDir, "desktop-actions");
+        }
         mkdirSync(logDir, { recursive: true });
       }
     }
