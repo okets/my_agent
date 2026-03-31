@@ -31,7 +31,7 @@ Reply EXACTLY:
 - YES: <chart title>
 - NO`;
 
-const CHART_PROMPT = `Generate an SVG chart for the data in this text. Output ONLY the raw SVG, no markdown fences, no explanation.
+const CHART_PROMPT = `Generate an SVG chart for the data in this text. Output ONLY the raw SVG — no markdown fences, no explanation, no text before or after the SVG. Include a descriptive <text> title element in the chart.
 
 Rules:
 - <svg xmlns="http://www.w3.org/2000/svg" width="600" height="350">
@@ -56,33 +56,26 @@ export async function maybeAugmentWithVisual(
   // Brain already generated visuals — skip
   if (imagesStoredDuringTurn > 0) return false;
 
-  // Quick heuristics: skip short responses or responses without enough numbers
+  // Heuristic gate: skip short/numberless responses
   if (assistantContent.length < 80) return false;
   const numbers = assistantContent.match(/\d+/g) || [];
   if (numbers.length < 3) return false;
 
+  // Stronger heuristic: needs a list/table structure with numbers (not just numbers in prose)
+  const hasBulletedData = /[-•*]\s.*\d/.test(assistantContent) || /\|.*\d.*\|/.test(assistantContent);
+  if (!hasBulletedData) return false;
+
   try {
-    // Phase 1: Ask Haiku if this warrants a chart
-    const analysis = await queryModel(
-      `Assistant response:\n\n${assistantContent}`,
-      ANALYSIS_PROMPT,
-      "haiku",
-    );
+    // Skip Haiku analysis — heuristic is sufficient. Go straight to chart generation.
+    deps.log(`[VisualAugmentation] Data list detected (${numbers.length} numbers), generating chart`);
 
-    if (!analysis.startsWith("YES:")) {
-      deps.log("[VisualAugmentation] Haiku says no chart needed");
-      return false;
-    }
-
-    const chartDescription = analysis.replace("YES:", "").trim();
-    deps.log(`[VisualAugmentation] Generating chart: ${chartDescription}`);
-
-    // Phase 2: Generate SVG with Haiku
+    // Generate SVG with Haiku (single call — no separate analysis)
     const svgResponse = await queryModel(
-      `Data to chart (${chartDescription}):\n\n${assistantContent}`,
+      `Generate a chart for the data in this response:\n\n${assistantContent}`,
       CHART_PROMPT,
       "haiku",
     );
+    const chartDescription = "data chart";
 
     // Extract SVG from response (might have stray text)
     const svgMatch = svgResponse.match(/<svg[\s\S]*<\/svg>/);
