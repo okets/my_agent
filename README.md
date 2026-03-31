@@ -4,6 +4,8 @@
 
 my_agent is not a chatbot wrapper. It's a framework for building a persistent, self-managing AI agent on the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-typescript) — the same engine that powers Claude Code. Give it a VPS, an API key, and a personality. It handles the rest.
 
+> **Status: Alpha** — my_agent is functional and in daily use, but not yet packaged for a smooth first-run experience. If you run into issues getting it set up, [open an issue](https://github.com/okets/my_agent/issues) and we'll help. Official release targeting mid-April 2026.
+
 ---
 
 ## What Makes This Different
