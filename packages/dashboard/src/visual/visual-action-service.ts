@@ -27,8 +27,12 @@ export class VisualActionService {
     this.indexPath = path.join(this.screenshotDir, "index.jsonl");
   }
 
-  onScreenshot(callback: (screenshot: Screenshot) => void): void {
+  onScreenshot(callback: (screenshot: Screenshot) => void): () => void {
     this.listeners.push(callback);
+    return () => {
+      const idx = this.listeners.indexOf(callback);
+      if (idx >= 0) this.listeners.splice(idx, 1);
+    };
   }
 
   /**

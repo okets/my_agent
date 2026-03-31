@@ -999,6 +999,7 @@ export class App extends EventEmitter {
             return getSharedMcpServers() ?? undefined;
           },
           hooks: createHooks("task", { agentDir }),
+          visualService: app.visualActionService,
         });
 
         app.automationProcessor = new AutomationProcessor({
