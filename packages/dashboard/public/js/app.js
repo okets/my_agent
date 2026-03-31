@@ -468,6 +468,28 @@ function chat() {
     init() {
       console.log("[App] Initializing chat component...");
 
+      // Image lightbox — delegate click on .chat-md img
+      document.addEventListener("click", (e) => {
+        const img = e.target.closest(".chat-md img");
+        if (!img) return;
+        e.preventDefault();
+        const overlay = document.createElement("div");
+        overlay.className = "image-lightbox";
+        const fullImg = document.createElement("img");
+        fullImg.src = img.src;
+        fullImg.alt = img.alt || "";
+        overlay.appendChild(fullImg);
+        overlay.addEventListener("click", () => overlay.remove());
+        document.addEventListener(
+          "keydown",
+          (ev) => {
+            if (ev.key === "Escape") overlay.remove();
+          },
+          { once: true },
+        );
+        document.body.appendChild(overlay);
+      });
+
       // Load UI state from localStorage (tabs, chat width)
       this.loadUIState();
 
@@ -1668,13 +1690,13 @@ function chat() {
         // Parse markdown and sanitize, allowing links to open in new tabs
         const html = marked.parse(text);
         const clean = DOMPurify.sanitize(html, {
-          ADD_ATTR: ["target", "rel"],
+          ADD_TAGS: ["img"],
+          ADD_ATTR: ["target", "rel", "src", "alt", "width", "height"],
         });
-        // Add target="_blank" to all links
-        return clean.replace(
-          /<a /g,
-          '<a target="_blank" rel="noopener noreferrer" ',
-        );
+        // Add target="_blank" to links, graceful 404 for images
+        return clean
+          .replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ')
+          .replace(/<img /g, '<img onerror="this.classList.add(\'img-broken\')" ');
       } catch (err) {
         console.error("[App] Markdown rendering error:", err);
         // Fallback: escape HTML and preserve line breaks

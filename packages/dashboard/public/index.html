@@ -8166,7 +8166,7 @@
                     <template x-for="job in jobs" :key="job.id">
                       <div style="background:rgba(30,30,46,0.6);border:1px solid rgba(255,255,255,0.05);border-radius:10px;overflow:hidden;">
                         <!-- Job header (tappable) -->
-                        <button @click="expandedJob = expandedJob === job.id ? null : job.id"
+                        <button @click="if (expandedJob === job.id) { expandedJob = null } else { expandedJob = job.id; if (!job.fullDeliverable && !job._fetched) { job._fetched = true; fetch('/api/jobs/' + job.id).then(r => r.json()).then(d => { job.fullDeliverable = d.fullDeliverable; job.screenshotIds = d.screenshotIds; }).catch(() => {}) } }"
                                 class="w-full flex items-center gap-2 px-3 py-2.5 text-left">
                           <span class="w-2 h-2 rounded-full shrink-0"
                                 :class="{
@@ -8194,11 +8194,21 @@
                             <path fill-rule="evenodd" d="m8.25 4.5 7.5 7.5-7.5 7.5" clip-rule="evenodd"/>
                           </svg>
                         </button>
-                        <!-- Expanded job summary -->
+                        <!-- Expanded job detail -->
                         <div x-show="expandedJob === job.id" x-collapse
                              class="px-3 pb-3 border-t border-white/5">
-                          <div class="text-[11px] text-tokyo-muted mt-2 leading-relaxed whitespace-pre-line"
-                               x-text="job.summary || 'No summary available'"></div>
+                          <!-- Screenshot thumbnails -->
+                          <div x-show="job.screenshotIds?.length" class="flex gap-1.5 mt-2 overflow-x-auto pb-1">
+                            <template x-for="ssId in (job.screenshotIds || [])" :key="ssId">
+                              <img :src="'/api/assets/screenshots/' + ssId + '.png'"
+                                   class="h-12 w-auto rounded border border-white/10 object-cover shrink-0"
+                                   onerror="this.style.display='none'"
+                                   :alt="'Screenshot ' + ssId">
+                            </template>
+                          </div>
+                          <!-- Full deliverable (markdown) or summary fallback -->
+                          <div class="text-[11px] text-tokyo-muted mt-2 leading-relaxed chat-md"
+                               x-html="renderMarkdown(job.fullDeliverable || job.summary || 'No summary available')"></div>
                         </div>
                       </div>
                     </template>
