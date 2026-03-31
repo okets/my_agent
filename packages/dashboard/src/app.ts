@@ -489,7 +489,7 @@ export class App extends EventEmitter {
         return new MockTransportPlugin();
       });
       app.transportManager.registerPlugin("baileys", (cfg) =>
-        createBaileysPlugin(cfg),
+        createBaileysPlugin({ ...cfg, agentDir }),
       );
 
       // ChannelMessageHandler needs connectionRegistry + sessionRegistry.
