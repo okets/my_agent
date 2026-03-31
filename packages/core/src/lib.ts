@@ -211,11 +211,9 @@ export type {
   Job, JobStatus, CreateAutomationInput,
 } from './spaces/index.js'
 
-// Visual action pipeline (M8-S1)
+// Visual action pipeline (M8-S1, refactored S3.5)
 export type {
-  ScreenshotTag,
-  AssetContext,
-  CaptureOptions,
+  ScreenshotSource,
   ScreenshotMetadata,
   Screenshot,
 } from './visual/index.js'
