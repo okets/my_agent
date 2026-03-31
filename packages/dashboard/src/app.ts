@@ -139,7 +139,7 @@ export class AppConversationService {
   async delete(id: string): Promise<void> {
     await this.manager.delete(id);
     // Remove screenshot refs for this conversation (S3.5)
-    this.app.visualActionService.removeRefs(`conv/${id}`);
+    this.app.visualActionService?.removeRefs(`conv/${id}`);
     this.app.emit("conversation:deleted", id);
   }
 
@@ -683,13 +683,11 @@ export class App extends EventEmitter {
           filename: screenshot.filename,
           url: app.visualActionService.url(screenshot),
           timestamp: screenshot.timestamp,
-          contextType: screenshot.context.type,
-          contextId: screenshot.context.id,
-          automationId: screenshot.context.automationId,
-          tag: screenshot.tag,
+          source: screenshot.source,
           description: screenshot.description,
           width: screenshot.width,
           height: screenshot.height,
+          refs: screenshot.refs,
         });
       });
     }
