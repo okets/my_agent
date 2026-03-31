@@ -52,19 +52,19 @@ document.addEventListener("alpine:init", () => {
 
     forJob(jobId) {
       return this.items.filter(
-        (s) => s.contextType === "job" && s.contextId === jobId && s.tag === "keep",
+        (s) => s.refs && s.refs.some((r) => r.includes(jobId)),
       );
     },
 
     allForJob(jobId) {
       return this.items.filter(
-        (s) => s.contextType === "job" && s.contextId === jobId,
+        (s) => s.refs && s.refs.some((r) => r.includes(jobId)),
       );
     },
 
     forConversation(conversationId) {
       return this.items.filter(
-        (s) => s.contextType === "conversation" && s.contextId === conversationId,
+        (s) => s.refs && s.refs.some((r) => r.startsWith("conv/" + conversationId)),
       );
     },
   });
