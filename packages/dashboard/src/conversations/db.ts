@@ -1051,11 +1051,12 @@ export class ConversationDatabase {
     automationName: string;
     summary: string | null;
     runDir: string | null;
+    deliverablePath: string | null;
     completed: string | null;
   }> {
     const rows = this.db
       .prepare(
-        `SELECT j.id, j.automation_id, a.name, j.summary, j.run_dir, j.completed
+        `SELECT j.id, j.automation_id, a.name, j.summary, j.run_dir, j.deliverablePath, j.completed
          FROM jobs j
          JOIN automations a ON j.automation_id = a.id
          WHERE a.notify = 'debrief'
@@ -1071,6 +1072,7 @@ export class ConversationDatabase {
       automationName: row.name,
       summary: row.summary,
       runDir: row.run_dir,
+      deliverablePath: row.deliverablePath,
       completed: row.completed,
     }));
   }

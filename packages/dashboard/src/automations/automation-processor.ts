@@ -176,9 +176,23 @@ export class AutomationProcessor {
         // Timezone unavailable — brain will use its own judgment
       }
 
-      const summary = result.success
-        ? result.work ?? "Completed successfully."
-        : `Error: ${result.error}`;
+      // Prefer full deliverable from disk (not truncated to 500 chars)
+      let summary: string;
+      if (result.success) {
+        const job = this.config.jobService.getJob(jobId);
+        if (job?.deliverablePath) {
+          try {
+            const fs = await import("node:fs");
+            summary = fs.readFileSync(job.deliverablePath, "utf-8");
+          } catch {
+            summary = result.work ?? "Completed successfully.";
+          }
+        } else {
+          summary = result.work ?? "Completed successfully.";
+        }
+      } else {
+        summary = `Error: ${result.error}`;
+      }
       const prompt = `A working agent just finished the "${automation.manifest.name}" task.${localTimeContext}\n\nResults:\n${summary}\n\nYou are the conversation layer — present what matters to the user naturally. Don't acknowledge the system message itself. Don't say "noted" or "logging". Just relay the useful information as if you're giving the user an update.`;
       const alerted = await ci.alert(prompt);
       if (!alerted) {

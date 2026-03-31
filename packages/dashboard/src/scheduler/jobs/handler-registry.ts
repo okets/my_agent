@@ -283,7 +283,15 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
     for (const job of pendingJobs) {
       let content = job.summary ?? "No output available.";
 
-      if (job.runDir) {
+      // Prefer full deliverable → status-report.md → summary
+      if (job.deliverablePath && existsSync(job.deliverablePath)) {
+        try {
+          content = await readFile(job.deliverablePath, "utf-8");
+        } catch {
+          // Fall through to status-report.md
+        }
+      }
+      if (content === (job.summary ?? "No output available.") && job.runDir) {
         const reportPath = join(job.runDir, "status-report.md");
         if (existsSync(reportPath)) {
           try {
