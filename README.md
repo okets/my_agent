@@ -6,6 +6,8 @@ my_agent is not a chatbot wrapper. It's a framework for building a persistent, s
 
 > **Status: Alpha** — my_agent is functional and in daily use, but not yet packaged for a smooth first-run experience. If you run into issues getting it set up, [open an issue](https://github.com/okets/my_agent/issues) and we'll help. Official release targeting mid-April 2026.
 
+Inspired by [OpenClaw](https://github.com/anthropics/openclaw), rebuilt with three priorities: **token efficiency** (intelligent Haiku/Sonnet/Opus routing instead of burning Opus on everything), **transparency** (every task, job, and decision is inspectable — no black boxes), and **security** (trust tiers, safety hooks, audit logging, guardrails enforced at every layer).
+
 ---
 
 ## What Makes This Different
