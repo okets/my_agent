@@ -25,19 +25,22 @@ export interface VisualAugmentationDeps {
   log: (msg: string) => void;
 }
 
-const ANALYSIS_PROMPT = `Does this assistant response contain 3 or more numeric data points that show a trend, comparison, or distribution over time?
+const ANALYSIS_PROMPT = `Can this response be visualized as a chart? Lean toward YES.
 
-Rules:
-- Daily readings (AQI, temperature, prices) over 3+ days → YES
-- Weekly/monthly stats with 3+ values → YES
-- Performance metrics, budget breakdowns with 3+ items → YES
-- Casual number mentions ("I bought 3 apples, called 2 people") → NO
-- A single stat or 1-2 numbers → NO
-- Lists without numeric values → NO
+YES when:
+- 3+ data points over time (daily AQI, weekly stats, prices per day)
+- A table or list with numeric values per row/item
+- Comparisons between 3+ items with numbers
+- Ranges that imply data points (e.g. "151-164" = a data point)
+
+NO when:
+- Purely conversational, no numbers
+- Only 1-2 isolated numbers
+- Numbers are IDs, timestamps, or references (not measurements)
 
 Reply with EXACTLY one line:
 - NO
-- YES: <one-line chart description, e.g. "AQI trend Mon-Fri">`;
+- YES: <chart description, e.g. "AQI trend Mar 29-31">`;
 
 const CHART_PROMPT = `Generate an SVG chart for the data in this text. Output ONLY the raw SVG, no markdown fences, no explanation.
 
