@@ -659,6 +659,12 @@ export class ChannelMessageHandler {
             { type: "start" },
           );
         }
+
+        // On subsequent tool uses after the split, discard intermediate
+        // thinking text so only the final text segment is sent to the channel.
+        if (event.type === "tool_use_start" && hasSplit) {
+          assistantContent = "";
+        }
       }
     } catch (err) {
       responseTimer.cancel();
