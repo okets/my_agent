@@ -34,7 +34,8 @@
 | `packages/core/src/visual/types.ts` | Add `"web"` and `"generated"` to `ScreenshotSource` |
 | `packages/core/src/lib.ts` | Verify barrel exports (no change expected) |
 | `packages/core/src/spaces/automation-types.ts` | Add `deliverablePath` and `screenshotIds` to `Job` |
-| `packages/dashboard/src/automations/automation-executor.ts` | Write `deliverable.md`, populate `deliverablePath` + `screenshotIds` |
+| `packages/dashboard/src/visual/visual-action-service.ts` | `onScreenshot()` returns unsubscribe function (currently returns void) |
+| `packages/dashboard/src/automations/automation-executor.ts` | Write `deliverable.md`, populate `deliverablePath` + `screenshotIds`, add `visualService` to config interface |
 | `packages/dashboard/src/automations/automation-job-service.ts` | Include new Job fields in JSONL + DB upsert |
 | `packages/dashboard/src/automations/automation-processor.ts` | Read full deliverable from disk for notifications |
 | `packages/dashboard/src/scheduler/jobs/handler-registry.ts` | Debrief reporter reads `deliverablePath` first |
@@ -675,7 +676,35 @@ export interface Job {
 }
 ```
 
-- [ ] **Step 4: Update automation-executor.ts**
+- [ ] **Step 4: Update VAS onScreenshot() to return unsubscribe function**
+
+In `packages/dashboard/src/visual/visual-action-service.ts`, change the `onScreenshot` method from returning `void` to returning an unsubscribe function:
+
+```typescript
+onScreenshot(callback: (screenshot: Screenshot) => void): () => void {
+  this.listeners.push(callback);
+  return () => {
+    const idx = this.listeners.indexOf(callback);
+    if (idx >= 0) this.listeners.splice(idx, 1);
+  };
+}
+```
+
+- [ ] **Step 5: Add visualService to AutomationExecutorConfig**
+
+In `packages/dashboard/src/automations/automation-executor.ts`, find the `AutomationExecutorConfig` interface (around line 31). Add:
+
+```typescript
+visualService?: import("../visual/visual-action-service.js").VisualActionService;
+```
+
+Then in `packages/dashboard/src/app.ts`, find where `AutomationExecutor` is instantiated and pass the VAS:
+
+```typescript
+visualService: app.visualActionService,
+```
+
+- [ ] **Step 6: Update automation-executor.ts — deliverable + screenshotIds**
 
 Add imports at the top of the file:
 
