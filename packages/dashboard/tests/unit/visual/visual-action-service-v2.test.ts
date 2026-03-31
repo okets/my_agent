@@ -120,6 +120,44 @@ describe("VisualActionService (v2 — centralized)", () => {
       expect(vas.get(ss.id)!.refs).toEqual(["conv/abc"]);
     });
 
+    it("addRefs batch adds multiple refs in one read-write", () => {
+      const ss1 = vas.store(Buffer.from("a"), {
+        width: 100,
+        height: 100,
+        source: "desktop",
+      });
+      const ss2 = vas.store(Buffer.from("b"), {
+        width: 100,
+        height: 100,
+        source: "desktop",
+      });
+
+      vas.addRefs([
+        { id: ss1.id, ref: "conv/abc" },
+        { id: ss1.id, ref: "conv/def" },
+        { id: ss2.id, ref: "conv/abc" },
+      ]);
+
+      expect(vas.get(ss1.id)!.refs).toEqual(["conv/abc", "conv/def"]);
+      expect(vas.get(ss2.id)!.refs).toEqual(["conv/abc"]);
+    });
+
+    it("addRefs deduplicates", () => {
+      const ss = vas.store(Buffer.from("data"), {
+        width: 100,
+        height: 100,
+        source: "desktop",
+      });
+      vas.addRef(ss.id, "conv/abc");
+
+      vas.addRefs([
+        { id: ss.id, ref: "conv/abc" },
+        { id: ss.id, ref: "conv/def" },
+      ]);
+
+      expect(vas.get(ss.id)!.refs).toEqual(["conv/abc", "conv/def"]);
+    });
+
     it("removeRefs removes all refs matching a prefix", () => {
       const ss1 = vas.store(Buffer.from("a"), {
         width: 100,

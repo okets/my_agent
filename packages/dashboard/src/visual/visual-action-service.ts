@@ -71,20 +71,38 @@ export class VisualActionService {
    * No-op if the ref already exists or the screenshot is not found.
    */
   addRef(screenshotId: string, ref: string): void {
-    const entries = this.readIndex();
-    let found = false;
+    this.addRefs([{ id: screenshotId, ref }]);
+  }
 
-    const updated = entries.map((entry) => {
-      if (entry.id === screenshotId) {
-        found = true;
-        if (!entry.refs.includes(ref)) {
-          return { ...entry, refs: [...entry.refs, ref] };
+  /**
+   * Batch add refs — reads and writes the index once regardless of count.
+   */
+  addRefs(entries: Array<{ id: string; ref: string }>): void {
+    if (entries.length === 0) return;
+
+    const index = this.readIndex();
+    const refMap = new Map<string, Set<string>>();
+    for (const { id, ref } of entries) {
+      if (!refMap.has(id)) refMap.set(id, new Set());
+      refMap.get(id)!.add(ref);
+    }
+
+    let changed = false;
+    const updated = index.map((entry) => {
+      const newRefs = refMap.get(entry.id);
+      if (!newRefs) return entry;
+
+      const merged = [...entry.refs];
+      for (const ref of newRefs) {
+        if (!merged.includes(ref)) {
+          merged.push(ref);
+          changed = true;
         }
       }
-      return entry;
+      return changed ? { ...entry, refs: merged } : entry;
     });
 
-    if (found) {
+    if (changed) {
       this.writeIndex(updated);
     }
   }

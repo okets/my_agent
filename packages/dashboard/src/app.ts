@@ -425,10 +425,13 @@ export class App extends EventEmitter {
     const screenshotUrlPattern = /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
     app.conversationManager.onTurnAppended = (conversationId, turn) => {
       if (!turn.content) return;
-      const matches = turn.content.matchAll(screenshotUrlPattern);
-      for (const match of matches) {
-        const screenshotId = match[1];
-        app.visualActionService.addRef(screenshotId, `conv/${conversationId}`);
+      const ref = `conv/${conversationId}`;
+      const batch: Array<{ id: string; ref: string }> = [];
+      for (const match of turn.content.matchAll(screenshotUrlPattern)) {
+        batch.push({ id: match[1], ref });
+      }
+      if (batch.length > 0) {
+        app.visualActionService.addRefs(batch);
       }
     };
 
@@ -1009,9 +1012,13 @@ export class App extends EventEmitter {
             // On job completion, scan summary for screenshot URLs and add refs (S3.5)
             if ((event === "job:completed" || event === "job:needs_review") && job.summary) {
               const jobSsPattern = /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
-              const matches = job.summary.matchAll(jobSsPattern);
-              for (const match of matches) {
-                app.visualActionService.addRef(match[1], `job/${job.automationId}/${job.id}`);
+              const ref = `job/${job.automationId}/${job.id}`;
+              const batch: Array<{ id: string; ref: string }> = [];
+              for (const match of job.summary.matchAll(jobSsPattern)) {
+                batch.push({ id: match[1], ref });
+              }
+              if (batch.length > 0) {
+                app.visualActionService.addRefs(batch);
               }
             }
           },
