@@ -20,6 +20,7 @@ import { registerMemoryRoutes } from "./routes/memory.js";
 import { registerConversationSearchRoutes } from "./routes/conversation-search.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerDesktopRoutes } from "./routes/desktop.js";
+import { registerPlaywrightRoutes } from "./routes/playwright-routes.js";
 import { registerSkillRoutes } from "./routes/skills.js";
 import { registerSpaceRoutes } from "./routes/spaces.js";
 import { registerAutomationRoutes } from "./routes/automations.js";
@@ -261,6 +262,9 @@ export async function createServer(
 
   // Register desktop control routes (M8-S2)
   await registerDesktopRoutes(fastify);
+
+  // Register Playwright browser automation routes (M8-S3)
+  await registerPlaywrightRoutes(fastify);
 
   // Legacy notebook API - read runtime files (backward compatibility)
   // TODO: Remove after migration to notebook/ is complete

@@ -18,6 +18,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { loadModels } from "@my-agent/core";
 import { detectDesktopEnvironment } from "../desktop/desktop-capability-detector.js";
+import { detectPlaywrightStatus } from "../playwright/playwright-status.js";
 import {
   getPersonalities,
   writeIdentity,
@@ -238,6 +239,28 @@ export function createHatchingSession(
     },
   );
 
+  const getPlaywrightStatusTool = tool(
+    "get_playwright_status",
+    "Check whether Playwright browser automation is available. Returns installation status of browser binaries. Use this silently during hatching to determine if Playwright setup is needed.",
+    {},
+    async () => {
+      const status = await detectPlaywrightStatus();
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              installed: status.installed,
+              ready: status.ready,
+              browsers: status.browsers,
+              setupNeeded: status.setupNeeded,
+            }),
+          },
+        ],
+      };
+    },
+  );
+
   const saveSetupTool = tool(
     "save_setup",
     "Finalize the hatching process with all collected information",
@@ -345,6 +368,7 @@ export function createHatchingSession(
       requestComposeInputTool,
       getPersonalitiesTool,
       getDesktopStatusTool,
+      getPlaywrightStatusTool,
       saveSetupTool,
     ],
   });
@@ -364,6 +388,7 @@ export function createHatchingSession(
         "mcp__hatching-tools__request_compose_input",
         "mcp__hatching-tools__get_personalities",
         "mcp__hatching-tools__get_desktop_status",
+        "mcp__hatching-tools__get_playwright_status",
         "mcp__hatching-tools__save_setup",
       ],
     };

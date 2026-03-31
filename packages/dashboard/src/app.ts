@@ -97,6 +97,7 @@ import { ComputerUseService } from "./desktop/computer-use-service.js";
 import { createDesktopServer } from "./mcp/desktop-server.js";
 import { createDesktopRateLimiter, createDesktopAuditLogger } from "./hooks/desktop-hooks.js";
 import type { DesktopEnvironment, DesktopBackend } from "@my-agent/core";
+import { PlaywrightScreenshotBridge } from "./playwright/playwright-screenshot-bridge.js";
 import Anthropic from "@anthropic-ai/sdk";
 
 // ─── Service Namespaces ──────────────────────────────────────────────────────
@@ -361,6 +362,7 @@ export class App extends EventEmitter {
   desktopComputerUse: ComputerUseService | null = null;
   desktopRateLimiter: ReturnType<typeof createDesktopRateLimiter> | null = null;
   desktopAuditLogger: ReturnType<typeof createDesktopAuditLogger> | null = null;
+  playwrightBridge: PlaywrightScreenshotBridge | null = null;
 
   private constructor(agentDir: string, isHatched: boolean) {
     super();
@@ -1172,6 +1174,14 @@ export class App extends EventEmitter {
         console.log("[Desktop] No display detected — desktop tools will return helpful errors");
       }
     }
+
+    // Register Playwright screenshot bridge MCP server (M8-S3)
+    // Provides browser_screenshot_and_store tool that stores via VAS
+    // The existing @playwright/mcp (stdio) stays registered for navigation/interaction
+    app.playwrightBridge = new PlaywrightScreenshotBridge(app.visualActionService);
+    const playwrightScreenshotServer = app.playwrightBridge.createMcpServer();
+    addMcpServer("playwright-screenshot", playwrightScreenshotServer);
+    console.log("[App] Playwright screenshot bridge MCP server registered");
 
     // Connect memory + automation services to state publisher
     if (app.statePublisher) {
