@@ -157,6 +157,24 @@ Brain-level skill teaching Nina to proactively use visuals:
 
 ---
 
+## Visual Augmentation Hook
+
+Post-response safety net for proactive visual communication. The visual presenter skill tells the brain to use `store_image` proactively, but models don't always follow. The hook catches data-heavy responses that lack visuals.
+
+**Flow:**
+1. Brain responds to user message (text only)
+2. Post-response hook fires, checks: was `store_image` called during this turn?
+3. If yes → no-op (brain followed the skill)
+4. If no → quick heuristic check (3+ numbers in response?)
+5. If passes → Haiku analyzes: "does this have chartable trend/comparison data?"
+6. If YES → Haiku generates SVG chart → `store_image` → append as follow-up message
+
+**Cost:** ~$0.003 per analysis (Haiku). ~$0.01 when chart is generated. No cost when brain uses visuals natively.
+
+**Implementation:** `packages/dashboard/src/chat/visual-augmentation.ts`, wired via `PostResponseHooks`.
+
+---
+
 ## VAS Cleanup Invocation
 
 S3.5 built `cleanup()` but nothing calls it. S4 adds:
