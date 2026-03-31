@@ -25,22 +25,11 @@ export interface VisualAugmentationDeps {
   log: (msg: string) => void;
 }
 
-const ANALYSIS_PROMPT = `Can this response be visualized as a chart? Lean toward YES.
+const ANALYSIS_PROMPT = `Would a bar or line chart help the reader understand this response? Answer YES if the text reports measurements, readings, counts, or scores across multiple dates, categories, or items. Answer NO only if the response is purely conversational with no reportable data.
 
-YES when:
-- 3+ data points over time (daily AQI, weekly stats, prices per day)
-- A table or list with numeric values per row/item
-- Comparisons between 3+ items with numbers
-- Ranges that imply data points (e.g. "151-164" = a data point)
-
-NO when:
-- Purely conversational, no numbers
-- Only 1-2 isolated numbers
-- Numbers are IDs, timestamps, or references (not measurements)
-
-Reply with EXACTLY one line:
-- NO
-- YES: <chart description, e.g. "AQI trend Mar 29-31">`;
+Reply EXACTLY:
+- YES: <chart title>
+- NO`;
 
 const CHART_PROMPT = `Generate an SVG chart for the data in this text. Output ONLY the raw SVG, no markdown fences, no explanation.
 
