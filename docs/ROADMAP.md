@@ -24,7 +24,7 @@
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
-| **M8: Visual & Desktop Automation** | **Active** | 2/5 sprints done (S1 visual pipeline, S2 desktop control Linux), 1061 tests |
+| **M8: Visual & Desktop Automation** | **Active** | 3/5 sprints done (S1 visual pipeline, S2 desktop control Linux, S3 Playwright), 863 tests |
 | **M9: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M10: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M11: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -706,7 +706,7 @@ Nina can see and interact with GUI applications. All visual actions (desktop con
 |--------|------|--------|-------|
 | S1 | Visual Action Pipeline | **Done** | VisualActionService (capture/store/serve), screenshot tagging (agent tags keep/skip, pixel diff fallback), retention policy, asset serving route, dashboard screenshot rendering (timeline + inline), StatePublisher events. 29 new tests. [plan](../sprints/m8-s1-visual-action-pipeline/plan.md) · [review](../sprints/m8-s1-visual-action-pipeline/review.md) · [test-report](../sprints/m8-s1-visual-action-pipeline/test-report.md) |
 | S2 | Desktop Control — Linux X11 | **Done** | DesktopBackend interface, X11Backend (xdotool + maim + wmctrl), ComputerUseService (Claude native computer use API bridge), MCP tools (desktop_task, desktop_screenshot, desktop_info) for both Conversation + Working Nina, safety hooks + rate limiter + audit logger, desktop skill, environment detection, hatching step, settings UI with enable/disable toggle + install button, setup script. 55 new tests. [plan](../sprints/m8-s2-desktop-control-linux/plan.md) · [review](../sprints/m8-s2-desktop-control-linux/review.md) · [test-report](../sprints/m8-s2-desktop-control-linux/test-report.md) |
-| S3 | Playwright Integration | Planned | Wire Playwright screenshots into VisualActionService, surface browser automation screenshots in timeline/chat, unified visual audit trail |
+| S3 | Playwright Integration | **Done** | PlaywrightScreenshotBridge (wrapper MCP tool + VAS storage), browser pooling, Playwright status detection, API routes (status/toggle/install), hatching step 8, Settings UI panel. 19 new tests, 863 total. [plan](../sprints/m8-s3-playwright-integration/plan.md) · [review](../sprints/m8-s3-playwright-integration/review.md) · [test-report](../sprints/m8-s3-playwright-integration/test-report.md) |
 | S4 | Rich I/O | Planned | Image passthrough (dashboard + WhatsApp), visual output tools, asset rendering in chat |
 | S5 | Voice | Planned | STT/TTS engine selection, dashboard audio playback, WhatsApp voice notes, streaming TTS, settings toggle |
 
