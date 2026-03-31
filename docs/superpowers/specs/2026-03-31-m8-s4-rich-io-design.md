@@ -133,16 +133,111 @@ Before sending, parse the message for markdown image syntax:
 
 ---
 
-## Visual Presenter Skill
+## Tool Redesign (S4.1 Course Correction)
 
-Brain-level skill teaching Nina to proactively use visuals:
+S4 shipped `store_image` as a single generic tool. E2E testing proved models don't connect it to intent — when asked for a picture, the brain didn't realize `store_image({ url })` fetches images. When presenting data, it skipped chart generation because the tool name didn't signal "this is for charts."
 
-**When to generate visuals:**
-- Data with trends → SVG line/bar chart
-- Comparisons → SVG side-by-side bars
-- Status/health → SVG gauge or indicator
-- Processes/flows → SVG diagram
-- Briefings → include relevant web images (weather, news, maps)
+### Two Purpose-Built Tools
+
+**`create_chart`** — Data visualization. No network, no security surface.
+
+```
+create_chart({
+  svg: string,              // Raw SVG markup
+  description: string,      // What this chart shows
+})
+```
+
+Or with structured data (future enhancement):
+
+```
+create_chart({
+  data: [...],              // Structured data points
+  type: "bar" | "line" | "gauge" | "diagram",
+  title: string,
+  description?: string,
+})
+```
+
+- Brain sees data → tool name matches intent → higher proactive call rate
+- SVG guidelines enforced in tool, not just skill
+- The visual augmentation hook calls this directly
+- No URL fetching, no base64, no network access
+
+**`fetch_image`** — Image retrieval. All security concentrated here.
+
+```
+fetch_image({
+  url?: string,             // HTTP(S) URL to fetch
+  prompt?: string,          // For future MCP image generation
+  description?: string,
+})
+```
+
+- All SSRF protection, size limits, Content-Type validation here
+- Brain sees "show me a picture" → web search → finds URL → `fetch_image`
+- Future: `prompt` mode delegates to available MCP image gen tools
+- Clear security boundary for auditing
+
+### What Carries Forward From S4
+
+| Component | Status |
+|---|---|
+| Dashboard rendering (DOMPurify, lightbox, job detail) | Keep as-is |
+| Deliverable pipeline (deliverable.md, deliverablePath, screenshotIds) | Keep as-is |
+| WhatsApp outbound images | Keep as-is |
+| VAS integration, sharp conversion | Keep, refactor into new tools |
+| Visual augmentation hook | Keep, point at `create_chart` |
+| SSRF protection, size limits | Move to `fetch_image` only |
+| SVG helpers (ensureSvgDimensions, etc.) | Move to `create_chart` |
+
+### What Gets Redesigned
+
+| File | Change |
+|---|---|
+| `packages/dashboard/src/mcp/image-server.ts` | Split into `chart-server.ts` + `image-fetch-server.ts` |
+| `skills/visual-presenter.md` | Update tool names, separate chart vs image guidance |
+| `packages/dashboard/src/chat/visual-augmentation.ts` | Import from chart-server instead of image-server |
+| `packages/dashboard/src/app.ts` | Register two MCP servers instead of one |
+| Tests | Split accordingly |
+
+---
+
+## Standing Order: Visual Communication
+
+Visual expression is embedded as a **standing order** in `notebook/reference/standing-orders.md` — the same operational authority level as escalation rules and trust tiers. This is not a skill suggestion; it's a mandate.
+
+```
+## Visual Communication
+Express data visually whenever possible. When your response contains
+numeric trends, comparisons, or status data, generate a chart using
+create_chart. When discussing something with a visual component,
+fetch a relevant image using fetch_image. Text-only responses for
+data-rich content are incomplete responses.
+```
+
+Three reinforcement layers for visual behavior:
+1. **Standing order** — deepest operational instruction, always in system prompt
+2. **Visual presenter skill** — detailed how-to guidance (SVG guidelines, tool usage, when to skip)
+3. **Augmentation hook** — safety net catches what the model still misses
+
+---
+
+## Visual Presenter Skill (Updated for S4.1)
+
+Brain-level skill with purpose-specific tool guidance:
+
+**Chart generation (`create_chart`):**
+- 3+ numeric data points → line or bar chart
+- Comparisons → side-by-side bars
+- Status/health with numeric value → gauge or indicator
+- Processes/flows → diagram
+- ALWAYS call `create_chart` when your response contains chartable data
+
+**Image fetching (`fetch_image`):**
+- Briefings → fetch relevant images (weather maps, news photos)
+- User asks to see something → web search for URL → `fetch_image`
+- Visual explanation needed → find a relevant image
 
 **SVG guidelines (for sharp rendering):**
 - Always set explicit `width` and `height` attributes on `<svg>`
@@ -153,21 +248,22 @@ Brain-level skill teaching Nina to proactively use visuals:
 
 **Rules:**
 - Images augment text, don't replace it. Always include a text explanation alongside.
-- If you don't know how to visualize something, skip visualization. Don't ask.
+- If you don't know how to visualize something, skip visualization silently.
+- ALWAYS call `create_chart` when response has 3+ data points. ALWAYS call `fetch_image` when discussing something with a visual component.
 
 ---
 
 ## Visual Augmentation Hook
 
-Post-response safety net for proactive visual communication. The visual presenter skill tells the brain to use `store_image` proactively, but models don't always follow. The hook catches data-heavy responses that lack visuals.
+Post-response safety net for proactive visual communication. The standing order + skill tell the brain to use tools proactively, but models don't always follow. The hook catches data-heavy responses that lack visuals.
 
 **Flow:**
 1. Brain responds to user message (text only)
-2. Post-response hook fires, checks: was `store_image` called during this turn?
-3. If yes → no-op (brain followed the skill)
+2. Post-response hook fires, checks: was `create_chart` or `fetch_image` called during this turn?
+3. If yes → no-op (brain followed the directive)
 4. If no → quick heuristic check (3+ numbers in response?)
 5. If passes → Haiku analyzes: "does this have chartable trend/comparison data?"
-6. If YES → Haiku generates SVG chart → `store_image` → append as follow-up message
+6. If YES → Haiku generates SVG chart → `create_chart` handler → append as follow-up message
 
 **Cost:** ~$0.003 per analysis (Haiku). ~$0.01 when chart is generated. No cost when brain uses visuals natively.
 
@@ -192,28 +288,41 @@ Add to a future milestone (M9 or M12): **MCP marketplace/discovery** — users c
 
 **Future task:** Update the visual presenter skill to detect available MCP image generation tools and use them when appropriate (e.g., "I have a DALL-E MCP server available, I can generate an illustration for this concept").
 
-External MCP image generators already work with the current architecture: they return base64 content blocks, Nina calls `store_image({ data })` to persist. No framework changes needed — just the skill update.
+External MCP image generators already work with the current architecture: they return base64 content blocks, Nina calls `fetch_image({ prompt })` or stores directly. No framework changes needed — just the skill update.
 
 ---
 
 ## Sprint Tasks (High-Level)
 
+### S4 (completed, on branch — infrastructure)
+
+| # | Task | Status |
+|---|---|---|
+| 1 | Deliverable pipeline fix | Done — `deliverable.md`, `deliverablePath`, `screenshotIds` |
+| 2 | `store_image` MCP tool | Done — to be split in S4.1 |
+| 3 | Dashboard chat image rendering | Done — DOMPurify, lightbox |
+| 4 | Job detail view | Done — full deliverable with images |
+| 5 | Job timeline thumbnails | Done — `screenshotIds`, graceful 404 |
+| 6 | Conversation restore images | Done |
+| 7 | WhatsApp outbound images | Done — Baileys media |
+| 8 | Visual presenter skill | Done — to be updated in S4.1 |
+| 9 | VAS cleanup invocation | Done (was already in S3.5) |
+| 10 | Visual augmentation hook | Done — Haiku safety net |
+
+### S4.1 (course correction — tool redesign)
+
 | # | Task | Scope |
 |---|---|---|
-| 1 | Deliverable pipeline fix | Write `deliverable.md`, add `deliverablePath` to Job, update processor + debrief reporter |
-| 2 | `store_image` MCP tool | Three input modes, sharp SVG→PNG, URL fetch + downscale, magic byte validation |
-| 3 | Dashboard chat image rendering | Verify/fix DOMPurify, test markdown images inline, lightbox on click |
-| 4 | Job detail view | Render full deliverable as markdown with images |
-| 5 | Job timeline thumbnails | `screenshotIds` on Job, thumbnail strip, graceful 404 handling |
-| 6 | Conversation restore images | Verify attachment + VAS image persistence on reload |
-| 7 | WhatsApp outbound images | Parse markdown images, send via Baileys, strip syntax from text |
-| 8 | Visual presenter skill | Brain skill for proactive visual communication + SVG guidelines |
-| 9 | VAS cleanup invocation | Startup + periodic cleanup calls |
-| 10 | E2E: image persistence | Upload image, close conversation, reopen, verify rendering |
-| 11 | E2E: debrief with chart | One-off automation generates SVG chart, brief includes it, dashboard renders |
-| 12 | E2E: job thumbnail lifecycle | Create, display, expire gracefully |
-| 13 | E2E: web image search | Search for cat in hat, download, render in chat |
-| 14 | E2E: WhatsApp image | Send image to WhatsApp, human verifies receipt (human-assisted) |
+| 1 | Split `store_image` into `create_chart` + `fetch_image` | Refactor `image-server.ts` into two files, move SVG helpers to chart, move SSRF/fetch to image-fetch |
+| 2 | Update visual presenter skill | Separate chart vs image guidance, update tool names, directive wording |
+| 3 | Add standing order for visual communication | Add to `notebook/reference/standing-orders.md` template in hatching |
+| 4 | Update visual augmentation hook | Import from `chart-server` instead of `image-server`, check for `create_chart`/`fetch_image` |
+| 5 | Update app.ts wiring | Register two MCP servers instead of one, delete old image-server registration |
+| 6 | Split and update tests | Split `image-server.test.ts` into chart + fetch tests |
+| 7 | E2E: proactive chart generation | Ask Nina about data (AQI, weather) — verify she calls `create_chart` unprompted |
+| 8 | E2E: image fetch | Ask Nina to show a cat in a hat — verify she calls `fetch_image` |
+| 9 | E2E: augmentation hook fallback | Trigger data-heavy response without chart — verify hook catches it |
+| 10 | E2E: WhatsApp image delivery | Human-assisted — verify image arrives as media |
 
 ---
 
@@ -234,4 +343,5 @@ External MCP image generators already work with the current architecture: they r
 ---
 
 *Spec written: 2026-03-31*
-*Sprint: M8-S4 (Rich I/O)*
+*Updated: 2026-03-31 — S4.1 course correction (tool redesign + standing order)*
+*Sprint: M8-S4 + S4.1 (Rich I/O)*
