@@ -28,7 +28,7 @@
 | **M9: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M10: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M11: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
-| **M12: Platform Hardening**  | Planned | 5 sprints (auth, backup/restore, update, macOS backend, Wayland backend) |
+| **M12: Platform Hardening**  | Planned | 6 sprints (auth, backup/restore, update, macOS backend, Wayland backend, self-service MCP) |
 | **M13: Release**             | Planned | 2 sprints (security audit, documentation + launch) |
 
 ---
@@ -806,11 +806,14 @@ Infrastructure that makes the agent safe, recoverable, updatable, and cross-plat
 | S3 | Update Mechanism | Planned | Version tracking, `my-agent update`, schema migrations, breaking change detection, rollback via backup. |
 | S4 | Desktop Control — macOS | Planned | MacBackend implementation (nut-js + screencapture + AppleScript), macOS environment detection, hatching flow updates. Deferred from M8 — blocked on hardware availability. |
 | S5 | Desktop Control — Wayland | Planned | WaylandBackend (ydotool + kdotool + PipeWire screen capture), KWin D-Bus integration. Deferred from M8 — needed when KDE drops X11 (Plasma 6.8, October 2026). Backend abstraction from M8-S2 makes this a swap, not a rewrite. |
+| S6 | Self-Service MCP Integration | Planned | User says "use my Nano Banana API for image gen" → Nina installs MCP server, stores credentials, hot-reloads, confirms. No config files, no restart. First use case: image generation via third-party API (validates full flow from intent to WhatsApp delivery). Requires: MCP registry/marketplace, runtime MCP registration (SDK gap), credential vault (M8 candidate), hot-reload or restart-and-resume. Discovered during M8-S4 Rich I/O. |
 
 **Key design questions (resolve during spec):**
 - Auth: password/token or OAuth?
 - Backup format: tarball or structured export?
 - Update channel: git pull, npm, or custom registry?
+- Self-service MCP: runtime registration (SDK support needed?) or restart-and-resume?
+- MCP marketplace: curated registry or npm-style discovery?
 
 **Dependencies:** M11 (iOS app — hardening happens after all features are built)
 
