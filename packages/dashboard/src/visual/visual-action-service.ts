@@ -87,22 +87,27 @@ export class VisualActionService {
       refMap.get(id)!.add(ref);
     }
 
-    let changed = false;
+    let anyChanged = false;
     const updated = index.map((entry) => {
       const newRefs = refMap.get(entry.id);
       if (!newRefs) return entry;
 
       const merged = [...entry.refs];
+      let entryChanged = false;
       for (const ref of newRefs) {
         if (!merged.includes(ref)) {
           merged.push(ref);
-          changed = true;
+          entryChanged = true;
         }
       }
-      return changed ? { ...entry, refs: merged } : entry;
+      if (entryChanged) {
+        anyChanged = true;
+        return { ...entry, refs: merged };
+      }
+      return entry;
     });
 
-    if (changed) {
+    if (anyChanged) {
       this.writeIndex(updated);
     }
   }

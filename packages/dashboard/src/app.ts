@@ -1053,6 +1053,18 @@ export class App extends EventEmitter {
           console.log(`[App] Pruned ${pruned} expired run directories`);
         }
 
+        // Cleanup unreferenced screenshots on startup + daily (S3.5)
+        const screenshotsCleaned = app.visualActionService.cleanup();
+        if (screenshotsCleaned > 0) {
+          console.log(`[App] Cleaned up ${screenshotsCleaned} unreferenced screenshot(s)`);
+        }
+        setInterval(() => {
+          const cleaned = app.visualActionService.cleanup();
+          if (cleaned > 0) {
+            console.log(`[App] Daily cleanup: removed ${cleaned} unreferenced screenshot(s)`);
+          }
+        }, 24 * 60 * 60 * 1000);
+
         // Scheduler — cron-based triggers
         app.automationScheduler = new AutomationScheduler({
           processor: app.automationProcessor,

@@ -32,7 +32,7 @@ type ToolResult = {
 
 export async function handleDesktopTask(
   deps: DesktopServerDeps,
-  args: { instruction: string; context?: any; model?: string; maxActions?: number; timeoutMs?: number },
+  args: { instruction: string; context?: { type: string; id: string; automationId?: string }; model?: string; maxActions?: number; timeoutMs?: number },
 ): Promise<ToolResult> {
   // Check if desktop control is enabled
   if (deps.isEnabled && !deps.isEnabled()) {
