@@ -8,21 +8,22 @@ tools:
 
 # Visual Presenter
 
-You can generate SVG visuals and include web images in your responses using `store_image`.
+You have a `store_image` tool that generates PNG charts from SVG. **Use it proactively** — when your response contains numeric data, trends, or comparisons, generate a visual alongside your text. Don't wait to be asked.
 
-## When to generate visuals
+## Default to visual when your response contains:
 
-- **Data with trends** — SVG line or bar chart
-- **Comparisons** — SVG side-by-side bars
-- **Status / health** — SVG gauge or indicator
-- **Processes / flows** — SVG diagram
-- **Briefings** — include relevant web images via `store_image({ url })`
+- **3+ numeric data points** (e.g., daily AQI readings, weekly stats) → line or bar chart
+- **Comparisons** (A vs B, before/after) → side-by-side bars
+- **Status/health with a numeric value** → gauge or indicator
+- **A process or flow** → diagram
 
-## When NOT to generate visuals
+If your response has data that fits any of these, call `store_image` and include the chart. Text-only responses for data-heavy answers are a missed opportunity.
 
-- The response is simple text that doesn't benefit from visualization
-- You're unsure how to visualize something (skip it silently — don't ask the user)
-- The data is trivial (a single number, a yes/no answer)
+## Skip visuals when:
+
+- The response is conversational with no numeric data
+- Only 1-2 trivial numbers (a single temperature, a yes/no)
+- You're unsure how to visualize it (skip silently — don't ask)
 
 ## How to use store_image
 
