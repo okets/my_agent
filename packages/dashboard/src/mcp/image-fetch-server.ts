@@ -1,8 +1,8 @@
 /**
  * Image Fetch MCP Tool Server
  *
- * Exposes a `fetch_image` tool that downloads images from URLs (or decodes
- * base64 data), validates, converts to PNG via sharp, and stores via
+ * Exposes a `fetch_image` tool that downloads images from URLs,
+ * validates, converts to PNG via sharp, and stores via
  * VisualActionService. All network/security surface is concentrated here.
  */
 
@@ -140,33 +140,16 @@ async function fetchImage(
 export async function handleFetchImage(
   deps: ImageFetchServerDeps,
   args: {
-    url?: string;
-    data?: string;
+    url: string;
     description?: string;
   },
 ) {
-  const modeCount = [args.url, args.data].filter(
-    (v) => v !== undefined && v !== "",
-  ).length;
-
-  if (modeCount === 0) {
+  if (!args.url) {
     return {
       content: [
         {
           type: "text" as const,
-          text: "Either url or data must be provided",
-        },
-      ],
-      isError: true,
-    };
-  }
-
-  if (modeCount > 1) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: "Only one of url or data may be provided (got both)",
+          text: "url is required",
         },
       ],
       isError: true,
@@ -176,27 +159,11 @@ export async function handleFetchImage(
   let pngBuffer: Buffer;
   let width: number;
   let height: number;
-  let source: ScreenshotSource;
+  const source: ScreenshotSource = "web";
 
   try {
-    if (args.data) {
-      // ── Base64 mode ──────────────────────────────────────────────────
-      const decoded = Buffer.from(args.data, "base64");
-
-      if (!hasValidMagicBytes(decoded)) {
-        throw new Error(
-          "Invalid image data: unrecognized magic bytes (expected PNG, JPEG, or GIF)",
-        );
-      }
-
-      pngBuffer = await sharp(decoded).png().toBuffer();
-      const meta = await sharp(pngBuffer).metadata();
-      width = meta.width!;
-      height = meta.height!;
-      source = "upload";
-    } else {
-      // ── URL mode ─────────────────────────────────────────────────────
-      const { buffer } = await fetchImage(args.url!);
+    {
+      const { buffer } = await fetchImage(args.url);
 
       if (!hasValidMagicBytes(buffer)) {
         throw new Error(
@@ -222,7 +189,6 @@ export async function handleFetchImage(
       const pngMeta = await sharp(pngBuffer).metadata();
       width = pngMeta.width!;
       height = pngMeta.height!;
-      source = "web";
     }
   } catch (err) {
     return {

@@ -53,38 +53,8 @@ describe("fetch_image handler", () => {
     }
   });
 
-  it("rejects base64 data with bad magic bytes", async () => {
-    const badData = Buffer.from("this is not an image at all").toString(
-      "base64",
-    );
-    const result = await handleFetchImage(deps, { data: badData });
-
+  it("rejects when url is empty", async () => {
+    const result = await handleFetchImage(deps, { url: "" });
     expect(result.isError).toBe(true);
-    expect(
-      (result.content[0] as { type: "text"; text: string }).text,
-    ).toContain("magic bytes");
-  });
-
-  it("stores valid base64 PNG", async () => {
-    // Minimal 1x1 red PNG
-    const pngBase64 =
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-    const result = await handleFetchImage(deps, { data: pngBase64 });
-
-    expect(result.isError).toBeUndefined();
-    const parsed = JSON.parse(
-      (result.content[0] as { type: "text"; text: string }).text,
-    );
-    expect(parsed.id).toMatch(/^ss-/);
-    expect(parsed.width).toBe(1);
-    expect(parsed.height).toBe(1);
-  });
-
-  it("rejects when no input provided", async () => {
-    const result = await handleFetchImage(deps, {});
-    expect(result.isError).toBe(true);
-    expect(
-      (result.content[0] as { type: "text"; text: string }).text,
-    ).toContain("must be provided");
   });
 });
