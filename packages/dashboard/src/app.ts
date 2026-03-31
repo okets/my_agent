@@ -1006,6 +1006,14 @@ export class App extends EventEmitter {
           onJobEvent: (event, job) => {
             app.statePublisher?.publishJobs();
             app.emit(event, job);
+            // On job completion, scan summary for screenshot URLs and add refs (S3.5)
+            if ((event === "job:completed" || event === "job:needs_review") && job.summary) {
+              const jobSsPattern = /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
+              const matches = job.summary.matchAll(jobSsPattern);
+              for (const match of matches) {
+                app.visualActionService.addRef(match[1], `job/${job.automationId}/${job.id}`);
+              }
+            }
           },
           get conversationInitiator() {
             return app.conversationInitiator ?? null;

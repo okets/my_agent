@@ -52,13 +52,13 @@ document.addEventListener("alpine:init", () => {
 
     forJob(jobId) {
       return this.items.filter(
-        (s) => s.refs && s.refs.some((r) => r.includes(jobId)),
+        (s) => s.refs && s.refs.some((r) => r.endsWith("/" + jobId)),
       );
     },
 
     allForJob(jobId) {
       return this.items.filter(
-        (s) => s.refs && s.refs.some((r) => r.includes(jobId)),
+        (s) => s.refs && s.refs.some((r) => r.endsWith("/" + jobId)),
       );
     },
 
