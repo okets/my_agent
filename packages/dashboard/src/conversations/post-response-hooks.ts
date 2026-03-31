@@ -9,6 +9,7 @@
  */
 
 import { extractTaskFromMessage, type AutomationHint } from "../automations/automation-extractor.js";
+import { maybeAugmentWithVisual, type VisualAugmentationDeps } from "../chat/visual-augmentation.js";
 
 export interface PostResponseHooksDeps {
   log: (msg: string) => void;
@@ -19,6 +20,8 @@ export interface PostResponseHooksDeps {
   fireAutomation?: (automationId: string, context: Record<string, unknown>) => Promise<void>;
   /** Count recent jobs for dedup */
   getRecentJobsForAutomation?: (automationId: string, withinMs: number) => number;
+  /** Visual augmentation deps (optional — only if VAS + connection registry available) */
+  visualAugmentation?: VisualAugmentationDeps;
 }
 
 export class PostResponseHooks {
@@ -35,8 +38,31 @@ export class PostResponseHooks {
     conversationId: string,
     userContent: string,
     assistantContent: string,
+    options?: { turnNumber?: number; imagesStoredDuringTurn?: number },
   ): Promise<void> {
-    await this.detectMissedTasks(conversationId, userContent, assistantContent);
+    await Promise.all([
+      this.detectMissedTasks(conversationId, userContent, assistantContent),
+      this.augmentWithVisual(conversationId, assistantContent, options),
+    ]);
+  }
+
+  private async augmentWithVisual(
+    conversationId: string,
+    assistantContent: string,
+    options?: { turnNumber?: number; imagesStoredDuringTurn?: number },
+  ): Promise<void> {
+    if (!this.deps.visualAugmentation) return;
+    try {
+      await maybeAugmentWithVisual(
+        conversationId,
+        assistantContent,
+        options?.imagesStoredDuringTurn ?? 0,
+        options?.turnNumber ?? 0,
+        this.deps.visualAugmentation,
+      );
+    } catch (err) {
+      this.deps.logError(err, "[PostResponseHooks] Visual augmentation failed");
+    }
   }
 
   private async detectMissedTasks(

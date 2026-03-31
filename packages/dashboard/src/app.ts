@@ -572,6 +572,12 @@ export class App extends EventEmitter {
           app.conversationManager
             .getConversationDb()
             .getRecentJobCount(id, withinMs),
+        visualAugmentation: {
+          visualService: app.visualActionService,
+          conversationManager: app.conversationManager,
+          connectionRegistry: connectionRegistry!,
+          log: (msg) => console.log(msg),
+        },
       });
     }
 

@@ -56,6 +56,7 @@ interface MessageHandlerDeps {
       conversationId: string,
       userContent: string,
       assistantContent: string,
+      options?: { turnNumber?: number; imagesStoredDuringTurn?: number },
     ): Promise<void>;
   } | null;
 }
@@ -705,9 +706,12 @@ export class ChannelMessageHandler {
         },
       });
 
-      // Post-response hooks (task extraction, etc.) — fire-and-forget
+      // Post-response hooks (task extraction, visual augmentation) — fire-and-forget
       this.deps.postResponseHooks
-        ?.run(conversation.id, textContent, assistantContent)
+        ?.run(conversation.id, textContent, assistantContent, {
+          turnNumber: 0,
+          imagesStoredDuringTurn: 0,
+        })
         .catch(() => {});
     }
   }
