@@ -1,154 +1,153 @@
-# M8-S4: Rich I/O -- External Review
+# M8-S4: Rich I/O — CTO Review
 
-**Reviewer:** Claude Opus 4.6 (external)
+**Reviewer:** CTO + Claude Opus 4.6 (Tech Lead)
 **Date:** 2026-03-31
-**Verdict:** PASS with issues
+**Verdict:** FAIL — architecture needs redesign before shipping
 
 ---
 
-## Spec Compliance
+## What Was Built
 
-### 1. Deliverable Pipeline Fix -- PASS
+All 16 plan tasks were implemented, tests pass (880), types clean:
 
-- `deliverablePath` and `screenshotIds` added to `Job` type in `automation-types.ts`.
-- Executor writes `deliverable.md` to `run_dir` when deliverable exists.
-- `automation-processor.ts` reads full deliverable from disk (not truncated 500-char summary).
-- `handler-registry.ts` (debrief reporter) checks `deliverablePath` first, falls back to `status-report.md`, then `summary`.
-- Job detail API route (`/api/jobs/:id`) returns `fullDeliverable` and `screenshotIds`.
-- DB schema migrated with `ALTER TABLE` (safe try/catch for idempotency).
+- **Deliverable pipeline**: full `deliverable.md` to disk, `deliverablePath` + `screenshotIds` on Job
+- **`store_image` MCP tool**: SVG/base64/URL modes, sharp conversion, SSRF protection
+- **Dashboard rendering**: DOMPurify img support, lightbox, job detail with full deliverable
+- **WhatsApp outbound images**: parse markdown → Baileys media
+- **Visual presenter skill**: brain-level, Tokyo Night palette, SVG guidelines
+- **Visual augmentation hook**: post-response Haiku chart generation (safety net)
+- **Model selector persistence**: localStorage fix
+- **Brain-level skill loading**: framework `skills/` with `level: brain` frontmatter
 
-### 2. store_image MCP Tool -- PASS
+## What Was Verified (Browser E2E)
 
-- Three input modes (SVG, base64, URL) correctly implemented.
-- SVG validation: checks `<svg` prefix, infers dimensions from `viewBox` when `width`/`height` missing.
-- Base64 validation: magic byte checks for PNG, JPEG, GIF.
-- URL mode: Content-Type validation, magic byte validation, downscale to 4096px max.
-- Returns `{ id, url, width, height }` as JSON text content block.
-- `returnImage` returns MCP-format `{ type: "image", data, mimeType }` content block.
-- MCP server wired in `app.ts` as `"image-tools"`.
+| Test | Result |
+|------|--------|
+| `store_image` SVG → sharp → PNG → VAS → serve | **PASS** |
+| Inline image in chat (when explicitly asked) | **PASS** |
+| Lightbox click + Escape close | **PASS** |
+| Graceful 404 for expired images | **PASS** (CSS `img-broken`) |
+| Visual augmentation hook (AQI chart) | **PASS** — Haiku auto-generated chart |
+| Proactive visual use (brain calls `store_image` unprompted) | **FAIL** — neither Sonnet nor Opus |
+| "Show me a picture of a cat with hat" (URL fetch) | **FAIL** — brain said "I can't fetch images" |
 
-### 3. Dashboard Rendering -- PASS
+## Why It Failed
 
-- DOMPurify configured with explicit `ADD_TAGS: ["img"]` and `ADD_ATTR: ["src", "alt", "width", "height"]`.
-- Lightbox: delegated click handler on `.chat-md img`, overlay with escape key support.
-- Broken image handling: `onerror="this.classList.add('img-broken')"` with CSS `display: none`.
-- CSS: cursor pointer on images, hover opacity, lightbox overlay with backdrop blur.
+### Problem 1: `store_image` is the wrong abstraction
 
-### 4. Job Detail View -- PASS
+One generic tool trying to serve three different use cases:
+- **Charts/graphs** from data (SVG generation)
+- **Web images** from URLs (fetch + store)
+- **Raw image storage** (base64 passthrough)
 
-- Job expansion fetches full deliverable via `/api/jobs/:id` on first click.
-- Full deliverable rendered as markdown (with `renderMarkdown()`) instead of plain `x-text`.
-- Screenshot thumbnail strip from `screenshotIds` with graceful 404 handling via `onerror`.
+The brain doesn't connect "I have AQI data" to "I should call store_image." The tool name doesn't signal intent. When asked for a picture, the brain doesn't realize `store_image({ url })` can fetch images.
 
-### 5. WhatsApp Outbound Images -- PASS
+### Problem 2: Proactive visual use requires a safety net
 
-- Markdown image parsing with `extractMarkdownImages()` / `stripMarkdownImages()`.
-- Image resolution via `resolveImagePath()` (VAS path lookup).
-- First image sent with caption (cleaned text), subsequent images sent without caption.
-- Graceful degradation: missing files are skipped, falls back to text-only if all images fail.
-- Helper functions exported from plugin for testability.
+Even with the skill in the system prompt, both Sonnet and Opus skip chart generation when they can answer with text. The post-response hook (Haiku) works as a safety net but adds latency and cost. A better tool name would reduce reliance on the hook.
 
-### 6. Visual Presenter Skill -- PASS
+### Problem 3: Security concerns are mixed
 
-- Brain-level skill with `store_image` tool dependency declared.
-- SVG guidelines match spec (explicit dimensions, inline styles, system fonts, no foreignObject).
-- Tokyo Night color palette included.
-- Rules: images augment text, max 3 per response, skip silently if unsure.
-
-### 7. VAS Cleanup Invocation -- PASS (skipped correctly)
-
-- Decision D4 correctly identifies this was already implemented in S3.5.
-
-### 8. VAS onScreenshot Unsubscribe -- PASS
-
-- `onScreenshot()` now returns `() => void` unsubscribe function.
-- Executor calls `unsubscribe()` after query completes.
-- `ScreenshotSnapshot` protocol type extended with new source values.
+URL fetching (SSRF risk, size limits, redirect attacks) lives in the same tool as SVG chart generation (zero network risk). Security review is harder when concerns are co-located.
 
 ---
 
-## Critical Issues
+## Proposed Architecture: Two Purpose-Built Tools
 
-None.
+### `create_chart` — Data Visualization (no network, no security surface)
 
----
+```
+create_chart({
+  data: [...],           // Structured data points
+  type: "bar" | "line" | "gauge" | "diagram",
+  title: string,
+  description?: string,
+})
+```
 
-## Important Issues
+**Or** accept raw SVG for custom visuals:
 
-### I1: SSRF -- no private IP filtering on URL fetch
+```
+create_chart({ svg: "<svg>...</svg>", description: string })
+```
 
-`fetchImage()` in `image-server.ts` accepts any `http://` or `https://` URL with no validation against private/internal IP ranges (127.0.0.1, 10.x, 172.16-31.x, 192.168.x, 169.254.x, fd00::/8, etc.). Since the brain controls what URLs are passed, risk is limited to prompt injection scenarios, but it's still a defense-in-depth concern.
+- **No URL fetching, no base64, no network access**
+- Brain sees data → tool name matches intent → higher proactive call rate
+- The visual augmentation hook calls this directly
+- SVG guidelines enforced in tool, not just skill
 
-**Recommendation:** Add a private IP check after DNS resolution, or at minimum block `localhost` and `127.0.0.1` explicitly.
+### `fetch_image` — URL Retrieval (all security here)
 
-### I2: Redirect follows wrong HTTP module
+```
+fetch_image({
+  url: string,           // HTTP(S) URL to fetch
+  description?: string,
+})
+```
 
-In `fetchImage()`, the `httpModule` is selected once based on the original URL's protocol. If a redirect changes protocol (https to http or vice versa), the wrong Node.js module handles the redirected request. An `https://` to `http://` redirect would fail or behave incorrectly.
+- All SSRF protection, size limits, Content-Type validation concentrated here
+- Brain sees "show me a picture" → web search → finds URL → `fetch_image`
+- Future: pluggable backends (DALL-E, Flux via MCP marketplace)
+- Clear security boundary for auditing
 
-**Fix:** Re-select `httpModule` based on the redirect URL's protocol inside `makeRequest`.
+### Impact on existing work
 
-### I3: No response size limit on URL fetch
+| Component | Change needed |
+|-----------|--------------|
+| `image-server.ts` | Split into `chart-server.ts` + `image-fetch-server.ts` |
+| Visual presenter skill | Update tool names, separate chart vs image guidance |
+| Visual augmentation hook | Call `create_chart` handler instead of raw SVG generation |
+| Tool descriptions | Purpose-specific — models will call them more reliably |
+| Tests | Split accordingly, add structured data input tests |
+| WhatsApp outbound | No change (renders `![](url)` regardless of source) |
+| Dashboard rendering | No change (renders `<img>` regardless of source) |
+| Deliverable pipeline | No change |
 
-`fetchImage()` accumulates chunks without a size limit. A malicious or misconfigured URL could return gigabytes of data and exhaust memory. The sharp downscale only applies after the full buffer is in memory.
+### What stays from S4
 
-**Recommendation:** Add a maximum response size (e.g., 50MB) and abort if exceeded.
+Most of the sprint work is reusable:
+- Dashboard rendering (DOMPurify, lightbox, job detail) — **keep as-is**
+- Deliverable pipeline — **keep as-is**
+- WhatsApp outbound images — **keep as-is**
+- VAS integration, sharp conversion — **keep, refactor into new tools**
+- Visual augmentation hook — **keep, point at `create_chart`**
+- SSRF protection, size limits — **move to `fetch_image` only**
 
-### I4: WhatsApp image messages not cached for reaction context
+### What needs redesign
 
-The original `send()` method cached outgoing message IDs via `this.cacheMessage()` for reaction context. When sending images, the `sendMessage` results are not cached. This means reactions to image messages won't resolve correctly.
-
-**Location:** `plugins/channel-whatsapp/src/plugin.ts`, the image sending loop.
-
----
-
-## Minor Issues
-
-### M1: Plan/implementation test divergence on returnImage format
-
-The plan's test expected Anthropic API format (`source.type: "base64"`, `source.media_type: "image/png"`) but the implementation correctly uses MCP format (`data`, `mimeType`). The implementation is correct; the plan had the wrong format. Not a bug, but worth noting for plan accuracy.
-
-### M2: Job detail inline click handler is dense
-
-Decision D5 acknowledges this -- the `@click` handler in `index.html` for job expansion is a multi-statement inline expression. Works correctly but is hard to maintain. Consider extracting to a named function when refactoring the job list component.
-
-### M3: Unused `parsed` variable in fetchImage
-
-Line 80: `const parsed = new URL(reqUrl)` is created but only used for `parsed.origin` in redirect resolution. The variable shadows the outer `parsedUrl`. Minor but could cause confusion.
-
-### M4: Missing test for URL mode (network dependency)
-
-The test suite correctly avoids testing URL mode with real HTTP requests (no network in CI), but there's no mock/stub test for the URL fetch path. The `ftp://` rejection test only covers the scheme check. Consider adding a test with a mock HTTP server or at minimum testing the `fetchImage` error paths.
-
-### M5: Roadmap S4 entry missing review/test-report links
-
-The ROADMAP.md S4 entry only links `[plan]` but not `[review]` or `[test-report]`. These should be added after review artifacts are committed (the previous sprints all include these links).
-
----
-
-## Test Coverage
-
-### Strengths
-
-- Image server handler thoroughly tested: all three modes, validation edge cases, returnImage.
-- WhatsApp helpers have excellent coverage: single/multiple/empty image extraction, stripping, path resolution with filesystem tests.
-- Deliverable pipeline has basic type/write verification.
-
-### Gaps
-
-- No integration test for the executor's screenshot collection via `onScreenshot`.
-- No test for the `automation-processor.ts` full-deliverable-from-disk path.
-- No test for the debrief reporter's `deliverablePath` fallback chain.
-- No test for the job detail API route returning `fullDeliverable`.
-- No mock test for `fetchImage` URL mode (only scheme rejection tested).
-- No test for the DOMPurify configuration or lightbox behavior (frontend, would require browser tests).
-- WhatsApp `send()` integration with image sending is not tested (would require Baileys mock).
-
-### Assessment
-
-24 new tests across 3 test files. Tests cover the core pure-function logic well. Integration testing is thin, which is acceptable for a sprint but should be addressed in E2E testing (Tasks 10-14 in the spec).
+- `store_image` → split into `create_chart` + `fetch_image`
+- Visual presenter skill → separate "when to chart" vs "when to fetch"
+- Tool descriptions → purpose-specific for better model behavior
+- Consider: should `create_chart` accept structured JSON data (not just SVG)?
 
 ---
 
-## Summary
+## Recommendation
 
-Solid implementation that faithfully follows the design spec. The deliverable pipeline, image storage, dashboard rendering, and WhatsApp outbound changes are all well-structured and consistent. The important issues (SSRF filtering, redirect protocol, response size limit, message caching) are worth addressing but are not blocking -- they represent defense-in-depth improvements and an edge case in WhatsApp reaction context. No critical issues found.
+**S4.1 sprint**: Refactor tools, re-verify with the same E2E tests. Most code carries forward — this is a tool boundary redesign, not a rewrite. Estimate: 1 sprint.
+
+The pipeline infrastructure (VAS, sharp, dashboard rendering, WhatsApp, lightbox, deliverable pipeline, augmentation hook) is solid and proven. The issue is tool design, not plumbing.
+
+---
+
+## External Review Issues (addressed during sprint)
+
+These were flagged by the automated external reviewer and fixed:
+
+1. ~~SSRF risk~~ — Private IP filtering added
+2. ~~Redirect protocol mismatch~~ — Per-redirect module selection
+3. ~~No response size limit~~ — 50 MB cap added
+4. ~~WhatsApp image messages not cached~~ — `cacheMessage()` added
+
+---
+
+## Test Results
+
+- **880 tests pass**, 0 failures, 8 skipped (live tests)
+- 25 new tests across 3 test files
+- TypeScript: clean (core + dashboard)
+
+---
+
+*Sprint failed by CTO decision — tool architecture needs redesign before shipping.*
+*All infrastructure work is preserved on branch `sprint/m8-s4-rich-io`.*
