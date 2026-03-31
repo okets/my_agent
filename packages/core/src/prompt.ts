@@ -581,5 +581,27 @@ export async function assembleSystemPrompt(
     }
   }
 
+  // Load brain-level skills from framework skills/ directory
+  // Skills with "level: brain" in frontmatter are always included in the system prompt
+  const frameworkSkillsDir = path.resolve(agentDir, '..', 'skills')
+  try {
+    const entries = await readdir(frameworkSkillsDir).catch(() => [] as string[])
+    for (const entry of entries) {
+      if (!entry.endsWith('.md')) continue
+      const content = await readOptionalFile(path.join(frameworkSkillsDir, entry))
+      if (!content) continue
+      // Check for level: brain in frontmatter
+      const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+      if (!fmMatch) continue
+      if (!/level:\s*brain/i.test(fmMatch[1])) continue
+      const body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n*/, '')
+      if (body.trim()) {
+        sections.push(body.trim())
+      }
+    }
+  } catch {
+    // Framework skills directory may not exist
+  }
+
   return sections.join('\n\n')
 }
