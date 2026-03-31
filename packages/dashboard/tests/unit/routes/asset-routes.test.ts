@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { rmSync } from "node:fs";
 import { registerAssetRoutes } from "../../../src/routes/asset-routes.js";
 
-describe("asset-routes", () => {
+describe("asset-routes (centralized)", () => {
   let fastify: FastifyInstance;
   let tempDir: string;
 
@@ -24,51 +24,17 @@ describe("asset-routes", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("serves a job screenshot with 200 and correct content", async () => {
-    // Arrange: create the screenshot file
-    const screenshotsDir = join(
-      tempDir,
-      "automations",
-      ".runs",
-      "my-automation",
-      "job-123",
-      "screenshots",
-    );
+  it("serves a screenshot from the central screenshots folder", async () => {
+    const screenshotsDir = join(tempDir, "screenshots");
     mkdirSync(screenshotsDir, { recursive: true });
     const pngData = Buffer.from("fake-png-data");
-    writeFileSync(join(screenshotsDir, "step-1.png"), pngData);
+    writeFileSync(join(screenshotsDir, "ss-abc123.png"), pngData);
 
-    // Act
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/assets/job/my-automation/job-123/screenshots/step-1.png",
+      url: "/api/assets/screenshots/ss-abc123.png",
     });
 
-    // Assert
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-type"]).toMatch(/image\/png/);
-    expect(response.rawPayload).toEqual(pngData);
-  });
-
-  it("serves a conversation screenshot with 200 and correct content", async () => {
-    // Arrange: create the screenshot file
-    const screenshotsDir = join(
-      tempDir,
-      "conversations",
-      "ctx-abc",
-      "screenshots",
-    );
-    mkdirSync(screenshotsDir, { recursive: true });
-    const pngData = Buffer.from("conv-png-data");
-    writeFileSync(join(screenshotsDir, "capture.png"), pngData);
-
-    // Act
-    const response = await fastify.inject({
-      method: "GET",
-      url: "/api/assets/conversation/ctx-abc/screenshots/capture.png",
-    });
-
-    // Assert
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toMatch(/image\/png/);
     expect(response.rawPayload).toEqual(pngData);
@@ -77,7 +43,7 @@ describe("asset-routes", () => {
   it("returns 404 for a missing file", async () => {
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/assets/job/no-such-automation/no-such-job/screenshots/missing.png",
+      url: "/api/assets/screenshots/missing.png",
     });
 
     expect(response.statusCode).toBe(404);
@@ -87,7 +53,7 @@ describe("asset-routes", () => {
   it("returns 400 for path traversal attempt", async () => {
     const response = await fastify.inject({
       method: "GET",
-      url: "/api/assets/job/my-automation/job-123/screenshots/..%2F..%2Fsecret.txt",
+      url: "/api/assets/screenshots/..%2F..%2Fsecret.txt",
     });
 
     expect(response.statusCode).toBe(400);
