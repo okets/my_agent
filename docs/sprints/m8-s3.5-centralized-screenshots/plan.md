@@ -4,7 +4,7 @@
 
 **Goal:** Replace distributed per-context screenshot folders with a single central `.my_agent/screenshots/` folder. Ref-based lifecycle: referenced screenshots live, unreferenced expire after 7 days.
 
-**Architecture:** Single folder + JSONL index + agent.db table. Producers store without context. Refs added when screenshots become visible. Context deletion removes refs. Cleanup deletes unreferenced > 7 days.
+**Architecture:** Single folder + JSONL index (DB table deferred). Producers store without context. Refs added when screenshots become visible. Context deletion removes refs. Cleanup deletes unreferenced > 7 days.
 
 **Design spec:** `docs/superpowers/specs/2026-03-31-centralized-screenshot-storage-design.md`
 **Depends on:** M8-S1, M8-S2, M8-S3
@@ -26,6 +26,7 @@
 | File | Change |
 |------|--------|
 | `packages/core/src/visual/types.ts` | Remove `AssetContext`, `ScreenshotTag`, `CaptureOptions`, `ScreenshotIndex`. New: `ScreenshotSource`, `ScreenshotMetadata`, `Screenshot` |
+| `packages/core/src/lib.ts` | Update barrel exports — remove old type names, ensure new types are exported (NOTE: core barrel is `lib.ts`, not `index.ts`) |
 | `packages/dashboard/src/visual/visual-action-service.ts` | Complete rewrite: single folder, JSONL index, ref-based lifecycle |
 | `packages/dashboard/src/routes/asset-routes.ts` | Replace two routes with single `/api/assets/screenshots/:filename` |
 | `packages/dashboard/src/desktop/computer-use-service.ts` | Remove context param from store calls, remove tag logic, remove pixel diff imports |
@@ -48,10 +49,11 @@
 
 **Files:**
 - Modify: `packages/core/src/visual/types.ts`
+- Modify: `packages/core/src/lib.ts` (the actual barrel export — NOT `index.ts`)
 
-- [ ] **Step 1: Read the current types file**
+- [ ] **Step 1: Read the current types file AND the barrel export**
 
-Read `packages/core/src/visual/types.ts` to confirm current exports.
+Read `packages/core/src/visual/types.ts` and `packages/core/src/lib.ts` to confirm current exports. The barrel is `lib.ts` (per `package.json` "main": "dist/lib.js"), not `index.ts`.
 
 - [ ] **Step 2: Replace all types**
 
@@ -85,7 +87,7 @@ export interface Screenshot {
 
 - [ ] **Step 3: Update core barrel exports**
 
-Check `packages/core/src/visual/index.ts` (or wherever types are re-exported) and update to export the new types. Remove any re-exports of `AssetContext`, `ScreenshotTag`, `CaptureOptions`.
+Update `packages/core/src/lib.ts` — this is the actual barrel (NOT `index.ts`). Remove any re-exports of `AssetContext`, `ScreenshotTag`, `CaptureOptions`, `ScreenshotIndex`. Ensure `Screenshot`, `ScreenshotMetadata`, `ScreenshotSource` are exported. Also update `packages/core/src/visual/index.ts` if it exists as an intermediate re-export.
 
 - [ ] **Step 4: Verify types compile**
 
@@ -767,6 +769,7 @@ git commit -m "refactor(dashboard): single asset route — /api/assets/screensho
 
 **Files:**
 - Modify: `packages/dashboard/src/desktop/computer-use-service.ts`
+- Modify: `packages/dashboard/tests/unit/desktop/computer-use-service.test.ts`
 
 - [ ] **Step 1: Read current computer-use-service.ts**
 
@@ -839,15 +842,29 @@ Also remove the `previousBuffer` variable and its assignments — it was only us
 
 Remove `screenshotTag: tag` from the JSONL audit log entry.
 
-- [ ] **Step 6: Verify types compile**
+- [ ] **Step 6: Update existing tests**
+
+Update `packages/dashboard/tests/unit/desktop/computer-use-service.test.ts`:
+- Remove `AssetContext` imports and any `context` fields in test task objects
+- Remove `ScreenshotTag` references
+- Update mock VAS `store()` signature — now `store(image, metadata)` with no tag param
+- Remove any assertions on `tag` in screenshot results
+- Update `ComputerUseTask` test objects — remove `context` field
+
+- [ ] **Step 7: Run tests**
+
+Run: `cd packages/dashboard && npx vitest run tests/unit/desktop/computer-use-service.test.ts`
+Expected: PASS.
+
+- [ ] **Step 8: Verify types compile**
 
 Run: `cd packages/dashboard && npx tsc --noEmit`
 Expected: Clean (or only errors from other files not yet updated).
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add packages/dashboard/src/desktop/computer-use-service.ts
+git add packages/dashboard/src/desktop/computer-use-service.ts packages/dashboard/tests/unit/desktop/computer-use-service.test.ts
 git commit -m "refactor(dashboard): ComputerUseService — context-free store, no tags, no pixel diff"
 ```
 
@@ -857,6 +874,7 @@ git commit -m "refactor(dashboard): ComputerUseService — context-free store, n
 
 **Files:**
 - Modify: `packages/dashboard/src/playwright/playwright-screenshot-bridge.ts`
+- Modify: `packages/dashboard/tests/unit/playwright/playwright-screenshot-bridge.test.ts`
 
 - [ ] **Step 1: Read current bridge file**
 
@@ -907,15 +925,29 @@ bridge.storeFromBase64(base64, {
 
 The `context: { type: "conversation", id: "active" }` line is deleted entirely. The MCP tool no longer needs to know about contexts.
 
-- [ ] **Step 5: Verify types compile**
+- [ ] **Step 5: Update existing tests**
+
+Update `packages/dashboard/tests/unit/playwright/playwright-screenshot-bridge.test.ts`:
+- Remove `AssetContext` imports and `context` params from `storeFromBase64()` calls
+- Remove tag assertions — screenshots no longer have tags
+- Update test assertions for new `Screenshot` shape (has `refs: []` and `source` instead of `tag` and `context`)
+- Remove any `mkdirSync` calls for conversation/job directories — VAS now uses single `screenshots/` folder
+- Update `beforeEach` to create `join(agentDir, "screenshots")` instead of per-context dirs
+
+- [ ] **Step 6: Run tests**
+
+Run: `cd packages/dashboard && npx vitest run tests/unit/playwright/playwright-screenshot-bridge.test.ts`
+Expected: PASS.
+
+- [ ] **Step 7: Verify types compile**
 
 Run: `cd packages/dashboard && npx tsc --noEmit`
 Expected: Clean (or only errors from other files not yet updated).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add packages/dashboard/src/playwright/playwright-screenshot-bridge.ts
+git add packages/dashboard/src/playwright/playwright-screenshot-bridge.ts packages/dashboard/tests/unit/playwright/playwright-screenshot-bridge.test.ts
 git commit -m "refactor(dashboard): PlaywrightBridge — context-free store, source: playwright"
 ```
 
@@ -924,13 +956,17 @@ git commit -m "refactor(dashboard): PlaywrightBridge — context-free store, sou
 ## Task 6: Wire Ref Management into Conversation Lifecycle
 
 **Files:**
-- Modify: `packages/dashboard/src/app.ts` (or wherever transcript writes and conversation deletion occur)
+- Modify: `packages/dashboard/src/chat/chat-service.ts` — transcript write (add ref on message persist)
+- Modify: `packages/dashboard/src/chat/chat-handler.ts` — conversation deletion handler (lines 219-240, calls `app.chat.deleteConversation`)
+- Modify: `packages/dashboard/src/conversations/manager.ts` — `delete()` method (lines 322-331)
+- Modify: `packages/dashboard/src/automations/automation-manager.ts` — automation deletion
+- Modify: `packages/dashboard/src/automations/automation-processor.ts` — job completion (add ref if deliverable has screenshots)
 
-This task connects screenshot refs to conversation and job lifecycle events. The specific wiring depends on where transcripts are written and where deletions happen.
+This task connects screenshot refs to conversation and job lifecycle events. The exact integration points are identified below.
 
-- [ ] **Step 1: Identify transcript write location**
+- [ ] **Step 1: Read the transcript write path**
 
-Search for where conversation messages are persisted (transcript write). This is where we scan for screenshot URLs and call `addRef`.
+Read `packages/dashboard/src/chat/chat-service.ts` — find where messages are persisted to the transcript. This is likely in a method like `addMessage()` or `appendTurn()`. That's where we scan for screenshot URLs and call `addRef`.
 
 - [ ] **Step 2: Add ref on message write**
 
@@ -944,26 +980,33 @@ Pattern to match: `/api/assets/screenshots/(ss-[a-f0-9-]+)\.png/`
 
 - [ ] **Step 3: Remove refs on conversation deletion**
 
-When a conversation is deleted, call:
+In `packages/dashboard/src/conversations/manager.ts`, method `delete()` (around line 322). Add before or after the existing cleanup:
 
 ```typescript
-vas.removeRefs(`conv/${conversationId}`);
+// Remove screenshot refs for this conversation
+app.visualActionService.removeRefs(`conv/${id}`);
 ```
+
+Alternatively, add to the cleanup handlers in `chat-handler.ts` line 225 (the `deleteConversation` call already passes cleanup callbacks like `deleteAttachments` — add a `removeScreenshotRefs` callback).
 
 - [ ] **Step 4: Remove refs on automation deletion**
 
-When an automation is deleted, call:
+In `packages/dashboard/src/automations/automation-manager.ts`, find the delete method. Add:
 
 ```typescript
-vas.removeRefs(`job/${automationId}`);
+app.visualActionService.removeRefs(`job/${automationId}`);
 ```
 
 - [ ] **Step 5: Add ref on job completion**
 
-When a job completes and its summary/deliverable references screenshots, add refs:
+In `packages/dashboard/src/automations/automation-processor.ts`, find where job completion is handled (the `handleJobComplete` or similar method where `summary`/`deliverable` is set). Scan the deliverable for screenshot URLs and add refs:
 
 ```typescript
-vas.addRef(screenshotId, `job/${automationId}/${jobId}`);
+const screenshotPattern = /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
+let match;
+while ((match = screenshotPattern.exec(deliverable)) !== null) {
+  vas.addRef(match[1], `job/${automationId}/${jobId}`);
+}
 ```
 
 - [ ] **Step 6: Verify types compile**
@@ -980,64 +1023,11 @@ git commit -m "feat(dashboard): wire ref management into conversation + automati
 
 ---
 
-## Task 7: Add screenshots Table to agent.db
+## ~~Task 7: Add screenshots Table to agent.db~~ — DEFERRED
 
-**Files:**
-- Modify: whichever file manages the agent.db schema (likely in `packages/dashboard/src/` or `packages/core/src/`)
+**Deferred.** The JSONL index handles all current operations. Adding a DB table introduces dual-write sync, schema migration, and rebuild logic — complexity not justified at current screenshot volume. Will add when we need fast queries (e.g., dashboard search/filter across all screenshots).
 
-- [ ] **Step 1: Find the DB schema file**
-
-Search for `CREATE TABLE` in the codebase to find where agent.db tables are defined.
-
-- [ ] **Step 2: Add screenshots table**
-
-```sql
-CREATE TABLE IF NOT EXISTS screenshots (
-  id TEXT PRIMARY KEY,
-  filename TEXT NOT NULL,
-  timestamp TEXT NOT NULL,
-  width INTEGER NOT NULL,
-  height INTEGER NOT NULL,
-  source TEXT NOT NULL,
-  description TEXT,
-  refs TEXT NOT NULL DEFAULT '[]'
-);
-```
-
-- [ ] **Step 3: Add DB methods**
-
-Add these methods to the DB layer:
-
-```typescript
-upsertScreenshot(screenshot: Screenshot): void {
-  // INSERT OR REPLACE with refs serialized as JSON
-}
-
-deleteScreenshot(id: string): void {
-  // DELETE FROM screenshots WHERE id = ?
-}
-
-getScreenshotsByRef(refPrefix: string): Screenshot[] {
-  // SELECT * FROM screenshots WHERE refs contains refPrefix
-  // Parse refs JSON, filter by prefix
-}
-```
-
-- [ ] **Step 4: Wire DB into VisualActionService**
-
-After every `store`, `addRef`, `removeRefs`, `delete`, and `cleanup` operation, update the DB table. The JSONL file remains the source of truth; the DB is a derived cache for fast queries.
-
-- [ ] **Step 5: Verify types compile**
-
-Run: `cd packages/dashboard && npx tsc --noEmit`
-Expected: Clean.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -u
-git commit -m "feat(dashboard): screenshots table in agent.db — derived from JSONL index"
-```
+The JSONL-only approach is consistent with how the system started for jobs before DB indexing was added.
 
 ---
 
@@ -1380,7 +1370,7 @@ Expected: Active (running).
 
 - [ ] Single screenshot folder: all screenshots in `.my_agent/screenshots/`
 - [ ] Single JSONL index: `.my_agent/screenshots/index.jsonl` is source of truth
-- [ ] `screenshots` table in `agent.db` — derived, rebuildable from JSONL
+- [ ] ~~`screenshots` table in `agent.db`~~ — DEFERRED (JSONL sufficient at current volume)
 - [ ] Producers store without context — `store(image, metadata)` with no `AssetContext`
 - [ ] Refs added when screenshots become visible (transcript write, job completion)
 - [ ] Refs removed on context deletion (conversation delete, automation delete)
