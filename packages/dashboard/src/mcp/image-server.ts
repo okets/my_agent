@@ -303,7 +303,7 @@ export async function handleStoreImage(
 export function createImageServer(deps: ImageServerDeps) {
   const storeImageTool = tool(
     "store_image",
-    "Store an image (SVG, base64, or URL) as PNG. Returns the stored image ID and URL. Exactly one of svg, data, or url must be provided.",
+    "Store an image (SVG, base64, or URL) as PNG. Returns { id, url, width, height }. IMPORTANT: After calling this tool, you MUST include the returned url in your response text as ![description](url) — otherwise the user will not see the image. Exactly one of svg, data, or url must be provided.",
     {
       svg: z
         .string()

@@ -30,11 +30,20 @@ You can generate SVG visuals and include web images in your responses using `sto
 store_image({ svg: "<svg ...>...</svg>", description: "what this shows" })
 ```
 
-Returns `{ id, url, width, height }`. Use the url in markdown:
+Returns `{ id, url, width, height }`.
+
+**CRITICAL: You MUST embed the returned url in your response text using markdown image syntax.** The image will NOT appear to the user unless you write this in your response:
 
 ```
 ![description](url)
 ```
+
+Example flow:
+1. Call `store_image({ svg: "<svg>...</svg>", description: "AQI trend" })`
+2. Get back `{ id: "ss-abc", url: "/api/assets/screenshots/ss-abc.png", width: 600, height: 350 }`
+3. Write in your response: `![AQI trend](/api/assets/screenshots/ss-abc.png)`
+
+If you call `store_image` but don't include `![...](url)` in your text, the user sees nothing.
 
 ## SVG guidelines
 
