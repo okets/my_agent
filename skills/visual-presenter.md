@@ -1,80 +1,74 @@
 ---
 name: visual-presenter
-description: When and how to generate SVG visuals and include images in responses using store_image.
+description: When and how to generate charts and fetch images using create_chart and fetch_image tools.
 level: brain
 tools:
-  - store_image
+  - create_chart
+  - fetch_image
 ---
 
 # Visual Presenter
 
-You have a `store_image` tool that generates PNG charts from SVG. **Use it proactively** — when your response contains numeric data, trends, or comparisons, generate a visual alongside your text. Don't wait to be asked.
+You have two image tools. **Use them proactively** — don't wait to be asked.
 
-## Default to visual when your response contains:
+## `create_chart` — Data Visualization
 
-- **3+ numeric data points** (e.g., daily AQI readings, weekly stats) → line or bar chart
+Call this when your response contains data that would benefit from a chart:
+
+- **3+ numeric data points** (daily readings, weekly stats) → line or bar chart
 - **Comparisons** (A vs B, before/after) → side-by-side bars
 - **Status/health with a numeric value** → gauge or indicator
 - **A process or flow** → diagram
 
-If your response has data that fits any of these, call `store_image` and include the chart. Text-only responses for data-heavy answers are a missed opportunity.
-
-## Skip visuals when:
-
-- The response is conversational with no numeric data
-- Only 1-2 trivial numbers (a single temperature, a yes/no)
-- You're unsure how to visualize it (skip silently — don't ask)
-
-## How to use store_image
+Generate an SVG, pass it to `create_chart`, embed the returned URL:
 
 ```
-store_image({ svg: "<svg ...>...</svg>", description: "what this shows" })
+create_chart({ svg: "<svg ...>...</svg>", description: "AQI trend this week" })
+→ { id, url, width, height }
+→ Write in your response: ![AQI trend this week](url)
 ```
 
-Returns `{ id, url, width, height }`.
+If you call `create_chart` but don't include `![...](url)` in your text, the user sees nothing.
 
-**CRITICAL: You MUST embed the returned url in your response text using markdown image syntax.** The image will NOT appear to the user unless you write this in your response:
+## `fetch_image` — Image Retrieval
+
+Call this when you want to show a web image:
+
+- User asks to see something → web search for image URL → `fetch_image`
+- Briefings → fetch weather maps, news photos
+- Visual explanation needed → find a relevant image
 
 ```
-![description](url)
+fetch_image({ url: "https://example.com/photo.jpg", description: "Cat in a hat" })
+→ { id, url, width, height }
+→ Write: ![Cat in a hat](url)
 ```
 
-Example flow:
-1. Call `store_image({ svg: "<svg>...</svg>", description: "AQI trend" })`
-2. Get back `{ id: "ss-abc", url: "/api/assets/screenshots/ss-abc.png", width: 600, height: 350 }`
-3. Write in your response: `![AQI trend](/api/assets/screenshots/ss-abc.png)`
+## SVG Guidelines (for `create_chart`)
 
-If you call `store_image` but don't include `![...](url)` in your text, the user sees nothing.
-
-## SVG guidelines
-
-Follow these rules for sharp, consistent rendering:
-
-- Always set explicit `width` and `height` attributes on the `<svg>` element
-- Set `xmlns="http://www.w3.org/2000/svg"` on the root element
-- Use inline `style=""` attributes, NOT `<style>` blocks with selectors
-- Use system fonts only: `sans-serif`, `serif`, `monospace`
+- `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="350">`
+- Use inline `style=""` attributes, NOT `<style>` blocks
+- Use system fonts: `sans-serif`, `serif`, `monospace`
 - No `<foreignObject>` or embedded HTML
 - Keep it simple — clean shapes, clear labels, readable text
-- Keep SVGs under ~5KB
 
-### Tokyo Night color palette
+### Tokyo Night Colors
 
-| Role           | Color     |
-|----------------|-----------|
-| Background     | `#1a1b26` |
-| Panel          | `#292e42` |
-| Text           | `#c0caf5` |
-| Muted text     | `#565f89` |
-| Accent blue    | `#7aa2f7` |
-| Accent purple  | `#bb9af7` |
-| Accent pink    | `#f7768e` |
-| Green          | `#9ece6a` |
-| Yellow         | `#e0af68` |
+| Role | Color |
+|------|-------|
+| Background | `#1a1b26` |
+| Panel | `#292e42` |
+| Text | `#c0caf5` |
+| Muted | `#565f89` |
+| Blue | `#7aa2f7` |
+| Purple | `#bb9af7` |
+| Pink | `#f7768e` |
+| Green | `#9ece6a` |
+| Yellow | `#e0af68` |
 
 ## Rules
 
-- Images **augment** text, they don't replace it. Always include a text explanation alongside.
+- Images **augment** text. Always include a text explanation alongside.
 - One image per response is usually enough. Max 3.
-- If you don't know how to visualize something, skip visualization silently.
-- Don't generate images for simple text responses.
+- Skip visualization silently if unsure how to visualize.
+- **ALWAYS** call `create_chart` when your response has 3+ chartable data points.

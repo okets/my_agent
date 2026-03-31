@@ -1230,11 +1230,15 @@ export class App extends EventEmitter {
     addMcpServer("playwright-screenshot", playwrightScreenshotServer);
     console.log("[App] Playwright screenshot bridge MCP server registered");
 
-    // Register image-tools MCP server (M8-S4: store_image tool)
-    const { createImageServer } = await import("./mcp/image-server.js");
-    const imageServer = createImageServer({ visualService: app.visualActionService });
-    addMcpServer("image-tools", imageServer);
-    console.log("[App] Image tools MCP server registered");
+    // Register chart + image-fetch MCP servers (M8-S4.1: purpose-built tools)
+    const { createChartServer } = await import("./mcp/chart-server.js");
+    const chartServer = createChartServer({ visualService: app.visualActionService });
+    addMcpServer("chart-tools", chartServer);
+
+    const { createImageFetchServer } = await import("./mcp/image-fetch-server.js");
+    const imageFetchServer = createImageFetchServer({ visualService: app.visualActionService });
+    addMcpServer("image-fetch-tools", imageFetchServer);
+    console.log("[App] Chart + image-fetch MCP servers registered");
 
     // Connect memory + automation services to state publisher
     if (app.statePublisher) {

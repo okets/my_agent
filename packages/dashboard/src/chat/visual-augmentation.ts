@@ -6,11 +6,12 @@
  * an SVG chart and appends it as a follow-up message.
  *
  * This is the safety net for the visual-presenter skill — when the
- * brain follows the skill, store_image is called during the turn and
- * this hook is a no-op. When the brain skips it, this catches it.
+ * brain follows the skill, create_chart/fetch_image is called during
+ * the turn and this hook is a no-op. When the brain skips it, this
+ * catches it.
  */
 
-import { handleStoreImage } from "../mcp/image-server.js";
+import { handleCreateChart } from "../mcp/chart-server.js";
 import { queryModel } from "../scheduler/query-model.js";
 import type { VisualActionService } from "../visual/visual-action-service.js";
 import type { ConversationManager } from "../conversations/manager.js";
@@ -98,14 +99,14 @@ export async function maybeAugmentWithVisual(
       return false;
     }
 
-    // Phase 3: Store via store_image
-    const result = await handleStoreImage(
+    // Phase 3: Store via create_chart
+    const result = await handleCreateChart(
       { visualService: deps.visualService },
       { svg: svgMatch[0], description: chartDescription },
     );
 
     if (result.isError) {
-      deps.log(`[VisualAugmentation] store_image failed: ${JSON.stringify(result.content)}`);
+      deps.log(`[VisualAugmentation] create_chart failed: ${JSON.stringify(result.content)}`);
       return false;
     }
 
