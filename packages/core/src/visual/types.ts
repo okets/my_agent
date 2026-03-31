@@ -1,4 +1,4 @@
-export type ScreenshotSource = "desktop" | "playwright" | "upload";
+export type ScreenshotSource = "desktop" | "playwright" | "upload" | "web" | "generated";
 
 export interface ScreenshotMetadata {
   description?: string;
