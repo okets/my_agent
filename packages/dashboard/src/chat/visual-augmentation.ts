@@ -23,6 +23,8 @@ export interface VisualAugmentationDeps {
   conversationManager: ConversationManager;
   connectionRegistry: ConnectionRegistry;
   log: (msg: string) => void;
+  /** Send a message via the outbound channel (WhatsApp, etc.) */
+  sendToChannel?: (content: string) => Promise<void>;
 }
 
 const ANALYSIS_PROMPT = `Would a bar or line chart help the reader understand this response? Answer YES if the text reports measurements, readings, counts, or scores across multiple dates, categories, or items. Answer NO only if the response is purely conversational with no reportable data.
@@ -120,6 +122,13 @@ export async function maybeAugmentWithVisual(
     deps.connectionRegistry.broadcastToConversation(conversationId, {
       type: "done" as const,
     });
+
+    // Send via outbound channel (WhatsApp, etc.) if available
+    if (deps.sendToChannel) {
+      await deps.sendToChannel(chartContent).catch((err) =>
+        deps.log(`[VisualAugmentation] Channel send failed: ${err}`),
+      );
+    }
 
     deps.log(`[VisualAugmentation] Chart appended: ${parsed.url}`);
     return true;
