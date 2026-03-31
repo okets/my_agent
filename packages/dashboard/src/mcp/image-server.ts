@@ -59,6 +59,14 @@ function ensureSvgDimensions(svg: string): string {
 
 // ── URL fetcher ──────────────────────────────────────────────────────────────
 
+const MAX_IMAGE_BYTES = 50 * 1024 * 1024; // 50 MB response size limit
+
+// Private/internal IP ranges that should not be fetched (SSRF protection)
+function isPrivateHost(hostname: string): boolean {
+  // Block loopback, link-local, private ranges, and metadata endpoints
+  return /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.|localhost|::1|\[::1\]|metadata\.google|169\.254\.169\.254)/.test(hostname);
+}
+
 async function fetchImage(
   url: string,
 ): Promise<{ buffer: Buffer; contentType: string }> {
@@ -70,15 +78,25 @@ async function fetchImage(
     );
   }
 
-  const httpModule =
-    parsedUrl.protocol === "https:"
-      ? await import("node:https")
-      : await import("node:http");
+  if (isPrivateHost(parsedUrl.hostname)) {
+    throw new Error("Cannot fetch from private/internal network addresses");
+  }
 
   return new Promise((resolve, reject) => {
-    const makeRequest = (reqUrl: string, redirectCount: number) => {
+    const makeRequest = async (reqUrl: string, redirectCount: number) => {
       const parsed = new URL(reqUrl);
-      httpModule.get(reqUrl, (res) => {
+
+      if (isPrivateHost(parsed.hostname)) {
+        reject(new Error("Redirect to private/internal network address blocked"));
+        return;
+      }
+
+      // Select http module based on current URL protocol (handles protocol changes on redirect)
+      const httpMod = parsed.protocol === "https:"
+        ? await import("node:https")
+        : await import("node:http");
+
+      httpMod.get(reqUrl, (res) => {
         // Follow one redirect
         if (
           (res.statusCode === 301 ||
@@ -112,7 +130,16 @@ async function fetchImage(
         }
 
         const chunks: Buffer[] = [];
-        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        let totalBytes = 0;
+        res.on("data", (chunk: Buffer) => {
+          totalBytes += chunk.length;
+          if (totalBytes > MAX_IMAGE_BYTES) {
+            res.destroy();
+            reject(new Error(`Image exceeds ${MAX_IMAGE_BYTES / 1024 / 1024} MB size limit`));
+            return;
+          }
+          chunks.push(chunk);
+        });
         res.on("end", () =>
           resolve({ buffer: Buffer.concat(chunks), contentType }),
         );

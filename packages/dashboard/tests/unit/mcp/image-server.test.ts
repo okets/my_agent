@@ -116,6 +116,23 @@ describe("store_image handler", () => {
     );
   });
 
+  it("blocks private/internal network URLs (SSRF protection)", async () => {
+    for (const url of [
+      "http://127.0.0.1/image.png",
+      "http://10.0.0.1/image.png",
+      "http://192.168.1.1/image.png",
+      "http://172.16.0.1/image.png",
+      "http://169.254.169.254/latest/meta-data/",
+      "http://localhost/image.png",
+    ]) {
+      const result = await handleStoreImage(deps, { url });
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as { type: "text"; text: string }).text).toContain(
+        "private",
+      );
+    }
+  });
+
   it("returns base64 content block when returnImage is true", async () => {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect fill="green" width="50" height="50"/></svg>`;
     const result = await handleStoreImage(deps, { svg, returnImage: true });

@@ -687,13 +687,19 @@ export class BaileysPlugin implements TransportPlugin {
           const buffer = readFileSync(filePath);
           if (!firstImageSent && cleanText) {
             // First image gets the caption (cleaned text)
-            await this.sock.sendMessage(to, {
+            const result = await this.sock.sendMessage(to, {
               image: buffer,
               caption: cleanText,
             });
+            if (result?.key?.id) {
+              this.cacheMessage(result.key.id, cleanText, true);
+            }
             firstImageSent = true;
           } else {
-            await this.sock.sendMessage(to, { image: buffer });
+            const result = await this.sock.sendMessage(to, { image: buffer });
+            if (result?.key?.id) {
+              this.cacheMessage(result.key.id, img.alt || "[image]", true);
+            }
             firstImageSent = true;
           }
         } catch (err) {
