@@ -26,6 +26,7 @@
     "cron-parser": "^5.5.0",
     "fastify": "^5.0.0",
     "pino-pretty": "^13.1.0",
+    "sharp": "^0.34.5",
     "sqlite-vec": "^0.1.7-alpha.2",
     "ulid": "^2.3.0",
     "yaml": "^2.8.2",

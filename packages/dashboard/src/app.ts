@@ -489,7 +489,7 @@ export class App extends EventEmitter {
         return new MockTransportPlugin();
       });
       app.transportManager.registerPlugin("baileys", (cfg) =>
-        createBaileysPlugin(cfg),
+        createBaileysPlugin({ ...cfg, agentDir }),
       );
 
       // ChannelMessageHandler needs connectionRegistry + sessionRegistry.
@@ -572,6 +572,19 @@ export class App extends EventEmitter {
           app.conversationManager
             .getConversationDb()
             .getRecentJobCount(id, withinMs),
+        visualAugmentation: {
+          visualService: app.visualActionService,
+          conversationManager: app.conversationManager,
+          connectionRegistry: connectionRegistry!,
+          log: (msg) => console.log(msg),
+          sendToChannel: async (content: string) => {
+            // Send via the conversation initiator's outbound channel
+            const ci = app.conversationInitiator;
+            if (!ci) return;
+            // Use the same channel send path as the conversation initiator
+            await (ci as any).trySendViaChannel(content);
+          },
+        },
       });
     }
 
@@ -999,6 +1012,7 @@ export class App extends EventEmitter {
             return getSharedMcpServers() ?? undefined;
           },
           hooks: createHooks("task", { agentDir }),
+          visualService: app.visualActionService,
         });
 
         app.automationProcessor = new AutomationProcessor({
@@ -1222,6 +1236,16 @@ export class App extends EventEmitter {
     const playwrightScreenshotServer = app.playwrightBridge.createMcpServer();
     addMcpServer("playwright-screenshot", playwrightScreenshotServer);
     console.log("[App] Playwright screenshot bridge MCP server registered");
+
+    // Register chart + image-fetch MCP servers (M8-S4.1: purpose-built tools)
+    const { createChartServer } = await import("./mcp/chart-server.js");
+    const chartServer = createChartServer({ visualService: app.visualActionService });
+    addMcpServer("chart-tools", chartServer);
+
+    const { createImageFetchServer } = await import("./mcp/image-fetch-server.js");
+    const imageFetchServer = createImageFetchServer({ visualService: app.visualActionService });
+    addMcpServer("image-fetch-tools", imageFetchServer);
+    console.log("[App] Chart + image-fetch MCP servers registered");
 
     // Connect memory + automation services to state publisher
     if (app.statePublisher) {

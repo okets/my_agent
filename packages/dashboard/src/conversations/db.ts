@@ -258,6 +258,18 @@ export class ConversationDatabase {
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_automation ON jobs(automation_id);`);
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created);`);
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);`);
+
+    // M8-S4: Add deliverable pipeline columns
+    try {
+      this.db.exec("ALTER TABLE jobs ADD COLUMN deliverablePath TEXT");
+    } catch {
+      /* column already exists */
+    }
+    try {
+      this.db.exec("ALTER TABLE jobs ADD COLUMN screenshotIds TEXT DEFAULT '[]'");
+    } catch {
+      /* column already exists */
+    }
   }
 
   /**
@@ -932,17 +944,21 @@ export class ConversationDatabase {
     context?: string;
     sdkSessionId?: string;
     runDir?: string;
+    deliverablePath?: string;
+    screenshotIds?: string;
   }): void {
     const stmt = this.db.prepare(`
-      INSERT INTO jobs (id, automation_id, status, created, completed, summary, context, sdk_session_id, run_dir)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO jobs (id, automation_id, status, created, completed, summary, context, sdk_session_id, run_dir, deliverablePath, screenshotIds)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         status = excluded.status,
         completed = excluded.completed,
         summary = excluded.summary,
         context = excluded.context,
         sdk_session_id = excluded.sdk_session_id,
-        run_dir = excluded.run_dir
+        run_dir = excluded.run_dir,
+        deliverablePath = excluded.deliverablePath,
+        screenshotIds = excluded.screenshotIds
     `);
 
     stmt.run(
@@ -955,6 +971,8 @@ export class ConversationDatabase {
       job.context ?? null,
       job.sdkSessionId ?? null,
       job.runDir ?? null,
+      job.deliverablePath ?? null,
+      job.screenshotIds ?? null,
     );
   }
 
@@ -968,6 +986,8 @@ export class ConversationDatabase {
     context: string | null;
     sdkSessionId: string | null;
     runDir: string | null;
+    deliverablePath: string | null;
+    screenshotIds: string | null;
   } | null {
     const row = this.db
       .prepare("SELECT * FROM jobs WHERE id = ?")
@@ -991,6 +1011,8 @@ export class ConversationDatabase {
     context: string | null;
     sdkSessionId: string | null;
     runDir: string | null;
+    deliverablePath: string | null;
+    screenshotIds: string | null;
   }> {
     let sql = "SELECT * FROM jobs WHERE 1=1";
     const params: any[] = [];
@@ -1029,11 +1051,12 @@ export class ConversationDatabase {
     automationName: string;
     summary: string | null;
     runDir: string | null;
+    deliverablePath: string | null;
     completed: string | null;
   }> {
     const rows = this.db
       .prepare(
-        `SELECT j.id, j.automation_id, a.name, j.summary, j.run_dir, j.completed
+        `SELECT j.id, j.automation_id, a.name, j.summary, j.run_dir, j.deliverablePath, j.completed
          FROM jobs j
          JOIN automations a ON j.automation_id = a.id
          WHERE a.notify = 'debrief'
@@ -1049,6 +1072,7 @@ export class ConversationDatabase {
       automationName: row.name,
       summary: row.summary,
       runDir: row.run_dir,
+      deliverablePath: row.deliverablePath,
       completed: row.completed,
     }));
   }
@@ -1063,6 +1087,8 @@ export class ConversationDatabase {
     context: string | null;
     sdkSessionId: string | null;
     runDir: string | null;
+    deliverablePath: string | null;
+    screenshotIds: string | null;
   } {
     return {
       id: row.id,
@@ -1074,6 +1100,8 @@ export class ConversationDatabase {
       context: row.context,
       sdkSessionId: row.sdk_session_id,
       runDir: row.run_dir,
+      deliverablePath: row.deliverablePath ?? null,
+      screenshotIds: row.screenshotIds ?? null,
     };
   }
 

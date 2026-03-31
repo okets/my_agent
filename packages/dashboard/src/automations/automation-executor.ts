@@ -18,6 +18,8 @@ import type {
   HookCallbackMatcher,
   Space,
 } from "@my-agent/core";
+import fs from "node:fs";
+import path from "node:path";
 import { getHandler } from "../scheduler/jobs/handler-registry.js";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { ConversationDatabase } from "../conversations/db.js";
@@ -36,6 +38,7 @@ export interface AutomationExecutorConfig {
   db: ConversationDatabase;
   mcpServers?: Options["mcpServers"];
   hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
+  visualService?: import("../visual/visual-action-service.js").VisualActionService;
 }
 
 export interface ExecutionResult {
@@ -78,10 +81,17 @@ export class AutomationExecutor {
           jobId: job.id,
         });
 
+        let handlerDeliverablePath: string | undefined;
+        if (result.deliverable && job.run_dir) {
+          handlerDeliverablePath = path.join(job.run_dir, "deliverable.md");
+          fs.writeFileSync(handlerDeliverablePath, result.deliverable, "utf-8");
+        }
+
         this.config.jobService.updateJob(job.id, {
           status: result.success ? "completed" : "failed",
           completed: new Date().toISOString(),
           summary: (result.deliverable ?? result.work).slice(0, 500),
+          deliverablePath: handlerDeliverablePath,
         });
 
         console.log(
@@ -157,7 +167,13 @@ export class AutomationExecutor {
       // 3. Build user message
       const userMessage = this.buildUserMessage(automation);
 
-      // 4. Execute query
+      // 4. Initialize screenshot collector
+      const screenshotIds: string[] = [];
+      const unsubscribe = this.config.visualService?.onScreenshot((ss) => {
+        screenshotIds.push(ss.id);
+      });
+
+      // 5. Execute query
       const query = createBrainQuery(userMessage, {
         model,
         systemPrompt,
@@ -169,7 +185,7 @@ export class AutomationExecutor {
         hooks: this.config.hooks,
       });
 
-      // 5. Iterate and collect response (follows TaskExecutor.iterateBrainQuery pattern)
+      // 6. Iterate and collect response (follows TaskExecutor.iterateBrainQuery pattern)
       let response = "";
       let sdkSessionId: string | null = null;
 
@@ -195,17 +211,25 @@ export class AutomationExecutor {
         }
       }
 
-      // 6. Extract deliverable
+      // 7. Extract deliverable
       const { work, deliverable } = extractDeliverable(response);
 
-      // 7. Determine final status
+      // Write deliverable.md to run_dir
+      let deliverablePath: string | undefined;
+      if (deliverable && job.run_dir) {
+        deliverablePath = path.join(job.run_dir, "deliverable.md");
+        fs.writeFileSync(deliverablePath, deliverable, "utf-8");
+      }
+      if (unsubscribe) unsubscribe();
+
+      // 8. Determine final status
       const hasNeedsReview =
         response.includes("needs_review") ||
         automation.manifest.autonomy === "review";
 
       const finalStatus = hasNeedsReview ? "needs_review" : "completed";
 
-      // 8. Store session ID in sidecar file
+      // 9. Store session ID in sidecar file
       if (sdkSessionId) {
         this.config.jobService.storeSessionId(
           automation.id,
@@ -214,12 +238,14 @@ export class AutomationExecutor {
         );
       }
 
-      // 9. Update job
+      // 10. Update job
       this.config.jobService.updateJob(job.id, {
         status: finalStatus,
         completed: new Date().toISOString(),
         summary: (deliverable ?? work).slice(0, 500),
         sdk_session_id: sdkSessionId ?? undefined,
+        deliverablePath,
+        screenshotIds,
       });
 
       console.log(

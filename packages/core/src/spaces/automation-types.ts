@@ -70,6 +70,8 @@ export interface Job {
   context?: Record<string, unknown>;
   sdk_session_id?: string;
   run_dir?: string;
+  deliverablePath?: string;
+  screenshotIds?: string[];
 }
 
 /**

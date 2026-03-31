@@ -189,6 +189,17 @@ export async function registerAutomationRoutes(
 
       const automation = app.automationManager?.findById(job.automationId);
 
+      // Read full deliverable from disk if available
+      let fullDeliverable: string | undefined;
+      if (job.deliverablePath) {
+        try {
+          const fs = await import("node:fs");
+          fullDeliverable = fs.readFileSync(job.deliverablePath, "utf-8");
+        } catch {
+          // File may have been cleaned up
+        }
+      }
+
       return {
         id: job.id,
         automationId: job.automationId,
@@ -197,6 +208,8 @@ export async function registerAutomationRoutes(
         created: job.created,
         completed: job.completed,
         summary: job.summary,
+        fullDeliverable,
+        screenshotIds: job.screenshotIds,
         context: job.context,
         sdkSessionId: job.sdk_session_id,
         runDir: job.run_dir,

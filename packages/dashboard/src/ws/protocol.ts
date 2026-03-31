@@ -298,7 +298,7 @@ export interface ScreenshotSnapshot {
   filename: string;
   url: string;
   timestamp: string;
-  source: "desktop" | "playwright" | "upload";
+  source: "desktop" | "playwright" | "upload" | "web" | "generated";
   description?: string;
   width: number;
   height: number;

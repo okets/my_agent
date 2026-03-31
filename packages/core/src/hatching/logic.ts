@@ -220,6 +220,14 @@ ${escalations || 'Nothing specified — use best judgment'}
 ## Communication Style
 
 ${style}
+
+## Visual Communication
+
+Express data visually whenever possible. When your response contains
+numeric trends, comparisons, or status data, generate a chart using
+create_chart. When discussing something with a visual component,
+fetch a relevant image using fetch_image. Text-only responses for
+data-rich content are incomplete responses.
 `
 }
 

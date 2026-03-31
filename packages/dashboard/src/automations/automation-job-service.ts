@@ -46,6 +46,10 @@ export class AutomationJobService {
       created: job.created,
       context: job.context ? JSON.stringify(job.context) : undefined,
       runDir: job.run_dir,
+      deliverablePath: job.deliverablePath,
+      screenshotIds: job.screenshotIds
+        ? JSON.stringify(job.screenshotIds)
+        : undefined,
     });
 
     return job;
@@ -57,7 +61,7 @@ export class AutomationJobService {
   updateJob(
     jobId: string,
     updates: Partial<
-      Pick<Job, "status" | "completed" | "summary" | "sdk_session_id">
+      Pick<Job, "status" | "completed" | "summary" | "sdk_session_id" | "deliverablePath" | "screenshotIds">
     >,
   ): Job {
     // Get current job from DB for automationId lookup
@@ -115,6 +119,10 @@ export class AutomationJobService {
         : undefined,
       sdkSessionId: updatedJob.sdk_session_id,
       runDir: updatedJob.run_dir,
+      deliverablePath: updatedJob.deliverablePath,
+      screenshotIds: updatedJob.screenshotIds
+        ? JSON.stringify(updatedJob.screenshotIds)
+        : undefined,
     });
 
     return updatedJob;
@@ -180,6 +188,10 @@ export class AutomationJobService {
           context: job.context ? JSON.stringify(job.context) : undefined,
           sdkSessionId: job.sdk_session_id,
           runDir: job.run_dir,
+          deliverablePath: job.deliverablePath,
+          screenshotIds: job.screenshotIds
+            ? JSON.stringify(job.screenshotIds)
+            : undefined,
         });
         count++;
       }
@@ -349,6 +361,8 @@ export class AutomationJobService {
     context: string | null;
     sdkSessionId: string | null;
     runDir: string | null;
+    deliverablePath: string | null;
+    screenshotIds: string | null;
   }): Job {
     return {
       id: row.id,
@@ -360,6 +374,8 @@ export class AutomationJobService {
       context: row.context ? JSON.parse(row.context) : undefined,
       sdk_session_id: row.sdkSessionId ?? undefined,
       run_dir: row.runDir ?? undefined,
+      deliverablePath: row.deliverablePath ?? undefined,
+      screenshotIds: row.screenshotIds ? JSON.parse(row.screenshotIds) : undefined,
     };
   }
 }

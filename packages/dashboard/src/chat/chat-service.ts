@@ -526,6 +526,12 @@ export class AppChatService {
     let hasSplit = false;
     const originalTurnNumber = turnNumber;
 
+    // Track images stored during this turn (for visual augmentation hook)
+    let imagesStoredDuringTurn = 0;
+    const unsubScreenshots = this.app.visualActionService?.onScreenshot(() => {
+      imagesStoredDuringTurn++;
+    });
+
     const conversation = await this.conversationManager.get(convId);
     const modelOverride = options?.model || conversation?.model || undefined;
 
@@ -654,10 +660,16 @@ export class AppChatService {
         this.triggerNaming(convId).catch(() => {});
       }
 
+      // Stop tracking screenshots for this turn
+      if (unsubScreenshots) unsubScreenshots();
+
       // Post-response hooks (if split, include both halves for full context)
       if (deps?.postResponseHooks) {
         deps.postResponseHooks
-          .run(convId, content.trim().toLowerCase(), assistantContent)
+          .run(convId, content.trim().toLowerCase(), assistantContent, {
+            turnNumber,
+            imagesStoredDuringTurn,
+          })
           .catch(() => {});
       }
 

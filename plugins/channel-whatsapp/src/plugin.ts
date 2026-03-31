@@ -8,6 +8,8 @@ import makeWASocket, {
   type BaileysEventMap,
 } from "@whiskeysockets/baileys";
 import { pino } from "pino";
+import { readFileSync, existsSync } from "node:fs";
+import { join, basename } from "node:path";
 import type {
   TransportPlugin,
   TransportConfig,
@@ -99,6 +101,62 @@ async function getWaVersion(): Promise<[number, number, number]> {
     );
     return FALLBACK_VERSION;
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Markdown image parsing helpers (exported for testability)
+// ─────────────────────────────────────────────────────────────────
+
+const MD_IMAGE_RE = /!\[([^\]]*)\]\(([^)]+)\)/g;
+
+export interface ParsedImage {
+  alt: string;
+  url: string;
+}
+
+/**
+ * Extract markdown image references from text.
+ * Returns an array of { alt, url } objects.
+ */
+export function extractMarkdownImages(text: string): ParsedImage[] {
+  const images: ParsedImage[] = [];
+  let match: RegExpExecArray | null;
+  // Reset lastIndex for safety (global regex)
+  MD_IMAGE_RE.lastIndex = 0;
+  while ((match = MD_IMAGE_RE.exec(text)) !== null) {
+    images.push({ alt: match[1], url: match[2] });
+  }
+  return images;
+}
+
+/**
+ * Strip markdown image syntax from text, trimming leftover whitespace.
+ */
+export function stripMarkdownImages(text: string): string {
+  return text
+    .replace(MD_IMAGE_RE, "")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Resolve a VAS asset URL to a local file path.
+ * Extracts the filename (last path segment) and looks in {agentDir}/screenshots/.
+ * Returns null if the file doesn't exist.
+ */
+export function resolveImagePath(
+  url: string,
+  agentDir: string,
+): string | null {
+  const filename = basename(url);
+  if (!filename) return null;
+
+  const filePath = join(agentDir, "screenshots", filename);
+  if (!existsSync(filePath)) return null;
+  return filePath;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -604,10 +662,84 @@ export class BaileysPlugin implements TransportPlugin {
       throw new Error("[channel-whatsapp] send() called while disconnected");
     }
 
-    const result = await this.sock.sendMessage(to, { text: message.content });
-    // Cache outgoing message for reaction context
-    if (result?.key?.id) {
-      this.cacheMessage(result.key.id, message.content, true);
+    const images = extractMarkdownImages(message.content);
+    const cleanText = stripMarkdownImages(message.content);
+
+    if (images.length > 0) {
+      // Resolve agentDir: config > env > scan for .my_agent from cwd upward
+      let agentDir =
+        (this.config?.agentDir as string | undefined) ??
+        process.env.MY_AGENT_DIR;
+      if (!agentDir) {
+        // Walk up from cwd looking for .my_agent/
+        const { resolve, join: pjoin, dirname } = await import("node:path");
+        let dir = process.cwd();
+        while (dir !== dirname(dir)) {
+          if (existsSync(pjoin(dir, ".my_agent", "screenshots"))) {
+            agentDir = pjoin(dir, ".my_agent");
+            break;
+          }
+          dir = dirname(dir);
+        }
+        agentDir ??= ".my_agent";
+      }
+
+      let firstImageSent = false;
+
+      for (const img of images) {
+        const filePath = resolveImagePath(img.url, agentDir);
+        if (!filePath) {
+          // File missing (expired VAS image) — skip gracefully
+          console.warn(
+            `[channel-whatsapp] Image file not found, skipping: ${img.url}`,
+          );
+          continue;
+        }
+
+        try {
+          const buffer = readFileSync(filePath);
+          if (!firstImageSent && cleanText) {
+            // First image gets the caption (cleaned text)
+            const result = await this.sock.sendMessage(to, {
+              image: buffer,
+              caption: cleanText,
+            });
+            if (result?.key?.id) {
+              this.cacheMessage(result.key.id, cleanText, true);
+            }
+            firstImageSent = true;
+          } else {
+            const result = await this.sock.sendMessage(to, { image: buffer });
+            if (result?.key?.id) {
+              this.cacheMessage(result.key.id, img.alt || "[image]", true);
+            }
+            firstImageSent = true;
+          }
+        } catch (err) {
+          // File read error — skip gracefully
+          console.warn(
+            `[channel-whatsapp] Failed to read image, skipping: ${filePath}`,
+            err,
+          );
+        }
+      }
+
+      // If no images were successfully sent (all missing/failed),
+      // fall back to sending text only
+      if (!firstImageSent && cleanText) {
+        const result = await this.sock.sendMessage(to, { text: cleanText });
+        if (result?.key?.id) {
+          this.cacheMessage(result.key.id, cleanText, true);
+        }
+      }
+    } else {
+      // No images — send plain text as before
+      const result = await this.sock.sendMessage(to, {
+        text: message.content,
+      });
+      if (result?.key?.id) {
+        this.cacheMessage(result.key.id, message.content, true);
+      }
     }
   }
 
