@@ -57,7 +57,11 @@ export async function handleCreateChart(
       throw new Error("SVG input must start with <svg");
     }
 
-    const svgWithDims = ensureSvgDimensions(args.svg);
+    // Sanitize SVG: fix common LLM mistakes (unescaped &, degree symbols, etc.)
+    const sanitized = args.svg
+      .replace(/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[\da-fA-F]+;)/g, "&amp;")
+      .replace(/°/g, "&#176;");
+    const svgWithDims = ensureSvgDimensions(sanitized);
     const sharpResult = sharp(Buffer.from(svgWithDims));
     const pngBuffer = await sharpResult.png().toBuffer();
     const meta = await sharp(pngBuffer).metadata();
