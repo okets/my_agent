@@ -638,13 +638,13 @@ describe("Debrief Pipeline Mechanics (real services)", () => {
     );
   });
 
-  it("debrief adapter reads morning-brief.md from disk", () => {
+  it("debrief adapter reads debrief-digest.md from disk", () => {
     // Seed brief file
     const opsDir = join(harness.agentDir, "notebook", "operations");
     mkdirSync(opsDir, { recursive: true });
     writeFileSync(
-      join(opsDir, "morning-brief.md"),
-      "# Morning Brief\nAll systems operational.",
+      join(opsDir, "debrief-digest.md"),
+      "# Daily Brief\nAll systems operational.",
       "utf-8",
     );
 

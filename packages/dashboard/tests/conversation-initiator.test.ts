@@ -412,9 +412,9 @@ describe("Task 5: ConversationInitiator", () => {
     });
   });
 
-  describe("morning brief integration flow", () => {
+  describe("daily brief integration flow", () => {
     it("calls initiate when alert returns false (no active conversation)", async () => {
-      const sessionFactory = createMockSessionFactory("Here is your morning brief.");
+      const sessionFactory = createMockSessionFactory("Here is your daily brief.");
       const channelManager = createMockChannelManager(false);
       const initiator = new ConversationInitiator({
         conversationManager: manager,
@@ -424,7 +424,7 @@ describe("Task 5: ConversationInitiator", () => {
       });
 
       // No active conversation → alert returns false
-      const alerted = await initiator.alert("Morning brief ready.");
+      const alerted = await initiator.alert("Daily brief ready.");
       expect(alerted).toBe(false);
 
       // Caller falls back to initiate
@@ -433,7 +433,7 @@ describe("Task 5: ConversationInitiator", () => {
 
       const turns = await manager.getTurns(conv.id);
       expect(turns).toHaveLength(1);
-      expect(turns[0].content).toBe("Here is your morning brief.");
+      expect(turns[0].content).toBe("Here is your daily brief.");
     });
 
     it("does not initiate when alert succeeds", async () => {

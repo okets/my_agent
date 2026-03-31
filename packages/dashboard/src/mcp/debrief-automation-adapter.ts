@@ -28,6 +28,8 @@ export function createDebriefAutomationAdapter(
   getDb?: () => ConversationDatabase | null,
 ): DebriefSchedulerLike {
   return {
+    agentDir,
+
     hasRunToday(jobName: string): boolean {
       if (jobName !== "debrief-context") return false;
       const jobService = getJobService();
@@ -44,8 +46,8 @@ export function createDebriefAutomationAdapter(
     },
 
     getDebriefOutput(): string | null {
-      // Read the assembled brief from disk (written by debrief-reporter handler)
-      const briefPath = join(agentDir, "notebook", "operations", "morning-brief.md");
+      // Read the assembled digest from disk (written by debrief-reporter handler)
+      const briefPath = join(agentDir, "notebook", "operations", "debrief-digest.md");
       if (existsSync(briefPath)) {
         try {
           return readFileSync(briefPath, "utf-8");

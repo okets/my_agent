@@ -65,11 +65,11 @@ describe("Debrief Automation Adapter", () => {
   });
 
   it("getDebriefOutput returns brief from file when it exists", () => {
-    // Write morning-brief.md to the expected location
+    // Write debrief-digest.md to the expected location
     const opsDir = join(tempDir, "notebook", "operations");
     mkdirSync(opsDir, { recursive: true });
     const { writeFileSync } = require("fs");
-    writeFileSync(join(opsDir, "morning-brief.md"), "Today's debrief summary.");
+    writeFileSync(join(opsDir, "debrief-digest.md"), "Today's debrief summary.");
 
     const adapter = createDebriefAutomationAdapter(() => jobService, tempDir);
     expect(adapter.getDebriefOutput()).toBe("Today's debrief summary.");
@@ -128,7 +128,7 @@ describe("Debrief Automation Adapter", () => {
     const opsDir = join(tempDir, "notebook", "operations");
     mkdirSync(opsDir, { recursive: true });
     const { writeFileSync } = require("fs");
-    writeFileSync(join(opsDir, "morning-brief.md"), "Lazy init worked.");
+    writeFileSync(join(opsDir, "debrief-digest.md"), "Lazy init worked.");
     expect(adapter.getDebriefOutput()).toBe("Lazy init worked.");
   });
 });

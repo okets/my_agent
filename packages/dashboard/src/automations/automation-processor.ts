@@ -177,7 +177,7 @@ export class AutomationProcessor {
       }
 
       const summary = result.success
-        ? result.work?.slice(0, 500) ?? "Completed successfully."
+        ? result.work ?? "Completed successfully."
         : `Error: ${result.error}`;
       const prompt = `A working agent just finished the "${automation.manifest.name}" task.${localTimeContext}\n\nResults:\n${summary}\n\nYou are the conversation layer — present what matters to the user naturally. Don't acknowledge the system message itself. Don't say "noted" or "logging". Just relay the useful information as if you're giving the user an update.`;
       const alerted = await ci.alert(prompt);
