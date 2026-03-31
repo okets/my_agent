@@ -26,6 +26,9 @@ export class ConversationManager {
   /** Callback invoked when a conversation transitions to inactive (for extraction trigger) */
   onConversationInactive?: (conversationId: string) => void;
 
+  /** Callback invoked after a turn is appended (for screenshot ref scanning) */
+  onTurnAppended?: (conversationId: string, turn: TranscriptTurn) => void;
+
   constructor(agentDir: string) {
     this.transcripts = new TranscriptManager(agentDir);
     this.db = new ConversationDatabase(agentDir);
@@ -164,6 +167,9 @@ export class ConversationManager {
       // Just update the timestamp for assistant messages
       this.db.updateConversation(id, { updated: new Date(turn.timestamp) });
     }
+
+    // Notify listeners (e.g., screenshot ref scanning)
+    this.onTurnAppended?.(id, turn);
   }
 
   /**

@@ -138,6 +138,8 @@ export class AppConversationService {
 
   async delete(id: string): Promise<void> {
     await this.manager.delete(id);
+    // Remove screenshot refs for this conversation (S3.5)
+    this.app.visualActionService.removeRefs(`conv/${id}`);
     this.app.emit("conversation:deleted", id);
   }
 
@@ -418,6 +420,17 @@ export class App extends EventEmitter {
 
     // ── ConversationManager ──
     app.conversationManager = new ConversationManager(agentDir);
+
+    // Wire screenshot ref scanning — when a turn contains screenshot URLs, add refs (S3.5)
+    const screenshotUrlPattern = /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
+    app.conversationManager.onTurnAppended = (conversationId, turn) => {
+      if (!turn.content) return;
+      const matches = turn.content.matchAll(screenshotUrlPattern);
+      for (const match of matches) {
+        const screenshotId = match[1];
+        app.visualActionService.addRef(screenshotId, `conv/${conversationId}`);
+      }
+    };
 
     // Startup cleanup: delete any empty conversations left from previous runs
     {
@@ -1014,6 +1027,8 @@ export class App extends EventEmitter {
         });
         app.automationSyncService.on("automation:removed", (id) => {
           getPromptBuilder()?.invalidateCache();
+          // Remove screenshot refs for this automation's jobs (S3.5)
+          app.visualActionService.removeRefs(`job/${id}`);
           app.emit("automation:deleted", id);
         });
 
