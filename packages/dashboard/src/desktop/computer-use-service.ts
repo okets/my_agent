@@ -9,15 +9,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { appendFile } from "fs/promises";
 import { join } from "path";
-import type { DesktopBackend, AssetContext, ScreenshotTag } from "@my-agent/core";
+import type { DesktopBackend } from "@my-agent/core";
 import { VisualActionService } from "../visual/visual-action-service.js";
-import { computeDiffRatio, DIFF_THRESHOLD } from "../visual/screenshot-tagger.js";
 
 // ── Public interfaces ─────────────────────────────────────────────────────────
 
 export interface ComputerUseTask {
   instruction: string;
-  context: AssetContext;
   model?: string;
   maxActions?: number;
   timeoutMs?: number;
@@ -27,7 +25,7 @@ export interface ComputerUseTask {
 export interface ComputerUseResult {
   success: boolean;
   summary: string;
-  screenshots: Array<{ id: string; filename: string; path: string; tag: ScreenshotTag }>;
+  screenshots: Array<{ id: string; filename: string; path: string }>;
   actionsPerformed: number;
   error?: string;
 }
@@ -38,7 +36,7 @@ const DEFAULT_MODEL = "claude-sonnet-4-6";
 const DEFAULT_MAX_ACTIONS = 50;
 const DEFAULT_TIMEOUT_MS = 120_000;
 
-const SYSTEM_PROMPT = `You are controlling a desktop computer to complete the user's task. After each action, you will receive a screenshot. For each tool_use response, you may include a "screenshot_tag" field: "keep" if the screenshot represents meaningful progress (new page loaded, target found, task milestone), or "skip" if it is an intermediate step (clicked menu, scrolled, waited for load).`;
+const SYSTEM_PROMPT = `You are controlling a desktop computer to complete the user's task. After each action, you will receive a screenshot.`;
 
 const BETA_HEADER = "computer-use-2025-11-24";
 
@@ -105,8 +103,6 @@ export class ComputerUseService {
     const deadline = Date.now() + timeoutMs;
     const screenshots: ComputerUseResult["screenshots"] = [];
     let actionsPerformed = 0;
-    let previousBuffer: Buffer | null = null;
-
     try {
       // 1. Get display info and compute scale factor
       const display = await this.backend.displayInfo();
@@ -114,16 +110,15 @@ export class ComputerUseService {
       const scaledWidth = Math.round(display.width * scaleFactor);
       const scaledHeight = Math.round(display.height * scaleFactor);
 
-      // 2. Take initial screenshot, store as "keep"
+      // 2. Take initial screenshot
       const initialBuffer = await this.backend.screenshot();
       const initialSS = this.vas.store(initialBuffer, {
-        context: task.context,
         description: "Initial screenshot",
         width: display.width,
         height: display.height,
-      }, "keep");
-      screenshots.push({ id: initialSS.id, filename: initialSS.filename, path: initialSS.path, tag: "keep" });
-      previousBuffer = initialBuffer;
+        source: "desktop",
+      });
+      screenshots.push({ id: initialSS.id, filename: initialSS.filename, path: initialSS.path });
 
       // 3. Build initial messages
       const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
@@ -179,12 +174,12 @@ export class ComputerUseService {
           // Take final screenshot
           const finalBuffer = await this.backend.screenshot();
           const finalSS = this.vas.store(finalBuffer, {
-            context: task.context,
             description: "Final screenshot",
             width: display.width,
             height: display.height,
-          }, "keep");
-          screenshots.push({ id: finalSS.id, filename: finalSS.filename, path: finalSS.path, tag: "keep" });
+            source: "desktop",
+          });
+          screenshots.push({ id: finalSS.id, filename: finalSS.filename, path: finalSS.path });
 
           const summary = textBlocks.map((b) => b.text).join("\n") || "Task completed.";
           return { success: true, summary, screenshots, actionsPerformed };
@@ -206,25 +201,14 @@ export class ComputerUseService {
           // Take screenshot after action
           const buffer = await this.backend.screenshot();
 
-          // Determine tag: agent tag first, pixel diff fallback
-          let tag: ScreenshotTag;
-          const agentTag = input.screenshot_tag as string | undefined;
-          if (agentTag === "keep" || agentTag === "skip") {
-            tag = agentTag;
-          } else {
-            const ratio = computeDiffRatio(buffer, previousBuffer ?? buffer);
-            tag = previousBuffer === null || ratio >= DIFF_THRESHOLD ? "keep" : "skip";
-          }
-
           // Store screenshot
           const ss = this.vas.store(buffer, {
-            context: task.context,
             description: `After action: ${input.action}`,
             width: display.width,
             height: display.height,
-          }, tag);
-          screenshots.push({ id: ss.id, filename: ss.filename, path: ss.path, tag });
-          previousBuffer = buffer;
+            source: "desktop",
+          });
+          screenshots.push({ id: ss.id, filename: ss.filename, path: ss.path });
 
           // Log action to JSONL audit file
           if (task.logDir) {
@@ -233,7 +217,6 @@ export class ComputerUseService {
               coordinate: input.coordinate,
               text: input.text,
               timestamp: new Date().toISOString(),
-              screenshotTag: tag,
             };
             const logPath = join(task.logDir, "desktop-actions.jsonl");
             await appendFile(logPath, JSON.stringify(actionEntry) + "\n", "utf-8");

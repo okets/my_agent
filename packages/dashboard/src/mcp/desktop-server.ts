@@ -91,7 +91,6 @@ export async function handleDesktopTask(
 
     const result = await deps.computerUse.run({
       instruction: args.instruction,
-      context: args.context,
       model: args.model,
       maxActions: args.maxActions,
       timeoutMs: args.timeoutMs,
@@ -128,7 +127,7 @@ export async function handleDesktopTask(
 
 export async function handleDesktopScreenshot(
   deps: DesktopServerDeps,
-  args: { context?: any; region?: any },
+  args: { region?: any },
 ): Promise<ToolResult> {
   if (deps.isEnabled && !deps.isEnabled()) {
     return {
@@ -153,19 +152,15 @@ export async function handleDesktopScreenshot(
       args.region ? { region: args.region } : undefined,
     );
 
-    // Store via VisualActionService if provided and context is given
-    if (deps.visualService && args.context) {
+    // Store via VisualActionService if available
+    if (deps.visualService) {
       const display = await deps.backend.displayInfo();
-      deps.visualService.store(
-        buffer,
-        {
-          context: args.context,
-          description: "desktop_screenshot tool",
-          width: display.width,
-          height: display.height,
-        },
-        "keep",
-      );
+      deps.visualService.store(buffer, {
+        description: "desktop_screenshot tool",
+        width: display.width,
+        height: display.height,
+        source: "desktop",
+      });
     }
 
     const base64 = buffer.toString("base64");
@@ -293,13 +288,6 @@ export function createDesktopServer(deps: DesktopServerDeps) {
       instruction: z
         .string()
         .describe("What to accomplish on the desktop — describe the goal, not individual steps"),
-      context: z
-        .object({
-          type: z.enum(["job", "conversation"]),
-          id: z.string(),
-          automationId: z.string().optional(),
-        })
-        .describe("Asset context for screenshot storage"),
       model: z.string().optional().describe("Model override (default: claude-sonnet-4-6)"),
       maxActions: z.number().optional().describe("Maximum number of actions before stopping (default: 50)"),
       timeoutMs: z.number().optional().describe("Timeout in milliseconds (default: 120000)"),
@@ -311,14 +299,6 @@ export function createDesktopServer(deps: DesktopServerDeps) {
     "desktop_screenshot",
     "Take a screenshot of the current desktop state. Use to visually inspect the screen without performing any action.",
     {
-      context: z
-        .object({
-          type: z.enum(["job", "conversation"]),
-          id: z.string(),
-          automationId: z.string().optional(),
-        })
-        .optional()
-        .describe("Asset context for screenshot storage (optional)"),
       region: z
         .object({
           x: z.number(),
