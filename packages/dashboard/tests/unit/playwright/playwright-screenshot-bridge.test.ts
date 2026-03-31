@@ -86,4 +86,9 @@ describe("PlaywrightScreenshotBridge", () => {
     const screenshot = bridge.storeFromBase64(base64, { context, tag: "skip" });
     expect(screenshot.tag).toBe("skip");
   });
+
+  it("closeBrowser is safe to call when no browser is open", async () => {
+    // Should not throw
+    await bridge.closeBrowser();
+  });
 });

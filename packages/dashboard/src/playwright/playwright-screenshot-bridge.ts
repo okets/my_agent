@@ -12,7 +12,46 @@ interface StoreOptions {
 }
 
 export class PlaywrightScreenshotBridge {
+  private browserInstance: import("playwright").Browser | null = null;
+  private browserLaunchPromise: Promise<import("playwright").Browser> | null = null;
+
   constructor(private readonly vas: VisualActionService) {}
+
+  /**
+   * Get or launch a shared browser instance. Concurrent calls share the same launch promise.
+   */
+  private async getBrowser(): Promise<import("playwright").Browser> {
+    if (this.browserInstance?.isConnected()) {
+      return this.browserInstance;
+    }
+
+    if (!this.browserLaunchPromise) {
+      this.browserLaunchPromise = (async () => {
+        const { chromium } = await import("playwright");
+        const browser = await chromium.launch({ headless: true });
+        browser.on("disconnected", () => {
+          this.browserInstance = null;
+          this.browserLaunchPromise = null;
+        });
+        this.browserInstance = browser;
+        this.browserLaunchPromise = null;
+        return browser;
+      })();
+    }
+
+    return this.browserLaunchPromise;
+  }
+
+  /**
+   * Close the shared browser instance. Call on shutdown.
+   */
+  async closeBrowser(): Promise<void> {
+    if (this.browserInstance?.isConnected()) {
+      await this.browserInstance.close();
+    }
+    this.browserInstance = null;
+    this.browserLaunchPromise = null;
+  }
 
   /**
    * Store a base64-encoded screenshot via VisualActionService.
@@ -60,44 +99,46 @@ export class PlaywrightScreenshotBridge {
       },
       async (args) => {
         try {
-          const { chromium } = await import("playwright");
-          const browser = await chromium.launch({ headless: true });
+          const browser = await bridge.getBrowser();
           const page = await browser.newPage();
 
-          if (args.url) {
-            await page.goto(args.url, { waitUntil: "networkidle" });
-          }
+          try {
+            if (args.url) {
+              await page.goto(args.url, { waitUntil: "networkidle" });
+            }
 
-          const screenshotBuffer = await page.screenshot({
-            fullPage: args.fullPage ?? false,
-            type: "png",
-          });
+            const screenshotBuffer = await page.screenshot({
+              fullPage: args.fullPage ?? false,
+              type: "png",
+            });
 
-          const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
-          await browser.close();
+            const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
 
-          const base64 = screenshotBuffer.toString("base64");
-          bridge.storeFromBase64(base64, {
-            context: { type: "conversation", id: "active" },
-            description:
-              args.description ??
-              `Playwright: ${args.url ?? "current page"}`,
-            width: viewport.width,
-            height: viewport.height,
-          });
+            const base64 = screenshotBuffer.toString("base64");
+            bridge.storeFromBase64(base64, {
+              context: { type: "conversation", id: "active" },
+              description:
+                args.description ??
+                `Playwright: ${args.url ?? "current page"}`,
+              width: viewport.width,
+              height: viewport.height,
+            });
 
-          return {
-            content: [
-              {
-                type: "image" as const,
-                source: {
-                  type: "base64" as const,
-                  media_type: "image/png",
-                  data: base64,
+            return {
+              content: [
+                {
+                  type: "image" as const,
+                  source: {
+                    type: "base64" as const,
+                    media_type: "image/png",
+                    data: base64,
+                  },
                 },
-              },
-            ],
-          };
+              ],
+            };
+          } finally {
+            await page.close();
+          }
         } catch (err) {
           return {
             content: [
