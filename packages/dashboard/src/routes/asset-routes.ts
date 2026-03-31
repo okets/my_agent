@@ -1,9 +1,8 @@
 /**
  * Asset serving routes for stored screenshots.
  *
- * Serves screenshots from two locations:
- *   - Job screenshots:          {agentDir}/automations/.runs/{automationId}/{jobId}/screenshots/{filename}
- *   - Conversation screenshots: {agentDir}/conversations/{contextId}/screenshots/{filename}
+ * Single route serves all screenshots from the central folder:
+ *   {agentDir}/screenshots/{filename}
  */
 
 import type { FastifyInstance } from "fastify";
@@ -19,56 +18,20 @@ function isSafe(segment: string): boolean {
 export async function registerAssetRoutes(
   fastify: FastifyInstance,
 ): Promise<void> {
-  // GET /api/assets/job/:automationId/:jobId/screenshots/:filename
+  // GET /api/assets/screenshots/:filename
   fastify.get<{
-    Params: { automationId: string; jobId: string; filename: string };
+    Params: { filename: string };
   }>(
-    "/api/assets/job/:automationId/:jobId/screenshots/:filename",
+    "/api/assets/screenshots/:filename",
     async (request, reply) => {
-      const { automationId, jobId, filename } = request.params;
+      const { filename } = request.params;
 
-      if (!isSafe(automationId) || !isSafe(jobId) || !isSafe(filename)) {
+      if (!isSafe(filename)) {
         return reply.code(400).send({ error: "Invalid path segment" });
       }
 
       const filePath = join(
         fastify.agentDir,
-        "automations",
-        ".runs",
-        automationId,
-        jobId,
-        "screenshots",
-        filename,
-      );
-
-      try {
-        await access(filePath);
-      } catch {
-        return reply.code(404).send({ error: "File not found" });
-      }
-
-      return reply
-        .type("image/png")
-        .send(createReadStream(filePath));
-    },
-  );
-
-  // GET /api/assets/conversation/:contextId/screenshots/:filename
-  fastify.get<{
-    Params: { contextId: string; filename: string };
-  }>(
-    "/api/assets/conversation/:contextId/screenshots/:filename",
-    async (request, reply) => {
-      const { contextId, filename } = request.params;
-
-      if (!isSafe(contextId) || !isSafe(filename)) {
-        return reply.code(400).send({ error: "Invalid path segment" });
-      }
-
-      const filePath = join(
-        fastify.agentDir,
-        "conversations",
-        contextId,
         "screenshots",
         filename,
       );

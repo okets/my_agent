@@ -138,6 +138,8 @@ export class AppConversationService {
 
   async delete(id: string): Promise<void> {
     await this.manager.delete(id);
+    // Remove screenshot refs for this conversation (S3.5)
+    this.app.visualActionService?.removeRefs(`conv/${id}`);
     this.app.emit("conversation:deleted", id);
   }
 
@@ -419,6 +421,20 @@ export class App extends EventEmitter {
     // ── ConversationManager ──
     app.conversationManager = new ConversationManager(agentDir);
 
+    // Wire screenshot ref scanning — when a turn contains screenshot URLs, add refs (S3.5)
+    const screenshotUrlPattern = /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
+    app.conversationManager.onTurnAppended = (conversationId, turn) => {
+      if (!turn.content) return;
+      const ref = `conv/${conversationId}`;
+      const batch: Array<{ id: string; ref: string }> = [];
+      for (const match of turn.content.matchAll(screenshotUrlPattern)) {
+        batch.push({ id: match[1], ref });
+      }
+      if (batch.length > 0) {
+        app.visualActionService.addRefs(batch);
+      }
+    };
+
     // Startup cleanup: delete any empty conversations left from previous runs
     {
       const allConvs = await app.conversationManager.list();
@@ -670,13 +686,11 @@ export class App extends EventEmitter {
           filename: screenshot.filename,
           url: app.visualActionService.url(screenshot),
           timestamp: screenshot.timestamp,
-          contextType: screenshot.context.type,
-          contextId: screenshot.context.id,
-          automationId: screenshot.context.automationId,
-          tag: screenshot.tag,
+          source: screenshot.source,
           description: screenshot.description,
           width: screenshot.width,
           height: screenshot.height,
+          refs: screenshot.refs,
         });
       });
     }
@@ -995,6 +1009,18 @@ export class App extends EventEmitter {
           onJobEvent: (event, job) => {
             app.statePublisher?.publishJobs();
             app.emit(event, job);
+            // On job completion, scan summary for screenshot URLs and add refs (S3.5)
+            if ((event === "job:completed" || event === "job:needs_review") && job.summary) {
+              const jobSsPattern = /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
+              const ref = `job/${job.automationId}/${job.id}`;
+              const batch: Array<{ id: string; ref: string }> = [];
+              for (const match of job.summary.matchAll(jobSsPattern)) {
+                batch.push({ id: match[1], ref });
+              }
+              if (batch.length > 0) {
+                app.visualActionService.addRefs(batch);
+              }
+            }
           },
           get conversationInitiator() {
             return app.conversationInitiator ?? null;
@@ -1014,6 +1040,8 @@ export class App extends EventEmitter {
         });
         app.automationSyncService.on("automation:removed", (id) => {
           getPromptBuilder()?.invalidateCache();
+          // Remove screenshot refs for this automation's jobs (S3.5)
+          app.visualActionService.removeRefs(`job/${id}`);
           app.emit("automation:deleted", id);
         });
 

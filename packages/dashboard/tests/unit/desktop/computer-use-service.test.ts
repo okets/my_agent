@@ -43,15 +43,14 @@ function createMockBackend(): DesktopBackend {
 function createMockVas(): VisualActionService {
   let counter = 0;
   return {
-    store: vi.fn().mockImplementation((_buf, _meta, tag) => {
+    store: vi.fn().mockImplementation((_buf, _meta) => {
       counter++;
       return {
         id: `ss-${counter}`,
         filename: `ss-${counter}.png`,
         path: `/tmp/ss-${counter}.png`,
         timestamp: new Date().toISOString(),
-        context: { type: "conversation", id: "test" },
-        tag: tag ?? "keep",
+        refs: [],
         width: 1920,
         height: 1080,
         sizeBytes: 100,
@@ -60,7 +59,6 @@ function createMockVas(): VisualActionService {
     list: vi.fn().mockReturnValue([]),
     url: vi.fn().mockReturnValue("/api/assets/test"),
     onScreenshot: vi.fn(),
-    updateTag: vi.fn(),
     cleanup: vi.fn().mockReturnValue(0),
   } as unknown as VisualActionService;
 }
@@ -152,7 +150,6 @@ describe("ComputerUseService", () => {
 
       const result = await service.run({
         instruction: "do something",
-        context: { type: "conversation", id: "test" },
         maxActions: 0,
       });
 
@@ -174,7 +171,6 @@ describe("ComputerUseService", () => {
       // Start first run (will hang on API call)
       const firstRun = service.run({
         instruction: "task 1",
-        context: { type: "conversation", id: "test1" },
       });
 
       // Give the first run time to start and set running = true
@@ -183,7 +179,6 @@ describe("ComputerUseService", () => {
       // Second run should be rejected immediately
       const secondResult = await service.run({
         instruction: "task 2",
-        context: { type: "conversation", id: "test2" },
       });
 
       expect(secondResult.success).toBe(false);

@@ -1,47 +1,47 @@
 /**
- * VisualActionService — screenshot storage, indexing, and URL generation
+ * VisualActionService — centralized screenshot storage with ref-based lifecycle.
  *
- * Screenshots are stored to disk as PNGs with a JSONL index per context.
- * The JSONL file is the source of truth; the filesystem is the asset store.
+ * All screenshots land in a single folder: {agentDir}/screenshots/
+ * One index.jsonl file is the source of truth.
+ * Producers store without context. Refs are added later when screenshots
+ * become visible in conversations/jobs. Unreferenced screenshots expire
+ * after 7 days.
  *
- * Storage paths:
- *   Job:          {agentDir}/automations/.runs/{automationId}/{jobId}/screenshots/{uuid}.png
- *   Conversation: {agentDir}/conversations/{conversationId}/screenshots/{uuid}.png
- *
- * URL patterns:
- *   Job:          /api/assets/job/{automationId}/{jobId}/screenshots/{filename}
- *   Conversation: /api/assets/conversation/{conversationId}/screenshots/{filename}
+ * Refactored in M8-S3.5 from per-context storage to centralized.
  */
 
-import fs, { unlinkSync, writeFileSync } from "node:fs";
-import path, { join } from "node:path";
+import fs from "node:fs";
+import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { Screenshot, ScreenshotMetadata, ScreenshotTag, AssetContext } from "@my-agent/core";
+import type { Screenshot, ScreenshotMetadata } from "@my-agent/core";
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export class VisualActionService {
   private listeners: Array<(screenshot: Screenshot) => void> = [];
+  private readonly screenshotDir: string;
+  private readonly indexPath: string;
 
-  constructor(private agentDir: string) {}
+  constructor(private agentDir: string) {
+    this.screenshotDir = path.join(agentDir, "screenshots");
+    this.indexPath = path.join(this.screenshotDir, "index.jsonl");
+  }
 
   onScreenshot(callback: (screenshot: Screenshot) => void): void {
     this.listeners.push(callback);
   }
 
   /**
-   * Store a screenshot PNG buffer to disk, append to JSONL index, return Screenshot metadata.
+   * Store a screenshot PNG buffer to disk, append to JSONL index, return Screenshot.
+   * No context needed — screenshot starts with empty refs.
    */
-  store(
-    image: Buffer,
-    metadata: ScreenshotMetadata,
-    tag: ScreenshotTag = "keep",
-  ): Screenshot {
+  store(image: Buffer, metadata: ScreenshotMetadata): Screenshot {
     const id = `ss-${randomUUID()}`;
     const filename = `${id}.png`;
-    const dir = this.screenshotDir(metadata.context);
 
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(this.screenshotDir, { recursive: true });
 
-    const filePath = path.join(dir, filename);
+    const filePath = path.join(this.screenshotDir, filename);
     fs.writeFileSync(filePath, image);
 
     const screenshot: Screenshot = {
@@ -49,15 +49,15 @@ export class VisualActionService {
       filename,
       path: filePath,
       timestamp: new Date().toISOString(),
-      context: metadata.context,
-      tag,
-      description: metadata.description,
       width: metadata.width,
       height: metadata.height,
       sizeBytes: image.byteLength,
+      source: metadata.source,
+      description: metadata.description,
+      refs: [],
     };
 
-    this.appendToIndex(dir, screenshot);
+    this.appendToIndex(screenshot);
 
     for (const listener of this.listeners) {
       listener(screenshot);
@@ -67,17 +67,157 @@ export class VisualActionService {
   }
 
   /**
-   * Read all screenshots for a given context from the JSONL index.
+   * Add a ref to a screenshot (e.g. "conv/abc", "job/auto-1/job-5").
+   * No-op if the ref already exists or the screenshot is not found.
    */
-  list(context: AssetContext): Screenshot[] {
-    const dir = this.screenshotDir(context);
-    const indexPath = path.join(dir, "index.jsonl");
+  addRef(screenshotId: string, ref: string): void {
+    this.addRefs([{ id: screenshotId, ref }]);
+  }
 
-    if (!fs.existsSync(indexPath)) {
+  /**
+   * Batch add refs — reads and writes the index once regardless of count.
+   */
+  addRefs(entries: Array<{ id: string; ref: string }>): void {
+    if (entries.length === 0) return;
+
+    const index = this.readIndex();
+    const refMap = new Map<string, Set<string>>();
+    for (const { id, ref } of entries) {
+      if (!refMap.has(id)) refMap.set(id, new Set());
+      refMap.get(id)!.add(ref);
+    }
+
+    let changed = false;
+    const updated = index.map((entry) => {
+      const newRefs = refMap.get(entry.id);
+      if (!newRefs) return entry;
+
+      const merged = [...entry.refs];
+      for (const ref of newRefs) {
+        if (!merged.includes(ref)) {
+          merged.push(ref);
+          changed = true;
+        }
+      }
+      return changed ? { ...entry, refs: merged } : entry;
+    });
+
+    if (changed) {
+      this.writeIndex(updated);
+    }
+  }
+
+  /**
+   * Remove all refs matching a prefix from all screenshots.
+   * E.g. removeRefs("job/auto-1") removes "job/auto-1/job-1", "job/auto-1/job-2", etc.
+   */
+  removeRefs(refPrefix: string): void {
+    const entries = this.readIndex();
+    let changed = false;
+
+    const updated = entries.map((entry) => {
+      const filteredRefs = entry.refs.filter(
+        (r) => !r.startsWith(refPrefix),
+      );
+      if (filteredRefs.length !== entry.refs.length) {
+        changed = true;
+        return { ...entry, refs: filteredRefs };
+      }
+      return entry;
+    });
+
+    if (changed) {
+      this.writeIndex(updated);
+    }
+  }
+
+  /**
+   * Get a screenshot by ID. Returns null if not found.
+   */
+  get(id: string): Screenshot | null {
+    const entries = this.readIndex();
+    return entries.find((e) => e.id === id) ?? null;
+  }
+
+  /**
+   * List screenshots with refs matching a prefix.
+   */
+  listByRef(refPrefix: string): Screenshot[] {
+    return this.readIndex().filter((e) =>
+      e.refs.some((r) => r.startsWith(refPrefix)),
+    );
+  }
+
+  /**
+   * List unreferenced screenshots (refs.length === 0).
+   */
+  listUnreferenced(): Screenshot[] {
+    return this.readIndex().filter((e) => e.refs.length === 0);
+  }
+
+  /**
+   * Get the serving URL for a screenshot.
+   */
+  url(screenshot: Screenshot): string {
+    return `/api/assets/screenshots/${screenshot.filename}`;
+  }
+
+  /**
+   * Delete a screenshot file + remove from index.
+   */
+  delete(id: string): void {
+    const entries = this.readIndex();
+    const entry = entries.find((e) => e.id === id);
+    if (!entry) return;
+
+    try {
+      fs.unlinkSync(entry.path);
+    } catch {
+      // File may already be gone
+    }
+
+    this.writeIndex(entries.filter((e) => e.id !== id));
+  }
+
+  /**
+   * Run cleanup — delete unreferenced screenshots older than maxAge.
+   * Returns the number of files deleted.
+   */
+  cleanup(maxAgeMs: number = SEVEN_DAYS_MS): number {
+    const entries = this.readIndex();
+    const now = Date.now();
+    let deleted = 0;
+    const kept: Screenshot[] = [];
+
+    for (const entry of entries) {
+      const age = now - new Date(entry.timestamp).getTime();
+      if (entry.refs.length === 0 && age >= maxAgeMs) {
+        try {
+          fs.unlinkSync(entry.path);
+        } catch {
+          // File may already be gone
+        }
+        deleted++;
+      } else {
+        kept.push(entry);
+      }
+    }
+
+    if (deleted > 0) {
+      this.writeIndex(kept);
+    }
+
+    return deleted;
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────────
+
+  private readIndex(): Screenshot[] {
+    if (!fs.existsSync(this.indexPath)) {
       return [];
     }
 
-    const content = fs.readFileSync(indexPath, "utf-8").trim();
+    const content = fs.readFileSync(this.indexPath, "utf-8").trim();
     if (!content) return [];
 
     return content
@@ -86,100 +226,30 @@ export class VisualActionService {
       .map((line) => JSON.parse(line) as Screenshot);
   }
 
-  /**
-   * Generate a serving URL for a screenshot.
-   */
-  url(screenshot: Screenshot): string {
-    const ctx = screenshot.context;
-    if (ctx.type === "job") {
-      return `/api/assets/job/${ctx.automationId}/${ctx.id}/screenshots/${screenshot.filename}`;
-    }
-    return `/api/assets/conversation/${ctx.id}/screenshots/${screenshot.filename}`;
-  }
+  private writeIndex(entries: Screenshot[]): void {
+    fs.mkdirSync(this.screenshotDir, { recursive: true });
 
-  /**
-   * Update the tag of a screenshot by rewriting its JSONL entry.
-   */
-  updateTag(context: AssetContext, screenshotId: string, tag: ScreenshotTag): void {
-    const dir = this.screenshotDir(context);
-    const indexPath = path.join(dir, "index.jsonl");
-
-    if (!fs.existsSync(indexPath)) {
-      throw new Error(`Screenshot index not found for context: ${JSON.stringify(context)}`);
-    }
-
-    const content = fs.readFileSync(indexPath, "utf-8").trim();
-    if (!content) return;
-
-    const lines = content.split("\n").filter((line) => line.trim());
-    const updated = lines.map((line) => {
-      const entry = JSON.parse(line) as Screenshot;
-      if (entry.id === screenshotId) {
-        return JSON.stringify({ ...entry, tag });
+    if (entries.length === 0) {
+      try {
+        fs.unlinkSync(this.indexPath);
+      } catch {
+        // noop
       }
-      return line;
-    });
-
-    fs.writeFileSync(indexPath, updated.join("\n") + "\n");
-  }
-
-  /**
-   * Delete skip-tagged screenshots older than retentionMs, unless their description
-   * matches error/escalation patterns. Rewrites the JSONL index to reflect deletions.
-   * Returns the number of files deleted.
-   */
-  cleanup(context: AssetContext, retentionMs: number): number {
-    const dir = this.screenshotDir(context);
-    const screenshots = this.list(context);
-    const now = Date.now();
-    let deleted = 0;
-    const protectedDescriptions = /error|escalat/i;
-
-    const kept: Screenshot[] = [];
-    for (const ss of screenshots) {
-      const age = now - new Date(ss.timestamp).getTime();
-      const isProtected = ss.description && protectedDescriptions.test(ss.description);
-      if (ss.tag === "skip" && age >= retentionMs && !isProtected) {
-        try {
-          unlinkSync(ss.path);
-          deleted++;
-        } catch {
-          deleted++;
-        }
-      } else {
-        kept.push(ss);
-      }
+      return;
     }
 
-    // Rewrite the index
-    const indexPath = join(dir, "index.jsonl");
-    if (kept.length === 0) {
-      try { unlinkSync(indexPath); } catch { /* noop */ }
-    } else {
-      writeFileSync(indexPath, kept.map((s) => JSON.stringify(s)).join("\n") + "\n", "utf-8");
-    }
-
-    return deleted;
+    fs.writeFileSync(
+      this.indexPath,
+      entries.map((e) => JSON.stringify(e)).join("\n") + "\n",
+      "utf-8",
+    );
   }
 
-  // ── Private helpers ──────────────────────────────────────────────────────────
-
-  private screenshotDir(context: AssetContext): string {
-    if (context.type === "job") {
-      return path.join(
-        this.agentDir,
-        "automations",
-        ".runs",
-        context.automationId!,
-        context.id,
-        "screenshots",
-      );
-    }
-    return path.join(this.agentDir, "conversations", context.id, "screenshots");
-  }
-
-  private appendToIndex(dir: string, screenshot: Screenshot): void {
-    const indexPath = path.join(dir, "index.jsonl");
-    fs.appendFileSync(indexPath, JSON.stringify(screenshot) + "\n");
+  private appendToIndex(screenshot: Screenshot): void {
+    fs.mkdirSync(this.screenshotDir, { recursive: true });
+    fs.appendFileSync(
+      this.indexPath,
+      JSON.stringify(screenshot) + "\n",
+    );
   }
 }

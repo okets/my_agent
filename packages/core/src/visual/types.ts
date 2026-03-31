@@ -1,24 +1,10 @@
-export type ScreenshotTag = "keep" | "skip";
-
-export interface AssetContext {
-  type: "job" | "conversation";
-  id: string;
-  automationId?: string; // For job context
-}
-
-export interface CaptureOptions {
-  source: "desktop" | "window" | "region";
-  windowId?: string;
-  region?: { x: number; y: number; width: number; height: number };
-  context: AssetContext;
-  description?: string;
-}
+export type ScreenshotSource = "desktop" | "playwright" | "upload";
 
 export interface ScreenshotMetadata {
-  context: AssetContext;
   description?: string;
   width: number;
   height: number;
+  source: ScreenshotSource;
 }
 
 export interface Screenshot {
@@ -26,10 +12,10 @@ export interface Screenshot {
   filename: string;
   path: string;
   timestamp: string;
-  context: AssetContext;
-  tag: ScreenshotTag;
-  description?: string;
   width: number;
   height: number;
   sizeBytes: number;
+  source: ScreenshotSource;
+  description?: string;
+  refs: string[];
 }

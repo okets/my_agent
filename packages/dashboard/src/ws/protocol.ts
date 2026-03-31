@@ -298,13 +298,11 @@ export interface ScreenshotSnapshot {
   filename: string;
   url: string;
   timestamp: string;
-  contextType: "job" | "conversation";
-  contextId: string;
-  automationId?: string;
-  tag: "keep" | "skip";
+  source: "desktop" | "playwright" | "upload";
   description?: string;
   width: number;
   height: number;
+  refs: string[];
 }
 
 // Notification payload for WebSocket transport

@@ -1,12 +1,10 @@
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import type { AssetContext, Screenshot, ScreenshotTag } from "@my-agent/core";
+import type { Screenshot } from "@my-agent/core";
 import type { VisualActionService } from "../visual/visual-action-service.js";
 
 interface StoreOptions {
-  context: AssetContext;
   description?: string;
-  tag?: ScreenshotTag;
   width?: number;
   height?: number;
 }
@@ -58,17 +56,12 @@ export class PlaywrightScreenshotBridge {
    */
   storeFromBase64(base64Data: string, options: StoreOptions): Screenshot {
     const image = Buffer.from(base64Data, "base64");
-
-    return this.vas.store(
-      image,
-      {
-        context: options.context,
-        description: options.description ?? "Playwright browser screenshot",
-        width: options.width ?? 1280,
-        height: options.height ?? 720,
-      },
-      options.tag ?? "keep",
-    );
+    return this.vas.store(image, {
+      description: options.description ?? "Playwright browser screenshot",
+      width: options.width ?? 1280,
+      height: options.height ?? 720,
+      source: "playwright",
+    });
   }
 
   /**
@@ -116,7 +109,6 @@ export class PlaywrightScreenshotBridge {
 
             const base64 = screenshotBuffer.toString("base64");
             bridge.storeFromBase64(base64, {
-              context: { type: "conversation", id: "active" },
               description:
                 args.description ??
                 `Playwright: ${args.url ?? "current page"}`,
