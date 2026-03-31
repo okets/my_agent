@@ -666,10 +666,23 @@ export class BaileysPlugin implements TransportPlugin {
     const cleanText = stripMarkdownImages(message.content);
 
     if (images.length > 0) {
-      const agentDir =
+      // Resolve agentDir: config > env > scan for .my_agent from cwd upward
+      let agentDir =
         (this.config?.agentDir as string | undefined) ??
-        process.env.MY_AGENT_DIR ??
-        ".my_agent";
+        process.env.MY_AGENT_DIR;
+      if (!agentDir) {
+        // Walk up from cwd looking for .my_agent/
+        const { resolve, join: pjoin, dirname } = await import("node:path");
+        let dir = process.cwd();
+        while (dir !== dirname(dir)) {
+          if (existsSync(pjoin(dir, ".my_agent", "screenshots"))) {
+            agentDir = pjoin(dir, ".my_agent");
+            break;
+          }
+          dir = dirname(dir);
+        }
+        agentDir ??= ".my_agent";
+      }
 
       let firstImageSent = false;
 
