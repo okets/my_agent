@@ -226,9 +226,9 @@ export class AutomationExecutor {
       // 7. Extract deliverable
       const { work, deliverable } = extractDeliverable(response);
 
-      // Write deliverable.md to run_dir
+      // Write deliverable.md to run_dir (use work as fallback if no structured deliverable)
       let deliverablePath: string | undefined;
-      let finalDeliverable = deliverable;
+      let finalDeliverable = deliverable ?? work;
       if (finalDeliverable && job.run_dir) {
         deliverablePath = path.join(job.run_dir, "deliverable.md");
         fs.writeFileSync(deliverablePath, finalDeliverable, "utf-8");
