@@ -20,7 +20,11 @@ const timelineStatusColors = {
  * Fetch timeline events (past jobs + future runs) for FullCalendar.
  * Used as a custom event source function.
  */
-async function fetchTimelineEvents(fetchInfo, successCallback, failureCallback) {
+async function fetchTimelineEvents(
+  fetchInfo,
+  successCallback,
+  failureCallback,
+) {
   try {
     const params = new URLSearchParams({
       after: fetchInfo.start.toISOString(),
@@ -156,10 +160,7 @@ function initCalendar(el, options = {}) {
       {
         events: fetchTimelineEvents,
         failure: (err) => {
-          console.error(
-            "[Calendar] Failed to fetch timeline events:",
-            err,
-          );
+          console.error("[Calendar] Failed to fetch timeline events:", err);
         },
       },
     ],

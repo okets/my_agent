@@ -103,6 +103,9 @@ export class StatePublisher {
   private automationManager: AutomationManager | null = null;
   private automationJobService: AutomationJobService | null = null;
 
+  // App reference (set via subscribeToApp) for capability registry access
+  private app: import("../app.js").App | null = null;
+
   // Debounce timers for each entity type
   private calendarTimer: ReturnType<typeof setTimeout> | null = null;
   private conversationsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -123,6 +126,7 @@ export class StatePublisher {
    * Replaces all imperative publishX() calls from routes/handlers.
    */
   subscribeToApp(app: import("../app.js").App): void {
+    this.app = app;
     app.on("conversation:created", () => this.publishConversations());
     app.on("conversation:updated", () => this.publishConversations());
     app.on("conversation:deleted", () => this.publishConversations());
@@ -149,6 +153,8 @@ export class StatePublisher {
         timestamp: Date.now(),
       });
     });
+
+    app.on("capability:changed", () => this.publishCapabilities());
   }
 
   /**
@@ -257,6 +263,24 @@ export class StatePublisher {
   }
 
   /**
+   * Immediately broadcast capability list to all connected clients.
+   * No debouncing — capabilities change rarely.
+   */
+  publishCapabilities(): void {
+    const capabilities = this.app?.capabilityRegistry?.list() ?? [];
+    this.registry.broadcastToAll({
+      type: "capabilities",
+      capabilities: capabilities.map((c) => ({
+        name: c.name,
+        provides: c.provides,
+        interface: c.interface,
+        status: c.status,
+        unavailableReason: c.unavailableReason,
+      })),
+    });
+  }
+
+  /**
    * Send current state of all entity types to a single newly-connected socket.
    * Called immediately on connect — no debounce needed.
    */
@@ -334,6 +358,24 @@ export class StatePublisher {
       });
       if (socket.readyState === 1) {
         socket.send(payload);
+      }
+    }
+
+    // Capabilities
+    const capabilities = this.app?.capabilityRegistry?.list() ?? [];
+    if (capabilities.length > 0) {
+      const capPayload = JSON.stringify({
+        type: "capabilities",
+        capabilities: capabilities.map((c) => ({
+          name: c.name,
+          provides: c.provides,
+          interface: c.interface,
+          status: c.status,
+          unavailableReason: c.unavailableReason,
+        })),
+      });
+      if (socket.readyState === 1) {
+        socket.send(capPayload);
       }
     }
 
@@ -481,7 +523,9 @@ export class StatePublisher {
         created: j.created,
         completed: j.completed,
         summary: j.summary,
-        triggerType: (j.context as Record<string, unknown>)?.trigger as string | undefined,
+        triggerType: (j.context as Record<string, unknown>)?.trigger as
+          | string
+          | undefined,
       };
     });
   }

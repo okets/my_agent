@@ -465,10 +465,10 @@ describe("loadCapabilityHints", () => {
 // ===========================================================================
 
 describe("resolveEnvPath", () => {
-  it("returns correct path (agentDir/../.env)", () => {
+  it("resolves to .env in the current working directory", () => {
     const result = resolveEnvPath("/home/user/.my_agent");
-    // path.join normalizes the ".." so we get a clean path
     const { resolve } = require("node:path");
-    expect(resolve(result)).toBe("/home/user/.env");
+    // resolveEnvPath always resolves to CWD/.env (where the process runs from)
+    expect(result).toBe(resolve(".env"));
   });
 });

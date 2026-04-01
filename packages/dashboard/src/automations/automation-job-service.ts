@@ -61,7 +61,15 @@ export class AutomationJobService {
   updateJob(
     jobId: string,
     updates: Partial<
-      Pick<Job, "status" | "completed" | "summary" | "sdk_session_id" | "deliverablePath" | "screenshotIds">
+      Pick<
+        Job,
+        | "status"
+        | "completed"
+        | "summary"
+        | "sdk_session_id"
+        | "deliverablePath"
+        | "screenshotIds"
+      >
     >,
   ): Job {
     // Get current job from DB for automationId lookup
@@ -375,7 +383,9 @@ export class AutomationJobService {
       sdk_session_id: row.sdkSessionId ?? undefined,
       run_dir: row.runDir ?? undefined,
       deliverablePath: row.deliverablePath ?? undefined,
-      screenshotIds: row.screenshotIds ? JSON.parse(row.screenshotIds) : undefined,
+      screenshotIds: row.screenshotIds
+        ? JSON.parse(row.screenshotIds)
+        : undefined,
     };
   }
 }

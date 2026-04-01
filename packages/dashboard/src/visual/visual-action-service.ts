@@ -125,9 +125,7 @@ export class VisualActionService {
     let changed = false;
 
     const updated = entries.map((entry) => {
-      const filteredRefs = entry.refs.filter(
-        (r) => !r.startsWith(refPrefix),
-      );
+      const filteredRefs = entry.refs.filter((r) => !r.startsWith(refPrefix));
       if (filteredRefs.length !== entry.refs.length) {
         changed = true;
         return { ...entry, refs: filteredRefs };
@@ -256,9 +254,6 @@ export class VisualActionService {
 
   private appendToIndex(screenshot: Screenshot): void {
     fs.mkdirSync(this.screenshotDir, { recursive: true });
-    fs.appendFileSync(
-      this.indexPath,
-      JSON.stringify(screenshot) + "\n",
-    );
+    fs.appendFileSync(this.indexPath, JSON.stringify(screenshot) + "\n");
   }
 }

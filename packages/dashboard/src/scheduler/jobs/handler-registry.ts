@@ -90,7 +90,10 @@ async function appendToDailyLog(
   });
 
   if (!existsSync(logPath)) {
-    await writeFile(logPath, `# Daily Log — ${dateStr}\n\n${timestamp} ${line}\n`);
+    await writeFile(
+      logPath,
+      `# Daily Log — ${dateStr}\n\n${timestamp} ${line}\n`,
+    );
   } else {
     const existing = await readFile(logPath, "utf-8");
     await writeFile(logPath, existing + `${timestamp} ${line}\n`);
@@ -110,17 +113,29 @@ registerHandler("debrief-context", async ({ agentDir }) => {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split("T")[0];
-  const yesterdaySummary = join(notebookDir, "summaries", "daily", `${yesterdayStr}.md`);
+  const yesterdaySummary = join(
+    notebookDir,
+    "summaries",
+    "daily",
+    `${yesterdayStr}.md`,
+  );
   if (existsSync(yesterdaySummary)) {
-    sections.push("# Yesterday's Summary\n" + (await readFile(yesterdaySummary, "utf-8")));
+    sections.push(
+      "# Yesterday's Summary\n" + (await readFile(yesterdaySummary, "utf-8")),
+    );
   }
 
   // Latest weekly summary
   const weeklyDir = join(notebookDir, "summaries", "weekly");
   if (existsSync(weeklyDir)) {
-    const weekFiles = (await readdir(weeklyDir)).filter((f) => f.endsWith(".md")).sort();
+    const weekFiles = (await readdir(weeklyDir))
+      .filter((f) => f.endsWith(".md"))
+      .sort();
     if (weekFiles.length > 0) {
-      const latest = await readFile(join(weeklyDir, weekFiles[weekFiles.length - 1]), "utf-8");
+      const latest = await readFile(
+        join(weeklyDir, weekFiles[weekFiles.length - 1]),
+        "utf-8",
+      );
       sections.push("# This Week\n" + latest);
     }
   }
@@ -128,9 +143,14 @@ registerHandler("debrief-context", async ({ agentDir }) => {
   // Latest monthly summary
   const monthlyDir = join(notebookDir, "summaries", "monthly");
   if (existsSync(monthlyDir)) {
-    const monthFiles = (await readdir(monthlyDir)).filter((f) => f.endsWith(".md")).sort();
+    const monthFiles = (await readdir(monthlyDir))
+      .filter((f) => f.endsWith(".md"))
+      .sort();
     if (monthFiles.length > 0) {
-      const latest = await readFile(join(monthlyDir, monthFiles[monthFiles.length - 1]), "utf-8");
+      const latest = await readFile(
+        join(monthlyDir, monthFiles[monthFiles.length - 1]),
+        "utf-8",
+      );
       sections.push("# This Month\n" + latest);
     }
   }
@@ -139,7 +159,9 @@ registerHandler("debrief-context", async ({ agentDir }) => {
   const today = new Date().toISOString().split("T")[0];
   const todayLog = join(notebookDir, "daily", `${today}.md`);
   if (existsSync(todayLog)) {
-    sections.push("# Today's Log So Far\n" + (await readFile(todayLog, "utf-8")));
+    sections.push(
+      "# Today's Log So Far\n" + (await readFile(todayLog, "utf-8")),
+    );
   }
 
   // User info
@@ -151,26 +173,36 @@ registerHandler("debrief-context", async ({ agentDir }) => {
   // Properties
   const propsFile = join(notebookDir, "properties", "status.yaml");
   if (existsSync(propsFile)) {
-    sections.push("# Current Properties\n" + (await readFile(propsFile, "utf-8")));
+    sections.push(
+      "# Current Properties\n" + (await readFile(propsFile, "utf-8")),
+    );
   }
 
   // Staged knowledge
   const stagingDir = join(notebookDir, "knowledge", "extracted");
   if (existsSync(stagingDir)) {
-    const stagingFileList = (await readdir(stagingDir)).filter((f) => f.endsWith(".md"));
+    const stagingFileList = (await readdir(stagingDir)).filter((f) =>
+      f.endsWith(".md"),
+    );
     if (stagingFileList.length > 0) {
       const stagingContent: string[] = [];
       for (const f of stagingFileList) {
         stagingContent.push(await readFile(join(stagingDir, f), "utf-8"));
       }
-      sections.push("# Pending Knowledge (for approval)\n" + stagingContent.join("\n\n"));
+      sections.push(
+        "# Pending Knowledge (for approval)\n" + stagingContent.join("\n\n"),
+      );
     }
   }
 
   // Calendar context
   try {
-    const { loadCalendarConfig, loadCalendarCredentials, createCalDAVClient, assembleCalendarContext } =
-      await import("@my-agent/core");
+    const {
+      loadCalendarConfig,
+      loadCalendarCredentials,
+      createCalDAVClient,
+      assembleCalendarContext,
+    } = await import("@my-agent/core");
     const calConfig = loadCalendarConfig(agentDir);
     const calCreds = loadCalendarCredentials(agentDir);
     if (calConfig && calCreds) {
@@ -184,7 +216,10 @@ registerHandler("debrief-context", async ({ agentDir }) => {
     // Calendar unavailable
   }
 
-  const context = sections.length > 0 ? sections.join("\n\n---\n\n") : "No context available.";
+  const context =
+    sections.length > 0
+      ? sections.join("\n\n---\n\n")
+      : "No context available.";
 
   // Clean expired facts
   await cleanExpiredFacts(agentDir, 3);
@@ -203,7 +238,12 @@ registerHandler("debrief-context", async ({ agentDir }) => {
   const preferences = loadPreferences(agentDir);
   const model = preferences.debrief.model as ModelAlias;
 
-  const output = await runDebriefPrep(context, model, stagedFactsSection, stalePropertiesSection);
+  const output = await runDebriefPrep(
+    context,
+    model,
+    stagedFactsSection,
+    stalePropertiesSection,
+  );
 
   // Auto-increment attempts
   for (const file of stagingFiles) {
@@ -217,7 +257,10 @@ registerHandler("debrief-context", async ({ agentDir }) => {
   }
   await writeFile(join(opsDir, "current-state.md"), output, "utf-8");
 
-  await appendToDailyLog(notebookDir, `- Debrief prep completed (${output.length} chars)`);
+  await appendToDailyLog(
+    notebookDir,
+    `- Debrief prep completed (${output.length} chars)`,
+  );
 
   return { success: true, work: output, deliverable: output };
 });
@@ -278,7 +321,9 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
 
     console.log(`[debrief-reporter] Collecting worker results since: ${since}`);
     const pendingJobs = db.getDebriefPendingJobs(since);
-    console.log(`[debrief-reporter] Found ${pendingJobs.length} worker reports`);
+    console.log(
+      `[debrief-reporter] Found ${pendingJobs.length} worker reports`,
+    );
 
     for (const job of pendingJobs) {
       let content = job.summary ?? "No output available.";
@@ -318,7 +363,9 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
     workerSections.length > 0
       ? "---\n\n# Worker Reports\n\n" + workerSections.join("\n\n---\n\n")
       : "",
-  ].filter(Boolean).join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   await writeFile(join(opsDir, "debrief-full.md"), fullBrief, "utf-8");
 
@@ -329,9 +376,13 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
   } else {
     const preferences = loadPreferences(agentDir);
     const model = (preferences.debrief?.model as ModelAlias) ?? "haiku";
-    const userPrompt = REPORTER_USER_TEMPLATE
-      .replace("{notebookContext}", notebookContext || "(none)")
-      .replace("{workerReports}", workerSections.join("\n\n---\n\n") || "(none)");
+    const userPrompt = REPORTER_USER_TEMPLATE.replace(
+      "{notebookContext}",
+      notebookContext || "(none)",
+    ).replace(
+      "{workerReports}",
+      workerSections.join("\n\n---\n\n") || "(none)",
+    );
 
     digest = await queryModel(userPrompt, REPORTER_SYSTEM_PROMPT, model);
   }
@@ -339,7 +390,10 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
   // Write the digest (this is what gets delivered)
   await writeFile(join(opsDir, "debrief-digest.md"), digest, "utf-8");
 
-  await appendToDailyLog(notebookDir, `- Debrief reporter: digest ${digest.length} chars, full ${fullBrief.length} chars (${workerSections.length} workers)`);
+  await appendToDailyLog(
+    notebookDir,
+    `- Debrief reporter: digest ${digest.length} chars, full ${fullBrief.length} chars (${workerSections.length} workers)`,
+  );
 
   return { success: true, work: digest, deliverable: digest };
 });
@@ -378,7 +432,10 @@ registerHandler("weekly-review", async ({ agentDir }) => {
   const notebookDir = join(agentDir, "notebook");
   const output = await runWeeklyReview(agentDir);
 
-  await appendToDailyLog(notebookDir, `- Weekly review completed (${output.length} chars)`);
+  await appendToDailyLog(
+    notebookDir,
+    `- Weekly review completed (${output.length} chars)`,
+  );
 
   return { success: true, work: output, deliverable: output };
 });
@@ -402,7 +459,11 @@ registerHandler("weekly-summary", async ({ agentDir }) => {
   }
 
   if (sections.length === 0) {
-    return { success: true, work: "Quiet week -- no daily summaries found.", deliverable: null };
+    return {
+      success: true,
+      work: "Quiet week -- no daily summaries found.",
+      deliverable: null,
+    };
   }
 
   const output = await runWeeklySummary(sections.join("\n\n"));
@@ -415,7 +476,10 @@ registerHandler("weekly-summary", async ({ agentDir }) => {
   const now = new Date();
   const yearStart = new Date(now.getFullYear(), 0, 1);
   const weekNum = Math.ceil(
-    ((now.getTime() - yearStart.getTime()) / 86400000 + yearStart.getDay() + 1) / 7,
+    ((now.getTime() - yearStart.getTime()) / 86400000 +
+      yearStart.getDay() +
+      1) /
+      7,
   );
   const weekStr = `${now.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
   await writeFile(join(weeklyDir, `${weekStr}.md`), output, "utf-8");
@@ -430,7 +494,11 @@ registerHandler("monthly-summary", async ({ agentDir }) => {
   const weeklyDir = join(notebookDir, "summaries", "weekly");
 
   if (!existsSync(weeklyDir)) {
-    return { success: true, work: "Quiet month -- no weekly summaries found.", deliverable: null };
+    return {
+      success: true,
+      work: "Quiet month -- no weekly summaries found.",
+      deliverable: null,
+    };
   }
 
   const files = await readdir(weeklyDir);

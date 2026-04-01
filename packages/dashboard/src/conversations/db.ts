@@ -255,8 +255,12 @@ export class ConversationDatabase {
       );
     `);
 
-    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_automation ON jobs(automation_id);`);
-    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created);`);
+    this.db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_jobs_automation ON jobs(automation_id);`,
+    );
+    this.db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created);`,
+    );
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);`);
 
     // M8-S4: Add deliverable pipeline columns
@@ -266,7 +270,9 @@ export class ConversationDatabase {
       /* column already exists */
     }
     try {
-      this.db.exec("ALTER TABLE jobs ADD COLUMN screenshotIds TEXT DEFAULT '[]'");
+      this.db.exec(
+        "ALTER TABLE jobs ADD COLUMN screenshotIds TEXT DEFAULT '[]'",
+      );
     } catch {
       /* column already exists */
     }
@@ -710,7 +716,9 @@ export class ConversationDatabase {
     description: string | null;
     indexedAt: string;
   } | null {
-    const row = this.db.prepare("SELECT * FROM spaces WHERE name = ?").get(name) as any;
+    const row = this.db
+      .prepare("SELECT * FROM spaces WHERE name = ?")
+      .get(name) as any;
     if (!row) return null;
     return this.rowToSpace(row);
   }
@@ -1225,9 +1233,7 @@ export class ConversationDatabase {
     return automations
       .map((a) => {
         const triggers = JSON.parse(a.trigger_config) as any[];
-        const channelTrigger = triggers.find(
-          (t: any) => t.type === "channel",
-        );
+        const channelTrigger = triggers.find((t: any) => t.type === "channel");
         return {
           id: a.id,
           name: a.name,

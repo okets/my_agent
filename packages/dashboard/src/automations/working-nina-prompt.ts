@@ -111,9 +111,12 @@ export async function buildWorkingNinaPrompt(
   try {
     const props = await readProperties(agentDir);
     const entries: string[] = [];
-    if (props.location?.value) entries.push(`location: ${props.location.value}`);
-    if (props.timezone?.value) entries.push(`timezone: ${props.timezone.value}`);
-    if (props.availability?.value) entries.push(`availability: ${props.availability.value}`);
+    if (props.location?.value)
+      entries.push(`location: ${props.location.value}`);
+    if (props.timezone?.value)
+      entries.push(`timezone: ${props.timezone.value}`);
+    if (props.availability?.value)
+      entries.push(`availability: ${props.availability.value}`);
     if (entries.length > 0) {
       propertiesSection = `\n[Dynamic Status]\n${entries.join("\n")}\n[End Dynamic Status]\n`;
     }

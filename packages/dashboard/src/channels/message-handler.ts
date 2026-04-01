@@ -70,10 +70,7 @@ export class ChannelMessageHandler {
   private tokenManager: TokenManager;
   private configWriter: ConfigWriter;
 
-  constructor(
-    deps: MessageHandlerDeps,
-    initialBindings: ChannelBinding[],
-  ) {
+  constructor(deps: MessageHandlerDeps, initialBindings: ChannelBinding[]) {
     this.deps = deps;
     this.externalStore = new ExternalMessageStore(
       deps.conversationManager.getDb(),
@@ -82,7 +79,9 @@ export class ChannelMessageHandler {
     this.configWriter = new ConfigWriter(deps.agentDir);
 
     // Initialize routing components with persistent token manager
-    console.log(`[E2E] ChannelMessageHandler init — ${initialBindings.length} initial bindings: ${JSON.stringify(initialBindings.map(b => ({ id: b.id, transport: b.transport, owner: b.ownerIdentity })))}`);
+    console.log(
+      `[E2E] ChannelMessageHandler init — ${initialBindings.length} initial bindings: ${JSON.stringify(initialBindings.map((b) => ({ id: b.id, transport: b.transport, owner: b.ownerIdentity })))}`,
+    );
     this.tokenManager = new TokenManager(deps.agentDir, {
       onExpired: (transportId) => this.handleTokenExpiry(transportId),
     });
@@ -100,8 +99,12 @@ export class ChannelMessageHandler {
    */
   generateToken(transportId: string): string {
     const token = this.tokenManager.generateToken(transportId);
-    console.log(`[E2E] generateToken("${transportId}") → token generated (6 chars)`);
-    console.log(`[E2E] Current bindings: ${JSON.stringify(this.router.getBindingForTransport(transportId) ?? "none")}`);
+    console.log(
+      `[E2E] generateToken("${transportId}") → token generated (6 chars)`,
+    );
+    console.log(
+      `[E2E] Current bindings: ${JSON.stringify(this.router.getBindingForTransport(transportId) ?? "none")}`,
+    );
     return token;
   }
 
@@ -113,7 +116,9 @@ export class ChannelMessageHandler {
   async startReauthorization(transportId: string): Promise<string> {
     const binding = this.router.getBindingForTransport(transportId);
     if (!binding) {
-      throw new Error(`No channel binding exists for transport "${transportId}"`);
+      throw new Error(
+        `No channel binding exists for transport "${transportId}"`,
+      );
     }
 
     // Suspend: set previousOwner on the binding
@@ -190,7 +195,9 @@ export class ChannelMessageHandler {
 
     const first = messages[0];
 
-    console.log(`[E2E] handleMessages("${transportId}") — from="${first.from}", content="${first.content.substring(0, 30)}..."`);
+    console.log(
+      `[E2E] handleMessages("${transportId}") — from="${first.from}", content="${first.content.substring(0, 30)}..."`,
+    );
 
     // Step 1: Authorization gate — check for pending token
     console.log(`[E2E] Step 1: checking authorization gate...`);
@@ -232,7 +239,9 @@ export class ChannelMessageHandler {
     console.log(
       `[E2E][Auth] Token authorization successful for "${transportId}"`,
     );
-    console.log(`[E2E][Auth] senderJid="${senderJid}", normalizedJid="${normalizedJid}", bindingId="${bindingId}"`);
+    console.log(
+      `[E2E][Auth] senderJid="${senderJid}", normalizedJid="${normalizedJid}", bindingId="${bindingId}"`,
+    );
 
     // Create channel binding
     const binding: ChannelBinding = {
@@ -244,7 +253,9 @@ export class ChannelMessageHandler {
 
     // Update router with new binding
     this.router.addBinding(binding);
-    console.log(`[E2E][Auth] Binding added to router: ${JSON.stringify(binding)}`);
+    console.log(
+      `[E2E][Auth] Binding added to router: ${JSON.stringify(binding)}`,
+    );
 
     // Persist binding to config.yaml
     console.log(`[E2E][Auth] Persisting binding to config.yaml...`);

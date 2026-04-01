@@ -17,7 +17,12 @@ export type ChatEvent =
   | { type: "text_delta"; text: string }
   | { type: "thinking_delta"; text: string }
   | { type: "thinking_end" }
-  | { type: "done"; cost?: number; usage?: { input: number; output: number } }
+  | {
+      type: "done";
+      cost?: number;
+      usage?: { input: number; output: number };
+      audioUrl?: string;
+    }
   | { type: "error"; message: string }
   | { type: "turn_advanced"; turnNumber: number };
 
@@ -46,6 +51,7 @@ export interface LoadMoreResult {
 export interface ChatMessageOptions {
   reasoning?: boolean;
   model?: string;
+  inputMedium?: "text" | "audio";
   attachments?: Array<{
     filename: string;
     base64Data: string;

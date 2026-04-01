@@ -71,10 +71,7 @@ export function buildRepairContext(
 /** Extract maintenance rules from SPACE.md body (## Maintenance Rules section) */
 function extractMaintenanceRules(space: Space): string {
   try {
-    const spaceMdPath = path.join(
-      space.path ?? space.manifestDir,
-      "SPACE.md",
-    );
+    const spaceMdPath = path.join(space.path ?? space.manifestDir, "SPACE.md");
     const { body } = readFrontmatter(spaceMdPath);
     const match = body.match(
       /## Maintenance Rules\n([\s\S]*?)(?=\n## |\n---|$)/,

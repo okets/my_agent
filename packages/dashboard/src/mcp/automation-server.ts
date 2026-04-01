@@ -17,7 +17,16 @@ export interface AutomationServerDeps {
   jobService: AutomationJobService;
   /** Optional: executor for direct resume with session ID */
   executor?: {
-    resume(job: any, userInput: string, sessionId: string | null): Promise<{ success: boolean; status: string; summary?: string; error?: string }>;
+    resume(
+      job: any,
+      userInput: string,
+      sessionId: string | null,
+    ): Promise<{
+      success: boolean;
+      status: string;
+      summary?: string;
+      error?: string;
+    }>;
   };
 }
 
@@ -109,9 +118,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
     "fire_automation",
     "Trigger an automation immediately. Use when the user says 'run X now' or after creating a once:true automation.",
     {
-      automationId: z
-        .string()
-        .describe("Automation ID (filename without .md)"),
+      automationId: z.string().describe("Automation ID (filename without .md)"),
       context: z
         .record(z.string(), z.unknown())
         .optional()
@@ -169,10 +176,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
     "List active automations with optional filtering. Use to discover available automations before firing or to answer 'what automations do I have?'",
     {
       status: z.enum(["active", "disabled", "all"]).optional(),
-      search: z
-        .string()
-        .optional()
-        .describe("Search term for name matching"),
+      search: z.string().optional().describe("Search term for name matching"),
     },
     async (args) => {
       const filter: { status?: string; excludeSystem?: boolean } =
@@ -183,9 +187,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
 
       if (automations.length === 0) {
         return {
-          content: [
-            { type: "text" as const, text: "No automations found." },
-          ],
+          content: [{ type: "text" as const, text: "No automations found." }],
         };
       }
 
@@ -210,9 +212,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
       }
 
       const lines = filtered.map((a) => {
-        const triggers = a.manifest.trigger
-          .map((t) => t.type)
-          .join(", ");
+        const triggers = a.manifest.trigger.map((t) => t.type).join(", ");
         return `- **${a.manifest.name}** (${a.id}) — ${a.manifest.status}, triggers: ${triggers}`;
       });
 

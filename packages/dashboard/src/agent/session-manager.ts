@@ -403,3 +403,11 @@ export class SessionManager {
     }
   }
 }
+
+/**
+ * Broadcast a model change to all connected dashboard clients.
+ * Called by the capability brainstorming/building system (S3).
+ */
+export function broadcastModelChange(_model: string): void {
+  // Placeholder — will be wired to WebSocket broadcast in S3
+}

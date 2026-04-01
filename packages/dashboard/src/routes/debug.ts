@@ -790,9 +790,7 @@ export async function registerDebugRoutes(
     }
 
     try {
-      const { updateProperty } = await import(
-        "../conversations/properties.js"
-      );
+      const { updateProperty } = await import("../conversations/properties.js");
       const agentDir = fastify.agentDir;
       if (!agentDir) {
         return reply.code(503).send({ error: "agentDir not available" });
@@ -805,9 +803,7 @@ export async function registerDebugRoutes(
       });
 
       // Read back to verify
-      const { readProperties } = await import(
-        "../conversations/properties.js"
-      );
+      const { readProperties } = await import("../conversations/properties.js");
       const props = await readProperties(agentDir);
 
       return {

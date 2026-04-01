@@ -84,10 +84,8 @@ async function fetchImage(
             res.headers.location &&
             redirectCount < 1
           ) {
-            const redirectUrl = new URL(
-              res.headers.location,
-              parsed.origin,
-            ).href;
+            const redirectUrl = new URL(res.headers.location, parsed.origin)
+              .href;
             res.resume(); // Drain response
             makeRequest(redirectUrl, redirectCount + 1);
             return;
@@ -235,7 +233,8 @@ export function createImageFetchServer(deps: ImageFetchServerDeps) {
         .optional()
         .describe("What this image shows — used for alt text"),
     },
-    async (args) => handleFetchImage(deps, { url: args.url, description: args.description }),
+    async (args) =>
+      handleFetchImage(deps, { url: args.url, description: args.description }),
   );
 
   return createSdkMcpServer({

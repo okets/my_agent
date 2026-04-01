@@ -16,16 +16,16 @@ interface FSWatcher {
 
 export interface WatchTriggerConfig {
   automationId: string;
-  path: string;         // external path to watch
-  events?: string[];    // ["add", "change", "unlink"] — defaults to ["add", "change"]
-  polling?: boolean;    // usePolling for NAS/SMB — defaults to true
-  interval?: number;    // polling interval ms — defaults to 5000
+  path: string; // external path to watch
+  events?: string[]; // ["add", "change", "unlink"] — defaults to ["add", "change"]
+  polling?: boolean; // usePolling for NAS/SMB — defaults to true
+  interval?: number; // polling interval ms — defaults to 5000
 }
 
 export interface WatchEvent {
   automationIds: string[];
   files: string[];
-  event: string;        // "add" | "change" | "unlink"
+  event: string; // "add" | "change" | "unlink"
   timestamp: string;
 }
 
@@ -33,18 +33,24 @@ export interface WatchTriggerServiceDeps {
   /** Read watch triggers from agent.db */
   getWatchTriggers: () => WatchTriggerConfig[];
   /** Fire an automation job with context */
-  fireAutomation: (automationId: string, context: Record<string, unknown>) => Promise<void>;
+  fireAutomation: (
+    automationId: string,
+    context: Record<string, unknown>,
+  ) => Promise<void>;
   log: (msg: string) => void;
   logError: (err: unknown, msg: string) => void;
 }
 
 export class WatchTriggerService extends EventEmitter {
   private deps: WatchTriggerServiceDeps;
-  private watchers = new Map<string, FSWatcher>();          // path -> watcher
-  private pathToAutomations = new Map<string, string[]>();  // path -> automationId[]
-  private pendingEvents = new Map<string, { files: string[]; event: string; timer: NodeJS.Timeout }>();
+  private watchers = new Map<string, FSWatcher>(); // path -> watcher
+  private pathToAutomations = new Map<string, string[]>(); // path -> automationId[]
+  private pendingEvents = new Map<
+    string,
+    { files: string[]; event: string; timer: NodeJS.Timeout }
+  >();
   private debounceDurationMs: number;
-  private mountRetryAttempts = new Map<string, number>();   // path -> retry count
+  private mountRetryAttempts = new Map<string, number>(); // path -> retry count
 
   constructor(deps: WatchTriggerServiceDeps, debounceDurationMs = 5000) {
     super();
@@ -70,12 +76,14 @@ export class WatchTriggerService extends EventEmitter {
     // Create one watcher per unique path
     // chokidar is a transitive dependency via @my-agent/core
     const chokidarModule = "chokidar";
-    const { watch } = (await import(chokidarModule)) as { watch: (path: string, opts: Record<string, unknown>) => FSWatcher };
-    const uniquePaths = [...new Set(triggers.map(t => t.path))];
+    const { watch } = (await import(chokidarModule)) as {
+      watch: (path: string, opts: Record<string, unknown>) => FSWatcher;
+    };
+    const uniquePaths = [...new Set(triggers.map((t) => t.path))];
 
     for (const watchPath of uniquePaths) {
       // Use first trigger's polling settings for this path
-      const config = triggers.find(t => t.path === watchPath)!;
+      const config = triggers.find((t) => t.path === watchPath)!;
       const events = config.events ?? ["add", "change"];
 
       const watcher = watch(watchPath, {
@@ -95,7 +103,9 @@ export class WatchTriggerService extends EventEmitter {
       });
 
       this.watchers.set(watchPath, watcher);
-      this.deps.log(`[WatchTriggerService] Watching: ${watchPath} (polling: ${config.polling ?? true})`);
+      this.deps.log(
+        `[WatchTriggerService] Watching: ${watchPath} (polling: ${config.polling ?? true})`,
+      );
     }
   }
 
@@ -139,10 +149,12 @@ export class WatchTriggerService extends EventEmitter {
 
     // Register watchers for new paths
     const chokidarModule = "chokidar";
-    const { watch } = (await import(chokidarModule)) as { watch: (path: string, opts: Record<string, unknown>) => FSWatcher };
+    const { watch } = (await import(chokidarModule)) as {
+      watch: (path: string, opts: Record<string, unknown>) => FSWatcher;
+    };
     for (const [path] of newPathMap) {
       if (!this.watchers.has(path)) {
-        const config = triggers.find(t => t.path === path)!;
+        const config = triggers.find((t) => t.path === path)!;
         const events = config.events ?? ["add", "change"];
 
         const watcher = watch(path, {
@@ -181,19 +193,28 @@ export class WatchTriggerService extends EventEmitter {
         pending.files.push(filePath);
       }
       clearTimeout(pending.timer);
-      pending.timer = setTimeout(() => this.flushPendingEvents(debounceKey), this.debounceDurationMs);
+      pending.timer = setTimeout(
+        () => this.flushPendingEvents(debounceKey),
+        this.debounceDurationMs,
+      );
       return;
     }
 
     // New batch
-    const timer = setTimeout(() => this.flushPendingEvents(debounceKey), this.debounceDurationMs);
+    const timer = setTimeout(
+      () => this.flushPendingEvents(debounceKey),
+      this.debounceDurationMs,
+    );
     this.pendingEvents.set(debounceKey, { files: [filePath], event, timer });
   }
 
   /** Handle watcher error (mount failure) with retry + backoff */
   handleWatcherError(watchPath: string, error: Error): void {
     const attempt = this.mountRetryAttempts.get(watchPath) ?? 0;
-    this.deps.logError(error, `[WatchTriggerService] Watcher error on ${watchPath} (attempt ${attempt})`);
+    this.deps.logError(
+      error,
+      `[WatchTriggerService] Watcher error on ${watchPath} (attempt ${attempt})`,
+    );
 
     const delay = computeBackoff(DEFAULT_BACKOFF, attempt);
     if (delay === null) {
@@ -221,7 +242,10 @@ export class WatchTriggerService extends EventEmitter {
         await this.sync();
         this.mountRetryAttempts.delete(watchPath); // reset on success
       } catch (retryErr) {
-        this.handleWatcherError(watchPath, retryErr instanceof Error ? retryErr : new Error(String(retryErr)));
+        this.handleWatcherError(
+          watchPath,
+          retryErr instanceof Error ? retryErr : new Error(String(retryErr)),
+        );
       }
     }, delay);
   }
@@ -249,7 +273,10 @@ export class WatchTriggerService extends EventEmitter {
       try {
         await this.deps.fireAutomation(automationId, context);
       } catch (err) {
-        this.deps.logError(err, `[WatchTriggerService] Failed to fire automation ${automationId}`);
+        this.deps.logError(
+          err,
+          `[WatchTriggerService] Failed to fire automation ${automationId}`,
+        );
       }
     }
 
@@ -257,8 +284,19 @@ export class WatchTriggerService extends EventEmitter {
   }
 
   /** Accessors for testing */
-  getWatchers(): Map<string, FSWatcher> { return this.watchers; }
-  getPathToAutomations(): Map<string, string[]> { return this.pathToAutomations; }
-  getPendingEvents(): Map<string, { files: string[]; event: string; timer: NodeJS.Timeout }> { return this.pendingEvents; }
-  getMountRetryAttempts(): Map<string, number> { return this.mountRetryAttempts; }
+  getWatchers(): Map<string, FSWatcher> {
+    return this.watchers;
+  }
+  getPathToAutomations(): Map<string, string[]> {
+    return this.pathToAutomations;
+  }
+  getPendingEvents(): Map<
+    string,
+    { files: string[]; event: string; timer: NodeJS.Timeout }
+  > {
+    return this.pendingEvents;
+  }
+  getMountRetryAttempts(): Map<string, number> {
+    return this.mountRetryAttempts;
+  }
 }

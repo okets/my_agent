@@ -1,10 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import {
-  readdirSync,
-  statSync,
-  readFileSync,
-  existsSync,
-} from "fs";
+import { readdirSync, statSync, readFileSync, existsSync } from "fs";
 import { join, relative, extname, resolve } from "path";
 import { readFrontmatter, writeFrontmatter } from "../metadata/frontmatter.js";
 
@@ -78,13 +73,23 @@ export async function registerSpaceRoutes(
       const tree = buildFileTree(spaceDir, spaceDir);
 
       // Query automations that reference this space
-      let referencingAutomations: { id: string; name: string; status: string }[] = [];
+      let referencingAutomations: {
+        id: string;
+        name: string;
+        status: string;
+      }[] = [];
       const convManager = fastify.conversationManager;
       if (convManager) {
         const db = convManager.getDb();
-        referencingAutomations = db.prepare(
-          `SELECT id, name, status FROM automations WHERE spaces LIKE ?`
-        ).all(`%${name.replace(/[%_"\\]/g, "")}%`) as { id: string; name: string; status: string }[];
+        referencingAutomations = db
+          .prepare(
+            `SELECT id, name, status FROM automations WHERE spaces LIKE ?`,
+          )
+          .all(`%${name.replace(/[%_"\\]/g, "")}%`) as {
+          id: string;
+          name: string;
+          status: string;
+        }[];
       }
 
       return { name, manifest, body, tree, referencingAutomations };

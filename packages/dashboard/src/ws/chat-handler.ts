@@ -40,10 +40,17 @@ export async function registerChatWebSocket(
     }
 
     if (!idleTimerManager && fastify.abbreviationQueue) {
-      idleTimerManager = new IdleTimerManager(fastify.abbreviationQueue, connectionRegistry);
+      idleTimerManager = new IdleTimerManager(
+        fastify.abbreviationQueue,
+        connectionRegistry,
+      );
       if (!fastify.abbreviationQueue.onRenamed) {
         fastify.abbreviationQueue.onRenamed = (conversationId, title) => {
-          connectionRegistry.broadcastToAll({ type: "conversation_renamed", conversationId, title });
+          connectionRegistry.broadcastToAll({
+            type: "conversation_renamed",
+            conversationId,
+            title,
+          });
         };
       }
     }
@@ -76,20 +83,39 @@ export async function registerChatWebSocket(
             currentTurnNumber = result.conversation?.turnCount ?? 0;
 
             if (currentConversationId) {
-              const storedSid = app.conversationManager.getConversationDb().getSdkSessionId(currentConversationId);
-              await app.sessionRegistry.getOrCreate(currentConversationId, storedSid);
-              connectionRegistry.switchConversation(socket, currentConversationId);
+              const storedSid = app.conversationManager
+                .getConversationDb()
+                .getSdkSessionId(currentConversationId);
+              await app.sessionRegistry.getOrCreate(
+                currentConversationId,
+                storedSid,
+              );
+              connectionRegistry.switchConversation(
+                socket,
+                currentConversationId,
+              );
             }
 
-            send({ type: "conversation_loaded", conversation: result.conversation, turns: result.turns, hasMore: result.hasMore });
-            send({ type: "conversation_list", conversations: result.allConversations });
+            send({
+              type: "conversation_loaded",
+              conversation: result.conversation,
+              turns: result.turns,
+              hasMore: result.hasMore,
+            });
+            send({
+              type: "conversation_list",
+              conversations: result.allConversations,
+            });
 
             if (fastify.statePublisher) {
               await fastify.statePublisher.publishAllTo(socket);
             }
           } catch (err) {
             fastify.log.error(err, "Error loading conversation on connect");
-            send({ type: "error", message: "Failed to load conversation history" });
+            send({
+              type: "error",
+              message: "Failed to load conversation history",
+            });
           }
         })();
       },
@@ -109,7 +135,10 @@ export async function registerChatWebSocket(
 
         if (msg.type === "abort") {
           await authSession.abort();
-          if (currentConversationId && app.sessionRegistry.isWarm(currentConversationId)) {
+          if (
+            currentConversationId &&
+            app.sessionRegistry.isWarm(currentConversationId)
+          ) {
             app.sessionRegistry.remove(currentConversationId);
           }
           return;
@@ -141,7 +170,10 @@ export async function registerChatWebSocket(
     async function handleMessage(msg: ClientMessage): Promise<void> {
       switch (msg.type) {
         case "connect": {
-          if (msg.conversationId && !isValidConversationId(msg.conversationId)) {
+          if (
+            msg.conversationId &&
+            !isValidConversationId(msg.conversationId)
+          ) {
             send({ type: "error", message: "Invalid conversation ID" });
             return;
           }
@@ -150,14 +182,33 @@ export async function registerChatWebSocket(
             currentConversationId = result.conversation?.id ?? null;
             currentTurnNumber = result.conversation?.turnCount ?? 0;
             if (currentConversationId) {
-              const storedSid = app.conversationManager.getConversationDb().getSdkSessionId(currentConversationId);
-              await app.sessionRegistry.getOrCreate(currentConversationId, storedSid);
-              connectionRegistry.switchConversation(socket, currentConversationId);
+              const storedSid = app.conversationManager
+                .getConversationDb()
+                .getSdkSessionId(currentConversationId);
+              await app.sessionRegistry.getOrCreate(
+                currentConversationId,
+                storedSid,
+              );
+              connectionRegistry.switchConversation(
+                socket,
+                currentConversationId,
+              );
             }
-            send({ type: "conversation_loaded", conversation: result.conversation, turns: result.turns, hasMore: result.hasMore });
-            send({ type: "conversation_list", conversations: result.allConversations });
+            send({
+              type: "conversation_loaded",
+              conversation: result.conversation,
+              turns: result.turns,
+              hasMore: result.hasMore,
+            });
+            send({
+              type: "conversation_list",
+              conversations: result.allConversations,
+            });
           } catch (err) {
-            send({ type: "error", message: err instanceof Error ? err.message : "Error" });
+            send({
+              type: "error",
+              message: err instanceof Error ? err.message : "Error",
+            });
           }
           return;
         }
@@ -165,15 +216,22 @@ export async function registerChatWebSocket(
         case "new_conversation": {
           if (currentConversationId) {
             await app.chat.deleteIfEmpty(currentConversationId);
-            if (fastify.abbreviationQueue) fastify.abbreviationQueue.enqueue(currentConversationId);
+            if (fastify.abbreviationQueue)
+              fastify.abbreviationQueue.enqueue(currentConversationId);
           }
           const result = await app.chat.newConversation();
           currentConversationId = result.conversation.id;
           currentTurnNumber = 0;
           await app.sessionRegistry.getOrCreate(result.conversation.id);
           connectionRegistry.switchConversation(socket, result.conversation.id);
-          send({ type: "conversation_created", conversation: result.conversation });
-          connectionRegistry.broadcastToAll({ type: "conversation_created", conversation: result.conversation }, socket);
+          send({
+            type: "conversation_created",
+            conversation: result.conversation,
+          });
+          connectionRegistry.broadcastToAll(
+            { type: "conversation_created", conversation: result.conversation },
+            socket,
+          );
           return;
         }
 
@@ -184,35 +242,72 @@ export async function registerChatWebSocket(
           }
           if (currentConversationId) {
             await app.chat.deleteIfEmpty(currentConversationId);
-            if (fastify.abbreviationQueue) fastify.abbreviationQueue.enqueue(currentConversationId);
+            if (fastify.abbreviationQueue)
+              fastify.abbreviationQueue.enqueue(currentConversationId);
           }
           try {
-            const result = await app.chat.switchConversation(msg.conversationId);
+            const result = await app.chat.switchConversation(
+              msg.conversationId,
+            );
             currentConversationId = result.conversation.id;
             currentTurnNumber = result.conversation.turnCount;
-            const storedSid = app.conversationManager.getConversationDb().getSdkSessionId(msg.conversationId);
-            await app.sessionRegistry.getOrCreate(msg.conversationId, storedSid);
-            connectionRegistry.switchConversation(socket, result.conversation.id);
-            send({ type: "conversation_loaded", conversation: result.conversation, turns: result.turns, hasMore: result.hasMore });
+            const storedSid = app.conversationManager
+              .getConversationDb()
+              .getSdkSessionId(msg.conversationId);
+            await app.sessionRegistry.getOrCreate(
+              msg.conversationId,
+              storedSid,
+            );
+            connectionRegistry.switchConversation(
+              socket,
+              result.conversation.id,
+            );
+            send({
+              type: "conversation_loaded",
+              conversation: result.conversation,
+              turns: result.turns,
+              hasMore: result.hasMore,
+            });
           } catch (err) {
-            send({ type: "error", message: err instanceof Error ? err.message : "Error" });
+            send({
+              type: "error",
+              message: err instanceof Error ? err.message : "Error",
+            });
           }
           return;
         }
 
         case "rename_conversation": {
-          if (!currentConversationId) { send({ type: "error", message: "No active conversation" }); return; }
-          const trimmed = await app.chat.renameConversation(currentConversationId, msg.title);
+          if (!currentConversationId) {
+            send({ type: "error", message: "No active conversation" });
+            return;
+          }
+          const trimmed = await app.chat.renameConversation(
+            currentConversationId,
+            msg.title,
+          );
           connectionRegistry.broadcastToConversation(currentConversationId, {
-            type: "conversation_renamed", conversationId: currentConversationId, title: trimmed,
+            type: "conversation_renamed",
+            conversationId: currentConversationId,
+            title: trimmed,
           });
           return;
         }
 
         case "load_more_turns": {
-          if (!currentConversationId) { send({ type: "error", message: "No active conversation" }); return; }
-          const result = await app.chat.loadMoreTurns(currentConversationId, msg.before);
-          send({ type: "turns_loaded", turns: result.turns, hasMore: result.hasMore });
+          if (!currentConversationId) {
+            send({ type: "error", message: "No active conversation" });
+            return;
+          }
+          const result = await app.chat.loadMoreTurns(
+            currentConversationId,
+            msg.before,
+          );
+          send({
+            type: "turns_loaded",
+            turns: result.turns,
+            hasMore: result.hasMore,
+          });
           return;
         }
 
@@ -225,26 +320,40 @@ export async function registerChatWebSocket(
             await app.chat.deleteConversation(msg.conversationId, {
               cancelAbbreviation: (id) => fastify.abbreviationQueue?.cancel(id),
               clearIdleTimer: (id) => idleTimerManager?.clear(id),
-              deleteAttachments: (id) => attachmentService?.deleteConversationAttachments(id),
-              removeSearchEmbeddings: (id) => fastify.conversationSearchService?.removeConversation(id),
+              deleteAttachments: (id) =>
+                attachmentService?.deleteConversationAttachments(id),
+              removeSearchEmbeddings: (id) =>
+                fastify.conversationSearchService?.removeConversation(id),
             });
             if (currentConversationId === msg.conversationId) {
               currentConversationId = null;
               currentTurnNumber = 0;
             }
-            connectionRegistry.broadcastToAll({ type: "conversation_deleted", conversationId: msg.conversationId });
+            connectionRegistry.broadcastToAll({
+              type: "conversation_deleted",
+              conversationId: msg.conversationId,
+            });
           } catch (err) {
-            send({ type: "error", message: err instanceof Error ? err.message : "Error" });
+            send({
+              type: "error",
+              message: err instanceof Error ? err.message : "Error",
+            });
           }
           return;
         }
 
         case "set_model": {
-          if (!currentConversationId) { send({ type: "error", message: "No active conversation" }); return; }
+          if (!currentConversationId) {
+            send({ type: "error", message: "No active conversation" });
+            return;
+          }
           try {
             await app.chat.setModel(currentConversationId, msg.model);
           } catch (err) {
-            send({ type: "error", message: err instanceof Error ? err.message : "Error" });
+            send({
+              type: "error",
+              message: err instanceof Error ? err.message : "Error",
+            });
           }
           return;
         }
@@ -254,28 +363,68 @@ export async function registerChatWebSocket(
           const service = fastify.notificationService;
           if (service) {
             const notifications = service.getAll().map((n) => ({
-              id: n.id, type: n.type, taskId: n.taskId,
-              created: n.created.toISOString(), status: n.status,
-              ...(n.type === "notify" && { message: n.message, importance: n.importance }),
-              ...(n.type === "request_input" && { question: n.question, options: n.options, response: n.response, respondedAt: n.respondedAt?.toISOString() }),
-              ...(n.type === "escalate" && { problem: n.problem, severity: n.severity }),
+              id: n.id,
+              type: n.type,
+              taskId: n.taskId,
+              created: n.created.toISOString(),
+              status: n.status,
+              ...(n.type === "notify" && {
+                message: n.message,
+                importance: n.importance,
+              }),
+              ...(n.type === "request_input" && {
+                question: n.question,
+                options: n.options,
+                response: n.response,
+                respondedAt: n.respondedAt?.toISOString(),
+              }),
+              ...(n.type === "escalate" && {
+                problem: n.problem,
+                severity: n.severity,
+              }),
             }));
-            send({ type: "notification_list", notifications, pendingCount: service.getPending().length });
+            send({
+              type: "notification_list",
+              notifications,
+              pendingCount: service.getPending().length,
+            });
           }
           return;
         }
-        case "notification_read": { fastify.notificationService?.markRead(msg.notificationId); return; }
-        case "notification_respond": { fastify.notificationService?.respond(msg.notificationId, msg.response); return; }
-        case "notification_dismiss": { fastify.notificationService?.dismiss(msg.notificationId); return; }
+        case "notification_read": {
+          fastify.notificationService?.markRead(msg.notificationId);
+          return;
+        }
+        case "notification_respond": {
+          fastify.notificationService?.respond(
+            msg.notificationId,
+            msg.response,
+          );
+          return;
+        }
+        case "notification_dismiss": {
+          fastify.notificationService?.dismiss(msg.notificationId);
+          return;
+        }
 
         // ── Chat message ────────────────────────────────────────────
         case "message": {
           const hasContent = msg.content?.trim();
           const hasAttachments = msg.attachments && msg.attachments.length > 0;
           if (!hasContent && !hasAttachments) return;
-          if (isStreaming) { send({ type: "error", message: "Already processing a message" }); return; }
+          if (isStreaming) {
+            send({ type: "error", message: "Already processing a message" });
+            return;
+          }
 
-          await handleChatMessage(msg.content, msg.reasoning, msg.model, msg.attachments, msg.context);
+          await handleChatMessage(
+            msg.content,
+            msg.reasoning,
+            msg.model,
+            msg.attachments,
+            msg.context,
+            msg.inputMedium,
+          );
           return;
         }
       }
@@ -287,38 +436,72 @@ export async function registerChatWebSocket(
       content: string,
       reasoning?: boolean,
       model?: string,
-      attachments?: Array<{ filename: string; base64Data: string; mimeType: string }>,
-      context?: { type: string; title: string; file?: string; automationId?: string; automationName?: string; spaceName?: string; conversationId?: string } | null,
+      attachments?: Array<{
+        filename: string;
+        base64Data: string;
+        mimeType: string;
+      }>,
+      context?: {
+        type: string;
+        title: string;
+        file?: string;
+        automationId?: string;
+        automationName?: string;
+        spaceName?: string;
+        conversationId?: string;
+      } | null,
+      inputMedium?: "text" | "audio",
     ): Promise<void> {
       const textContent = content.trim().toLowerCase();
 
       if (textContent === "/new") {
         if (currentConversationId) {
           await app.chat.deleteIfEmpty(currentConversationId);
-          if (fastify.abbreviationQueue) fastify.abbreviationQueue.enqueue(currentConversationId);
+          if (fastify.abbreviationQueue)
+            fastify.abbreviationQueue.enqueue(currentConversationId);
         }
         const result = await app.chat.newConversationWithWelcome();
         currentConversationId = result.conversation.id;
         currentTurnNumber = 0;
         await app.sessionRegistry.getOrCreate(result.conversation.id);
         connectionRegistry.switchConversation(socket, result.conversation.id);
-        send({ type: "conversation_loaded", conversation: result.conversation, turns: result.turns, hasMore: result.hasMore });
-        send({ type: "conversation_created", conversation: result.conversation });
-        connectionRegistry.broadcastToAll({ type: "conversation_created", conversation: result.conversation }, socket);
+        send({
+          type: "conversation_loaded",
+          conversation: result.conversation,
+          turns: result.turns,
+          hasMore: result.hasMore,
+        });
+        send({
+          type: "conversation_created",
+          conversation: result.conversation,
+        });
+        connectionRegistry.broadcastToAll(
+          { type: "conversation_created", conversation: result.conversation },
+          socket,
+        );
         return;
       }
 
       const modelMatch = textContent.match(/^\/model(?:\s+(\w+))?$/);
       if (modelMatch) {
-        for await (const event of app.chat.handleModelCommand(currentConversationId, modelMatch[1])) {
+        for await (const event of app.chat.handleModelCommand(
+          currentConversationId,
+          modelMatch[1],
+        )) {
           send(chatEventToServerMessage(event));
         }
         if (modelMatch[1] && currentConversationId) {
           const models = loadModels();
-          const newModelId = { opus: models.opus, sonnet: models.sonnet, haiku: models.haiku }[modelMatch[1]];
+          const newModelId = {
+            opus: models.opus,
+            sonnet: models.sonnet,
+            haiku: models.haiku,
+          }[modelMatch[1]];
           if (newModelId) {
             connectionRegistry.broadcastToConversation(currentConversationId, {
-              type: "conversation_model_changed", conversationId: currentConversationId, model: newModelId,
+              type: "conversation_model_changed",
+              conversationId: currentConversationId,
+              model: newModelId,
             });
           }
         }
@@ -331,27 +514,46 @@ export async function registerChatWebSocket(
 
       const responseTimer = new ResponseTimer({
         sendTyping: async () => {},
-        sendInterim: async (message) => send({ type: "interim_status", message }),
+        sendInterim: async (message) =>
+          send({ type: "interim_status", message }),
       });
       responseTimer.start();
 
       try {
         let firstToken = true;
         for await (const event of app.chat.sendMessage(
-          currentConversationId, content, currentTurnNumber,
-          { reasoning, model, attachments, context },
+          currentConversationId,
+          content,
+          currentTurnNumber,
+          { reasoning, model, attachments, context, inputMedium },
         )) {
           if (event.type === "start" && event._effects) {
             const effects = event._effects as StartEffects;
             currentConversationId = effects.conversationId;
             if (effects.conversationCreated) {
-              connectionRegistry.switchConversation(socket, effects.conversationId);
-              send({ type: "conversation_created", conversation: effects.conversationCreated });
-              connectionRegistry.broadcastToAll({ type: "conversation_created", conversation: effects.conversationCreated }, socket);
+              connectionRegistry.switchConversation(
+                socket,
+                effects.conversationId,
+              );
+              send({
+                type: "conversation_created",
+                conversation: effects.conversationCreated,
+              });
+              connectionRegistry.broadcastToAll(
+                {
+                  type: "conversation_created",
+                  conversation: effects.conversationCreated,
+                },
+                socket,
+              );
             }
             connectionRegistry.broadcastToConversation(
               effects.conversationId,
-              { type: "conversation_updated", conversationId: effects.conversationId, turn: effects.userTurn },
+              {
+                type: "conversation_updated",
+                conversationId: effects.conversationId,
+                turn: effects.userTurn,
+              },
               socket,
             );
           }
@@ -371,7 +573,10 @@ export async function registerChatWebSocket(
         }
       } catch (err) {
         responseTimer.cancel();
-        send({ type: "error", message: err instanceof Error ? err.message : "Unknown error" });
+        send({
+          type: "error",
+          message: err instanceof Error ? err.message : "Unknown error",
+        });
       } finally {
         responseTimer.cancel();
         isStreaming = false;
@@ -384,7 +589,9 @@ export async function registerChatWebSocket(
       fastify.log.info("Chat WebSocket disconnected");
       clearInterval(pingInterval);
 
-      const wasLastViewer = currentConversationId && connectionRegistry.getViewerCount(currentConversationId) === 1;
+      const wasLastViewer =
+        currentConversationId &&
+        connectionRegistry.getViewerCount(currentConversationId) === 1;
       connectionRegistry.remove(socket);
 
       if (wasLastViewer && currentConversationId && fastify.abbreviationQueue) {
@@ -414,7 +621,12 @@ function chatEventToServerMessage(event: ChatEvent): ServerMessage {
     case "thinking_end":
       return { type: "thinking_end" };
     case "done":
-      return { type: "done", cost: event.cost, usage: event.usage };
+      return {
+        type: "done",
+        cost: event.cost,
+        usage: event.usage,
+        audioUrl: event.audioUrl,
+      };
     case "error":
       return { type: "error", message: event.message };
     case "turn_advanced":

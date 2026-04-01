@@ -9,15 +9,103 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse, stringify } from "yaml";
 import {
   loadPreferences,
   loadModels,
+  resolveEnvPath,
+  setEnvValue,
+  removeEnvValue,
+  readFrontmatter,
+  scanCapabilities,
   type UserPreferences,
   type ModelDefaults,
+  type CapabilityFrontmatter,
 } from "@my-agent/core";
+
+/** Keys that must not be modified via the API */
+const READ_ONLY_KEYS = new Set([
+  "ANTHROPIC_API_KEY",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+]);
+
+/** Keys that are configuration, not secrets */
+const CONFIG_KEYS = new Set(["PORT", "HOST", "NODE_ENV"]);
+
+interface SecretEntry {
+  key: string;
+  maskedValue: string;
+  readOnly: boolean;
+  capabilities: string[];
+}
+
+/**
+ * Parse all KEY=VALUE lines from a .env file.
+ * Skips comments and blank lines.
+ */
+function parseEnvFile(envPath: string): Array<{ key: string; value: string }> {
+  if (!existsSync(envPath)) return [];
+  const lines = readFileSync(envPath, "utf-8").split("\n");
+  const entries: Array<{ key: string; value: string }> = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex === -1) continue;
+    entries.push({
+      key: trimmed.slice(0, eqIndex),
+      value: trimmed.slice(eqIndex + 1),
+    });
+  }
+  return entries;
+}
+
+/**
+ * Mask a secret value: show last 4 chars with leading dots.
+ * For short values (< 8 chars), use fewer dots.
+ */
+function maskValue(value: string): string {
+  if (!value) return "";
+  if (value.length < 8) return "••••" + value.slice(-4);
+  return "••••••" + value.slice(-4);
+}
+
+/**
+ * Build a map of env key -> capability names that require it.
+ * Reads CAPABILITY.md frontmatter from each capability folder.
+ */
+function buildEnvCapabilityMap(agentDir: string): Map<string, string[]> {
+  const capDir = join(agentDir, "capabilities");
+  const map = new Map<string, string[]>();
+  if (!existsSync(capDir)) return map;
+
+  let entries: string[];
+  try {
+    entries = readdirSync(capDir);
+  } catch {
+    return map;
+  }
+
+  for (const entry of entries) {
+    const mdPath = join(capDir, entry, "CAPABILITY.md");
+    if (!existsSync(mdPath)) continue;
+    try {
+      const { data } = readFrontmatter<CapabilityFrontmatter>(mdPath);
+      if (!data.name || !data.requires?.env) continue;
+      for (const envKey of data.requires.env) {
+        const existing = map.get(envKey) ?? [];
+        existing.push(data.name);
+        map.set(envKey, existing);
+      }
+    } catch {
+      // Skip malformed capability files
+    }
+  }
+
+  return map;
+}
 
 /** Cached available models (refreshed every 10 minutes) */
 let cachedAvailableModels: string[] | null = null;
@@ -119,11 +207,9 @@ export async function registerSettingsRoutes(
         "[Settings] Failed to save preferences: %s",
         err instanceof Error ? err.message : String(err),
       );
-      return reply
-        .code(500)
-        .send({
-          error: "Failed to save preferences",
-        } as unknown as UserPreferences);
+      return reply.code(500).send({
+        error: "Failed to save preferences",
+      } as unknown as UserPreferences);
     }
   });
 
@@ -242,4 +328,122 @@ export async function registerSettingsRoutes(
       }
     },
   );
+
+  // ── Secrets CRUD ─────────────────────────────────────────────────────
+
+  /**
+   * GET /api/settings/secrets
+   *
+   * Returns all env keys (excluding config keys like PORT) with masked
+   * values, read-only flags, and capability associations.
+   */
+  fastify.get<{ Reply: { secrets: SecretEntry[] } }>(
+    "/api/settings/secrets",
+    async () => {
+      const agentDir = fastify.agentDir;
+      const envPath = resolveEnvPath(agentDir);
+      const entries = parseEnvFile(envPath);
+      const capMap = buildEnvCapabilityMap(agentDir);
+
+      const secrets: SecretEntry[] = entries
+        .filter((e) => !CONFIG_KEYS.has(e.key))
+        .map((e) => ({
+          key: e.key,
+          maskedValue: maskValue(e.value),
+          readOnly: READ_ONLY_KEYS.has(e.key),
+          capabilities: capMap.get(e.key) ?? [],
+        }));
+
+      return { secrets };
+    },
+  );
+
+  /**
+   * PUT /api/settings/secrets/:key
+   *
+   * Set or update a secret. Blocks read-only keys (ANTHROPIC_API_KEY,
+   * CLAUDE_CODE_OAUTH_TOKEN). Triggers capability re-scan after write.
+   */
+  fastify.put<{
+    Params: { key: string };
+    Body: { value: string };
+    Reply: { ok: true } | { error: string };
+  }>("/api/settings/secrets/:key", async (request, reply) => {
+    const { key } = request.params;
+    const { value } = request.body as { value: string };
+
+    if (READ_ONLY_KEYS.has(key)) {
+      return reply.code(403).send({ error: `${key} is read-only` });
+    }
+
+    if (!value || typeof value !== "string") {
+      return reply.code(400).send({ error: "value is required" });
+    }
+
+    const agentDir = fastify.agentDir;
+    const envPath = resolveEnvPath(agentDir);
+
+    setEnvValue(envPath, key, value);
+    process.env[key] = value;
+    fastify.log.info("[Settings] Secret set: %s", key);
+
+    // Re-scan capabilities so status reflects the new secret
+    await rescanCapabilities(fastify, agentDir, envPath);
+
+    return { ok: true as const };
+  });
+
+  /**
+   * DELETE /api/settings/secrets/:key
+   *
+   * Remove a secret. Blocks read-only keys. Triggers capability re-scan.
+   */
+  fastify.delete<{
+    Params: { key: string };
+    Reply: { ok: true } | { error: string };
+  }>("/api/settings/secrets/:key", async (request, reply) => {
+    const { key } = request.params;
+
+    if (READ_ONLY_KEYS.has(key)) {
+      return reply.code(403).send({ error: `${key} is read-only` });
+    }
+
+    const agentDir = fastify.agentDir;
+    const envPath = resolveEnvPath(agentDir);
+
+    removeEnvValue(envPath, key);
+    delete process.env[key];
+    fastify.log.info("[Settings] Secret removed: %s", key);
+
+    // Re-scan capabilities so status reflects the removal
+    await rescanCapabilities(fastify, agentDir, envPath);
+
+    return { ok: true as const };
+  });
+}
+
+/**
+ * Trigger a capability re-scan and emit change event.
+ * Shared by PUT and DELETE secrets endpoints.
+ */
+async function rescanCapabilities(
+  fastify: FastifyInstance,
+  agentDir: string,
+  envPath: string,
+): Promise<void> {
+  const app = fastify.app;
+  if (!app?.capabilityRegistry) return;
+
+  try {
+    const capabilitiesDir = join(agentDir, "capabilities");
+    const caps = await app.capabilityRegistry.rescan(() =>
+      scanCapabilities(capabilitiesDir, envPath),
+    );
+    app.emit("capability:changed", caps);
+  } catch (err) {
+    fastify.log.warn(
+      "[Settings] Capability re-scan failed: %s",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 }

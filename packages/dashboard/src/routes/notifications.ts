@@ -165,5 +165,4 @@ export async function registerNotificationRoutes(
       return { success: true };
     },
   );
-
 }

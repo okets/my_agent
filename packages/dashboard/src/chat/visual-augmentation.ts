@@ -64,12 +64,15 @@ export async function maybeAugmentWithVisual(
   if (numbers.length < 3) return false;
 
   // Stronger heuristic: needs a list/table structure with numbers (not just numbers in prose)
-  const hasBulletedData = /[-•*]\s.*\d/.test(assistantContent) || /\|.*\d.*\|/.test(assistantContent);
+  const hasBulletedData =
+    /[-•*]\s.*\d/.test(assistantContent) || /\|.*\d.*\|/.test(assistantContent);
   if (!hasBulletedData) return false;
 
   try {
     // Skip Haiku analysis — heuristic is sufficient. Go straight to chart generation.
-    deps.log(`[VisualAugmentation] Data list detected (${numbers.length} numbers), generating chart`);
+    deps.log(
+      `[VisualAugmentation] Data list detected (${numbers.length} numbers), generating chart`,
+    );
 
     // Generate SVG with Haiku (single call — no separate analysis)
     const svgResponse = await queryModel(
@@ -93,15 +96,22 @@ export async function maybeAugmentWithVisual(
     );
 
     if (result.isError) {
-      deps.log(`[VisualAugmentation] create_chart failed: ${JSON.stringify(result.content)}`);
+      deps.log(
+        `[VisualAugmentation] create_chart failed: ${JSON.stringify(result.content)}`,
+      );
       return false;
     }
 
-    const parsed = JSON.parse((result.content[0] as { type: "text"; text: string }).text);
+    const parsed = JSON.parse(
+      (result.content[0] as { type: "text"; text: string }).text,
+    );
 
     // Phase 4: Append follow-up assistant turn with the chart
     // Include channel field to prevent false channel-switch detection
-    const recentTurns = await deps.conversationManager.getRecentTurns(conversationId, 5);
+    const recentTurns = await deps.conversationManager.getRecentTurns(
+      conversationId,
+      5,
+    );
     const activeChannel = recentTurns
       .filter((t) => t.channel && t.role === "user")
       .at(-1)?.channel;
@@ -132,15 +142,19 @@ export async function maybeAugmentWithVisual(
 
     // Send via outbound channel (WhatsApp, etc.) if available
     if (deps.sendToChannel) {
-      await deps.sendToChannel(chartContent).catch((err) =>
-        deps.log(`[VisualAugmentation] Channel send failed: ${err}`),
-      );
+      await deps
+        .sendToChannel(chartContent)
+        .catch((err) =>
+          deps.log(`[VisualAugmentation] Channel send failed: ${err}`),
+        );
     }
 
     deps.log(`[VisualAugmentation] Chart appended: ${parsed.url}`);
     return true;
   } catch (err) {
-    deps.log(`[VisualAugmentation] Error: ${err instanceof Error ? err.message : String(err)}`);
+    deps.log(
+      `[VisualAugmentation] Error: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return false;
   }
 }

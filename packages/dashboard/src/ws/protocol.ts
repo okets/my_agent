@@ -91,6 +91,7 @@ export type ClientMessage =
       model?: string;
       attachments?: Attachment[];
       context?: ViewContext | null; // What user is viewing in dashboard
+      inputMedium?: "text" | "audio";
     }
   | { type: "abort" }
   | { type: "control_response"; controlId: string; value: string }
@@ -118,7 +119,12 @@ export type ServerMessage =
   | { type: "text_delta"; content: string }
   | { type: "thinking_delta"; content: string }
   | { type: "thinking_end" }
-  | { type: "done"; cost?: number; usage?: { input: number; output: number } }
+  | {
+      type: "done";
+      cost?: number;
+      usage?: { input: number; output: number };
+      audioUrl?: string;
+    }
   | { type: "error"; message: string }
   | { type: "controls"; controls: ChatControl[] }
   | {
@@ -205,7 +211,18 @@ export type ServerMessage =
       screenshot: ScreenshotSnapshot;
       timestamp: number;
     }
-  | { type: "state:skills"; timestamp: number };
+  | { type: "state:skills"; timestamp: number }
+  | {
+      type: "capabilities";
+      capabilities: Array<{
+        name: string;
+        provides?: string;
+        interface: string;
+        status: string;
+        unavailableReason?: string;
+      }>;
+    }
+  | { type: "model_changed"; model: string };
 
 // ─── State Sync Messages ───────────────────────────────────────────────────
 //

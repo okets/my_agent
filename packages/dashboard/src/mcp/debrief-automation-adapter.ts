@@ -47,7 +47,12 @@ export function createDebriefAutomationAdapter(
 
     getDebriefOutput(): string | null {
       // Read the assembled digest from disk (written by debrief-reporter handler)
-      const briefPath = join(agentDir, "notebook", "operations", "debrief-digest.md");
+      const briefPath = join(
+        agentDir,
+        "notebook",
+        "operations",
+        "debrief-digest.md",
+      );
       if (existsSync(briefPath)) {
         try {
           return readFileSync(briefPath, "utf-8");
@@ -57,7 +62,12 @@ export function createDebriefAutomationAdapter(
       }
 
       // Fall back to current-state.md (notebook context only)
-      const statePath = join(agentDir, "notebook", "operations", "current-state.md");
+      const statePath = join(
+        agentDir,
+        "notebook",
+        "operations",
+        "current-state.md",
+      );
       if (existsSync(statePath)) {
         try {
           return readFileSync(statePath, "utf-8");

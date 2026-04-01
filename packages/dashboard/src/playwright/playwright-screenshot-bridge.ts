@@ -11,7 +11,8 @@ interface StoreOptions {
 
 export class PlaywrightScreenshotBridge {
   private browserInstance: import("playwright").Browser | null = null;
-  private browserLaunchPromise: Promise<import("playwright").Browser> | null = null;
+  private browserLaunchPromise: Promise<import("playwright").Browser> | null =
+    null;
 
   constructor(private readonly vas: VisualActionService) {}
 
@@ -105,13 +106,15 @@ export class PlaywrightScreenshotBridge {
               type: "png",
             });
 
-            const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
+            const viewport = page.viewportSize() ?? {
+              width: 1280,
+              height: 720,
+            };
 
             const base64 = screenshotBuffer.toString("base64");
             bridge.storeFromBase64(base64, {
               description:
-                args.description ??
-                `Playwright: ${args.url ?? "current page"}`,
+                args.description ?? `Playwright: ${args.url ?? "current page"}`,
               width: viewport.width,
               height: viewport.height,
             });

@@ -19,12 +19,20 @@ export interface DesktopServerDeps {
   computerUse: ComputerUseService | null;
   visualService?: VisualActionService;
   rateLimiter?: { check(): { allowed: boolean; reason?: string } };
-  auditLogger?: { log(entry: { tool: string; instruction?: string; timestamp: string }): void };
+  auditLogger?: {
+    log(entry: { tool: string; instruction?: string; timestamp: string }): void;
+  };
   isEnabled?: () => boolean;
 }
 
 type ToolResult = {
-  content: Array<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: "image/png"; data: string } }>;
+  content: Array<
+    | { type: "text"; text: string }
+    | {
+        type: "image";
+        source: { type: "base64"; media_type: "image/png"; data: string };
+      }
+  >;
   isError?: boolean;
 };
 
@@ -32,12 +40,23 @@ type ToolResult = {
 
 export async function handleDesktopTask(
   deps: DesktopServerDeps,
-  args: { instruction: string; context?: { type: string; id: string; automationId?: string }; model?: string; maxActions?: number; timeoutMs?: number },
+  args: {
+    instruction: string;
+    context?: { type: string; id: string; automationId?: string };
+    model?: string;
+    maxActions?: number;
+    timeoutMs?: number;
+  },
 ): Promise<ToolResult> {
   // Check if desktop control is enabled
   if (deps.isEnabled && !deps.isEnabled()) {
     return {
-      content: [{ type: "text" as const, text: "Desktop control is disabled. Enable it in Settings > Desktop Control." }],
+      content: [
+        {
+          type: "text" as const,
+          text: "Desktop control is disabled. Enable it in Settings > Desktop Control.",
+        },
+      ],
       isError: true,
     };
   }
@@ -46,14 +65,23 @@ export async function handleDesktopTask(
     const check = deps.rateLimiter.check();
     if (!check.allowed) {
       return {
-        content: [{ type: "text" as const, text: check.reason ?? "Rate limit exceeded" }],
+        content: [
+          {
+            type: "text" as const,
+            text: check.reason ?? "Rate limit exceeded",
+          },
+        ],
         isError: true,
       };
     }
   }
   // Safety: audit log
   if (deps.auditLogger) {
-    deps.auditLogger.log({ tool: "desktop_task", instruction: args.instruction, timestamp: new Date().toISOString() });
+    deps.auditLogger.log({
+      tool: "desktop_task",
+      instruction: args.instruction,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   if (!deps.computerUse) {
@@ -78,7 +106,13 @@ export async function handleDesktopTask(
         const { join } = await import("node:path");
         const { mkdirSync } = await import("node:fs");
         if (args.context?.type === "job" && args.context.automationId) {
-          logDir = join(agentDir, "automations", ".runs", args.context.automationId, args.context.id);
+          logDir = join(
+            agentDir,
+            "automations",
+            ".runs",
+            args.context.automationId,
+            args.context.id,
+          );
         } else if (args.context?.type === "conversation") {
           logDir = join(agentDir, "conversations", args.context.id);
         } else {
@@ -131,7 +165,12 @@ export async function handleDesktopScreenshot(
 ): Promise<ToolResult> {
   if (deps.isEnabled && !deps.isEnabled()) {
     return {
-      content: [{ type: "text" as const, text: "Desktop control is disabled. Enable it in Settings > Desktop Control." }],
+      content: [
+        {
+          type: "text" as const,
+          text: "Desktop control is disabled. Enable it in Settings > Desktop Control.",
+        },
+      ],
       isError: true,
     };
   }
@@ -287,10 +326,21 @@ export function createDesktopServer(deps: DesktopServerDeps) {
     {
       instruction: z
         .string()
-        .describe("What to accomplish on the desktop — describe the goal, not individual steps"),
-      model: z.string().optional().describe("Model override (default: claude-sonnet-4-6)"),
-      maxActions: z.number().optional().describe("Maximum number of actions before stopping (default: 50)"),
-      timeoutMs: z.number().optional().describe("Timeout in milliseconds (default: 120000)"),
+        .describe(
+          "What to accomplish on the desktop — describe the goal, not individual steps",
+        ),
+      model: z
+        .string()
+        .optional()
+        .describe("Model override (default: claude-sonnet-4-6)"),
+      maxActions: z
+        .number()
+        .optional()
+        .describe("Maximum number of actions before stopping (default: 50)"),
+      timeoutMs: z
+        .number()
+        .optional()
+        .describe("Timeout in milliseconds (default: 120000)"),
     },
     (args) => handleDesktopTask(deps, args),
   );

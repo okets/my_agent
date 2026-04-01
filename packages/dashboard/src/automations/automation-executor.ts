@@ -33,7 +33,17 @@ import { handleCreateChart } from "../mcp/chart-server.js";
 import { queryModel } from "../scheduler/query-model.js";
 
 /** Working Nina's allowed tools — full access including web for research workers */
-const WORKER_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Skill", "WebSearch", "WebFetch"];
+const WORKER_TOOLS = [
+  "Bash",
+  "Read",
+  "Write",
+  "Edit",
+  "Glob",
+  "Grep",
+  "Skill",
+  "WebSearch",
+  "WebFetch",
+];
 
 export interface AutomationExecutorConfig {
   automationManager: AutomationManager;
@@ -181,8 +191,12 @@ export class AutomationExecutor {
       const workerMcpServers = { ...this.config.mcpServers };
       if (this.config.visualService) {
         const vs = this.config.visualService;
-        workerMcpServers["chart-tools"] = createChartServer({ visualService: vs });
-        workerMcpServers["image-fetch-tools"] = createImageFetchServer({ visualService: vs });
+        workerMcpServers["chart-tools"] = createChartServer({
+          visualService: vs,
+        });
+        workerMcpServers["image-fetch-tools"] = createImageFetchServer({
+          visualService: vs,
+        });
       }
 
       // 6. Execute query
@@ -240,11 +254,15 @@ export class AutomationExecutor {
       if (finalDeliverable && deliverablePath && this.config.visualService) {
         const hasImages = finalDeliverable.includes("![");
         const numbers = finalDeliverable.match(/\d+/g) || [];
-        const hasBulletedData = /[-•*]\s.*\d/.test(finalDeliverable) || /\|.*\d.*\|/.test(finalDeliverable);
+        const hasBulletedData =
+          /[-•*]\s.*\d/.test(finalDeliverable) ||
+          /\|.*\d.*\|/.test(finalDeliverable);
 
         if (!hasImages && numbers.length >= 3 && hasBulletedData) {
           try {
-            console.log(`[AutomationExecutor] Deliverable has chartable data, generating chart`);
+            console.log(
+              `[AutomationExecutor] Deliverable has chartable data, generating chart`,
+            );
             const CHART_PROMPT = `Generate an SVG chart for the data in this text. Output ONLY the raw SVG — no markdown fences, no explanation. Include a descriptive title in the chart.\n\nRules:\n- <svg xmlns="http://www.w3.org/2000/svg" width="600" height="350">\n- Use inline style="" attributes, NOT <style> blocks\n- Font: sans-serif only\n- Colors: background #1a1b26, panel #292e42, text #c0caf5, muted #565f89, accent #7aa2f7, purple #bb9af7, pink #f7768e, green #9ece6a, yellow #e0af68\n- Include axis labels, data point values, and a title\n- Round corners on background rect (rx="12")`;
 
             const svgResponse = await queryModel(
@@ -262,16 +280,22 @@ export class AutomationExecutor {
 
               if (!chartResult.isError) {
                 const parsed = JSON.parse(
-                  (chartResult.content[0] as { type: "text"; text: string }).text,
+                  (chartResult.content[0] as { type: "text"; text: string })
+                    .text,
                 );
                 finalDeliverable += `\n\n![${automation.manifest.name} chart](${parsed.url})`;
                 fs.writeFileSync(deliverablePath, finalDeliverable, "utf-8");
                 screenshotIds.push(parsed.id);
-                console.log(`[AutomationExecutor] Chart appended to deliverable: ${parsed.url}`);
+                console.log(
+                  `[AutomationExecutor] Chart appended to deliverable: ${parsed.url}`,
+                );
               }
             }
           } catch (err) {
-            console.warn(`[AutomationExecutor] Deliverable chart generation failed:`, err);
+            console.warn(
+              `[AutomationExecutor] Deliverable chart generation failed:`,
+              err,
+            );
             // Non-fatal — job completes without chart
           }
         }

@@ -42,7 +42,9 @@ interface CachedToken {
 }
 
 function hashToken(token: string): string {
-  return "sha256:" + createHash("sha256").update(token.toUpperCase()).digest("hex");
+  return (
+    "sha256:" + createHash("sha256").update(token.toUpperCase()).digest("hex")
+  );
 }
 
 export class TokenManager implements TokenStore {
@@ -51,7 +53,10 @@ export class TokenManager implements TokenStore {
   private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private onExpired?: (transportId: string) => void;
 
-  constructor(agentDir: string, options?: { onExpired?: (transportId: string) => void }) {
+  constructor(
+    agentDir: string,
+    options?: { onExpired?: (transportId: string) => void },
+  ) {
     this.agentDir = agentDir;
     this.onExpired = options?.onExpired;
     this.loadPendingTokens();
@@ -108,7 +113,9 @@ export class TokenManager implements TokenStore {
    */
   validateToken(transportId: string, input: string): boolean {
     const cached = this.cache.get(transportId);
-    console.log(`[E2E][TokenMgr] validateToken("${transportId}") — cached=${cached ? "yes" : "no"}, input="${input.substring(0, 10)}"`);
+    console.log(
+      `[E2E][TokenMgr] validateToken("${transportId}") — cached=${cached ? "yes" : "no"}, input="${input.substring(0, 10)}"`,
+    );
     if (!cached) return false;
 
     // Check expiry
@@ -209,7 +216,11 @@ export class TokenManager implements TokenStore {
 
           if (new Date() >= expiresAt) {
             // Expired — clean up
-            try { unlinkSync(authFile); } catch { /* ignore */ }
+            try {
+              unlinkSync(authFile);
+            } catch {
+              /* ignore */
+            }
             continue;
           }
 

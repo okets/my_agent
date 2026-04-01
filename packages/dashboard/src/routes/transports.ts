@@ -1,6 +1,9 @@
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { saveTransportToConfig, removeTransportFromConfig } from "@my-agent/core";
+import {
+  saveTransportToConfig,
+  removeTransportFromConfig,
+} from "@my-agent/core";
 import type { TransportConfig } from "@my-agent/core";
 
 export async function registerTransportRoutes(
@@ -36,7 +39,9 @@ export async function registerTransportRoutes(
     // Check for duplicates
     const transportManager = fastify.transportManager;
     if (transportManager?.getTransportInfo(id)) {
-      return reply.code(409).send({ error: `Transport "${id}" already exists` });
+      return reply
+        .code(409)
+        .send({ error: `Transport "${id}" already exists` });
     }
 
     // Build channel config for YAML persistence
@@ -173,7 +178,10 @@ export async function registerTransportRoutes(
           transportManager.suppressQrForTransport(request.params.id);
         }
 
-        await transportManager.connectTransport(request.params.id, needsFreshAuth);
+        await transportManager.connectTransport(
+          request.params.id,
+          needsFreshAuth,
+        );
 
         // If phone number provided, fire-and-forget pairing code request.
         // The code will arrive via WebSocket `transport_pairing_code` event.
@@ -318,5 +326,4 @@ export async function registerTransportRoutes(
       }
     },
   );
-
 }

@@ -48,10 +48,7 @@ export class InMemoryTokenStore implements TokenStore {
 
 export interface AuthorizationGateDeps {
   /** Callback when authorization succeeds — handler creates the channel binding */
-  onAuthorized: (
-    transportId: string,
-    msg: IncomingMessage,
-  ) => Promise<void>;
+  onAuthorized: (transportId: string, msg: IncomingMessage) => Promise<void>;
 }
 
 /**
@@ -80,7 +77,9 @@ export class AuthorizationGate {
     msg: IncomingMessage,
   ): Promise<boolean> {
     const pending = this.tokenStore.getPendingToken(transportId);
-    console.log(`[E2E][Gate] checkMessage("${transportId}") — pending=${pending ? "yes" : "no"}, content="${msg.content.trim().substring(0, 10)}"`);
+    console.log(
+      `[E2E][Gate] checkMessage("${transportId}") — pending=${pending ? "yes" : "no"}, content="${msg.content.trim().substring(0, 10)}"`,
+    );
     if (!pending) return false;
 
     const content = msg.content.trim();

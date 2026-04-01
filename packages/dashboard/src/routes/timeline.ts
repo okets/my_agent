@@ -57,9 +57,7 @@ export async function registerTimelineRoutes(
       return { futureRuns: [] };
     }
 
-    const hours = request.query.hours
-      ? parseInt(request.query.hours, 10)
-      : 24;
+    const hours = request.query.hours ? parseInt(request.query.hours, 10) : 24;
     const futureRuns = getFutureRuns(app, hours);
 
     return { futureRuns };

@@ -205,9 +205,7 @@ export class SkillService {
   private parseFrontmatter(
     content: string,
   ): { data: Record<string, unknown>; body: string } | null {
-    const match = content.match(
-      /^---\r?\n([\s\S]*?)\r?\n---\r?\n*([\s\S]*)$/,
-    );
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n*([\s\S]*)$/);
     if (!match) return null;
     try {
       const data = parseYaml(match[1]) as Record<string, unknown>;

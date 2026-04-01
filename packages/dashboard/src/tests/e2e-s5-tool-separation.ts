@@ -13,7 +13,12 @@ const BASE_URL = "http://localhost:4321";
 const WS_URL = "ws://localhost:4321/api/chat/ws";
 import { join } from "node:path";
 import { findAgentDir } from "@my-agent/core";
-const PROPERTIES_PATH = join(findAgentDir(), "notebook", "properties", "status.yaml");
+const PROPERTIES_PATH = join(
+  findAgentDir(),
+  "notebook",
+  "properties",
+  "status.yaml",
+);
 
 interface TestResult {
   name: string;
@@ -129,19 +134,16 @@ async function getConversationTasks(convId: string): Promise<any[]> {
 }
 
 async function readProperties(): Promise<any> {
-  const res = await fetch(
-    `${BASE_URL}/api/debug/task-tools/update_property`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // Read-only trick: just read current state
-      body: JSON.stringify({
-        key: "__probe__",
-        value: "probe",
-        confidence: "low",
-      }),
-    },
-  );
+  const res = await fetch(`${BASE_URL}/api/debug/task-tools/update_property`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    // Read-only trick: just read current state
+    body: JSON.stringify({
+      key: "__probe__",
+      value: "probe",
+      confidence: "low",
+    }),
+  });
   // We'll check the file directly instead
   return {};
 }
@@ -180,8 +182,7 @@ async function testScenario1_ResearchDelegation(): Promise<TestResult> {
     .then((r) => r.json())
     .then((d) => d.tasks);
   const recentTasks = allTasks.filter(
-    (t: any) =>
-      Date.now() - new Date(t.created).getTime() < 60_000,
+    (t: any) => Date.now() - new Date(t.created).getTime() < 60_000,
   );
   const taskCreated = linkedTasks.length > 0 || recentTasks.length > 0;
 
@@ -259,10 +260,7 @@ async function testScenario3_PropertyUpdate(): Promise<TestResult> {
   const { readFile } = await import("node:fs/promises");
   let propsBefore = "";
   try {
-    propsBefore = await readFile(
-      PROPERTIES_PATH,
-      "utf-8",
-    );
+    propsBefore = await readFile(PROPERTIES_PATH, "utf-8");
   } catch {
     propsBefore = "";
   }
@@ -281,17 +279,16 @@ async function testScenario3_PropertyUpdate(): Promise<TestResult> {
   // Read properties after
   let propsAfter = "";
   try {
-    propsAfter = await readFile(
-      PROPERTIES_PATH,
-      "utf-8",
-    );
+    propsAfter = await readFile(PROPERTIES_PATH, "utf-8");
   } catch {
     propsAfter = "";
   }
 
   // Check if Bangkok appears in properties after the message
   const locationUpdated = propsAfter.toLowerCase().includes("bangkok");
-  const locationWasAlreadyBangkok = propsBefore.toLowerCase().includes("bangkok");
+  const locationWasAlreadyBangkok = propsBefore
+    .toLowerCase()
+    .includes("bangkok");
 
   const pass = locationUpdated;
 
@@ -359,9 +356,7 @@ async function main() {
     console.log(`[${icon}] ${r.name}`);
     console.log(`       ${r.details}`);
     if (r.assistantResponse) {
-      console.log(
-        `       Response: "${r.assistantResponse.slice(0, 150)}..."`,
-      );
+      console.log(`       Response: "${r.assistantResponse.slice(0, 150)}..."`);
     }
     if (r.duration) {
       console.log(`       Duration: ${r.duration}ms`);

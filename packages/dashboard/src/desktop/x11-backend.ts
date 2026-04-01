@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import type { DesktopBackend, DesktopCapabilities, WindowInfo, DisplayInfo, ScreenshotOptions } from "@my-agent/core";
+import type {
+  DesktopBackend,
+  DesktopCapabilities,
+  WindowInfo,
+  DisplayInfo,
+  ScreenshotOptions,
+} from "@my-agent/core";
 
 export interface X11ToolAvailability {
   hasXdotool: boolean;
@@ -61,16 +67,32 @@ export class X11Backend implements DesktopBackend {
     return execFileSync("maim", args, { ...EXEC_OPTIONS, encoding: "buffer" });
   }
 
-  async click(x: number, y: number, button: "left" | "right" | "middle" = "left"): Promise<void> {
+  async click(
+    x: number,
+    y: number,
+    button: "left" | "right" | "middle" = "left",
+  ): Promise<void> {
     this.requireCapability("mouse");
-    execFileSync("xdotool", ["mousemove", "--sync", String(x), String(y)], EXEC_OPTIONS);
+    execFileSync(
+      "xdotool",
+      ["mousemove", "--sync", String(x), String(y)],
+      EXEC_OPTIONS,
+    );
     execFileSync("xdotool", ["click", BUTTON_MAP[button]], EXEC_OPTIONS);
   }
 
   async doubleClick(x: number, y: number): Promise<void> {
     this.requireCapability("mouse");
-    execFileSync("xdotool", ["mousemove", "--sync", String(x), String(y)], EXEC_OPTIONS);
-    execFileSync("xdotool", ["click", "--repeat", "2", "--delay", "50", BUTTON_MAP.left], EXEC_OPTIONS);
+    execFileSync(
+      "xdotool",
+      ["mousemove", "--sync", String(x), String(y)],
+      EXEC_OPTIONS,
+    );
+    execFileSync(
+      "xdotool",
+      ["click", "--repeat", "2", "--delay", "50", BUTTON_MAP.left],
+      EXEC_OPTIONS,
+    );
   }
 
   async type(text: string): Promise<void> {
@@ -85,20 +107,46 @@ export class X11Backend implements DesktopBackend {
 
   async mouseMove(x: number, y: number): Promise<void> {
     this.requireCapability("mouse");
-    execFileSync("xdotool", ["mousemove", "--sync", String(x), String(y)], EXEC_OPTIONS);
+    execFileSync(
+      "xdotool",
+      ["mousemove", "--sync", String(x), String(y)],
+      EXEC_OPTIONS,
+    );
   }
 
-  async mouseDrag(fromX: number, fromY: number, toX: number, toY: number): Promise<void> {
+  async mouseDrag(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+  ): Promise<void> {
     this.requireCapability("mouse");
-    execFileSync("xdotool", ["mousemove", "--sync", String(fromX), String(fromY)], EXEC_OPTIONS);
+    execFileSync(
+      "xdotool",
+      ["mousemove", "--sync", String(fromX), String(fromY)],
+      EXEC_OPTIONS,
+    );
     execFileSync("xdotool", ["mousedown", BUTTON_MAP.left], EXEC_OPTIONS);
-    execFileSync("xdotool", ["mousemove", "--sync", String(toX), String(toY)], EXEC_OPTIONS);
+    execFileSync(
+      "xdotool",
+      ["mousemove", "--sync", String(toX), String(toY)],
+      EXEC_OPTIONS,
+    );
     execFileSync("xdotool", ["mouseup", BUTTON_MAP.left], EXEC_OPTIONS);
   }
 
-  async scroll(x: number, y: number, direction: "up" | "down" | "left" | "right", amount = 3): Promise<void> {
+  async scroll(
+    x: number,
+    y: number,
+    direction: "up" | "down" | "left" | "right",
+    amount = 3,
+  ): Promise<void> {
     this.requireCapability("mouse");
-    execFileSync("xdotool", ["mousemove", "--sync", String(x), String(y)], EXEC_OPTIONS);
+    execFileSync(
+      "xdotool",
+      ["mousemove", "--sync", String(x), String(y)],
+      EXEC_OPTIONS,
+    );
     for (let i = 0; i < amount; i++) {
       execFileSync("xdotool", ["click", SCROLL_MAP[direction]], EXEC_OPTIONS);
     }
@@ -108,12 +156,18 @@ export class X11Backend implements DesktopBackend {
     this.requireCapability("windowManagement");
 
     try {
-      const output = execFileSync("wmctrl", ["-l"], { ...EXEC_OPTIONS, encoding: "utf8" });
+      const output = execFileSync("wmctrl", ["-l"], {
+        ...EXEC_OPTIONS,
+        encoding: "utf8",
+      });
       return parseWmctrlOutput(output);
     } catch {
       // Fallback to xdotool if wmctrl fails
       if (this.tools.hasXdotool) {
-        const output = execFileSync("xdotool", ["search", "--name", ""], { ...EXEC_OPTIONS, encoding: "utf8" });
+        const output = execFileSync("xdotool", ["search", "--name", ""], {
+          ...EXEC_OPTIONS,
+          encoding: "utf8",
+        });
         return output
           .trim()
           .split("\n")
@@ -134,8 +188,14 @@ export class X11Backend implements DesktopBackend {
     this.requireCapability("windowManagement");
 
     try {
-      const idRaw = execFileSync("xdotool", ["getactivewindow"], { ...EXEC_OPTIONS, encoding: "utf8" }).trim();
-      const titleRaw = execFileSync("xdotool", ["getwindowname", idRaw], { ...EXEC_OPTIONS, encoding: "utf8" }).trim();
+      const idRaw = execFileSync("xdotool", ["getactivewindow"], {
+        ...EXEC_OPTIONS,
+        encoding: "utf8",
+      }).trim();
+      const titleRaw = execFileSync("xdotool", ["getwindowname", idRaw], {
+        ...EXEC_OPTIONS,
+        encoding: "utf8",
+      }).trim();
       return {
         id: idRaw,
         title: titleRaw,
@@ -150,17 +210,25 @@ export class X11Backend implements DesktopBackend {
 
   async focusWindow(windowId: string): Promise<void> {
     this.requireCapability("windowManagement");
-    execFileSync("xdotool", ["windowactivate", "--sync", windowId], EXEC_OPTIONS);
+    execFileSync(
+      "xdotool",
+      ["windowactivate", "--sync", windowId],
+      EXEC_OPTIONS,
+    );
     // 100ms settle delay for window to take focus
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
   async windowScreenshot(windowId: string): Promise<Buffer> {
     this.requireCapability("screenshot");
-    return execFileSync("maim", ["--format", "png", "--hidecursor", "--window", windowId], {
-      ...EXEC_OPTIONS,
-      encoding: "buffer",
-    });
+    return execFileSync(
+      "maim",
+      ["--format", "png", "--hidecursor", "--window", windowId],
+      {
+        ...EXEC_OPTIONS,
+        encoding: "buffer",
+      },
+    );
   }
 
   async displayInfo(): Promise<DisplayInfo> {
@@ -168,7 +236,10 @@ export class X11Backend implements DesktopBackend {
     let height = 0;
 
     try {
-      const xdpyinfo = execFileSync("xdpyinfo", [], { ...EXEC_OPTIONS, encoding: "utf8" });
+      const xdpyinfo = execFileSync("xdpyinfo", [], {
+        ...EXEC_OPTIONS,
+        encoding: "utf8",
+      });
       const dimMatch = xdpyinfo.match(/dimensions:\s+(\d+)x(\d+)\s+pixels/);
       if (dimMatch) {
         width = parseInt(dimMatch[1], 10);
@@ -180,11 +251,16 @@ export class X11Backend implements DesktopBackend {
 
     const monitors = [];
     try {
-      const xrandr = execFileSync("xrandr", ["--query"], { ...EXEC_OPTIONS, encoding: "utf8" });
+      const xrandr = execFileSync("xrandr", ["--query"], {
+        ...EXEC_OPTIONS,
+        encoding: "utf8",
+      });
       const lines = xrandr.split("\n");
       for (const line of lines) {
         // Match lines like: "eDP-1 connected primary 1920x1080+0+0 ..."
-        const m = line.match(/^(\S+)\s+connected(?:\s+primary)?\s+(\d+)x(\d+)\+(\d+)\+(\d+)/);
+        const m = line.match(
+          /^(\S+)\s+connected(?:\s+primary)?\s+(\d+)x(\d+)\+(\d+)\+(\d+)/,
+        );
         if (m) {
           const isPrimary = line.includes(" primary ");
           monitors.push({

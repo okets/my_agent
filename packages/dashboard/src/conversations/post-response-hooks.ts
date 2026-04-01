@@ -8,8 +8,14 @@
  * Nina didn't delegate via create_task. Detection only — no auto-creation.
  */
 
-import { extractTaskFromMessage, type AutomationHint } from "../automations/automation-extractor.js";
-import { maybeAugmentWithVisual, type VisualAugmentationDeps } from "../chat/visual-augmentation.js";
+import {
+  extractTaskFromMessage,
+  type AutomationHint,
+} from "../automations/automation-extractor.js";
+import {
+  maybeAugmentWithVisual,
+  type VisualAugmentationDeps,
+} from "../chat/visual-augmentation.js";
 
 export interface PostResponseHooksDeps {
   log: (msg: string) => void;
@@ -17,9 +23,15 @@ export interface PostResponseHooksDeps {
   /** Active automation hints for channel trigger matching */
   getAutomationHints?: () => AutomationHint[];
   /** Fire an automation job with context */
-  fireAutomation?: (automationId: string, context: Record<string, unknown>) => Promise<void>;
+  fireAutomation?: (
+    automationId: string,
+    context: Record<string, unknown>,
+  ) => Promise<void>;
   /** Count recent jobs for dedup */
-  getRecentJobsForAutomation?: (automationId: string, withinMs: number) => number;
+  getRecentJobsForAutomation?: (
+    automationId: string,
+    withinMs: number,
+  ) => number;
   /** Visual augmentation deps (optional — only if VAS + connection registry available) */
   visualAugmentation?: VisualAugmentationDeps;
 }
@@ -80,12 +92,16 @@ export class PostResponseHooks {
 
       // Check for automation match first
       if (extraction.matchedAutomation && this.deps.fireAutomation) {
-        const { automationId, confidence, extractedContext } = extraction.matchedAutomation;
+        const { automationId, confidence, extractedContext } =
+          extraction.matchedAutomation;
 
         // 5-minute dedup: skip if automation fired recently
-        const recentJobs = this.deps.getRecentJobsForAutomation?.(automationId, 300_000) ?? 0;
+        const recentJobs =
+          this.deps.getRecentJobsForAutomation?.(automationId, 300_000) ?? 0;
         if (recentJobs > 0) {
-          this.deps.log(`[PostResponseHooks] Automation ${automationId} already fired recently, skipping`);
+          this.deps.log(
+            `[PostResponseHooks] Automation ${automationId} already fired recently, skipping`,
+          );
           return;
         }
 

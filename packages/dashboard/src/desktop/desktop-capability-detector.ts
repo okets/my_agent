@@ -32,7 +32,10 @@ export function detectDesktopEnvironment(): DesktopEnvironment {
 
   if (platform === "darwin") {
     displayServer = "macos";
-  } else if (xdgSessionType === "wayland" || (!xdgSessionType && !!waylandDisplay)) {
+  } else if (
+    xdgSessionType === "wayland" ||
+    (!xdgSessionType && !!waylandDisplay)
+  ) {
     displayServer = "wayland";
   } else if (xdgSessionType === "x11" || (!xdgSessionType && !!display)) {
     displayServer = "x11";
@@ -44,9 +47,15 @@ export function detectDesktopEnvironment(): DesktopEnvironment {
   let backend: DesktopEnvironment["backend"] = null;
   if (displayServer === "macos") {
     backend = "macos";
-  } else if (displayServer === "x11" && (tools.xdotool || tools.maim || tools.wmctrl)) {
+  } else if (
+    displayServer === "x11" &&
+    (tools.xdotool || tools.maim || tools.wmctrl)
+  ) {
     backend = "x11";
-  } else if (displayServer === "wayland" && (tools.ydotool || tools.kdotool || tools.spectacle)) {
+  } else if (
+    displayServer === "wayland" &&
+    (tools.ydotool || tools.kdotool || tools.spectacle)
+  ) {
     backend = "wayland";
   }
 
@@ -121,9 +130,11 @@ function buildSetupNeeded(
   }
 
   if (displayServer === "x11") {
-    if (!tools.xdotool) needed.push("xdotool (mouse/keyboard control): sudo apt install xdotool");
+    if (!tools.xdotool)
+      needed.push("xdotool (mouse/keyboard control): sudo apt install xdotool");
     if (!tools.maim) needed.push("maim (screenshots): sudo apt install maim");
-    if (!tools.wmctrl) needed.push("wmctrl (window management): sudo apt install wmctrl");
+    if (!tools.wmctrl)
+      needed.push("wmctrl (window management): sudo apt install wmctrl");
   }
 
   if (displayServer === "wayland") {

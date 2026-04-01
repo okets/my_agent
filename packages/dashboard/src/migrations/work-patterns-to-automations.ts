@@ -6,7 +6,13 @@
  * This ensures existing hatched agents keep their scheduled jobs after upgrade.
  */
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
@@ -25,8 +31,13 @@ function cadenceToCron(cadence: string): string {
 
   if (parts[0] === "weekly" && parts.length === 4) {
     const dayMap: Record<string, number> = {
-      sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
-      thursday: 4, friday: 5, saturday: 6,
+      sunday: 0,
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
     };
     const day = dayMap[parts[1]] ?? 0;
     const hour = parseInt(parts[2], 10);
@@ -45,7 +56,10 @@ function cadenceToCron(cadence: string): string {
 }
 
 /** Known handler mappings — which jobs are system vs user */
-const HANDLER_CONFIG: Record<string, { system: boolean; defaultStatus: string }> = {
+const HANDLER_CONFIG: Record<
+  string,
+  { system: boolean; defaultStatus: string }
+> = {
   "debrief-prep": { system: false, defaultStatus: "active" },
   "daily-summary": { system: true, defaultStatus: "active" },
   "weekly-review": { system: true, defaultStatus: "disabled" },
@@ -66,7 +80,12 @@ function toDisplayName(name: string): string {
  * @returns Number of manifests created
  */
 export function migrateWorkPatternsToAutomations(agentDir: string): number {
-  const workPatternsPath = join(agentDir, "notebook", "config", "work-patterns.md");
+  const workPatternsPath = join(
+    agentDir,
+    "notebook",
+    "config",
+    "work-patterns.md",
+  );
   const automationsDir = join(agentDir, "automations");
 
   // Only migrate if work-patterns exists
@@ -74,7 +93,9 @@ export function migrateWorkPatternsToAutomations(agentDir: string): number {
 
   // If automations directory already has .md files, skip migration
   if (existsSync(automationsDir)) {
-    const existing = readdirSync(automationsDir).filter((f) => f.endsWith(".md"));
+    const existing = readdirSync(automationsDir).filter((f) =>
+      f.endsWith(".md"),
+    );
     if (existing.length > 0) return 0;
   }
 
@@ -87,13 +108,18 @@ export function migrateWorkPatternsToAutomations(agentDir: string): number {
     const content = readFileSync(workPatternsPath, "utf-8");
     const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
     if (fmMatch) {
-      const data = parseYaml(fmMatch[1]) as { jobs?: Record<string, { cadence: string; model?: string }> };
+      const data = parseYaml(fmMatch[1]) as {
+        jobs?: Record<string, { cadence: string; model?: string }>;
+      };
       if (data?.jobs) {
         jobs = data.jobs;
       }
     }
   } catch (err) {
-    console.warn("[Migration] Failed to parse work-patterns.md:", err instanceof Error ? err.message : String(err));
+    console.warn(
+      "[Migration] Failed to parse work-patterns.md:",
+      err instanceof Error ? err.message : String(err),
+    );
     return 0;
   }
 
@@ -115,7 +141,9 @@ export function migrateWorkPatternsToAutomations(agentDir: string): number {
     const displayName = toDisplayName(name);
 
     // Determine output filename
-    const filename = isSystem ? `system-${name}.md` : `${name === "debrief-prep" ? "debrief" : name}.md`;
+    const filename = isSystem
+      ? `system-${name}.md`
+      : `${name === "debrief-prep" ? "debrief" : name}.md`;
     const outputPath = join(automationsDir, filename);
 
     if (existsSync(outputPath)) continue;
@@ -161,12 +189,16 @@ Migrated from work-patterns.md on ${createdDate}.
       content = content.replace(/\{\{created_date\}\}/g, createdDate);
       writeFileSync(outputPath, content, "utf-8");
       count++;
-      console.log(`[Migration] Created automation manifest from template: ${filename}`);
+      console.log(
+        `[Migration] Created automation manifest from template: ${filename}`,
+      );
     }
   }
 
   if (count > 0) {
-    console.log(`[Migration] Migrated ${count} work-patterns job(s) to automation manifests`);
+    console.log(
+      `[Migration] Migrated ${count} work-patterns job(s) to automation manifests`,
+    );
   }
 
   return count;
@@ -180,7 +212,9 @@ function copyTemplates(agentDir: string, templatesDir: string): number {
   mkdirSync(automationsDir, { recursive: true });
 
   const createdDate = new Date().toISOString().split("T")[0];
-  const templateFiles = readdirSync(templatesDir).filter((f) => f.endsWith(".md"));
+  const templateFiles = readdirSync(templatesDir).filter((f) =>
+    f.endsWith(".md"),
+  );
   let count = 0;
 
   for (const file of templateFiles) {

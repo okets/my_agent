@@ -77,13 +77,24 @@ export async function registerDesktopRoutes(
     const { promisify } = await import("util");
     const execFileAsync = promisify(execFile);
     // scripts/setup-desktop.sh is at the repo root, not inside agentDir
-    const scriptPath = join(fastify.agentDir, "..", "scripts", "setup-desktop.sh");
+    const scriptPath = join(
+      fastify.agentDir,
+      "..",
+      "scripts",
+      "setup-desktop.sh",
+    );
 
     try {
-      const { stdout, stderr } = await execFileAsync("bash", [scriptPath], { timeout: 120000 });
+      const { stdout, stderr } = await execFileAsync("bash", [scriptPath], {
+        timeout: 120000,
+      });
       return { success: true, output: stdout + stderr };
     } catch (err: unknown) {
-      const execErr = err as { stdout?: string; stderr?: string; message?: string };
+      const execErr = err as {
+        stdout?: string;
+        stderr?: string;
+        message?: string;
+      };
       return {
         success: false,
         output: (execErr.stdout ?? "") + (execErr.stderr ?? ""),

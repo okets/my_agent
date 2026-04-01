@@ -80,9 +80,9 @@ export function removeEnvValue(envPath: string, key: string): void {
   writeEnv(envPath, filtered.join('\n'))
 }
 
-/** Resolve the .env file path from an agentDir. The .env lives as a sibling of agentDir's parent package. */
-export function resolveEnvPath(agentDir: string): string {
-  return path.join(agentDir, '..', '.env')
+/** Resolve the .env file path. The .env lives in the process working directory (packages/dashboard/). */
+export function resolveEnvPath(_agentDir?: string): string {
+  return path.resolve('.env')
 }
 
 /** Return all secret values (excludes config keys like PORT, HOST, NODE_ENV). */

@@ -228,9 +228,7 @@ export async function registerAutomationRoutes(
 
       const body = request.body as { userResponse?: string };
       if (!body?.userResponse) {
-        return reply
-          .code(400)
-          .send({ error: "Missing userResponse in body" });
+        return reply.code(400).send({ error: "Missing userResponse in body" });
       }
 
       try {
@@ -267,9 +265,7 @@ export async function registerAutomationRoutes(
     }
 
     if (automation.manifest.system) {
-      return reply
-        .code(403)
-        .send({ error: "Cannot modify system automation" });
+      return reply.code(403).send({ error: "Cannot modify system automation" });
     }
 
     try {

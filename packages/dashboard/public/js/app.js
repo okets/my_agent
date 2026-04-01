@@ -14,6 +14,85 @@ function formatDuration(ms) {
 }
 
 /**
+ * Alpine.js secrets panel component (Settings > Secrets Management)
+ */
+function secretsPanel() {
+  return {
+    secrets: [],
+    loading: true,
+    showAddModal: false,
+    newKeyName: "",
+    newKeyValue: "",
+    deleteTarget: null,
+
+    async init() {
+      await this.loadSecrets();
+    },
+
+    async loadSecrets() {
+      this.loading = true;
+      try {
+        const res = await fetch("/api/settings/secrets");
+        const data = await res.json();
+        this.secrets = (data.secrets || []).map((s) => ({
+          ...s,
+          revealed: false,
+          value: "",
+        }));
+      } catch (e) {
+        console.error("Failed to load secrets:", e);
+      }
+      this.loading = false;
+    },
+
+    toggleReveal(secret) {
+      // API returns masked values only; toggle shows/hides the mask
+      secret.revealed = !secret.revealed;
+    },
+
+    async addSecret() {
+      if (!this.newKeyName || !this.newKeyValue) return;
+      try {
+        await fetch(
+          `/api/settings/secrets/${encodeURIComponent(this.newKeyName)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ value: this.newKeyValue }),
+          },
+        );
+        this.showAddModal = false;
+        this.newKeyName = "";
+        this.newKeyValue = "";
+        await this.loadSecrets();
+      } catch (e) {
+        console.error("Failed to add secret:", e);
+      }
+    },
+
+    confirmDelete(secret) {
+      this.deleteTarget = secret;
+    },
+
+    async deleteSecret() {
+      if (!this.deleteTarget) return;
+      try {
+        await fetch(
+          `/api/settings/secrets/${encodeURIComponent(this.deleteTarget.key)}`,
+          {
+            method: "DELETE",
+          },
+        );
+        this.deleteTarget = null;
+        await this.loadSecrets();
+      } catch (e) {
+        console.error("Failed to delete secret:", e);
+      }
+    },
+  };
+}
+
+/**
  * Alpine.js chat component
  */
 function chat() {
@@ -24,6 +103,9 @@ function chat() {
     messages: [],
     inputText: "",
     isResponding: false,
+    isRecording: false,
+    mediaRecorder: null,
+    audioChunks: [],
     wsConnected: false,
     ws: null,
     messageIdCounter: 0,
@@ -69,7 +151,13 @@ function chat() {
     // Tab system (workspace layout)
     // ─────────────────────────────────────────────────────────────────
     openTabs: [
-      { id: "home", type: "home", title: "Home", icon: ICONS.home, closeable: false },
+      {
+        id: "home",
+        type: "home",
+        title: "Home",
+        icon: ICONS.home,
+        closeable: false,
+      },
     ],
     activeTab: "home",
 
@@ -198,7 +286,9 @@ function chat() {
         if (seenJobIds.has(job.id)) continue;
         seenJobIds.add(job.id);
         const created = new Date(job.created);
-        const automation = automationItems.find((a) => a.id === job.automationId);
+        const automation = automationItems.find(
+          (a) => a.id === job.automationId,
+        );
         items.push({
           id: `job-${job.id}`,
           sortDate: created,
@@ -235,7 +325,9 @@ function chat() {
 
       // 3. Future projections
       for (const proj of this.timelineProjections || []) {
-        const projDate = new Date(proj.scheduledFor || proj.date || proj.nextRun);
+        const projDate = new Date(
+          proj.scheduledFor || proj.date || proj.nextRun,
+        );
         items.push({
           id: `proj-${proj.automationId}-${projDate.getTime()}`,
           sortDate: projDate,
@@ -277,13 +369,23 @@ function chat() {
     },
 
     formatTimeNow() {
-      return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     },
 
     formatDateTimeNow() {
       const now = new Date();
-      const date = now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-      const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const date = now.toLocaleDateString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+      const time = now.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
       return `${date}, ${time}`;
     },
 
@@ -863,6 +965,85 @@ function chat() {
       return "Start a conversation...";
     },
 
+    async toggleRecording() {
+      if (this.isRecording) {
+        // Stop recording
+        this.mediaRecorder?.stop();
+        this.isRecording = false;
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        this.audioChunks = [];
+        this.mediaRecorder = new MediaRecorder(stream, {
+          mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+            ? "audio/webm;codecs=opus"
+            : "audio/webm",
+        });
+
+        this.mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) this.audioChunks.push(e.data);
+        };
+
+        this.mediaRecorder.onstop = async () => {
+          // Stop all tracks
+          stream.getTracks().forEach((t) => t.stop());
+
+          const blob = new Blob(this.audioChunks, {
+            type: this.mediaRecorder.mimeType,
+          });
+
+          // Convert to base64 and send as attachment
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = reader.result.split(",")[1];
+            this.ws.send({
+              type: "message",
+              content: "[Voice message]",
+              inputMedium: "audio",
+              attachments: [
+                {
+                  filename: "voice-message.webm",
+                  mimeType: this.mediaRecorder.mimeType,
+                  base64Data: base64,
+                },
+              ],
+            });
+
+            // Add user message to chat
+            this.messages.push({
+              id: ++this.messageIdCounter,
+              role: "user",
+              content: "[Voice message]",
+              renderedContent: this.renderMarkdown("[Voice message]"),
+              timestamp: this.formatTime(new Date()),
+            });
+            this.touchCurrentConversation();
+            this.isResponding = true;
+          };
+          reader.readAsDataURL(blob);
+        };
+
+        this.mediaRecorder.start();
+        this.isRecording = true;
+      } catch (err) {
+        console.error("Failed to start recording:", err);
+        this.messages.push({
+          id: ++this.messageIdCounter,
+          role: "system",
+          content:
+            "Microphone access denied. Please allow microphone access to use voice messages.",
+          renderedContent: this.renderMarkdown(
+            "Microphone access denied. Please allow microphone access to use voice messages.",
+          ),
+          timestamp: this.formatTime(new Date()),
+        });
+      }
+    },
+
     async sendMessage() {
       const text = this.inputText.trim();
       const hasAttachments = this.attachments.length > 0;
@@ -1243,6 +1424,17 @@ function chat() {
             this.selectedModel =
               localStorage.getItem("selectedModel") || "claude-sonnet-4-6";
           }
+          // Sync model store for header badge
+          if (Alpine.store("model")) {
+            const m = this.selectedModel || "";
+            Alpine.store("model").set(
+              m.includes("opus")
+                ? "opus"
+                : m.includes("haiku")
+                  ? "haiku"
+                  : "sonnet",
+            );
+          }
 
           // Convert turns to messages
           if (data.turns && data.turns.length > 0) {
@@ -1453,6 +1645,17 @@ function chat() {
           // Update model if this is current conversation
           if (data.conversationId === this.currentConversationId) {
             this.selectedModel = data.model;
+            // Sync model store for header badge
+            if (Alpine.store("model")) {
+              const m = data.model || "";
+              Alpine.store("model").set(
+                m.includes("opus")
+                  ? "opus"
+                  : m.includes("haiku")
+                    ? "haiku"
+                    : "sonnet",
+              );
+            }
           }
           const convToUpdateModel = this.conversations.find(
             (c) => c.id === data.conversationId,
@@ -1700,7 +1903,10 @@ function chat() {
         // Add target="_blank" to links, graceful 404 for images
         return clean
           .replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ')
-          .replace(/<img /g, '<img onerror="this.classList.add(\'img-broken\')" ');
+          .replace(
+            /<img /g,
+            "<img onerror=\"this.classList.add('img-broken')\" ",
+          );
       } catch (err) {
         console.error("[App] Markdown rendering error:", err);
         // Fallback: escape HTML and preserve line breaks
@@ -1813,6 +2019,16 @@ function chat() {
     // ─────────────────────────────────────────────────────────────────
     onModelChange(model) {
       this.selectedModel = model;
+      // Sync model store for header badge
+      if (Alpine.store("model")) {
+        Alpine.store("model").set(
+          model.includes("opus")
+            ? "opus"
+            : model.includes("haiku")
+              ? "haiku"
+              : "sonnet",
+        );
+      }
       // Persist selection so it survives new conversations and page reloads
       localStorage.setItem("selectedModel", model);
       // Haiku doesn't support extended thinking — disable reasoning if switching to Haiku
@@ -1893,7 +2109,6 @@ function chat() {
             this.chatContext.automationId = tab.data.automationId;
             this.chatContext.automationName = tab.title;
           }
-
         }
       }
 
@@ -3394,8 +3609,11 @@ function chat() {
 
       // Find the oldest job/item in the current timeline to use as cursor
       const allItems = this.timelineItems;
-      const pastItems = allItems.filter((i) => i.isPast && i.itemType === "job");
-      const oldest = pastItems.length > 0 ? pastItems[pastItems.length - 1] : null;
+      const pastItems = allItems.filter(
+        (i) => i.isPast && i.itemType === "job",
+      );
+      const oldest =
+        pastItems.length > 0 ? pastItems[pastItems.length - 1] : null;
 
       if (oldest && oldest.job) {
         try {
@@ -3405,7 +3623,9 @@ function chat() {
           const data = await res.json();
           if (data.pastJobs && data.pastJobs.length > 0) {
             // Merge with existing older jobs, avoiding duplicates
-            const existingIds = new Set(this.timelineOlderJobs.map((j) => j.id));
+            const existingIds = new Set(
+              this.timelineOlderJobs.map((j) => j.id),
+            );
             const newJobs = data.pastJobs.filter((j) => !existingIds.has(j.id));
             this.timelineOlderJobs = [...this.timelineOlderJobs, ...newJobs];
             this.canLoadEarlierJobs = data.pastJobs.length === 20;
@@ -3424,7 +3644,8 @@ function chat() {
      * Format time for a timeline item
      */
     formatTimelineTime(item) {
-      const d = item.sortDate || new Date(item.job?.created || item.event?.start || 0);
+      const d =
+        item.sortDate || new Date(item.job?.created || item.event?.start || 0);
       return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     },
 
@@ -3438,7 +3659,11 @@ function chat() {
       yesterday.setDate(yesterday.getDate() - 1);
       if (d.toDateString() === today.toDateString()) return "Today";
       if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
-      return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+      return d.toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
     },
 
     /**
@@ -3574,7 +3799,6 @@ function chat() {
         this.calendarViewType = view.type;
         this.updateCalendarContext();
       }
-
     },
 
     /**
@@ -3786,7 +4010,6 @@ function chat() {
         events: fetchTimelineEvents,
       });
     },
-
 
     /**
      * Open event modal for creating/editing
@@ -4974,9 +5197,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       tab.loading = true;
       this.openTabs = [...this.openTabs];
       try {
-        const resp = await fetch(
-          `/api/spaces/${encodeURIComponent(name)}`,
-        );
+        const resp = await fetch(`/api/spaces/${encodeURIComponent(name)}`);
         const data = await resp.json();
         tab.data = { ...tab.data, ...data, loaded: true };
         tab.selectedFile = null;
@@ -4994,14 +5215,11 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
     async updateSpaceField(name, field, value) {
       try {
-        const resp = await fetch(
-          `/api/spaces/${encodeURIComponent(name)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ [field]: value }),
-          },
-        );
+        const resp = await fetch(`/api/spaces/${encodeURIComponent(name)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [field]: value }),
+        });
         const data = await resp.json();
         // Update local tab data with new manifest
         const tab = this.openTabs.find((t) => t.id === `space-${name}`);
@@ -5033,7 +5251,10 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     },
 
     async updateMaintenancePolicy(tab, newPolicy) {
-      const maintenance = { ...tab.data.manifest.maintenance, on_failure: newPolicy };
+      const maintenance = {
+        ...tab.data.manifest.maintenance,
+        on_failure: newPolicy,
+      };
       tab.data.manifest.maintenance = maintenance;
       await this.updateSpaceField(tab.data.name, "maintenance", maintenance);
     },
@@ -5059,12 +5280,12 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
     // ─── Timeline Navigation ──────────────────────────────────────────
 
     openTimelineItem(item) {
-      if (item.itemType === 'event') {
+      if (item.itemType === "event") {
         // Calendar events — open calendar tab or popover
         if (this.$store.mobile.isMobile) {
-          this.$store.mobile.openPopoverWithFocus('calendar', null);
+          this.$store.mobile.openPopoverWithFocus("calendar", null);
         } else {
-          this.switchTab('calendar');
+          this.switchTab("calendar");
         }
         return;
       }
@@ -5072,7 +5293,9 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       if (item.automationId) {
         if (this.$store.mobile.isMobile) {
           // Open automations popover with this automation pre-selected
-          this.$store.mobile.openPopoverWithFocus('automations-browser', { autoSelectId: item.automationId });
+          this.$store.mobile.openPopoverWithFocus("automations-browser", {
+            autoSelectId: item.automationId,
+          });
         } else {
           this.openAutomationDetail(item.automationId);
         }
@@ -5112,9 +5335,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
       tab.loading = true;
       this.openTabs = [...this.openTabs];
       try {
-        const resp = await fetch(
-          `/api/automations/${encodeURIComponent(id)}`,
-        );
+        const resp = await fetch(`/api/automations/${encodeURIComponent(id)}`);
         const data = await resp.json();
         // Restructure flat API response into the shape the template expects:
         // tab.data.manifest.{name,status,...} and tab.data.instructions
@@ -5166,9 +5387,7 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
         for (const job of data.pastJobs || []) {
           const duration =
             job.completed && job.created
-              ? formatDuration(
-                  new Date(job.completed) - new Date(job.created),
-                )
+              ? formatDuration(new Date(job.completed) - new Date(job.created))
               : null;
           history.push({
             id: job.id,
@@ -5204,9 +5423,12 @@ Current time: ${this.formatEventDateTime(eventData)}${eventData.description ? `\
 
     async fireAutomation(id) {
       try {
-        const resp = await fetch(`/api/automations/${encodeURIComponent(id)}/fire`, {
-          method: "POST",
-        });
+        const resp = await fetch(
+          `/api/automations/${encodeURIComponent(id)}/fire`,
+          {
+            method: "POST",
+          },
+        );
         if (!resp.ok) {
           console.error("Failed to fire automation:", await resp.text());
         }

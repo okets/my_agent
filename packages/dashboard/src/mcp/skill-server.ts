@@ -236,14 +236,27 @@ export async function handleDeleteSkill(
   };
 }
 
-export async function handleListSkills(agentDir: string, skillService?: SkillService): Promise<ToolResult> {
+export async function handleListSkills(
+  agentDir: string,
+  skillService?: SkillService,
+): Promise<ToolResult> {
   if (skillService) {
     const skills = skillService.list();
     if (skills.length === 0) {
       return { content: [{ type: "text" as const, text: "No skills found." }] };
     }
-    const lines = skills.map(s => `- **${s.name}** [${s.origin}]: ${s.description}${s.disabled ? " (disabled)" : ""}`);
-    return { content: [{ type: "text" as const, text: `${skills.length} skill(s):\n${lines.join("\n")}` }] };
+    const lines = skills.map(
+      (s) =>
+        `- **${s.name}** [${s.origin}]: ${s.description}${s.disabled ? " (disabled)" : ""}`,
+    );
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: `${skills.length} skill(s):\n${lines.join("\n")}`,
+        },
+      ],
+    };
   }
 
   // Fallback: direct file I/O when no SkillService provided

@@ -106,6 +106,16 @@ class NinaWebSocket {
                 Alpine.store("screenshots").add(data.screenshot);
               }
               break;
+            case "capabilities":
+              if (Alpine.store("capabilities")) {
+                Alpine.store("capabilities").update(data.capabilities);
+              }
+              break;
+            case "model_changed":
+              if (Alpine.store("model")) {
+                Alpine.store("model").set(data.model);
+              }
+              break;
           }
         }
 

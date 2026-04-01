@@ -38,10 +38,16 @@ interface TransportEntry {
 }
 
 /** Message handler signature */
-type MessageHandler = (transportId: string, messages: IncomingMessage[]) => void;
+type MessageHandler = (
+  transportId: string,
+  messages: IncomingMessage[],
+) => void;
 
 /** Status change handler signature */
-type StatusChangeHandler = (transportId: string, status: TransportStatus) => void;
+type StatusChangeHandler = (
+  transportId: string,
+  status: TransportStatus,
+) => void;
 
 /** QR code handler signature */
 type QrCodeHandler = (transportId: string, qrDataUrl: string) => void;
@@ -378,10 +384,7 @@ export class TransportManager {
   /**
    * Update a transport's runtime config (e.g., adding ownerIdentities after token auth).
    */
-  updateTransportConfig(
-    id: string,
-    update: Partial<TransportConfig>,
-  ): void {
+  updateTransportConfig(id: string, update: Partial<TransportConfig>): void {
     const entry = this.transports.get(id);
     if (!entry) return;
     Object.assign(entry.config, update);
@@ -658,7 +661,10 @@ export class TransportManager {
       try {
         handler(transportId, newStatus);
       } catch (err) {
-        console.error(`[TransportManager] Error in status change handler:`, err);
+        console.error(
+          `[TransportManager] Error in status change handler:`,
+          err,
+        );
       }
     }
 
@@ -766,7 +772,9 @@ export class TransportManager {
     // Schedule reconnection
     entry.reconnectTimer = setTimeout(async () => {
       try {
-        console.log(`[TransportManager] Attempting reconnect for ${transportId}`);
+        console.log(
+          `[TransportManager] Attempting reconnect for ${transportId}`,
+        );
         await entry.plugin.connect();
       } catch (err) {
         console.error(

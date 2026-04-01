@@ -81,7 +81,8 @@ export class ComputerUseService {
         summary: "",
         screenshots: [],
         actionsPerformed: 0,
-        error: "A desktop task is already running. Only one task may execute at a time.",
+        error:
+          "A desktop task is already running. Only one task may execute at a time.",
       };
     }
 
@@ -106,7 +107,10 @@ export class ComputerUseService {
     try {
       // 1. Get display info and compute scale factor
       const display = await this.backend.displayInfo();
-      const scaleFactor = ComputerUseService.computeScaleFactor(display.width, display.height);
+      const scaleFactor = ComputerUseService.computeScaleFactor(
+        display.width,
+        display.height,
+      );
       const scaledWidth = Math.round(display.width * scaleFactor);
       const scaledHeight = Math.round(display.height * scaleFactor);
 
@@ -118,7 +122,11 @@ export class ComputerUseService {
         height: display.height,
         source: "desktop",
       });
-      screenshots.push({ id: initialSS.id, filename: initialSS.filename, path: initialSS.path });
+      screenshots.push({
+        id: initialSS.id,
+        filename: initialSS.filename,
+        path: initialSS.path,
+      });
 
       // 3. Build initial messages
       const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
@@ -166,7 +174,8 @@ export class ComputerUseService {
 
         // Find tool_use blocks
         const toolUseBlocks = response.content.filter(
-          (b): b is Anthropic.Beta.Messages.BetaToolUseBlock => b.type === "tool_use",
+          (b): b is Anthropic.Beta.Messages.BetaToolUseBlock =>
+            b.type === "tool_use",
         );
 
         // If no tool_use blocks, task is complete
@@ -179,17 +188,27 @@ export class ComputerUseService {
             height: display.height,
             source: "desktop",
           });
-          screenshots.push({ id: finalSS.id, filename: finalSS.filename, path: finalSS.path });
+          screenshots.push({
+            id: finalSS.id,
+            filename: finalSS.filename,
+            path: finalSS.path,
+          });
 
-          const summary = textBlocks.map((b) => b.text).join("\n") || "Task completed.";
+          const summary =
+            textBlocks.map((b) => b.text).join("\n") || "Task completed.";
           return { success: true, summary, screenshots, actionsPerformed };
         }
 
         // Add the assistant's response to messages
-        messages.push({ role: "assistant", content: response.content as Anthropic.Beta.Messages.BetaContentBlock[] });
+        messages.push({
+          role: "assistant",
+          content:
+            response.content as Anthropic.Beta.Messages.BetaContentBlock[],
+        });
 
         // Process each tool_use and build tool_result content
-        const toolResults: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = [];
+        const toolResults: Anthropic.Beta.Messages.BetaToolResultBlockParam[] =
+          [];
 
         for (const toolUse of toolUseBlocks) {
           const input = toolUse.input as Record<string, unknown>;
@@ -219,7 +238,11 @@ export class ComputerUseService {
               timestamp: new Date().toISOString(),
             };
             const logPath = join(task.logDir, "desktop-actions.jsonl");
-            await appendFile(logPath, JSON.stringify(actionEntry) + "\n", "utf-8");
+            await appendFile(
+              logPath,
+              JSON.stringify(actionEntry) + "\n",
+              "utf-8",
+            );
           }
 
           // Build tool_result with screenshot
@@ -249,7 +272,8 @@ export class ComputerUseService {
       }
 
       // Reached action or time limit
-      const limitReason = actionsPerformed >= maxActions ? "action limit" : "timeout";
+      const limitReason =
+        actionsPerformed >= maxActions ? "action limit" : "timeout";
       return {
         success: false,
         summary: "",
@@ -273,7 +297,10 @@ export class ComputerUseService {
 
   // ── Action execution ──────────────────────────────────────────────────────
 
-  private async executeAction(input: Record<string, unknown>, scaleFactor: number): Promise<void> {
+  private async executeAction(
+    input: Record<string, unknown>,
+    scaleFactor: number,
+  ): Promise<void> {
     const action = input.action as string;
     const coordinate = input.coordinate as [number, number] | undefined;
 
@@ -331,9 +358,12 @@ export class ComputerUseService {
       }
       case "left_click_drag":
       case "drag": {
-        const startCoord = input.start_coordinate as [number, number] | undefined ?? coordinate!;
-        const endCoord = input.coordinate as [number, number] | undefined
-          ?? input.end_coordinate as [number, number];
+        const startCoord =
+          (input.start_coordinate as [number, number] | undefined) ??
+          coordinate!;
+        const endCoord =
+          (input.coordinate as [number, number] | undefined) ??
+          (input.end_coordinate as [number, number]);
         await this.backend.mouseDrag(
           ComputerUseService.toScreenCoord(startCoord[0], scaleFactor),
           ComputerUseService.toScreenCoord(startCoord[1], scaleFactor),

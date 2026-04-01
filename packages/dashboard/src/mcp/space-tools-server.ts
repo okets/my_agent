@@ -110,10 +110,7 @@ export function createSpaceToolsServer(deps: SpaceToolsServerDeps) {
     {
       tag: z.string().optional().describe("Filter by tag"),
       runtime: z.string().optional().describe("Filter by runtime"),
-      search: z
-        .string()
-        .optional()
-        .describe("Search name/description/tags"),
+      search: z.string().optional().describe("Search name/description/tags"),
     },
     async (args) => {
       const spaces = deps.db.listSpaces({

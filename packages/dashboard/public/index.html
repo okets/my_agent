@@ -2912,6 +2912,100 @@
                 </div>
               </div>
 
+              <!-- Secrets Management -->
+              <div class="glass-strong rounded-xl p-5 space-y-4" x-data="secretsPanel()">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-sm font-medium text-gray-200">Secrets</h3>
+                  <button @click="showAddModal = true"
+                          class="text-xs px-2.5 py-1 rounded-lg bg-violet-500/15 text-violet-400 border border-violet-500/20 hover:bg-violet-500/25 transition-colors">
+                    + Add Key
+                  </button>
+                </div>
+
+                <!-- Loading state -->
+                <div x-show="loading" class="text-xs text-gray-500">Loading secrets...</div>
+
+                <!-- Secret list -->
+                <template x-if="!loading && secrets.length > 0">
+                  <div class="space-y-2">
+                    <template x-for="secret in secrets" :key="secret.key">
+                      <div class="flex items-center justify-between py-2 px-3 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                        <div class="flex items-center gap-3 min-w-0">
+                          <span class="text-xs font-mono text-gray-300 truncate" x-text="secret.key"></span>
+                          <span class="text-xs font-mono text-gray-500"
+                                x-text="secret.revealed ? secret.value : secret.maskedValue"></span>
+                        </div>
+                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                          <!-- Reveal/hide toggle -->
+                          <button @click="toggleReveal(secret)"
+                                  class="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+                                  :title="secret.revealed ? 'Hide' : 'Reveal'">
+                            <svg x-show="!secret.revealed" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg x-show="secret.revealed" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                          </button>
+                          <!-- Delete (not for read-only) -->
+                          <button x-show="!secret.readOnly"
+                                  @click="confirmDelete(secret)"
+                                  class="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                                  title="Delete">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          </button>
+                          <!-- Read-only badge -->
+                          <span x-show="secret.readOnly" class="text-[9px] px-1.5 py-0.5 rounded bg-gray-500/15 text-gray-500">managed</span>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+
+                <!-- Empty state -->
+                <div x-show="!loading && secrets.length === 0" class="text-xs text-gray-500">
+                  No secrets configured. Add API keys for capabilities.
+                </div>
+
+                <!-- Capability hints -->
+                <template x-for="secret in secrets.filter(s => s.capabilities && s.capabilities.length > 0)" :key="'cap-' + secret.key">
+                  <div class="text-[10px] text-gray-500">
+                    <span x-text="secret.key"></span> &rarr; <span x-text="secret.capabilities.join(', ')"></span>
+                  </div>
+                </template>
+
+                <!-- Add Key Modal -->
+                <div x-show="showAddModal" x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+                     @click.self="showAddModal = false">
+                  <div class="glass-strong rounded-xl p-5 w-80 space-y-4" @click.stop>
+                    <h4 class="text-sm font-medium text-gray-200">Add Secret</h4>
+                    <input x-model="newKeyName" type="text" placeholder="KEY_NAME"
+                           class="w-full px-3 py-2 text-xs font-mono bg-[#1e1e2e] border border-white/[0.15] rounded-lg text-gray-200 placeholder-gray-600 focus:border-white/[0.35] focus:outline-none">
+                    <input x-model="newKeyValue" type="password" placeholder="Value"
+                           class="w-full px-3 py-2 text-xs font-mono bg-[#1e1e2e] border border-white/[0.15] rounded-lg text-gray-200 placeholder-gray-600 focus:border-white/[0.35] focus:outline-none">
+                    <div class="flex gap-2 justify-end">
+                      <button @click="showAddModal = false" class="text-xs px-3 py-1.5 rounded-lg text-gray-400 hover:text-gray-300">Cancel</button>
+                      <button @click="addSecret()"
+                              :disabled="!newKeyName || !newKeyValue"
+                              class="text-xs px-3 py-1.5 rounded-lg bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500/30 disabled:opacity-40 transition-colors">
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Delete Confirmation -->
+                <div x-show="deleteTarget" x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+                     @click.self="deleteTarget = null">
+                  <div class="glass-strong rounded-xl p-5 w-80 space-y-4" @click.stop>
+                    <p class="text-sm text-gray-200">Delete <span class="font-mono" x-text="deleteTarget?.key"></span>?</p>
+                    <p class="text-xs text-gray-500">This will remove the key from .env. Capabilities using it will become unavailable.</p>
+                    <div class="flex gap-2 justify-end">
+                      <button @click="deleteTarget = null" class="text-xs px-3 py-1.5 rounded-lg text-gray-400 hover:text-gray-300">Cancel</button>
+                      <button @click="deleteSecret()" class="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Desktop Control -->
               <div class="glass-strong rounded-xl p-5">
                 <div x-data="{ status: null }" x-init="
@@ -5192,7 +5286,7 @@
             A
           </div>
 
-          <!-- Title + Rename + New chat -->
+          <!-- Title + Model badge + Rename + New chat -->
           <div class="flex-1 min-w-0 flex items-center gap-1.5">
             <!-- Title display (read-only) -->
             <div
@@ -5202,6 +5296,12 @@
               <span
                 class="text-sm font-medium truncate flex-1"
                 x-text="currentTitle || 'New conversation'"
+              ></span>
+              <!-- Model indicator badge -->
+              <span
+                x-show="selectedModel"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0"
+                x-text="selectedModel.includes('opus') ? 'Opus' : selectedModel.includes('haiku') ? 'Haiku' : 'Sonnet'"
               ></span>
               <!-- Rename pencil button -->
               <button
@@ -6032,6 +6132,20 @@
                 <span class="shrink-0 text-tokyo-muted/40 text-sm select-none"
                   >/</span
                 >
+
+                <!-- Record button (shown when STT capability available) -->
+                <button x-show="$store.capabilities.has('audio-to-text')"
+                        x-cloak
+                        @click="toggleRecording()"
+                        :class="isRecording ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-gray-400 hover:text-gray-300'"
+                        class="flex-shrink-0 p-2 rounded-lg transition-colors"
+                        :title="isRecording ? 'Stop recording' : 'Record voice message'">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="22"/>
+                  </svg>
+                </button>
 
                 <!-- Send button (solid coral V1 style) -->
                 <button
@@ -7558,6 +7672,76 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Secrets Management (mobile) -->
+              <div class="glass-strong rounded-xl p-4 space-y-3" x-data="secretsPanel()">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-sm font-medium text-gray-200">Secrets</h3>
+                  <button @click="showAddModal = true"
+                          class="text-xs px-2.5 py-1 rounded-lg bg-violet-500/15 text-violet-400 border border-violet-500/20 hover:bg-violet-500/25 transition-colors">
+                    + Add Key
+                  </button>
+                </div>
+
+                <div x-show="loading" class="text-xs text-gray-500">Loading secrets...</div>
+
+                <template x-if="!loading && secrets.length > 0">
+                  <div class="space-y-2">
+                    <template x-for="secret in secrets" :key="secret.key">
+                      <div class="flex items-center justify-between py-2 px-3 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                        <span class="text-xs font-mono text-gray-300 truncate" x-text="secret.key"></span>
+                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                          <button x-show="!secret.readOnly"
+                                  @click="confirmDelete(secret)"
+                                  class="p-1 text-gray-500 hover:text-red-400 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          </button>
+                          <span x-show="secret.readOnly" class="text-[9px] px-1.5 py-0.5 rounded bg-gray-500/15 text-gray-500">managed</span>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+
+                <div x-show="!loading && secrets.length === 0" class="text-xs text-gray-500">
+                  No secrets configured.
+                </div>
+
+                <!-- Add Key Modal (mobile) -->
+                <div x-show="showAddModal" x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+                     @click.self="showAddModal = false">
+                  <div class="glass-strong rounded-xl p-5 w-80 space-y-4" @click.stop>
+                    <h4 class="text-sm font-medium text-gray-200">Add Secret</h4>
+                    <input x-model="newKeyName" type="text" placeholder="KEY_NAME"
+                           class="w-full px-3 py-2 text-xs font-mono bg-[#1e1e2e] border border-white/[0.15] rounded-lg text-gray-200 placeholder-gray-600 focus:border-white/[0.35] focus:outline-none">
+                    <input x-model="newKeyValue" type="password" placeholder="Value"
+                           class="w-full px-3 py-2 text-xs font-mono bg-[#1e1e2e] border border-white/[0.15] rounded-lg text-gray-200 placeholder-gray-600 focus:border-white/[0.35] focus:outline-none">
+                    <div class="flex gap-2 justify-end">
+                      <button @click="showAddModal = false" class="text-xs px-3 py-1.5 rounded-lg text-gray-400 hover:text-gray-300">Cancel</button>
+                      <button @click="addSecret()"
+                              :disabled="!newKeyName || !newKeyValue"
+                              class="text-xs px-3 py-1.5 rounded-lg bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500/30 disabled:opacity-40 transition-colors">
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Delete Confirmation (mobile) -->
+                <div x-show="deleteTarget" x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+                     @click.self="deleteTarget = null">
+                  <div class="glass-strong rounded-xl p-5 w-80 space-y-4" @click.stop>
+                    <p class="text-sm text-gray-200">Delete <span class="font-mono" x-text="deleteTarget?.key"></span>?</p>
+                    <p class="text-xs text-gray-500">This will remove the key from .env.</p>
+                    <div class="flex gap-2 justify-end">
+                      <button @click="deleteTarget = null" class="text-xs px-3 py-1.5 rounded-lg text-gray-400 hover:text-gray-300">Cancel</button>
+                      <button @click="deleteSecret()" class="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </template>
 
@@ -8443,14 +8627,22 @@
           x-show="$store.mobile.chatState !== 'peek'"
           class="flex flex-col flex-1 min-h-0"
         >
-          <!-- Mobile chat sub-header: title + New chat -->
+          <!-- Mobile chat sub-header: title + Model badge + New chat -->
           <div
             class="px-3 py-2 border-b border-white/5 shrink-0 flex items-center justify-between"
             >
-              <span
-                class="text-xs text-tokyo-muted truncate"
-                x-text="currentTitle || 'New conversation'"
-              ></span>
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span
+                  class="text-xs text-tokyo-muted truncate"
+                  x-text="currentTitle || 'New conversation'"
+                ></span>
+                <!-- Model indicator badge (mobile) -->
+                <span
+                  x-show="selectedModel"
+                  class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0"
+                  x-text="selectedModel.includes('opus') ? 'Opus' : selectedModel.includes('haiku') ? 'Haiku' : 'Sonnet'"
+                ></span>
+              </div>
               <button
                 @click="createNewConversation()"
                 class="flex items-center gap-1 px-2 py-1 rounded text-xs text-tokyo-blue hover:bg-tokyo-blue/10 transition-colors shrink-0"
@@ -8658,6 +8850,19 @@
                       </svg>
                     </button>
                   </div>
+                  <!-- Record button (shown when STT capability available) -->
+                  <button x-show="$store.capabilities.has('audio-to-text')"
+                          x-cloak
+                          @click="toggleRecording()"
+                          :class="isRecording ? 'text-red-400 bg-red-500/20 animate-pulse' : 'text-gray-400 hover:text-gray-300'"
+                          class="flex-shrink-0 p-2 rounded-lg transition-colors"
+                          :title="isRecording ? 'Stop recording' : 'Record voice message'">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      <line x1="12" y1="19" x2="12" y2="22"/>
+                    </svg>
+                  </button>
                   <!-- Send button -->
                   <button
                     class="send-btn"

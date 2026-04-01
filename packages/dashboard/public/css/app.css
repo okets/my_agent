@@ -41,10 +41,10 @@
   --header-icon-color: #a9b1d6;
 
   /* Section label colors — each section has distinct color */
-  --section-color-spaces: #7aa2f7;           /* Blue */
-  --section-color-automations: #ff9e64;      /* Orange - distinct from green */
-  --section-color-notebook: #bb9af7;         /* Purple */
-  --section-color-conversations: #9ece6a;    /* Green */
+  --section-color-spaces: #7aa2f7; /* Blue */
+  --section-color-automations: #ff9e64; /* Orange - distinct from green */
+  --section-color-notebook: #bb9af7; /* Purple */
+  --section-color-conversations: #9ece6a; /* Green */
 
   /* Timeline source badge colors */
   --badge-schedule-bg: rgba(158, 206, 106, 0.2);
@@ -388,8 +388,12 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 @keyframes lightbox-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* ── Channel icons (sidebar) ──────────────────────────────────── */
@@ -473,7 +477,7 @@ footer textarea:focus {
 }
 
 .chat-bg-pattern::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   background-image: repeating-linear-gradient(
@@ -1373,20 +1377,20 @@ button[title="Rename conversation"]:active {
 
 /* Home widgets — consistent height for all four */
 .home-widget-grid {
-  align-items: stretch;  /* All widgets same height per row */
+  align-items: stretch; /* All widgets same height per row */
 }
 
 /* Standard widget height — ensures visual consistency */
 .home-widget {
   display: flex;
   flex-direction: column;
-  max-height: 360px;  /* Consistent max height for all widgets */
+  max-height: 360px; /* Consistent max height for all widgets */
 }
 
 .home-widget > .widget-content {
   flex: 1;
   overflow-y: auto;
-  min-height: 0;  /* Allow flex item to shrink below content */
+  min-height: 0; /* Allow flex item to shrink below content */
 }
 
 /* ── Section background tints (~4% opacity for subtle identity) ──── */
@@ -1534,11 +1538,11 @@ button[title="Rename conversation"]:active {
 
 /* Category color tokens */
 :root {
-  --notebook-operations: #ff9e64;    /* Amber/Orange - commands, actions */
-  --notebook-lists: #7aa2f7;         /* Blue - reference, lists */
-  --notebook-daily: #9ece6a;         /* Green - calendar, logs */
-  --notebook-knowledge: #bb9af7;     /* Purple - knowledge, learning */
-  --notebook-skills: #f7768e;        /* Pink - abilities, magic */
+  --notebook-operations: #ff9e64; /* Amber/Orange - commands, actions */
+  --notebook-lists: #7aa2f7; /* Blue - reference, lists */
+  --notebook-daily: #9ece6a; /* Green - calendar, logs */
+  --notebook-knowledge: #bb9af7; /* Purple - knowledge, learning */
+  --notebook-skills: #f7768e; /* Pink - abilities, magic */
 }
 
 /* Category section headers */
@@ -1584,11 +1588,21 @@ button[title="Rename conversation"]:active {
 }
 
 /* File icon color on hover */
-.notebook-item-operations:hover svg { color: var(--notebook-operations); }
-.notebook-item-lists:hover svg { color: var(--notebook-lists); }
-.notebook-item-daily:hover svg { color: var(--notebook-daily); }
-.notebook-item-knowledge:hover svg { color: var(--notebook-knowledge); }
-.notebook-item-skills:hover svg { color: var(--notebook-skills); }
+.notebook-item-operations:hover svg {
+  color: var(--notebook-operations);
+}
+.notebook-item-lists:hover svg {
+  color: var(--notebook-lists);
+}
+.notebook-item-daily:hover svg {
+  color: var(--notebook-daily);
+}
+.notebook-item-knowledge:hover svg {
+  color: var(--notebook-knowledge);
+}
+.notebook-item-skills:hover svg {
+  color: var(--notebook-skills);
+}
 
 /* Notebook browser tree panel — subtle gradient */
 .notebook-tree-panel {
@@ -1617,11 +1631,21 @@ button[title="Rename conversation"]:active {
   flex-shrink: 0;
 }
 
-.notebook-section-dot.operations { background: var(--notebook-operations); }
-.notebook-section-dot.lists { background: var(--notebook-lists); }
-.notebook-section-dot.daily { background: var(--notebook-daily); }
-.notebook-section-dot.knowledge { background: var(--notebook-knowledge); }
-.notebook-section-dot.skills { background: var(--notebook-skills); }
+.notebook-section-dot.operations {
+  background: var(--notebook-operations);
+}
+.notebook-section-dot.lists {
+  background: var(--notebook-lists);
+}
+.notebook-section-dot.daily {
+  background: var(--notebook-daily);
+}
+.notebook-section-dot.knowledge {
+  background: var(--notebook-knowledge);
+}
+.notebook-section-dot.skills {
+  background: var(--notebook-skills);
+}
 
 /* Skill type badges — refined colors */
 .skill-badge {

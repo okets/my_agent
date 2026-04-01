@@ -207,7 +207,8 @@ export async function createServer(
 
   // Register auth routes (accessible from any client)
   fastify.post("/api/auth/logout", async (_request, reply) => {
-    const { clearAuth, removeEnvValue, resolveEnvPath } = await import("@my-agent/core");
+    const { clearAuth, removeEnvValue, resolveEnvPath } =
+      await import("@my-agent/core");
     clearAuth();
     const envPath = resolveEnvPath(agentDir);
     removeEnvValue(envPath, "ANTHROPIC_API_KEY");

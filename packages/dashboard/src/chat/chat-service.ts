@@ -7,6 +7,11 @@
  * M6.10-S3: Design spec §S3 (Chat Handler Decomposition)
  */
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { join } from "node:path";
+import { writeFileSync, mkdirSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import type { App } from "../app.js";
 import type { ConversationManager } from "../conversations/index.js";
 import { NamingService } from "../conversations/naming.js";
@@ -404,16 +409,32 @@ export class AppChatService {
     // ── View context (generic) ────────────────────────────────────
     if (options?.context) {
       const ctx = options.context;
-      if (ctx.type === 'automation' && ctx.automationId) {
-        sessionManager.setViewContext('automation', ctx.automationId, ctx.automationName || ctx.title || '');
-      } else if (ctx.type === 'space' && ctx.spaceName) {
-        sessionManager.setViewContext('space', ctx.spaceName, ctx.title || ctx.spaceName);
-      } else if (ctx.type === 'conversation' && ctx.conversationId) {
-        sessionManager.setViewContext('conversation', ctx.conversationId, ctx.title || '');
-      } else if (ctx.type === 'notebook' && ctx.file) {
-        sessionManager.setViewContext('notebook', ctx.file, ctx.title || '');
-      } else if (ctx.type === 'calendar') {
-        sessionManager.setViewContext('calendar', 'calendar', ctx.title || 'Calendar');
+      if (ctx.type === "automation" && ctx.automationId) {
+        sessionManager.setViewContext(
+          "automation",
+          ctx.automationId,
+          ctx.automationName || ctx.title || "",
+        );
+      } else if (ctx.type === "space" && ctx.spaceName) {
+        sessionManager.setViewContext(
+          "space",
+          ctx.spaceName,
+          ctx.title || ctx.spaceName,
+        );
+      } else if (ctx.type === "conversation" && ctx.conversationId) {
+        sessionManager.setViewContext(
+          "conversation",
+          ctx.conversationId,
+          ctx.title || "",
+        );
+      } else if (ctx.type === "notebook" && ctx.file) {
+        sessionManager.setViewContext("notebook", ctx.file, ctx.title || "");
+      } else if (ctx.type === "calendar") {
+        sessionManager.setViewContext(
+          "calendar",
+          "calendar",
+          ctx.title || "Calendar",
+        );
       }
     }
 
@@ -482,6 +503,27 @@ export class AppChatService {
 
       if (contentBlocks.length === 0) {
         contentBlocks = undefined;
+      }
+    }
+
+    // ── STT: Transcribe audio attachments ────────────────────────
+    const isAudioInput = options?.inputMedium === "audio";
+    let transcribedContent = expandedContent;
+
+    if (isAudioInput && savedAttachments.length > 0) {
+      const audioAttachment = savedAttachments.find((a) =>
+        a.mimeType.startsWith("audio/"),
+      );
+      if (audioAttachment) {
+        const sttResult = await this.transcribeAudio(audioAttachment.localPath);
+        if (sttResult.text) {
+          transcribedContent = `[Voice message] ${sttResult.text}`;
+          // Replace content blocks with transcribed text for brain
+          contentBlocks = [{ type: "text", text: transcribedContent }];
+        } else if (sttResult.error) {
+          transcribedContent = `[Voice message — transcription failed: ${sttResult.error}]`;
+          contentBlocks = [{ type: "text", text: transcribedContent }];
+        }
       }
     }
 
@@ -602,15 +644,24 @@ export class AppChatService {
             }
             break;
           }
-          case "done":
+          case "done": {
             usage = event.usage;
             cost = event.cost;
+
+            // TTS: synthesize audio response if input was voice + TTS available
+            let audioUrl: string | undefined;
+            if (isAudioInput && assistantContent.trim()) {
+              audioUrl = (await this.synthesizeAudio(assistantContent, convId)) ?? undefined;
+            }
+
             yield {
               type: "done" as const,
               cost: event.cost,
               usage: event.usage,
+              audioUrl,
             };
             break;
+          }
           case "error":
             yield { type: "error" as const, message: event.message };
             break;
@@ -683,6 +734,66 @@ export class AppChatService {
   }
 
   // ─── Private helpers ───────────────────────────────────────────────
+
+  /**
+   * Transcribe audio via the STT capability script.
+   * Returns transcribed text or an error message.
+   */
+  private async transcribeAudio(
+    audioPath: string,
+  ): Promise<{ text?: string; error?: string }> {
+    const cap = this.app.capabilityRegistry?.get("audio-to-text");
+    if (!cap || cap.status !== "available") {
+      return { error: "No audio-to-text capability available" };
+    }
+
+    const scriptPath = join(cap.path, "scripts", "transcribe.sh");
+    try {
+      const execFileAsync = promisify(execFile);
+      const { stdout, stderr } = await execFileAsync(scriptPath, [audioPath], {
+        timeout: 30000,
+      });
+      const result = JSON.parse(stdout.trim());
+      return { text: result.text || stdout.trim() };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { error: `Transcription failed: ${msg}` };
+    }
+  }
+
+  /**
+   * Synthesize audio via the TTS capability script.
+   * Returns the audio file path or null.
+   */
+  private async synthesizeAudio(
+    text: string,
+    conversationId: string,
+  ): Promise<string | null> {
+    const cap = this.app.capabilityRegistry?.get("text-to-audio");
+    if (!cap || cap.status !== "available") return null;
+
+    const scriptPath = join(cap.path, "scripts", "synthesize.sh");
+    const assetsDir = join(
+      this.app.agentDir,
+      "..",
+      "packages",
+      "dashboard",
+      "public",
+      "assets",
+      "audio",
+    );
+    mkdirSync(assetsDir, { recursive: true });
+    const outputFile = join(assetsDir, `tts-${randomUUID()}.ogg`);
+
+    try {
+      const execFileAsync = promisify(execFile);
+      await execFileAsync(scriptPath, [text, outputFile], { timeout: 30000 });
+      // Return URL path relative to dashboard public root
+      return `/assets/audio/${outputFile.split("/").pop()}`;
+    } catch {
+      return null;
+    }
+  }
 
   private async triggerNaming(conversationId: string): Promise<void> {
     const conv = await this.conversationManager.get(conversationId);

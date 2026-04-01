@@ -69,7 +69,10 @@ export function createDebriefMcpServer(scheduler: DebriefSchedulerLike) {
           const result = await handler();
           return {
             type: "text" as const,
-            text: JSON.stringify({ debrief: result, note: "Full report not available, showing digest." }),
+            text: JSON.stringify({
+              debrief: result,
+              note: "Full report not available, showing digest.",
+            }),
           };
         },
       ),

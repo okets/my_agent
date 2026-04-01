@@ -52,7 +52,9 @@ document.addEventListener("alpine:init", () => {
 
     forJob(jobId) {
       return this.items.filter(
-        (s) => s.refs && s.refs.some((r) => r.startsWith("job/") && r.endsWith("/" + jobId)),
+        (s) =>
+          s.refs &&
+          s.refs.some((r) => r.startsWith("job/") && r.endsWith("/" + jobId)),
       );
     },
 
@@ -62,7 +64,27 @@ document.addEventListener("alpine:init", () => {
 
     forConversation(conversationId) {
       return this.items.filter(
-        (s) => s.refs && s.refs.some((r) => r.startsWith("conv/" + conversationId)),
+        (s) =>
+          s.refs && s.refs.some((r) => r.startsWith("conv/" + conversationId)),
+      );
+    },
+  });
+
+  Alpine.store("model", {
+    current: "sonnet",
+    set(model) {
+      this.current = model;
+    },
+  });
+
+  Alpine.store("capabilities", {
+    items: [],
+    update(caps) {
+      this.items = caps || [];
+    },
+    has(type) {
+      return this.items.some(
+        (c) => c.provides === type && c.status === "available",
       );
     },
   });

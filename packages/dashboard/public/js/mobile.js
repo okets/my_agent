@@ -518,8 +518,14 @@ function initSheetGesture(el, options) {
 
   // Listen in CAPTURE phase so we intercept before scrollable children consume events.
   // passive: false on touchmove so we can preventDefault() when dragging.
-  el.addEventListener("touchstart", onTouchStart, { passive: true, capture: true });
-  el.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
+  el.addEventListener("touchstart", onTouchStart, {
+    passive: true,
+    capture: true,
+  });
+  el.addEventListener("touchmove", onTouchMove, {
+    passive: false,
+    capture: true,
+  });
   el.addEventListener("touchend", onTouchEnd, { passive: true, capture: true });
 
   // Return cleanup function

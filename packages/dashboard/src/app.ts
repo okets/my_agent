@@ -99,7 +99,10 @@ import { detectDesktopEnvironment } from "./desktop/desktop-capability-detector.
 import { X11Backend } from "./desktop/x11-backend.js";
 import { ComputerUseService } from "./desktop/computer-use-service.js";
 import { createDesktopServer } from "./mcp/desktop-server.js";
-import { createDesktopRateLimiter, createDesktopAuditLogger } from "./hooks/desktop-hooks.js";
+import {
+  createDesktopRateLimiter,
+  createDesktopAuditLogger,
+} from "./hooks/desktop-hooks.js";
 import type { DesktopEnvironment, DesktopBackend } from "@my-agent/core";
 import { PlaywrightScreenshotBridge } from "./playwright/playwright-screenshot-bridge.js";
 import Anthropic from "@anthropic-ai/sdk";
@@ -435,10 +438,17 @@ export class App extends EventEmitter {
 
       // Register MCP capabilities (interface: mcp with .mcp.json)
       for (const cap of registry.list()) {
-        if (cap.interface === "mcp" && cap.mcpConfig && cap.status === "available") {
+        if (
+          cap.interface === "mcp" &&
+          cap.mcpConfig &&
+          cap.status === "available"
+        ) {
           try {
             // MCP config from .mcp.json follows SDK's McpServerConfig shape
-            addMcpServer(cap.name, cap.mcpConfig as Parameters<typeof addMcpServer>[1]);
+            addMcpServer(
+              cap.name,
+              cap.mcpConfig as Parameters<typeof addMcpServer>[1],
+            );
             console.log(`[Capabilities] Registered MCP server: ${cap.name}`);
           } catch (err) {
             console.warn(
@@ -464,9 +474,7 @@ export class App extends EventEmitter {
           registry.load(caps);
           app.emit("capability:changed", caps);
           getPromptBuilder()?.invalidateCache();
-          console.log(
-            `[Capabilities] Re-scanned: ${caps.length} capabilities`,
-          );
+          console.log(`[Capabilities] Re-scanned: ${caps.length} capabilities`);
         } catch (err) {
           console.warn(
             "[Capabilities] Re-scan failed:",
@@ -500,7 +508,8 @@ export class App extends EventEmitter {
     app.conversationManager = new ConversationManager(agentDir);
 
     // Wire screenshot ref scanning — when a turn contains screenshot URLs, add refs (S3.5)
-    const screenshotUrlPattern = /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
+    const screenshotUrlPattern =
+      /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
     app.conversationManager.onTurnAppended = (conversationId, turn) => {
       if (!turn.content) return;
       const ref = `conv/${conversationId}`;
@@ -1102,8 +1111,12 @@ export class App extends EventEmitter {
             app.statePublisher?.publishJobs();
             app.emit(event, job);
             // On job completion, scan summary for screenshot URLs and add refs (S3.5)
-            if ((event === "job:completed" || event === "job:needs_review") && job.summary) {
-              const jobSsPattern = /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
+            if (
+              (event === "job:completed" || event === "job:needs_review") &&
+              job.summary
+            ) {
+              const jobSsPattern =
+                /\/api\/assets\/screenshots\/(ss-[a-f0-9-]+)\.png/g;
               const ref = `job/${job.automationId}/${job.id}`;
               const batch: Array<{ id: string; ref: string }> = [];
               for (const match of job.summary.matchAll(jobSsPattern)) {
@@ -1148,14 +1161,21 @@ export class App extends EventEmitter {
         // Cleanup unreferenced screenshots on startup + daily (S3.5)
         const screenshotsCleaned = app.visualActionService.cleanup();
         if (screenshotsCleaned > 0) {
-          console.log(`[App] Cleaned up ${screenshotsCleaned} unreferenced screenshot(s)`);
+          console.log(
+            `[App] Cleaned up ${screenshotsCleaned} unreferenced screenshot(s)`,
+          );
         }
-        setInterval(() => {
-          const cleaned = app.visualActionService.cleanup();
-          if (cleaned > 0) {
-            console.log(`[App] Daily cleanup: removed ${cleaned} unreferenced screenshot(s)`);
-          }
-        }, 24 * 60 * 60 * 1000);
+        setInterval(
+          () => {
+            const cleaned = app.visualActionService.cleanup();
+            if (cleaned > 0) {
+              console.log(
+                `[App] Daily cleanup: removed ${cleaned} unreferenced screenshot(s)`,
+              );
+            }
+          },
+          24 * 60 * 60 * 1000,
+        );
 
         // Scheduler — cron-based triggers
         app.automationScheduler = new AutomationScheduler({
@@ -1267,14 +1287,20 @@ export class App extends EventEmitter {
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (backend && apiKey) {
         const client = new Anthropic({ apiKey });
-        computerUse = new ComputerUseService(client, backend, app.visualActionService);
+        computerUse = new ComputerUseService(
+          client,
+          backend,
+          app.visualActionService,
+        );
         app.desktopComputerUse = computerUse;
       }
 
       // Safety hooks — standalone utilities for MCP tool handlers
       app.desktopRateLimiter = createDesktopRateLimiter({ maxPerMinute: 30 });
       app.desktopAuditLogger = createDesktopAuditLogger((entry) => {
-        console.log(`[Desktop] audit: ${entry.tool} at ${entry.timestamp}${entry.instruction ? ` — ${entry.instruction.slice(0, 80)}` : ""}`);
+        console.log(
+          `[Desktop] audit: ${entry.tool} at ${entry.timestamp}${entry.instruction ? ` — ${entry.instruction.slice(0, 80)}` : ""}`,
+        );
       });
 
       // Register desktop MCP server (always — returns helpful errors if no backend)
@@ -1293,35 +1319,48 @@ export class App extends EventEmitter {
       if (desktopEnv.hasDisplay) {
         console.log(
           `[Desktop] ${desktopEnv.displayServer} detected, backend: ${desktopEnv.backend ?? "none"}, ` +
-          `capabilities: screenshot=${desktopEnv.capabilities.screenshot}, mouse=${desktopEnv.capabilities.mouse}, ` +
-          `keyboard=${desktopEnv.capabilities.keyboard}, windowMgmt=${desktopEnv.capabilities.windowManagement}`,
+            `capabilities: screenshot=${desktopEnv.capabilities.screenshot}, mouse=${desktopEnv.capabilities.mouse}, ` +
+            `keyboard=${desktopEnv.capabilities.keyboard}, windowMgmt=${desktopEnv.capabilities.windowManagement}`,
         );
         if (!computerUse) {
-          console.log("[Desktop] ComputerUseService not available (missing API key or backend)");
+          console.log(
+            "[Desktop] ComputerUseService not available (missing API key or backend)",
+          );
         }
         if (desktopEnv.setupNeeded.length > 0) {
-          console.log(`[Desktop] Setup needed: ${desktopEnv.setupNeeded.join("; ")}`);
+          console.log(
+            `[Desktop] Setup needed: ${desktopEnv.setupNeeded.join("; ")}`,
+          );
         }
       } else {
-        console.log("[Desktop] No display detected — desktop tools will return helpful errors");
+        console.log(
+          "[Desktop] No display detected — desktop tools will return helpful errors",
+        );
       }
     }
 
     // Register Playwright screenshot bridge MCP server (M8-S3)
     // Provides browser_screenshot_and_store tool that stores via VAS
     // The existing @playwright/mcp (stdio) stays registered for navigation/interaction
-    app.playwrightBridge = new PlaywrightScreenshotBridge(app.visualActionService);
+    app.playwrightBridge = new PlaywrightScreenshotBridge(
+      app.visualActionService,
+    );
     const playwrightScreenshotServer = app.playwrightBridge.createMcpServer();
     addMcpServer("playwright-screenshot", playwrightScreenshotServer);
     console.log("[App] Playwright screenshot bridge MCP server registered");
 
     // Register chart + image-fetch MCP servers (M8-S4.1: purpose-built tools)
     const { createChartServer } = await import("./mcp/chart-server.js");
-    const chartServer = createChartServer({ visualService: app.visualActionService });
+    const chartServer = createChartServer({
+      visualService: app.visualActionService,
+    });
     addMcpServer("chart-tools", chartServer);
 
-    const { createImageFetchServer } = await import("./mcp/image-fetch-server.js");
-    const imageFetchServer = createImageFetchServer({ visualService: app.visualActionService });
+    const { createImageFetchServer } =
+      await import("./mcp/image-fetch-server.js");
+    const imageFetchServer = createImageFetchServer({
+      visualService: app.visualActionService,
+    });
     addMcpServer("image-fetch-tools", imageFetchServer);
     console.log("[App] Chart + image-fetch MCP servers registered");
 
