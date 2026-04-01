@@ -84,6 +84,28 @@ Note: `text-to-image` framework reactions already exist from M8-S4 (Rich I/O). I
 - [ ] Adding a key triggers capability re-scan (unavailable → available)
 - [ ] Failed transcription shows error in chat, not silent drop
 
+## Traceability Matrix
+
+| Design Spec Section | Requirement | Task(s) |
+|---------------------|-------------|---------|
+| Principles §3 | Framework reacts to capability presence | 15, 19, 22 |
+| Well-Known Types | audio-to-text → record button | 15, 16, 17 |
+| Well-Known Types | text-to-audio → audio player on responses | 19, 20, 21 |
+| Well-Known Types | text-to-image → image inline (existing from M8-S4) | Note |
+| Framework Reactions > Dashboard | WebSocket capabilities message on connect | 13, 14 |
+| Framework Reactions > Dashboard | Components gate on capabilities.has() | 15, 19 |
+| Framework Reactions > Dashboard | Model indicator in header | 22, 23 |
+| Medium Mirroring | Audio in → audio out (channel-level) | 18, 20 |
+| Error Handling | Don't silently drop failed STT/TTS (dashboard) | 27-dash |
+| Secrets Management > Settings UI | Secrets section below AI Connection | 30 |
+| Secrets Management > Settings UI | Values masked, reveal on click | 30 |
+| Secrets Management > Settings UI | ANTHROPIC_API_KEY read-only | 28, 30 |
+| Secrets Management > Settings UI | Add/edit/delete flows | 31 |
+| Secrets Management > Settings UI | Agent can write to .env from chat | 31b |
+| Secrets Management > Flow When Key Missing | Secret added triggers re-scan → available | 29 |
+| Model Switching | Dashboard status bar shows model | 22 |
+| Model Switching | Broadcast model_changed via WebSocket | 23 |
+
 ## Deliverables
 
 - Dashboard: record button, audio player, model indicator

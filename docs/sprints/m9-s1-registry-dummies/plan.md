@@ -60,6 +60,35 @@ Build the capability registry that discovers capabilities from `.my_agent/capabi
 - [ ] Brain's system prompt includes capability listing
 - [ ] Prompt cache invalidates when capability changes
 
+## Traceability Matrix
+
+| Design Spec Section | Requirement | Task(s) |
+|---------------------|-------------|---------|
+| Principles §1 | Capabilities are files, not code registrations | 1, 2, 5 |
+| Principles §4 | Markdown is source of truth | 2 |
+| Principles §5 | Secrets are centralized in .env | 3, 45 |
+| Principles §6 | Registry is the contract | 1 |
+| Principles §7 | Scripts are the universal adapter | 8, 9 |
+| Capability Registry > Directory Convention | Flat folder structure, one level deep | 2 |
+| Capability Registry > Directory Convention | references/ directory support | 12b |
+| Capability Registry > CAPABILITY.md Format | Frontmatter fields (name, provides, interface, requires.env) | 1, 2 |
+| Capability Registry > CAPABILITY.md Format | Body as free-form brain instructions | 11, 12b |
+| Capability Registry > Interface Types | `interface: script` — shell scripts | 8, 9 |
+| Capability Registry > Interface Types | `interface: mcp` — direct passthrough (.mcp.json) | 6, 7 |
+| Capability Registry > Interface Types | `interface: mcp` — lifecycle wrapper (start.sh/stop.sh) | 6 |
+| Capability Registry > Interface Types | ${CAPABILITY_ROOT} expansion | 7 |
+| Capability Registry > Interface Types | requires.env vars passed to MCP env | 7 |
+| Capability Registry > Interface Types | Activation timing (script=immediate, MCP=next message) | 6 |
+| Capability Registry > Discovery | Scan on startup | 2, 6 |
+| Capability Registry > Discovery | Check requires.env, mark available/unavailable | 2 |
+| Capability Registry > Discovery | Emit capability_changed event | 4 |
+| Capability Registry > Discovery | File watcher, re-scan on change | 5 |
+| Capability Registry > Registry API | has(), get(), list(), rescan() | 1 |
+| Brain Prompt | Inject available + unavailable capabilities into system prompt | 11 |
+| Brain Prompt | Invalidate prompt cache on change | 12 |
+| Secrets Management | Unify .env path resolution | 3, 45 |
+| Implementation Phase 1 | Dummy STT + TTS capabilities | 8, 9, 10 |
+
 ## Deliverables
 
 - `packages/core/src/capabilities/` — types, registry, scanner

@@ -61,6 +61,33 @@ Voice works across WhatsApp (not just the dashboard). Nina can create capabiliti
 - [ ] Builder agent tests scripts and fixes errors autonomously
 - [ ] Builder agent asks before running install.sh
 
+## Traceability Matrix
+
+| Design Spec Section | Requirement | Task(s) |
+|---------------------|-------------|---------|
+| Framework Reactions > Channels | Voice notes transcribed (audio-to-text) | 24, 25 |
+| Framework Reactions > Channels | Voice replies when input was audio (text-to-audio) | 26 |
+| Error Handling | Don't silently drop failed scripts | 27 |
+| Error Handling | Pass failure context to brain as text | 27 |
+| Medium Mirroring | Audio in → audio out (channel-level) | 26 |
+| Skill Generation > Skill 2 | AgentDefinition with model: opus | 32 |
+| Skill Generation > Skill 2 | Tools: Read, Write, Edit, Bash, Glob, Grep | 32 |
+| Skill Generation > Skill 2 | Spawned by brain via Task tool | 33 |
+| Skill Generation > Skill 2 | Subagent avoids mid-session model switch | 32 |
+| Skill Generation > Skill 1 | Brainstorming skill in .my_agent/.claude/skills/ | 34 |
+| Skill Generation > Skill 1 | Triggered on new capability request | 34 |
+| Skill Generation > Skill 1 | Prior art reference material | 35 |
+| Trust Model | Autonomous for file writes | 32 |
+| Trust Model | Ask before install.sh | 32 |
+| Trust Model | Ask before deleting capability | 32 |
+| Escalation Contract | Fix bugs autonomously | 32 |
+| Escalation Contract | Escalate for auth errors, signup, 3-attempt limit | 32 |
+| Model Switching | Visible "Switching to Opus" message | 36 |
+| Model Switching | Visible "Back to Sonnet" message | 36 |
+| Model Switching | Broadcast model_changed | 37 |
+| CAPABILITY.md Format | Keep under 2k words, use references/ | 32 |
+| Directory Convention | config.yaml conventions | 32, 35 |
+
 ## Deliverables
 
 - WhatsApp: voice note transcription + voice replies

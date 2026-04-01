@@ -73,6 +73,22 @@ The milestone is complete when:
 7. Errors surface to the user, never silently drop
 8. CLAUDE.md documents the capability system
 
+## Traceability Matrix
+
+| Design Spec Section | Requirement | Task(s) |
+|---------------------|-------------|---------|
+| Principles §2 | Agent builds its own skills | 39, 41 |
+| Implementation Phase 4 | Delete dummy STT, Nina creates real one | 38, 39 |
+| Implementation Phase 4 | Iterate until reliable end-to-end | 39, 41 |
+| Implementation Phase 4 | Repeat for TTS | 41 |
+| Well-Known Types | audio-to-text works across dashboard + WhatsApp | 40 |
+| Well-Known Types | text-to-audio works across dashboard + WhatsApp | 42 |
+| Medium Mirroring | Voice in → voice out | 43 |
+| Secrets Management > Flow When Key Missing | Remove key → unavailable → add key → available | 43b |
+| Error Handling | Errors surface, never silently drop | 43c |
+| Non-Goals | No provider-specific hints in builder prompt | Iteration Rule |
+| Implementation Phase 6 | Update CLAUDE.md with capability conventions | 46 |
+
 ## Deliverables
 
 - Real STT capability (agent-authored)
