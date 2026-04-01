@@ -3,7 +3,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyCors from "@fastify/cors";
 import fastifyWebSocket from "@fastify/websocket";
 import fastifyMultipart from "@fastify/multipart";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { registerChatWebSocket } from "./ws/chat-handler.js";
@@ -207,9 +207,9 @@ export async function createServer(
 
   // Register auth routes (accessible from any client)
   fastify.post("/api/auth/logout", async (_request, reply) => {
-    const { clearAuth, removeEnvValue } = await import("@my-agent/core");
+    const { clearAuth, removeEnvValue, resolveEnvPath } = await import("@my-agent/core");
     clearAuth();
-    const envPath = resolve(import.meta.dirname, "../.env");
+    const envPath = resolveEnvPath(agentDir);
     removeEnvValue(envPath, "ANTHROPIC_API_KEY");
     removeEnvValue(envPath, "CLAUDE_CODE_OAUTH_TOKEN");
     fastify.connectionRegistry.broadcastToAll({ type: "auth_required" });

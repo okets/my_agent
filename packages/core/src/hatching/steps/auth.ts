@@ -1,7 +1,6 @@
 import * as readline from 'node:readline/promises'
-import * as path from 'node:path'
 import { validateSetupToken } from '../../auth.js'
-import { setEnvValue } from '../../env.js'
+import { setEnvValue, resolveEnvPath } from '../../env.js'
 import type { HatchingStep } from '../index.js'
 
 const AUTH_METHODS: Record<string, string> = {
@@ -56,7 +55,7 @@ export const authStep: HatchingStep = {
     }
 
     // Derive .env path (sibling of agentDir's parent — packages/dashboard/.env)
-    const envPath = path.join(agentDir, '..', '.env')
+    const envPath = resolveEnvPath(agentDir)
 
     if (method === '1') {
       // API key path

@@ -9,6 +9,7 @@ import type { Automation, Job } from "@my-agent/core";
 import type { AnyNotification } from "@my-agent/core";
 import type { TransportStatus } from "@my-agent/core";
 import type { SpaceSyncPayload } from "@my-agent/core";
+import type { Capability } from "@my-agent/core";
 import type { Conversation } from "./conversations/types.js";
 
 export interface AppEventMap {
@@ -51,6 +52,9 @@ export interface AppEventMap {
 
   // Skills
   "skills:changed": [];
+
+  // Capabilities
+  "capability:changed": [capabilities: Capability[]];
 
   // Chat streaming events (emitted by ChatService through App)
   "chat:text_delta": [conversationId: string, text: string];

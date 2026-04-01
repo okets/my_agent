@@ -3,6 +3,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { globby } from 'globby'
 import { parse as parseYaml } from 'yaml'
+import type { Capability } from './capabilities/types.js'
 
 const DEFAULT_PERSONALITY_PATH = path.resolve(
   import.meta.dirname,
@@ -450,6 +451,30 @@ async function loadSkillContent(skillsDirs: string[]): Promise<string[]> {
   return sections
 }
 
+/**
+ * Format capability registry entries for inclusion in the system prompt.
+ * Shows both available and unavailable capabilities with reasons.
+ */
+export function loadCapabilityHints(capabilities: Capability[]): string | null {
+  if (capabilities.length === 0) return null
+
+  const lines: string[] = [
+    '## Available Capabilities',
+    '',
+  ]
+
+  for (const cap of capabilities) {
+    const label = cap.provides ? `${cap.provides} (${cap.name})` : cap.name
+    if (cap.status === 'available') {
+      lines.push(`- ${label} [available]`)
+    } else {
+      lines.push(`- ${label} [unavailable: ${cap.unavailableReason ?? 'unknown'}]`)
+    }
+  }
+
+  return lines.join('\n')
+}
+
 /** Scheduled task context for scheduler-triggered queries */
 export interface ScheduledTaskContext {
   title: string
@@ -465,6 +490,8 @@ export interface AssemblePromptOptions {
   calendarContext?: string
   /** Scheduled task that triggered this query (from CalendarScheduler) */
   scheduledTaskContext?: ScheduledTaskContext
+  /** Capability registry entries to include in prompt */
+  capabilities?: Capability[]
 }
 
 export async function assembleSystemPrompt(
@@ -549,6 +576,14 @@ export async function assembleSystemPrompt(
   const automationHints = await loadAutomationHints(agentDir)
   if (automationHints) {
     sections.push(automationHints)
+  }
+
+  // Add capability registry hints (M9-S1)
+  if (options.capabilities) {
+    const capHints = loadCapabilityHints(options.capabilities)
+    if (capHints) {
+      sections.push(capHints)
+    }
   }
 
   // Add calendar context if provided (replaces static reminders.md)

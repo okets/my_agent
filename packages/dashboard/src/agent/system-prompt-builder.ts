@@ -16,11 +16,13 @@ import {
   assembleCalendarContext,
   loadProperties,
 } from "@my-agent/core";
+import type { Capability } from "@my-agent/core";
 
 export interface BuilderConfig {
   brainDir: string;
   agentDir: string;
   getNotebookLastUpdated?: () => string | null;
+  getCapabilities?: () => Capability[];
 }
 
 export interface BuildContext {
@@ -177,6 +179,7 @@ export class SystemPromptBuilder {
         this.config.brainDir,
         {
           calendarContext,
+          capabilities: this.config.getCapabilities?.(),
         },
       );
     }

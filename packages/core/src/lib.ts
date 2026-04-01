@@ -56,7 +56,7 @@ export { migrateConfig } from './config-migration.js'
 export { ConfigWriter } from './config-writer.js'
 export type { BrainConfig, HealthConfig } from './types.js'
 
-export { assembleSystemPrompt, loadProperties, loadAutomationHints } from './prompt.js'
+export { assembleSystemPrompt, loadProperties, loadAutomationHints, loadCapabilityHints } from './prompt.js'
 
 export { resolveAuth, validateSetupToken, isAuthenticated, clearAuth } from './auth.js'
 export type { ResolvedAuth } from './auth.js'
@@ -99,7 +99,7 @@ export { loadChannelBindings } from './channels/index.js'
 export type { ChannelBinding } from './channels/index.js'
 
 // Env utility
-export { getEnvValue, setEnvValue, removeEnvValue, getAllSecrets } from './env.js'
+export { getEnvValue, setEnvValue, removeEnvValue, getAllSecrets, resolveEnvPath } from './env.js'
 
 // Skill filtering
 export { filterSkillsByTools, cleanupSkillFilters } from './skill-filter.js'
@@ -228,6 +228,10 @@ export type {
   DesktopBackend,
   DesktopEnvironment,
 } from './desktop/index.js'
+
+// Capabilities
+export { CapabilityRegistry, scanCapabilities } from './capabilities/index.js'
+export type { Capability, CapabilityFrontmatter, CapabilityMcpConfig } from './capabilities/index.js'
 
 // Memory system
 export {

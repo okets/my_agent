@@ -1,0 +1,134 @@
+/**
+ * Capability scanner — discovers capabilities from .my_agent/capabilities/
+ *
+ * Each capability is a folder with a CAPABILITY.md file containing YAML
+ * frontmatter that declares name, interface, env requirements, etc.
+ * The scanner checks env var availability and expands MCP configs.
+ */
+
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { readFrontmatter } from '../metadata/frontmatter.js'
+import { getEnvValue } from '../env.js'
+import type { Capability, CapabilityFrontmatter, CapabilityMcpConfig } from './types.js'
+
+/**
+ * Recursively replace `${CAPABILITY_ROOT}` in all string values of an object.
+ */
+function expandCapabilityRoot(obj: unknown, capRoot: string): unknown {
+  if (typeof obj === 'string') {
+    return obj.split('${CAPABILITY_ROOT}').join(capRoot)
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => expandCapabilityRoot(item, capRoot))
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = expandCapabilityRoot(value, capRoot)
+    }
+    return result
+  }
+  return obj
+}
+
+/**
+ * Check whether a required env var is set.
+ * Checks process.env first, then falls back to reading from the .env file.
+ */
+function hasEnvVar(envPath: string, key: string): boolean {
+  if (process.env[key]) return true
+  const fileValue = getEnvValue(envPath, key)
+  return fileValue !== null && fileValue !== ''
+}
+
+/**
+ * Load and expand .mcp.json from a capability folder.
+ * Returns the parsed config with ${CAPABILITY_ROOT} replaced, or undefined.
+ */
+function loadMcpConfig(
+  capabilityDir: string,
+  envPath: string,
+  requiredEnv: string[],
+): CapabilityMcpConfig | undefined {
+  const mcpPath = join(capabilityDir, '.mcp.json')
+  if (!existsSync(mcpPath)) return undefined
+
+  try {
+    const raw = readFileSync(mcpPath, 'utf-8')
+    const parsed = JSON.parse(raw)
+    const expanded = expandCapabilityRoot(parsed, capabilityDir) as CapabilityMcpConfig
+
+    // Inject requires.env vars into the MCP server's env field
+    if (requiredEnv.length > 0 && typeof expanded === 'object' && expanded !== null) {
+      const envVars: Record<string, string> = (expanded as Record<string, unknown>).env as Record<string, string> ?? {}
+      for (const key of requiredEnv) {
+        const val = process.env[key] ?? getEnvValue(envPath, key)
+        if (val) envVars[key] = val
+      }
+      if (Object.keys(envVars).length > 0) {
+        (expanded as Record<string, unknown>).env = envVars
+      }
+    }
+
+    return expanded
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Scan for capabilities in the given directory.
+ *
+ * Looks for `* /CAPABILITY.md` one level deep, parses frontmatter,
+ * checks env requirements, and returns the capability list.
+ */
+export async function scanCapabilities(
+  capabilitiesDir: string,
+  envPath: string,
+): Promise<Capability[]> {
+  const { globby } = await import('globby')
+  const files = await globby('*/CAPABILITY.md', {
+    cwd: capabilitiesDir,
+    absolute: true,
+  })
+
+  const capabilities: Capability[] = []
+
+  for (const filePath of files) {
+    try {
+      const { data } = readFrontmatter<CapabilityFrontmatter>(filePath)
+      if (!data.name) continue
+
+      const capDir = dirname(filePath)
+      const requiredEnv = data.requires?.env ?? []
+      const missingVars = requiredEnv.filter((key) => !hasEnvVar(envPath, key))
+
+      const capability: Capability = {
+        name: data.name,
+        provides: data.provides,
+        interface: data.interface,
+        path: capDir,
+        status: missingVars.length === 0 ? 'available' : 'unavailable',
+      }
+
+      if (missingVars.length > 0) {
+        capability.unavailableReason = `missing ${missingVars.join(', ')}`
+      }
+
+      // For MCP capabilities, load and expand .mcp.json
+      if (data.interface === 'mcp') {
+        const mcpConfig = loadMcpConfig(capDir, envPath, requiredEnv)
+        if (mcpConfig) {
+          capability.mcpConfig = mcpConfig
+        }
+      }
+
+      capabilities.push(capability)
+    } catch {
+      // Skip malformed capability files
+    }
+  }
+
+  return capabilities
+}

@@ -53,12 +53,16 @@ let sharedPromptBuilder: SystemPromptBuilder | null = null;
 export function initPromptBuilder(
   brainDir: string,
   agentDir: string,
-  options?: { getNotebookLastUpdated?: () => string | null },
+  options?: {
+    getNotebookLastUpdated?: () => string | null;
+    getCapabilities?: () => import("@my-agent/core").Capability[];
+  },
 ): SystemPromptBuilder {
   sharedPromptBuilder = new SystemPromptBuilder({
     brainDir,
     agentDir,
     getNotebookLastUpdated: options?.getNotebookLastUpdated,
+    getCapabilities: options?.getCapabilities,
   });
   console.log(`[SessionManager] Shared SystemPromptBuilder initialized`);
   return sharedPromptBuilder;

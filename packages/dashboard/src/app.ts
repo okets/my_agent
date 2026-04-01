@@ -41,6 +41,10 @@ import {
   filterSkillsByTools,
   loadChannelBindings,
   SpaceSyncService,
+  CapabilityRegistry,
+  scanCapabilities,
+  resolveEnvPath,
+  FileWatcher,
 } from "@my-agent/core";
 import type { ListSpacesFilter } from "@my-agent/core";
 import type { HealthChangedEvent } from "@my-agent/core";
@@ -358,6 +362,9 @@ export class App extends EventEmitter {
   // Visual actions (screenshots)
   readonly visualActionService: VisualActionService;
 
+  // Capabilities (M9-S1)
+  capabilityRegistry: CapabilityRegistry | null = null;
+
   // Desktop control (M8-S2)
   desktopEnv: DesktopEnvironment | null = null;
   desktopBackend: DesktopBackend | null = null;
@@ -403,6 +410,76 @@ export class App extends EventEmitter {
       );
     }
 
+    // ── Capability Registry (M9-S1) ──
+    // Scan before SystemPromptBuilder so capabilities are available in the prompt.
+    if (hatched) {
+      const capabilitiesDir = join(agentDir, "capabilities");
+      const envPath = resolveEnvPath(agentDir);
+      const registry = new CapabilityRegistry();
+      app.capabilityRegistry = registry;
+
+      try {
+        const { mkdirSync } = await import("node:fs");
+        mkdirSync(capabilitiesDir, { recursive: true });
+        const caps = await scanCapabilities(capabilitiesDir, envPath);
+        registry.load(caps);
+        console.log(
+          `[Capabilities] Discovered ${caps.length} capabilities: ${caps.map((c) => `${c.name} [${c.status}]`).join(", ") || "none"}`,
+        );
+      } catch (err) {
+        console.warn(
+          "[Capabilities] Scan failed:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+
+      // Register MCP capabilities (interface: mcp with .mcp.json)
+      for (const cap of registry.list()) {
+        if (cap.interface === "mcp" && cap.mcpConfig && cap.status === "available") {
+          try {
+            // MCP config from .mcp.json follows SDK's McpServerConfig shape
+            addMcpServer(cap.name, cap.mcpConfig as Parameters<typeof addMcpServer>[1]);
+            console.log(`[Capabilities] Registered MCP server: ${cap.name}`);
+          } catch (err) {
+            console.warn(
+              `[Capabilities] Failed to register MCP server ${cap.name}:`,
+              err instanceof Error ? err.message : String(err),
+            );
+          }
+        }
+      }
+
+      // File watcher for capability changes
+      const capWatcher = new FileWatcher({
+        watchDir: capabilitiesDir,
+        includePattern: "**/CAPABILITY.md",
+        debounceMs: 5000,
+        usePolling: true,
+        pollInterval: 5000,
+      });
+
+      const handleCapabilityChange = async () => {
+        try {
+          const caps = await scanCapabilities(capabilitiesDir, envPath);
+          registry.load(caps);
+          app.emit("capability:changed", caps);
+          getPromptBuilder()?.invalidateCache();
+          console.log(
+            `[Capabilities] Re-scanned: ${caps.length} capabilities`,
+          );
+        } catch (err) {
+          console.warn(
+            "[Capabilities] Re-scan failed:",
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      };
+
+      capWatcher.on("file:changed", handleCapabilityChange);
+      capWatcher.on("file:deleted", handleCapabilityChange);
+      capWatcher.start();
+    }
+
     // ── SystemPromptBuilder (M6.6-S1) ──
     // Must happen before any SessionManager so all sessions share the same cache.
     if (hatched) {
@@ -415,6 +492,7 @@ export class App extends EventEmitter {
             return null;
           }
         },
+        getCapabilities: () => app.capabilityRegistry?.list() ?? [],
       });
     }
 
