@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-03-29 (M8+M9 merged into M8: Visual & Desktop Automation; milestones renumbered M8–M13)
+> **Updated:** 2026-04-01 (M8 complete, Voice sprint absorbed into new M9: Capability System; M9–M13 renumbered M10–M14; M13-S6 Self-Service MCP absorbed into M9)
 
 ---
 
@@ -24,12 +24,13 @@
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
-| **M8: Visual & Desktop Automation** | **Active** | 5/6 sprints done (S1-S4 + S3.5), 879 tests |
-| **M9: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
-| **M10: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
-| **M11: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
-| **M12: Platform Hardening**  | Planned | 6 sprints (auth, backup/restore, update, macOS backend, Wayland backend, self-service MCP) |
-| **M13: Release**             | Planned | 2 sprints (security audit, documentation + launch) |
+| **M8: Visual & Desktop Automation** | **Complete** | 5/5 sprints (S1-S4 + S3.5), 879 tests. Voice sprint absorbed into M9 |
+| **M9: Capability System** | **Planned** | 4 sprints (registry + dummies, dashboard + secrets, WhatsApp + skill gen, real test + roadmap) |
+| **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
+| **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
+| **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
+| **M13: Platform Hardening**  | Planned | 5 sprints (auth, backup/restore, update, macOS backend, Wayland backend) |
+| **M14: Release**             | Planned | 2 sprints (security audit, documentation + launch) |
 
 ---
 
@@ -42,10 +43,14 @@ M1 Foundation ► M2 Web UI ► M3 WhatsApp ► M4 Notebook ► M4.5 Calendar �
 ► M6.5 SDK ► M6.7 Two-Agent ► M6.6 Lifecycle ► M6.9 Knowledge ► M6.8 Skills ► M6.10 Headless
 ► M7 Spaces & Automations — 757 tests
 
-FUTURE (M8–M13) — ~21 sprints to release
+COMPLETED (M8)
+══════════════
+M8 Visual & Desktop Automation — 879 tests
+
+FUTURE (M9–M14) — ~20 sprints to release
 ═════════════════════════════════════════
-M8 Visual+Desktop ──► M9 Channel SDK ──► M10 External Comms ──► M11 iOS ──► M12 Hardening ──► M13 Release
-  (5 sprints)           (4 sprints)         (2 sprints)           (3 sprints)   (5 sprints)       (2 sprints)
+M9 Capabilities ──► M10 Channel SDK ──► M11 External Comms ──► M12 iOS ──► M13 Hardening ──► M14 Release
+  (4 sprints)         (4 sprints)          (2 sprints)           (3 sprints)   (5 sprints)       (2 sprints)
 ```
 
 ---
@@ -696,7 +701,7 @@ Persistent file-backed entities: Spaces (managed folders), Automations (standing
 
 ---
 
-### M8: Visual & Desktop Automation — PLANNED
+### M8: Visual & Desktop Automation — COMPLETE
 
 Nina can see and interact with GUI applications. All visual actions (desktop control, Playwright, rich output) flow through a shared pipeline: capture → store → serve → render in dashboard. Merges the old M8 (Desktop Automation) and M9 (Multimodal) milestones, reordered by dependency.
 
@@ -709,22 +714,53 @@ Nina can see and interact with GUI applications. All visual actions (desktop con
 | S3 | Playwright Integration | **Done** | PlaywrightScreenshotBridge (wrapper MCP tool + VAS storage), browser pooling, Playwright status detection, API routes (status/toggle/install), hatching step 8, Settings UI panel. 19 new tests, 863 total. [plan](../sprints/m8-s3-playwright-integration/plan.md) · [review](../sprints/m8-s3-playwright-integration/review.md) · [test-report](../sprints/m8-s3-playwright-integration/test-report.md) |
 | S3.5 | Centralized Screenshot Storage | **Done** | VAS rewrite: single `screenshots/` folder, ref-based lifecycle, batch addRefs, 7-day unreferenced expiry. Removed AssetContext/ScreenshotTag/pixel-diff. Context-free producers, ref wiring on turn append + job completion + context deletion. 855 tests. [plan](../sprints/m8-s3.5-centralized-screenshots/plan.md) · [review](../sprints/m8-s3.5-centralized-screenshots/review.md) · [test-report](../sprints/m8-s3.5-centralized-screenshots/test-report.md) |
 | S4 | Rich I/O | **Done** | Deliverable pipeline (full deliverable.md to disk), `create_chart` + `fetch_image` MCP tools (S4.1 split from store_image), dashboard image rendering (DOMPurify, lightbox, job detail), WhatsApp outbound images, visual presenter skill + standing order, visual augmentation hook (Haiku safety net), model selector persistence. 880 tests. [plan](../sprints/m8-s4-rich-io/plan.md) · [review](../sprints/m8-s4-rich-io/review.md) |
-| S5 | Voice | Planned | STT/TTS engine selection, dashboard audio playback, WhatsApp voice notes, streaming TTS, settings toggle |
+| ~~S5~~ | ~~Voice~~ | Absorbed | → M9 Capability System (voice is the first capability, not a standalone sprint) |
 
 **Key design decisions (resolved in spec):**
 - No dedicated Computer Use Agent — tools on Working Nina directly, safety via hooks + autonomy
 - Trust rule: user-initiated = proceed, agent-initiated = state app + reason, wait for approval
 - Native Claude computer use API (`computer_20251124` beta) for accuracy, bridged via MCP tool
-- Backend abstraction from day one for cross-platform (macOS + Wayland deferred to M12)
+- Backend abstraction from day one for cross-platform (macOS + Wayland deferred to M13)
 - Dependencies managed via hatching + settings (auto-detect, guided install, graceful degradation)
 
 **Dependencies:** M7 (automations — desktop tasks run as automations/jobs)
 
-**Deferred to M12 (Platform Hardening):** macOS backend, Wayland backend — blocked on hardware availability and KDE X11 sunset timeline (Plasma 6.8, October 2026)
+**Deferred to M13 (Platform Hardening):** macOS backend, Wayland backend — blocked on hardware availability and KDE X11 sunset timeline (Plasma 6.8, October 2026)
 
 ---
 
-### M9: Channel SDK + Transports — PLANNED
+### M9: Capability System — PLANNED
+
+Self-extending agent capabilities. The agent itself can research, build, and install new capabilities (voice, image generation, custom tools) — using Claude's coding ability. The framework provides conventions and a registry; the agent does the rest. Voice (STT/TTS) is the proving ground.
+
+**Design spec:** [capability-system.md](design/capability-system.md)
+**Implementation plan:** [2026-04-01-capability-system.md](plans/2026-04-01-capability-system.md)
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Registry + Dummies | Planned | Capability types, CapabilityRegistry, CapabilityScanner (frontmatter + env check), FileWatcher on `.my_agent/capabilities/`, `capability:changed` event, system prompt injection, dummy STT + TTS capabilities, `.env` path unification — [plan](sprints/m9-s1-registry-dummies/plan.md) |
+| S2 | Dashboard Voice + Secrets | Planned | WebSocket capabilities protocol, record button (MediaRecorder, desktop + mobile), audio playback component, TTS post-processing, model indicator in header, Secrets API (GET/PUT/DELETE), Secrets UI in Settings (masked values, add/reveal/delete), re-scan trigger on secret change — [plan](sprints/m9-s2-dashboard-secrets/plan.md) |
+| S3 | WhatsApp Voice + Skill Generation | Planned | WhatsApp voice note handling (download + transcribe + send voice replies), `onAudioMessage` callback, medium mirroring, error handling for failed scripts, capability-builder `AgentDefinition` (Opus), brainstorming skill (SKILL.md + references), model switch UX (chat messages + status bar) — [plan](sprints/m9-s3-whatsapp-skillgen/plan.md) |
+| S4 | The Real Test | Planned | Delete dummy STT → ask Nina to create real one → iterate until end-to-end works. Repeat for TTS. Verify: dashboard record → transcribe, WhatsApp voice → transcribe, voice in → voice out (medium mirroring). Update CLAUDE.md with capability conventions — [plan](sprints/m9-s4-real-test/plan.md) |
+
+**Key design decisions (resolved in spec):**
+- Capabilities are files (CAPABILITY.md + scripts), not code registrations — auto-discovered from `.my_agent/capabilities/`
+- Well-known types (`audio-to-text`, `text-to-audio`, `text-to-image`) trigger framework reactions (UI, channels); custom types are brain-directed
+- Scripts are the universal adapter (wrap APIs, binaries, Python, MCP servers)
+- Builder is an Opus `AgentDefinition` subagent — avoids model switching mid-session
+- Secrets in `.env`, managed via Settings UI — credential vault deferred to M13
+- No marketplace — sharing is copy-paste, deliberate rejection for security
+- Registry is the contract between capabilities and UI/channels/brain
+
+**Absorbs:**
+- M8-S5 (Voice) — STT/TTS engine selection, dashboard audio, WhatsApp voice notes
+- Old M12-S6 (Self-Service MCP Integration) — capability system supersedes the MCP-specific approach
+
+**Dependencies:** M8 (rich I/O — capabilities build on the visual pipeline and asset serving)
+
+---
+
+### M10: Channel SDK + Transports — PLANNED
 
 Mature the transport plugin interface into a proper SDK. Prove it with email (MS365) and Discord — two very different transport types (async polling vs. real-time websocket). If the SDK handles both cleanly, it handles anything.
 
@@ -744,13 +780,13 @@ Mature the transport plugin interface into a proper SDK. Prove it with email (MS
 - Message normalization: unified format across all transports?
 - Auth pattern: per-transport or shared framework?
 
-**Dependencies:** M8 (visual & desktop — transports need to carry rich content)
+**Dependencies:** M9 (capability system — transports can leverage capability registry for media handling)
 
 **Supersedes:** Old M9 (Email Integration) and old M10 (External Communications). Email becomes a transport; external routing moves to M10.
 
 ---
 
-### M10: External Communications — PLANNED
+### M11: External Communications — PLANNED
 
 The agent communicates with people other than the owner, across all transports, via Working Agents.
 
@@ -766,13 +802,13 @@ The agent communicates with people other than the owner, across all transports, 
 - Ruleset storage: per-contact YAML or workspace-level config?
 - Approval UX: quick-approve vs. full review queue?
 
-**Dependencies:** M9 (Channel SDK — transports must exist before routing external messages through them)
+**Dependencies:** M10 (Channel SDK — transports must exist before routing external messages through them)
 
 **⚠️ Stashed Code:** M3-S4 stashed code is almost certainly incompatible with M6.7 architecture. Evaluate before attempting recovery — likely discard.
 
 ---
 
-### M11: iOS App — PLANNED
+### M12: iOS App — PLANNED
 
 Native iOS app for the agent. Push notifications, multimodal support, full assistant experience on mobile.
 
@@ -789,11 +825,11 @@ Native iOS app for the agent. Push notifications, multimodal support, full assis
 - SwiftUI vs. React Native vs. WebView wrapper?
 - Push notification delivery architecture
 
-**Dependencies:** M10 (external comms — iOS app benefits from all channels + multimodal being complete)
+**Dependencies:** M11 (external comms — iOS app benefits from all channels + multimodal being complete)
 
 ---
 
-### M12: Platform Hardening — PLANNED
+### M13: Platform Hardening — PLANNED
 
 Infrastructure that makes the agent safe, recoverable, updatable, and cross-platform.
 
@@ -806,20 +842,19 @@ Infrastructure that makes the agent safe, recoverable, updatable, and cross-plat
 | S3 | Update Mechanism | Planned | Version tracking, `my-agent update`, schema migrations, breaking change detection, rollback via backup. |
 | S4 | Desktop Control — macOS | Planned | MacBackend implementation (nut-js + screencapture + AppleScript), macOS environment detection, hatching flow updates. Deferred from M8 — blocked on hardware availability. |
 | S5 | Desktop Control — Wayland | Planned | WaylandBackend (ydotool + kdotool + PipeWire screen capture), KWin D-Bus integration. Deferred from M8 — needed when KDE drops X11 (Plasma 6.8, October 2026). Backend abstraction from M8-S2 makes this a swap, not a rewrite. |
-| S6 | Self-Service MCP Integration | Planned | User says "use my Nano Banana API for image gen" → Nina installs MCP server, stores credentials, hot-reloads, confirms. No config files, no restart. First use case: image generation via third-party API (validates full flow from intent to WhatsApp delivery). Requires: MCP registry/marketplace, runtime MCP registration (SDK gap), credential vault (M8 candidate), hot-reload or restart-and-resume. Discovered during M8-S4 Rich I/O. |
+| ~~S6~~ | ~~Self-Service MCP Integration~~ | Absorbed | → M9 Capability System (capabilities supersede MCP-specific approach) |
 
 **Key design questions (resolve during spec):**
 - Auth: password/token or OAuth?
 - Backup format: tarball or structured export?
 - Update channel: git pull, npm, or custom registry?
-- Self-service MCP: runtime registration (SDK support needed?) or restart-and-resume?
-- MCP marketplace: curated registry or npm-style discovery?
+- Credential vault: upgrade M9's `.env`-based secrets to encrypted storage
 
-**Dependencies:** M11 (iOS app — hardening happens after all features are built)
+**Dependencies:** M12 (iOS app — hardening happens after all features are built)
 
 ---
 
-### M13: Release — PLANNED
+### M14: Release — PLANNED
 
 Everything is audited, documented, and ready for other people to use.
 
@@ -830,7 +865,7 @@ Everything is audited, documented, and ready for other people to use.
 | S1 | Security Audit | Planned | Review trust tiers, hooks, guardrails. Pen-test auth. Audit transport SDK auth flows. Review Computer Use safety hooks. Harden permissions. Fix findings. |
 | S2 | Documentation + Launch | Planned | User-facing README, getting started guide, hatching walkthrough, transport SDK guide, architecture overview. Examples. Landing page. License. |
 
-**Dependencies:** M12 (hardening — security audit reviews hardened platform)
+**Dependencies:** M13 (hardening — security audit reviews hardened platform)
 
 ---
 
@@ -872,8 +907,9 @@ Design specs define architecture before implementation. Each spec should be comp
 | Two-Agent Refactor   | Approved | M6.7        | [plans/2026-03-04-conversation-nina-design.md](plans/2026-03-04-conversation-nina-design.md) |
 | Skills Architecture  | Complete | M6.8        | [superpowers/specs/2026-03-15-skills-architecture-design.md](superpowers/specs/2026-03-15-skills-architecture-design.md) |
 | Release Roadmap      | Approved | M8–M13      | [superpowers/specs/2026-03-21-release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) |
-| Visual & Desktop Automation | Approved | M8 | [superpowers/specs/2026-03-29-m8-desktop-automation-design.md](superpowers/specs/2026-03-29-m8-desktop-automation-design.md) |
-| Multimodal           | Idea     | M9          | TBD — rich input/output, visual thinking, voice mode, asset serving |
+| Visual & Desktop Automation | Complete | M8 | [superpowers/specs/2026-03-29-m8-desktop-automation-design.md](superpowers/specs/2026-03-29-m8-desktop-automation-design.md) |
+| Capability System    | Approved | M9          | [design/capability-system.md](design/capability-system.md) |
+| ~~Multimodal~~       | Absorbed | ~~M9~~ → M9 Capability System | Voice/audio covered by M9; rich I/O covered by M8-S4 |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
 | Knowledge Lifecycle  | Approved | M6.9        | [sprints/m6.6-s6-knowledge-lifecycle/design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md) |
 | Trip Mode & Verification Pipeline | Complete | Process | [superpowers/specs/2026-03-12-trip-mode-verification-pipeline-design.md](superpowers/specs/2026-03-12-trip-mode-verification-pipeline-design.md) |
@@ -881,7 +917,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Coding Projects      | Superseded | ~~M7~~ → M7 Workspaces | [design/coding-projects.md](design/coding-projects.md) |
 | Operations Dashboard | Absorbed | ~~M8~~ → M6.6 | [design/operations-dashboard.md](design/operations-dashboard.md) |
 
-**Note:** M3 (WhatsApp), M9 (Email), and M10 (External Comms) are covered by `channels.md`. M6.7's conversation lifecycle and channel routing are covered by `conversation-nina-design.md`. `conversation-system.md` and `channels.md` need updates to align with M6.7 design (scheduled as M6.7-S2 deliverable).
+**Note:** M3 (WhatsApp), M10 (Email), and M11 (External Comms) are covered by `channels.md`. M9 (Capability System) has its own spec. M6.7's conversation lifecycle and channel routing are covered by `conversation-nina-design.md`. `conversation-system.md` and `channels.md` need updates to align with M6.7 design.
 
 ---
 
@@ -892,34 +928,38 @@ COMPLETED (critical path)
 ═════════════════════════
 M1 ► M2 ► M3 ► M4 ► M4.5 ► M5 ► M6 ► M6.5 ► M6.7 ► M6.6 ► M6.9 ► M6.8 ► M6.10
                                                                                 │
-FUTURE (linear chain to release)                                                │
-════════════════════════════════                                                │
+COMPLETED (M7–M8)                                                              │
+═════════════════                                                               │
 M7 Workspaces ◄─────────────────────────────────────────────────────────────────┘
   │
   ▼
-M8 Visual & Desktop Automation
+M8 Visual & Desktop Automation — 879 tests
+
+FUTURE (linear chain to release)
+════════════════════════════════
+M9 Capability System
   │
   ▼
-M9 Channel SDK + Transports
+M10 Channel SDK + Transports
   │
   ▼
-M10 External Communications
+M11 External Communications
   │
   ▼
-M11 iOS App
+M12 iOS App
   │
   ▼
-M12 Platform Hardening (+ macOS/Wayland backends)
+M13 Platform Hardening (+ macOS/Wayland backends)
   │
   ▼
-M13 Release
+M14 Release
 ```
 
-**Completed critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8 → M6.10. All complete. 682 tests, 72 test files.
+**Completed critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8 → M6.10 → M7 → M8. All complete. 879 tests.
 
-**Future path:** M7 → M8 → M9 → M10 → M11 → M12 → M13. ~21 sprints. Each milestone builds on the previous. Minimal rework, natural progression.
+**Future path:** M9 → M10 → M11 → M12 → M13 → M14. ~20 sprints. Each milestone builds on the previous. Minimal rework, natural progression.
 
-**Release definition:** Anyone can hatch their own agent. Full multimodal communication. Owner + external contacts on WhatsApp, email, Discord. iOS app. Desktop automation. Persistent workspaces. Backup/restore/update. Secure and documented.
+**Release definition:** Anyone can hatch their own agent. Self-extending capabilities. Full multimodal communication. Owner + external contacts on WhatsApp, email, Discord. iOS app. Desktop automation. Persistent workspaces. Backup/restore/update. Secure and documented.
 
 **Release roadmap spec:** [superpowers/specs/2026-03-21-release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md)
 
@@ -939,15 +979,15 @@ Quick fixes and small enhancements outside the milestone structure.
 
 ## Pre-Release Checklist
 
-Requirements that must be complete before public release. All tracked in milestones M12–M13.
+Requirements that must be complete before public release. All tracked in milestones M13–M14.
 
 | Item                         | Status  | Milestone | Notes                                                    |
 | ---------------------------- | ------- | --------- | -------------------------------------------------------- |
 | **Dashboard authentication** | Planned | M13-S1    | Session-based auth for web UI. Currently Tailscale-only. |
 | **Backup & Restore**        | Planned | M13-S2    | Full/partial backup + restore with index rebuild. CLI commands. |
 | **Update mechanism**         | Planned | M13-S3    | Version tracking, migrations, rollback via backup. |
-| **Security audit**           | Planned | M13-S1    | Review hooks, guardrails, trust tiers, transport auth, Computer Use safety. |
-| **Documentation**            | Planned | M13-S2    | User-facing README, setup guide, hatching walkthrough, transport SDK guide. |
+| **Security audit**           | Planned | M14-S1    | Review hooks, guardrails, trust tiers, transport auth, Computer Use safety. |
+| **Documentation**            | Planned | M14-S2    | User-facing README, setup guide, hatching walkthrough, transport SDK guide. |
 
 ---
 
@@ -972,7 +1012,7 @@ Features enabled by the architecture but explicitly out of scope for release.
 
 | Feature                        | Description                                                                   | Notes                                                                        |
 | ------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| **Additional Transports**      | Slack, Gmail, Telegram as transport plugins                                   | Community can build via Transport SDK (M10)                                  |
+| **Additional Transports**      | Slack, Gmail, Telegram as transport plugins                                   | Community can build via Transport SDK (M10) or as capabilities (M9)          |
 | **External Calendar Channels** | Google Calendar, Apple iCloud, Outlook as channel plugins                     | Each with own OAuth/auth flow, modeled like WhatsApp/Email channels          |
 | **Mobile Dashboard (Phase 2)** | Advanced mobile features: bottom sheet chat, keyboard handling, accessibility | M2-S7 delivered foundation; remaining: peek/half/full chat, safe areas, a11y |
 | **Navigable Timeline**         | Hero timeline, infinite scroll, search                                        | Design exists: [navigable-timeline.md](design/navigable-timeline.md)         |
