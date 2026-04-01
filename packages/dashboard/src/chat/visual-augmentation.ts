@@ -100,6 +100,12 @@ export async function maybeAugmentWithVisual(
     const parsed = JSON.parse((result.content[0] as { type: "text"; text: string }).text);
 
     // Phase 4: Append follow-up assistant turn with the chart
+    // Include channel field to prevent false channel-switch detection
+    const recentTurns = await deps.conversationManager.getRecentTurns(conversationId, 5);
+    const activeChannel = recentTurns
+      .filter((t) => t.channel && t.role === "user")
+      .at(-1)?.channel;
+
     const chartContent = `![${chartDescription}](${parsed.url})`;
     const chartTurn: TranscriptTurn = {
       type: "turn",
@@ -107,6 +113,7 @@ export async function maybeAugmentWithVisual(
       content: chartContent,
       timestamp: new Date().toISOString(),
       turnNumber: turnNumber + 1,
+      channel: activeChannel,
     };
 
     await deps.conversationManager.appendTurn(conversationId, chartTurn);
