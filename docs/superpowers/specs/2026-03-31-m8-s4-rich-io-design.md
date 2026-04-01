@@ -324,6 +324,42 @@ External MCP image generators already work with the current architecture: they r
 | 9 | E2E: augmentation hook fallback | Trigger data-heavy response without chart — verify hook catches it |
 | 10 | E2E: WhatsApp image delivery | Human-assisted — verify image arrives as media |
 
+### S4.2 (visual expression for Working Ninas)
+
+Workers produce visual deliverables — charts in reports, fetched images in research.
+
+**Architecture:** Two changes inside the automation executor:
+1. Wire `chart-tools` + `image-fetch-tools` MCP servers to worker queries
+2. Post-execution deliverable hook: if deliverable has chartable data but no images, Haiku generates a chart and appends it before job completion
+
+**Data flow:**
+```
+Worker executes → produces deliverable text
+  ├─ Worker called create_chart/fetch_image? → deliverable has images → done
+  └─ Worker didn't? → hook checks: bulleted data + 3 numbers + no ![
+       ├─ No chartable data → done
+       └─ Chartable → Haiku SVG → create_chart → append to deliverable.md
+Job completes with final deliverable (text + charts)
+  → Debrief reads deliverablePath (images included)
+  → Brain presents brief → WhatsApp sends as media
+```
+
+**What changes:**
+- `automation-executor.ts` — add chart-tools + image-fetch-tools MCP servers to worker queries, add post-execution deliverable augmentation
+
+**What doesn't change:**
+- Conversation hook (stays for interactive chat)
+- Dashboard rendering, WhatsApp outbound, debrief reporter
+- Visual presenter skill (already level: brain, already loaded into worker prompts)
+
+| # | Task | Scope |
+|---|---|---|
+| 1 | Wire chart-tools + image-fetch-tools MCP to workers | Add both MCP servers to executor's query config |
+| 2 | Post-execution deliverable augmentation | After extractDeliverable, check for chartable data without images, Haiku generates chart, append to deliverable.md |
+| 3 | E2E: one-off worker with data | Fire "sample memory usage every 30 seconds for 3 minutes and report back" — verify chart in deliverable |
+| 4 | E2E: debrief flow | Fire debrief reporter, verify chart flows through to brief |
+| 5 | E2E: WhatsApp delivery | Verify chart arrives as media on WhatsApp |
+
 ---
 
 ## Dependencies
