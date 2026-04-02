@@ -11,12 +11,20 @@
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { DesktopBackend } from "@my-agent/core";
-import type { ComputerUseService } from "../desktop/computer-use-service.js";
+import type {
+  ComputerUseTask,
+  ComputerUseResult,
+} from "../desktop/computer-use-service.js";
 import type { VisualActionService } from "../visual/visual-action-service.js";
+
+/** Any service that implements the computer use run() interface */
+type ComputerUseServiceLike = {
+  run(task: ComputerUseTask): Promise<ComputerUseResult>;
+};
 
 export interface DesktopServerDeps {
   backend: DesktopBackend | null;
-  computerUse: ComputerUseService | null;
+  computerUse: ComputerUseServiceLike | null;
   visualService?: VisualActionService;
   rateLimiter?: { check(): { allowed: boolean; reason?: string } };
   auditLogger?: {

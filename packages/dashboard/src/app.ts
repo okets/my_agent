@@ -98,6 +98,7 @@ import { VisualActionService } from "./visual/visual-action-service.js";
 import { detectDesktopEnvironment } from "./desktop/desktop-capability-detector.js";
 import { X11Backend } from "./desktop/x11-backend.js";
 import { ComputerUseService } from "./desktop/computer-use-service.js";
+import { AgentComputerUseService } from "./desktop/agent-computer-use-service.js";
 import { createDesktopServer } from "./mcp/desktop-server.js";
 import {
   createDesktopRateLimiter,
@@ -105,7 +106,7 @@ import {
 } from "./hooks/desktop-hooks.js";
 import type { DesktopEnvironment, DesktopBackend } from "@my-agent/core";
 import { PlaywrightScreenshotBridge } from "./playwright/playwright-screenshot-bridge.js";
-import Anthropic from "@anthropic-ai/sdk";
+// Anthropic raw SDK no longer used — computer use routes through Agent SDK
 
 // ─── Service Namespaces ──────────────────────────────────────────────────────
 // Thin wrappers that delegate reads and emit App events on mutations.
@@ -371,7 +372,8 @@ export class App extends EventEmitter {
   // Desktop control (M8-S2)
   desktopEnv: DesktopEnvironment | null = null;
   desktopBackend: DesktopBackend | null = null;
-  desktopComputerUse: ComputerUseService | null = null;
+  desktopComputerUse: ComputerUseService | AgentComputerUseService | null =
+    null;
   desktopRateLimiter: ReturnType<typeof createDesktopRateLimiter> | null = null;
   desktopAuditLogger: ReturnType<typeof createDesktopAuditLogger> | null = null;
   playwrightBridge: PlaywrightScreenshotBridge | null = null;
@@ -1282,13 +1284,10 @@ export class App extends EventEmitter {
         app.desktopBackend = backend;
       }
 
-      // Create ComputerUseService if backend + API key available
-      let computerUse: ComputerUseService | null = null;
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (backend && apiKey) {
-        const client = new Anthropic({ apiKey });
-        computerUse = new ComputerUseService(
-          client,
+      // Create ComputerUseService — Agent SDK based (works with OAuth)
+      let computerUse: AgentComputerUseService | null = null;
+      if (backend) {
+        computerUse = new AgentComputerUseService(
           backend,
           app.visualActionService,
         );
@@ -1324,7 +1323,7 @@ export class App extends EventEmitter {
         );
         if (!computerUse) {
           console.log(
-            "[Desktop] ComputerUseService not available (missing API key or backend)",
+            "[Desktop] ComputerUseService not available (no desktop backend)",
           );
         }
         if (desktopEnv.setupNeeded.length > 0) {
