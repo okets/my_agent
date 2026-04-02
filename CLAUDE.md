@@ -64,6 +64,61 @@ my_agent/                           # PUBLIC REPO (framework)
 - **Hooks** — safety guards + audit at event loop and per-project levels.
 - **Self-evolving infrastructure** — APIs that serve agents, maintained by agents. See below.
 
+## Capability System (M9)
+
+**Capabilities are files, not code registrations.** Drop a folder in `.my_agent/capabilities/`, it gets discovered automatically. Delete it, it's gone.
+
+### Directory Convention
+
+```
+.my_agent/capabilities/
+  stt-deepgram/
+    CAPABILITY.md          # Required — YAML frontmatter + instructions
+    scripts/
+      transcribe.sh        # The actual tool (executable)
+    config.yaml            # Optional — non-secret settings
+    references/            # Optional — detailed docs
+```
+
+### CAPABILITY.md Format
+
+```yaml
+---
+name: Deepgram STT
+provides: audio-to-text        # Well-known type (or omit for custom)
+interface: script
+requires:
+  env:
+    - DEEPGRAM_API_KEY         # Must exist in .env
+---
+
+Instructions for the brain on how to use this capability.
+```
+
+### Well-Known Types
+
+| Type | Dashboard Reaction | Channel Reaction |
+|------|-------------------|-----------------|
+| `audio-to-text` | Record button appears | Voice notes transcribed |
+| `text-to-audio` | Audio player on responses | Voice note replies |
+| `text-to-image` | Image rendered inline | Image sent via channel |
+
+### config.yaml
+
+Non-secret configuration (model name, voice ID, output format). Scripts read this via relative path. Secrets go in `.env`, declared via `requires.env`.
+
+### Creating Capabilities
+
+The agent can create capabilities itself:
+1. User asks: "I want you to understand voice messages"
+2. Brain activates `capability-brainstorming` skill (Opus)
+3. Skill researches options, asks clarifying questions, picks approach
+4. Spawns `capability-builder` agent (Opus) with a spec
+5. Builder writes CAPABILITY.md, scripts, config, tests them
+6. Capability appears in registry, framework reacts
+
+Or create manually: add a folder following the convention above.
+
 ## Self-Evolving Infrastructure
 
 > *"The API is for agents, maintained by agents."*
