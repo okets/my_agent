@@ -119,6 +119,7 @@ function chat() {
     isRecording: false,
     mediaRecorder: null,
     audioChunks: [],
+    dragOver: false,
     wsConnected: false,
     ws: null,
     messageIdCounter: 0,
@@ -987,6 +988,11 @@ function chat() {
       }
 
       try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error(
+            "HTTPS required for microphone access. Voice recording is not available over HTTP.",
+          );
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
         });
@@ -1044,13 +1050,14 @@ function chat() {
         this.isRecording = true;
       } catch (err) {
         console.error("Failed to start recording:", err);
+        const errorMsg = err.message?.includes("HTTPS")
+          ? err.message
+          : "Microphone access denied. Please allow microphone access to use voice messages.";
         this.messages.push({
           id: ++this.messageIdCounter,
           role: "system",
-          content:
-            "Microphone access denied. Please allow microphone access to use voice messages.",
-          renderedContent: this.renderMarkdown(
-            "Microphone access denied. Please allow microphone access to use voice messages.",
+          content: errorMsg,
+          renderedContent: this.renderMarkdown(errorMsg,
           ),
           timestamp: this.formatTime(new Date()),
         });

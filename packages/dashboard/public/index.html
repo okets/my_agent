@@ -5852,7 +5852,6 @@
             @dragleave.prevent="dragOver = false"
             @drop.prevent="handleDrop($event); dragOver = false"
             :class="{ 'ring-2 ring-tokyo-blue/50': dragOver }"
-            x-data="{ dragOver: false }"
           >
             <!-- Attachment preview strip (above textarea) -->
             <template x-if="attachments.length > 0">
