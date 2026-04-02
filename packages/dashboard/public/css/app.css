@@ -1141,6 +1141,11 @@ textarea:focus-visible {
   background: rgba(28, 24, 48, 0.9);
 }
 
+/* ── Audio player in chat messages ───────────────────────────────── */
+audio::-webkit-media-controls-panel {
+  background: rgba(30, 30, 46, 0.6);
+}
+
 /* ── Compose box enhancements ─────────────────────────────────── */
 .compose-box {
   transition:

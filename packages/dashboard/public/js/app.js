@@ -45,9 +45,22 @@ function secretsPanel() {
       this.loading = false;
     },
 
-    toggleReveal(secret) {
-      // API returns masked values only; toggle shows/hides the mask
-      secret.revealed = !secret.revealed;
+    async toggleReveal(secret) {
+      if (secret.revealed) {
+        secret.revealed = false;
+        return;
+      }
+      // Fetch actual value from server
+      try {
+        const res = await fetch(`/api/settings/secrets/${encodeURIComponent(secret.key)}/value`);
+        const data = await res.json();
+        if (data.value) {
+          secret.value = data.value;
+          secret.revealed = true;
+        }
+      } catch (e) {
+        console.error('Failed to reveal secret:', e);
+      }
     },
 
     async addSecret() {
@@ -1361,6 +1374,9 @@ function chat() {
         case "done":
           // Response complete
           console.log("[App] Response complete");
+          if (data.audioUrl && this.currentAssistantMessage) {
+            this.currentAssistantMessage.audioUrl = data.audioUrl;
+          }
           this.isResponding = false;
           this.isThinking = false;
           this.currentAssistantMessage = null;

@@ -16,6 +16,7 @@ import {
   loadPreferences,
   loadModels,
   resolveEnvPath,
+  getEnvValue,
   setEnvValue,
   removeEnvValue,
   readFrontmatter,
@@ -357,6 +358,33 @@ export async function registerSettingsRoutes(
       return { secrets };
     },
   );
+
+  /**
+   * GET /api/settings/secrets/:key/value
+   *
+   * Returns the unmasked value for a single secret.
+   * Blocks read-only keys (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN).
+   */
+  fastify.get<{
+    Params: { key: string };
+    Reply: { value: string } | { error: string };
+  }>("/api/settings/secrets/:key/value", async (request, reply) => {
+    const { key } = request.params;
+
+    if (READ_ONLY_KEYS.has(key)) {
+      return reply.code(403).send({ error: `${key} is read-only` });
+    }
+
+    const agentDir = fastify.agentDir;
+    const envPath = resolveEnvPath(agentDir);
+    const value = getEnvValue(envPath, key);
+
+    if (value === null) {
+      return reply.code(404).send({ error: "Key not found" });
+    }
+
+    return { value };
+  });
 
   /**
    * PUT /api/settings/secrets/:key
