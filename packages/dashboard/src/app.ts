@@ -9,8 +9,12 @@
  */
 
 import { EventEmitter } from "node:events";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type { AppEventMap } from "./app-events.js";
 import { writeFrontmatter } from "./metadata/frontmatter.js";
 import { ensureDecisionsFile } from "./spaces/decisions.js";
@@ -49,6 +53,7 @@ import {
 import type { ListSpacesFilter } from "@my-agent/core";
 import type { HealthChangedEvent } from "@my-agent/core";
 import { createBaileysPlugin } from "@my-agent/channel-whatsapp";
+import type { BaileysPlugin } from "@my-agent/channel-whatsapp";
 import {
   ConversationManager,
   AbbreviationQueue,
@@ -73,6 +78,7 @@ import {
   getSharedMcpServers,
   addMcpServer,
   addMcpServerFactory,
+  setConnectionRegistry,
 } from "./agent/session-manager.js";
 import { createSpaceToolsServer } from "./mcp/space-tools-server.js";
 import { createSkillServer } from "./mcp/skill-server.js";
@@ -393,6 +399,11 @@ export class App extends EventEmitter {
     const hatched = isHatched(agentDir);
     const app = new App(agentDir, hatched);
 
+    // ── Wire connection registry for model broadcasts (M9-S3) ──
+    if (connectionRegistry) {
+      setConnectionRegistry(connectionRegistry);
+    }
+
     // ── Auth ──
     if (hatched) {
       try {
@@ -575,9 +586,11 @@ export class App extends EventEmitter {
       app.transportManager.registerPlugin("mock", () => {
         return new MockTransportPlugin();
       });
-      app.transportManager.registerPlugin("baileys", (cfg) =>
-        createBaileysPlugin({ ...cfg, agentDir }),
-      );
+      app.transportManager.registerPlugin("baileys", (cfg) => {
+        const plugin = createBaileysPlugin({ ...cfg, agentDir });
+        wireAudioCallbacks(plugin, app);
+        return plugin;
+      });
 
       // ChannelMessageHandler needs connectionRegistry + sessionRegistry.
       // sessionRegistry is App-owned. connectionRegistry comes from adapter.
@@ -591,6 +604,24 @@ export class App extends EventEmitter {
               app.transportManager!.send(transportId, to, message),
             sendTypingIndicator: (transportId, to) =>
               app.transportManager!.sendTypingIndicator(transportId, to),
+            sendAudioViaTransport: async (transportId, to, text) => {
+              // Get the plugin and check if it supports voice replies
+              const plugins = app.transportManager!.getPlugins();
+              const plugin = plugins.find((p) => p.id === transportId);
+              if (
+                !plugin ||
+                !("onSendVoiceReply" in plugin) ||
+                !("sendAudio" in plugin)
+              ) {
+                return false;
+              }
+              const bp = plugin as BaileysPlugin;
+              if (!bp.onSendVoiceReply) return false;
+              const audioBuffer = await bp.onSendVoiceReply(text, to);
+              if (!audioBuffer) return false;
+              await bp.sendAudio(to, audioBuffer);
+              return true;
+            },
             agentDir,
             app,
             get postResponseHooks() {
@@ -1553,4 +1584,57 @@ export class App extends EventEmitter {
   ): this {
     return super.on(event as string, listener as (...args: unknown[]) => void);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Audio callback wiring (WhatsApp voice notes ↔ capability registry)
+// ─────────────────────────────────────────────────────────────────
+
+const execFileAsync = promisify(execFile);
+
+function wireAudioCallbacks(plugin: BaileysPlugin, app: App): void {
+  // STT: transcribe incoming voice notes
+  plugin.onAudioMessage = async (audioPath: string, _jid: string) => {
+    const cap = app.capabilityRegistry?.get("audio-to-text");
+    if (!cap || cap.status !== "available") {
+      return { error: "no transcription capability configured" };
+    }
+
+    const scriptPath = join(cap.path, "scripts", "transcribe.sh");
+    try {
+      const { stdout } = await execFileAsync(scriptPath, [audioPath], {
+        timeout: 30000,
+      });
+      const result = JSON.parse(stdout.trim());
+      return { text: result.text || stdout.trim() };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[WhatsApp] Voice note transcription failed:", msg);
+      return { error: `transcription failed: ${msg}` };
+    }
+  };
+
+  // TTS: synthesize voice replies
+  plugin.onSendVoiceReply = async (text: string, _jid: string) => {
+    const cap = app.capabilityRegistry?.get("text-to-audio");
+    if (!cap || cap.status !== "available") return null;
+
+    const scriptPath = join(cap.path, "scripts", "synthesize.sh");
+    const outputDir = join(tmpdir(), "wa-tts");
+    mkdirSync(outputDir, { recursive: true });
+    const outputFile = join(outputDir, `tts-${randomUUID()}.ogg`);
+
+    try {
+      await execFileAsync(scriptPath, [text, outputFile], { timeout: 30000 });
+      const buffer = readFileSync(outputFile);
+      try { unlinkSync(outputFile); } catch {}
+      return buffer;
+    } catch (err: unknown) {
+      console.warn(
+        "[WhatsApp] Voice reply synthesis failed:",
+        err instanceof Error ? err.message : String(err),
+      );
+      return null;
+    }
+  };
 }

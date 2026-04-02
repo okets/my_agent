@@ -5,6 +5,7 @@ import {
   createMemoryServer,
   filterSkillsByTools,
   cleanupSkillFilters,
+  coreAgents,
 } from "@my-agent/core";
 import type {
   Query,
@@ -265,6 +266,28 @@ export class SessionManager {
 
     // Wire hooks for audit logging and safety
     this.hooks = createHooks("brain", { agentDir });
+
+    // Add model change broadcast on capability-builder start/stop
+    if (!this.hooks.SubagentStart) this.hooks.SubagentStart = [];
+    this.hooks.SubagentStart.push({
+      matcher: "capability-builder",
+      hooks: [
+        async () => {
+          broadcastModelChange("opus");
+          return {};
+        },
+      ],
+    });
+    if (!this.hooks.SubagentStop) this.hooks.SubagentStop = [];
+    this.hooks.SubagentStop.push({
+      matcher: "capability-builder",
+      hooks: [
+        async () => {
+          broadcastModelChange("sonnet");
+          return {};
+        },
+      ],
+    });
     console.log(
       `[SessionManager] Initialized (trust: brain, dir: ${agentDir})`,
     );
@@ -392,6 +415,7 @@ export class SessionManager {
           tools: ["Read", "Glob", "Grep", "WebSearch", "WebFetch"],
           model: "haiku",
         },
+        "capability-builder": coreAgents["capability-builder"],
       },
       includePartialMessages: true,
       reasoning,
@@ -437,10 +461,22 @@ export class SessionManager {
   }
 }
 
+/** Shared connection registry for model change broadcasts */
+let sharedConnectionRegistry: {
+  broadcastToAll: (msg: { type: "model_changed"; model: string }) => void;
+} | null = null;
+
+/** Set the connection registry for model change broadcasts. Called from App init. */
+export function setConnectionRegistry(registry: {
+  broadcastToAll: (msg: { type: "model_changed"; model: string }) => void;
+}): void {
+  sharedConnectionRegistry = registry;
+}
+
 /**
  * Broadcast a model change to all connected dashboard clients.
- * Called by the capability brainstorming/building system (S3).
+ * Called by the capability brainstorming/building system.
  */
-export function broadcastModelChange(_model: string): void {
-  // Placeholder — will be wired to WebSocket broadcast in S3
+export function broadcastModelChange(model: string): void {
+  sharedConnectionRegistry?.broadcastToAll({ type: "model_changed", model });
 }

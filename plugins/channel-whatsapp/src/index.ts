@@ -5,4 +5,8 @@ export {
   stripMarkdownImages,
   resolveImagePath,
 } from "./plugin.js";
-export type { ParsedImage } from "./plugin.js";
+export type {
+  ParsedImage,
+  OnAudioMessageCallback,
+  OnSendVoiceReplyCallback,
+} from "./plugin.js";

@@ -8,8 +8,10 @@ import makeWASocket, {
   type BaileysEventMap,
 } from "@whiskeysockets/baileys";
 import { pino } from "pino";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, basename } from "node:path";
+import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
 import type {
   TransportPlugin,
   TransportConfig,
@@ -32,6 +34,18 @@ type MessageHandler = (msg: IncomingMessage) => void;
 type ErrorHandler = (err: Error) => void;
 type StatusHandler = (status: TransportStatus) => void;
 type QrHandler = (qr: string) => void;
+
+/** Callback for transcribing incoming voice notes */
+export type OnAudioMessageCallback = (
+  audioPath: string,
+  jid: string,
+) => Promise<{ text?: string; error?: string }>;
+
+/** Callback for synthesizing outgoing voice replies */
+export type OnSendVoiceReplyCallback = (
+  text: string,
+  jid: string,
+) => Promise<Buffer | null>;
 
 interface EventHandlers {
   message: MessageHandler[];
@@ -176,6 +190,11 @@ export class BaileysPlugin implements TransportPlugin {
   private messageCache = new Map<string, CachedMessage>();
   // Promise that resolves when the socket is ready for pairing code request
   private socketReady: { resolve: () => void; promise: Promise<void> } | null = null;
+
+  /** Callback for transcribing incoming voice notes (wired by dashboard) */
+  onAudioMessage: OnAudioMessageCallback | null = null;
+  /** Callback for synthesizing voice replies (wired by dashboard) */
+  onSendVoiceReply: OnSendVoiceReplyCallback | null = null;
 
   private handlers: EventHandlers = {
     message: [],
@@ -482,6 +501,90 @@ export class BaileysPlugin implements TransportPlugin {
             continue;
           }
 
+          // ── Voice note handling ────────────────────────────────────
+          const audioMessage = msg.message?.audioMessage;
+          if (audioMessage) {
+            let content: string;
+
+            if (this.onAudioMessage) {
+              try {
+                // Download audio to temp file
+                const buffer = (await downloadMediaMessage(
+                  msg,
+                  "buffer",
+                  {},
+                )) as Buffer;
+                const tempPath = join(
+                  tmpdir(),
+                  `wa-voice-${randomUUID()}.ogg`,
+                );
+                writeFileSync(tempPath, buffer);
+
+                // Transcribe via callback
+                const result = await this.onAudioMessage(tempPath, remoteJid);
+                if (result.text) {
+                  content = `[Voice note] ${result.text}`;
+                } else {
+                  content = `[Voice note received — ${result.error || "transcription failed"}]`;
+                }
+
+                // Clean up temp file (best-effort)
+                try {
+                  const { unlink } = await import("node:fs/promises");
+                  await unlink(tempPath);
+                } catch {}
+              } catch (err) {
+                console.warn(
+                  "[WhatsApp] Failed to process voice note:",
+                  err,
+                );
+                content =
+                  "[Voice note received — failed to download audio]";
+              }
+            } else {
+              content =
+                "[Voice note received — no transcription capability configured]";
+            }
+
+            const timestamp = msg.messageTimestamp
+              ? new Date(Number(msg.messageTimestamp) * 1000)
+              : new Date();
+
+            const incoming: IncomingMessage = {
+              id: msg.key.id ?? `${Date.now()}`,
+              from: isGroup
+                ? (msg.key.participant ?? remoteJid)
+                : remoteJid,
+              content,
+              timestamp,
+              channelId: this.config!.id,
+              isVoiceNote: true,
+              ...(isGroup && { groupId: remoteJid }),
+              ...(msg.pushName && { senderName: msg.pushName }),
+            };
+
+            // Cache for reaction context
+            if (msg.key.id) {
+              this.cacheMessage(msg.key.id, content, false);
+            }
+
+            this._status = {
+              ...this._status,
+              lastMessageAt: new Date(),
+              lastEventAt: new Date(),
+            };
+
+            for (const handler of this.handlers.message) {
+              handler(incoming);
+            }
+
+            // Mark as read on dedicated channels
+            if (this.config?.role === "dedicated" && this.sock && msg.key) {
+              this.sock.readMessages([msg.key]).catch(() => {});
+            }
+            continue;
+          }
+
           // Extract text content (from regular text or image caption)
           const imageMsg = msg.message?.imageMessage;
           const content =
@@ -740,6 +843,25 @@ export class BaileysPlugin implements TransportPlugin {
       if (result?.key?.id) {
         this.cacheMessage(result.key.id, message.content, true);
       }
+    }
+  }
+
+  /**
+   * Send an audio message as a voice note (push-to-talk).
+   * Used for voice replies when TTS capability is available.
+   */
+  async sendAudio(to: string, audioBuffer: Buffer): Promise<void> {
+    if (!this.sock) {
+      throw new Error("[channel-whatsapp] sendAudio() called while disconnected");
+    }
+
+    const result = await this.sock.sendMessage(to, {
+      audio: audioBuffer,
+      mimetype: "audio/ogg; codecs=opus",
+      ptt: true,
+    });
+    if (result?.key?.id) {
+      this.cacheMessage(result.key.id, "[voice note]", true);
     }
   }
 

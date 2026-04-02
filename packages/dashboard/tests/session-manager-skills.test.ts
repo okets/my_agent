@@ -22,6 +22,7 @@ vi.mock("@my-agent/core", () => ({
   loadProperties: vi.fn().mockResolvedValue(null),
   filterSkillsByTools: vi.fn().mockResolvedValue([]),
   cleanupSkillFilters: vi.fn().mockResolvedValue(undefined),
+  coreAgents: {},
 }));
 
 import {

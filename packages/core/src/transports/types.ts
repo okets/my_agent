@@ -98,6 +98,8 @@ export interface IncomingMessage {
   senderName?: string
   /** Display name of the group */
   groupName?: string
+  /** Whether this message is a voice note (audio message with ptt flag) */
+  isVoiceNote?: boolean
   /** Reply context */
   replyTo?: {
     messageId: string

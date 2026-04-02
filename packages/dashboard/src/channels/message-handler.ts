@@ -48,6 +48,12 @@ interface MessageHandlerDeps {
     message: OutgoingMessage,
   ) => Promise<void>;
   sendTypingIndicator: (transportId: string, to: string) => Promise<void>;
+  /** Send a voice reply (audio buffer) via transport. Returns true if sent. */
+  sendAudioViaTransport?: (
+    transportId: string,
+    to: string,
+    text: string,
+  ) => Promise<boolean>;
   agentDir: string;
   /** App instance for event-emitting mutations */
   app: import("../app.js").App;
@@ -707,9 +713,25 @@ export class ChannelMessageHandler {
 
       // Send response back via channel (use group JID for groups, sender JID for DMs)
       const replyTo = first.groupId ?? first.from;
-      await this.deps.sendViaTransport(channelId, replyTo, {
-        content: assistantContent,
-      });
+
+      // Voice reply: if original was a voice note, try to send audio
+      let sentAsAudio = false;
+      if (first.isVoiceNote && this.deps.sendAudioViaTransport) {
+        try {
+          sentAsAudio = await this.deps.sendAudioViaTransport(
+            channelId,
+            replyTo,
+            assistantContent,
+          );
+        } catch (err) {
+          console.warn("[ChannelMessageHandler] Voice reply failed, falling back to text:", err);
+        }
+      }
+      if (!sentAsAudio) {
+        await this.deps.sendViaTransport(channelId, replyTo, {
+          content: assistantContent,
+        });
+      }
 
       // Broadcast assistant turn to WS clients
       this.deps.connectionRegistry.broadcastToConversation(conversation.id, {
