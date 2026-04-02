@@ -1282,9 +1282,9 @@ export class App extends EventEmitter {
         app.desktopBackend = backend;
       }
 
-      // Create ComputerUseService if backend + API key available
+      // Create ComputerUseService if backend + auth available
       let computerUse: ComputerUseService | null = null;
-      const apiKey = process.env.ANTHROPIC_API_KEY;
+      const apiKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN;
       if (backend && apiKey) {
         const client = new Anthropic({ apiKey });
         computerUse = new ComputerUseService(
