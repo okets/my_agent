@@ -174,7 +174,7 @@ export class AutomationProcessor {
     const notify = automation.manifest.notify ?? "debrief";
     const ci = this.config.conversationInitiator;
 
-    if (notify === "immediate" && ci) {
+    if (notify === "immediate" && result.success && ci) {
       // Resolve user's local time so the brain doesn't guess the time of day
       let localTimeContext = "";
       try {
