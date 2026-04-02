@@ -707,7 +707,7 @@ export class App extends EventEmitter {
           },
         },
         recentAutomationAlerts,
-        injectRecovery: async (conversationId, prompt) => {
+        injectRecovery: async (conversationId, prompt, options) => {
           const convDb = app.conversationManager.getConversationDb();
           const sdkSessionId = convDb.getSdkSessionId(conversationId);
           const sm = await app.sessionRegistry.getOrCreate(
@@ -748,10 +748,12 @@ export class App extends EventEmitter {
                 turnNumber: (conv?.turnCount ?? 0) + 1,
               },
             });
-            // Send via outbound channel if available
-            const ci = app.conversationInitiator;
-            if (ci) {
-              await (ci as any).trySendViaChannel(response);
+            // Send via outbound channel if available — but not for dashboard-originated messages (#2)
+            if (options?.source !== "dashboard") {
+              const ci = app.conversationInitiator;
+              if (ci) {
+                await (ci as any).trySendViaChannel(response);
+              }
             }
           }
           console.log(

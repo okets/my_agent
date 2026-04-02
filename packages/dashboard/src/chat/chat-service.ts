@@ -740,6 +740,7 @@ export class AppChatService {
                 cost,
                 textLengthAfterLastTool,
               },
+              source: "dashboard",
             },
           )
           .catch(() => {});

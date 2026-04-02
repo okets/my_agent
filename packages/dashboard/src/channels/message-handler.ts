@@ -62,7 +62,11 @@ interface MessageHandlerDeps {
       conversationId: string,
       userContent: string,
       assistantContent: string,
-      options?: { turnNumber?: number; imagesStoredDuringTurn?: number },
+      options?: {
+        turnNumber?: number;
+        imagesStoredDuringTurn?: number;
+        source?: "dashboard" | "channel";
+      },
     ): Promise<void>;
   } | null;
 }
@@ -753,6 +757,7 @@ export class ChannelMessageHandler {
         ?.run(conversation.id, textContent, assistantContent, {
           turnNumber: 0,
           imagesStoredDuringTurn: 0,
+          source: "channel",
         })
         .catch(() => {});
     }

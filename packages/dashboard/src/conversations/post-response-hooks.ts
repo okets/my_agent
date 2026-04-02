@@ -42,6 +42,7 @@ export interface PostResponseHooksDeps {
   injectRecovery?: (
     conversationId: string,
     prompt: string,
+    options?: { source?: "dashboard" | "channel" },
   ) => Promise<string | null>;
   /** Shared map tracking recent automation alerts — for collision suppression */
   recentAutomationAlerts?: Map<string, number>;
@@ -66,6 +67,8 @@ export class PostResponseHooks {
       turnNumber?: number;
       imagesStoredDuringTurn?: number;
       streamMetadata?: StreamMetadata;
+      /** Where the triggering message originated — dashboard messages should not leak to channels */
+      source?: "dashboard" | "channel";
     },
   ): Promise<void> {
     await Promise.all([
@@ -76,6 +79,7 @@ export class PostResponseHooks {
         userContent,
         assistantContent,
         options?.streamMetadata,
+        options?.source,
       ),
     ]);
   }
@@ -83,16 +87,26 @@ export class PostResponseHooks {
   private async augmentWithVisual(
     conversationId: string,
     assistantContent: string,
-    options?: { turnNumber?: number; imagesStoredDuringTurn?: number },
+    options?: {
+      turnNumber?: number;
+      imagesStoredDuringTurn?: number;
+      source?: "dashboard" | "channel";
+    },
   ): Promise<void> {
     if (!this.deps.visualAugmentation) return;
     try {
+      // Strip sendToChannel for dashboard-originated messages to prevent
+      // charts from leaking to WhatsApp (fixes #2)
+      const deps =
+        options?.source === "dashboard"
+          ? { ...this.deps.visualAugmentation, sendToChannel: undefined }
+          : this.deps.visualAugmentation;
       await maybeAugmentWithVisual(
         conversationId,
         assistantContent,
         options?.imagesStoredDuringTurn ?? 0,
         options?.turnNumber ?? 0,
-        this.deps.visualAugmentation,
+        deps,
       );
     } catch (err) {
       this.deps.logError(err, "[PostResponseHooks] Visual augmentation failed");
@@ -107,6 +121,7 @@ export class PostResponseHooks {
     userContent: string,
     assistantContent: string,
     metadata?: StreamMetadata,
+    source?: "dashboard" | "channel",
   ): Promise<void> {
     if (!this.deps.injectRecovery) return;
 
@@ -146,7 +161,9 @@ export class PostResponseHooks {
       );
 
       this.watchdogCooldowns.set(conversationId, Date.now());
-      await this.deps.injectRecovery(conversationId, diagnosis.recoveryPrompt);
+      await this.deps.injectRecovery(conversationId, diagnosis.recoveryPrompt, {
+        source,
+      });
     } catch (err) {
       this.deps.logError(err, "[ResponseWatchdog] Recovery injection failed");
     }
