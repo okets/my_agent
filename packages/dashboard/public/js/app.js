@@ -802,8 +802,9 @@ function chat() {
         breaks: true, // Convert \n to <br>
       });
 
-      // Initialize WebSocket connection
-      const wsUrl = `ws://${window.location.host}/api/chat/ws`;
+      // Initialize WebSocket connection (wss:// when served over HTTPS)
+      const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${wsProto}//${window.location.host}/api/chat/ws`;
       this.ws = new NinaWebSocket(wsUrl, {
         onOpen: () => {
           console.log("[App] WebSocket connected");
