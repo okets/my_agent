@@ -140,7 +140,12 @@ export async function handleDesktopTask(
       logDir,
     });
 
-    // Build response: text summary + last screenshot as image (so the brain can see it)
+    // Build screenshot URLs for the brain to share with the user
+    const screenshotUrls = result.screenshots.map(
+      (ss) => `/api/assets/screenshots/${ss.filename}`,
+    );
+
+    // Build response: text summary with URLs + last screenshot as image
     const content: ToolResult["content"] = [
       {
         type: "text" as const,
@@ -148,7 +153,8 @@ export async function handleDesktopTask(
           success: result.success,
           summary: result.summary,
           actionsPerformed: result.actionsPerformed,
-          screenshots: result.screenshots.length,
+          screenshotCount: result.screenshots.length,
+          screenshotUrls,
           error: result.error,
         }),
       },
