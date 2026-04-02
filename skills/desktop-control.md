@@ -1,16 +1,20 @@
 ---
 name: desktop-control
-description: See and interact with GUI applications on the desktop using Claude's trained computer use.
+description: See and interact with GUI applications on the desktop using direct tools.
 level: brain
 tools:
-  - desktop_task
   - desktop_screenshot
+  - desktop_click
+  - desktop_type
+  - desktop_key
+  - desktop_scroll
+  - desktop_wait
   - desktop_info
 ---
 
 # Desktop Control
 
-You can see and interact with the desktop GUI using the desktop tools.
+You can see and interact with the desktop GUI using the desktop tools — the same way you use Playwright for browser control.
 
 ## When to use
 
@@ -26,19 +30,33 @@ You can see and interact with the desktop GUI using the desktop tools.
 
 ## Tools
 
-- **desktop_info** — see what windows are open and what's available. Use first to orient.
-- **desktop_screenshot** — see the current screen state without performing any action.
-- **desktop_task** — perform a multi-step GUI task. Describe the goal, not individual clicks. Returns screenshot URLs.
+- **desktop_info** — see what windows are open and what's available. Use to orient.
+- **desktop_screenshot** — see the current screen state. **Always start with this.**
+- **desktop_click(x, y)** — click at pixel coordinates from the screenshot
+- **desktop_type(text)** — type text at the current cursor position
+- **desktop_key(key)** — press a key combo (e.g., `ctrl+s`, `Return`, `alt+Tab`)
+- **desktop_scroll(x, y, direction)** — scroll at a position
+- **desktop_wait(seconds)** — wait for UI animations or loading
+
+Every action tool returns a screenshot after executing, so you always see the result.
+
+## How to use
+
+1. Call `desktop_screenshot` to see the current screen
+2. Identify what you need to click/type from the screenshot
+3. Call the appropriate action tool with coordinates from the screenshot
+4. Each action returns a new screenshot — use it to decide your next step
+5. Repeat until the task is done
 
 ## Sharing screenshots with the user
 
-When `desktop_task` or `desktop_screenshot` returns screenshot URLs, **always include the last screenshot as a markdown image** in your response so the user can see it:
+Each tool result includes a `screenshotUrl`. **Always include the last screenshot as a markdown image** in your response so the user can see it:
 
 ```
 ![Screenshot](/api/assets/screenshots/ss-xxx.png)
 ```
 
-The `screenshotUrls` array in the tool result contains the URLs. Use the last one. The user asked to SEE something — show them.
+The user asked to SEE something — show them.
 
 ## Permission rules
 

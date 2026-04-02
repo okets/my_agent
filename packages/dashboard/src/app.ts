@@ -97,16 +97,15 @@ import { createAutomationServer } from "./mcp/automation-server.js";
 import { VisualActionService } from "./visual/visual-action-service.js";
 import { detectDesktopEnvironment } from "./desktop/desktop-capability-detector.js";
 import { X11Backend } from "./desktop/x11-backend.js";
-import { ComputerUseService } from "./desktop/computer-use-service.js";
-import { AgentComputerUseService } from "./desktop/agent-computer-use-service.js";
 import { createDesktopServer } from "./mcp/desktop-server.js";
+import { createDesktopActionServer } from "./mcp/desktop-action-server.js";
 import {
   createDesktopRateLimiter,
   createDesktopAuditLogger,
 } from "./hooks/desktop-hooks.js";
 import type { DesktopEnvironment, DesktopBackend } from "@my-agent/core";
 import { PlaywrightScreenshotBridge } from "./playwright/playwright-screenshot-bridge.js";
-// Anthropic raw SDK no longer used — computer use routes through Agent SDK
+// Desktop action tools registered via desktop-action-server.ts (direct MCP, like Playwright)
 
 // ─── Service Namespaces ──────────────────────────────────────────────────────
 // Thin wrappers that delegate reads and emit App events on mutations.
@@ -372,8 +371,6 @@ export class App extends EventEmitter {
   // Desktop control (M8-S2)
   desktopEnv: DesktopEnvironment | null = null;
   desktopBackend: DesktopBackend | null = null;
-  desktopComputerUse: ComputerUseService | AgentComputerUseService | null =
-    null;
   desktopRateLimiter: ReturnType<typeof createDesktopRateLimiter> | null = null;
   desktopAuditLogger: ReturnType<typeof createDesktopAuditLogger> | null = null;
   playwrightBridge: PlaywrightScreenshotBridge | null = null;
@@ -1284,16 +1281,6 @@ export class App extends EventEmitter {
         app.desktopBackend = backend;
       }
 
-      // Create ComputerUseService — Agent SDK based (works with OAuth)
-      let computerUse: AgentComputerUseService | null = null;
-      if (backend) {
-        computerUse = new AgentComputerUseService(
-          backend,
-          app.visualActionService,
-        );
-        app.desktopComputerUse = computerUse;
-      }
-
       // Safety hooks — standalone utilities for MCP tool handlers
       app.desktopRateLimiter = createDesktopRateLimiter({ maxPerMinute: 30 });
       app.desktopAuditLogger = createDesktopAuditLogger((entry) => {
@@ -1302,17 +1289,30 @@ export class App extends EventEmitter {
         );
       });
 
-      // Register desktop MCP server (always — returns helpful errors if no backend)
+      // Register desktop info/capabilities MCP server (always — returns helpful errors if no backend)
       const enabledFlagPath = join(agentDir, ".desktop-enabled");
       const desktopServer = createDesktopServer({
         backend,
-        computerUse,
         visualService: app.visualActionService,
         rateLimiter: app.desktopRateLimiter ?? undefined,
         auditLogger: app.desktopAuditLogger ?? undefined,
         isEnabled: () => existsSync(enabledFlagPath),
       });
       addMcpServer("desktop-tools", desktopServer);
+
+      // Register direct desktop action tools (click, type, screenshot, etc.)
+      // Like Playwright: both Conversation Nina and Working Nina get them directly
+      if (backend) {
+        const desktopActionServer = await createDesktopActionServer({
+          backend,
+          vas: app.visualActionService,
+          isEnabled: () => existsSync(enabledFlagPath),
+        });
+        addMcpServer("desktop-actions", desktopActionServer);
+        console.log(
+          "[Desktop] Direct action tools registered (desktop_click, desktop_type, etc.)",
+        );
+      }
 
       // Log desktop status
       if (desktopEnv.hasDisplay) {
@@ -1321,11 +1321,6 @@ export class App extends EventEmitter {
             `capabilities: screenshot=${desktopEnv.capabilities.screenshot}, mouse=${desktopEnv.capabilities.mouse}, ` +
             `keyboard=${desktopEnv.capabilities.keyboard}, windowMgmt=${desktopEnv.capabilities.windowManagement}`,
         );
-        if (!computerUse) {
-          console.log(
-            "[Desktop] ComputerUseService not available (no desktop backend)",
-          );
-        }
         if (desktopEnv.setupNeeded.length > 0) {
           console.log(
             `[Desktop] Setup needed: ${desktopEnv.setupNeeded.join("; ")}`,
