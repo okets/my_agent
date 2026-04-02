@@ -187,8 +187,12 @@ export class AutomationExecutor {
         screenshotIds.push(ss.id);
       });
 
-      // 5. Build MCP servers for worker (add visual tools alongside configured servers)
-      const workerMcpServers = { ...this.config.mcpServers };
+      // 5. Build MCP servers for worker (fresh instances for in-process SDK servers)
+      const { buildMcpServersForSession } = await import(
+        "../agent/session-manager.js"
+      );
+      const sessionServers = await buildMcpServersForSession();
+      const workerMcpServers = { ...sessionServers };
       if (this.config.visualService) {
         const vs = this.config.visualService;
         workerMcpServers["chart-tools"] = createChartServer({

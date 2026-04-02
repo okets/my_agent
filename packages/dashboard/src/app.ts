@@ -72,6 +72,7 @@ import {
   getPromptBuilder,
   getSharedMcpServers,
   addMcpServer,
+  addMcpServerFactory,
 } from "./agent/session-manager.js";
 import { createSpaceToolsServer } from "./mcp/space-tools-server.js";
 import { createSkillServer } from "./mcp/skill-server.js";
@@ -1095,6 +1096,9 @@ export class App extends EventEmitter {
           agentDir,
           db: convDb,
           get mcpServers() {
+            // Note: Working Ninas need fresh MCP server instances for
+            // in-process SDK servers (concurrent transport binding).
+            // The executor calls buildMcpServersForSession() at run time.
             return getSharedMcpServers() ?? undefined;
           },
           hooks: createHooks("task", { agentDir }),
@@ -1301,14 +1305,19 @@ export class App extends EventEmitter {
       addMcpServer("desktop-tools", desktopServer);
 
       // Register direct desktop action tools (click, type, screenshot, etc.)
-      // Like Playwright: both Conversation Nina and Working Nina get them directly
+      // Factory pattern: each session gets a fresh MCP server instance
+      // (in-process SDK servers can only bind to one transport at a time)
       if (backend) {
-        const desktopActionServer = await createDesktopActionServer({
-          backend,
-          vas: app.visualActionService,
-          isEnabled: () => existsSync(enabledFlagPath),
-        });
-        addMcpServer("desktop-actions", desktopActionServer);
+        const desktopBackend = backend;
+        const desktopVas = app.visualActionService;
+        const isDesktopEnabled = () => existsSync(enabledFlagPath);
+        addMcpServerFactory("desktop-actions", () =>
+          createDesktopActionServer({
+            backend: desktopBackend,
+            vas: desktopVas,
+            isEnabled: isDesktopEnabled,
+          }),
+        );
         console.log(
           "[Desktop] Direct action tools registered (desktop_click, desktop_type, etc.)",
         );
