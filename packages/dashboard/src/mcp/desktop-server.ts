@@ -40,6 +40,7 @@ type ToolResult = {
         type: "image";
         source: { type: "base64"; media_type: "image/png"; data: string };
       }
+    | { type: "image"; data: string; mimeType: string }
   >;
   isError?: boolean;
 };
@@ -139,19 +140,38 @@ export async function handleDesktopTask(
       logDir,
     });
 
+    // Build response: text summary + last screenshot as image (so the brain can see it)
+    const content: ToolResult["content"] = [
+      {
+        type: "text" as const,
+        text: JSON.stringify({
+          success: result.success,
+          summary: result.summary,
+          actionsPerformed: result.actionsPerformed,
+          screenshots: result.screenshots.length,
+          error: result.error,
+        }),
+      },
+    ];
+
+    // Attach the last screenshot as an image block for the brain to see
+    if (result.screenshots.length > 0) {
+      const lastSS = result.screenshots[result.screenshots.length - 1];
+      try {
+        const { readFileSync } = await import("node:fs");
+        const imageBuffer = readFileSync(lastSS.path);
+        content.push({
+          type: "image" as const,
+          data: imageBuffer.toString("base64"),
+          mimeType: "image/png",
+        });
+      } catch {
+        // Screenshot file may have been cleaned up; skip image
+      }
+    }
+
     return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify({
-            success: result.success,
-            summary: result.summary,
-            actionsPerformed: result.actionsPerformed,
-            screenshots: result.screenshots.length,
-            error: result.error,
-          }),
-        },
-      ],
+      content,
       isError: !result.success,
     };
   } catch (err) {
