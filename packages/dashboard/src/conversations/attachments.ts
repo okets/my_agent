@@ -90,6 +90,11 @@ export class AttachmentService {
       return true;
     }
 
+    // Check audio types (for voice recording)
+    if (mimeType.startsWith("audio/")) {
+      return true;
+    }
+
     // Check text file extensions
     const ext = path.extname(filename).toLowerCase();
     if (mimeType.startsWith("text/") || ALLOWED_TEXT_EXTENSIONS.includes(ext)) {
