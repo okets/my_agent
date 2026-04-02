@@ -724,7 +724,10 @@ export class ChannelMessageHandler {
             assistantContent,
           );
         } catch (err) {
-          console.warn("[ChannelMessageHandler] Voice reply failed, falling back to text:", err);
+          console.warn(
+            "[ChannelMessageHandler] Voice reply failed, falling back to text:",
+            err,
+          );
         }
       }
       if (!sentAsAudio) {

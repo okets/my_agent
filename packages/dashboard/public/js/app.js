@@ -52,14 +52,16 @@ function secretsPanel() {
       }
       // Fetch actual value from server
       try {
-        const res = await fetch(`/api/settings/secrets/${encodeURIComponent(secret.key)}/value`);
+        const res = await fetch(
+          `/api/settings/secrets/${encodeURIComponent(secret.key)}/value`,
+        );
         const data = await res.json();
         if (data.value) {
           secret.value = data.value;
           secret.revealed = true;
         }
       } catch (e) {
-        console.error('Failed to reveal secret:', e);
+        console.error("Failed to reveal secret:", e);
       }
     },
 

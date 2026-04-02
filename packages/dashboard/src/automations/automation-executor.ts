@@ -188,9 +188,8 @@ export class AutomationExecutor {
       });
 
       // 5. Build MCP servers for worker (fresh instances for in-process SDK servers)
-      const { buildMcpServersForSession } = await import(
-        "../agent/session-manager.js"
-      );
+      const { buildMcpServersForSession } =
+        await import("../agent/session-manager.js");
       const sessionServers = await buildMcpServersForSession();
       const workerMcpServers = { ...sessionServers };
       if (this.config.visualService) {
