@@ -1,30 +1,17 @@
 /**
- * Desktop MCP Tools Server
+ * Desktop Info MCP Server
  *
- * Exposes desktop_task, desktop_screenshot, and desktop_info tools for the
- * brain to interact with the desktop GUI during conversation.
- *
- * Handler logic is exported for direct testing — the MCP tool() wrappers
- * are thin one-liner delegates.
+ * Exposes desktop_info tool for querying desktop state (windows, display, capabilities).
+ * Action tools (click, type, screenshot, etc.) live in desktop-action-server.ts.
  */
 
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { DesktopBackend } from "@my-agent/core";
-import type {
-  ComputerUseTask,
-  ComputerUseResult,
-} from "../desktop/computer-use-service.js";
 import type { VisualActionService } from "../visual/visual-action-service.js";
-
-/** Any service that implements the computer use run() interface */
-type ComputerUseServiceLike = {
-  run(task: ComputerUseTask): Promise<ComputerUseResult>;
-};
 
 export interface DesktopServerDeps {
   backend: DesktopBackend | null;
-  computerUse: ComputerUseServiceLike | null;
   visualService?: VisualActionService;
   rateLimiter?: { check(): { allowed: boolean; reason?: string } };
   auditLogger?: {
@@ -34,234 +21,11 @@ export interface DesktopServerDeps {
 }
 
 type ToolResult = {
-  content: Array<
-    | { type: "text"; text: string }
-    | {
-        type: "image";
-        source: { type: "base64"; media_type: "image/png"; data: string };
-      }
-    | { type: "image"; data: string; mimeType: string }
-  >;
+  content: Array<{ type: "text"; text: string }>;
   isError?: boolean;
 };
 
-// ── Exported handler functions (testable) ────────────────────────────────────
-
-export async function handleDesktopTask(
-  deps: DesktopServerDeps,
-  args: {
-    instruction: string;
-    context?: { type: string; id: string; automationId?: string };
-    model?: string;
-    maxActions?: number;
-    timeoutMs?: number;
-  },
-): Promise<ToolResult> {
-  // Check if desktop control is enabled
-  if (deps.isEnabled && !deps.isEnabled()) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: "Desktop control is disabled. Enable it in Settings > Desktop Control.",
-        },
-      ],
-      isError: true,
-    };
-  }
-  // Safety: rate limit check
-  if (deps.rateLimiter) {
-    const check = deps.rateLimiter.check();
-    if (!check.allowed) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: check.reason ?? "Rate limit exceeded",
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-  // Safety: audit log
-  if (deps.auditLogger) {
-    deps.auditLogger.log({
-      tool: "desktop_task",
-      instruction: args.instruction,
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  if (!deps.computerUse) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: "Desktop computer use is not available. No ComputerUseService was configured.",
-        },
-      ],
-      isError: true,
-    };
-  }
-
-  try {
-    // Resolve logDir for action audit trail (desktop-actions.jsonl)
-    // All desktop tasks get logged — user may not be watching (WhatsApp, away from screen)
-    let logDir: string | undefined;
-    if (deps.visualService) {
-      const agentDir = (deps.visualService as any).agentDir;
-      if (agentDir) {
-        const { join } = await import("node:path");
-        const { mkdirSync } = await import("node:fs");
-        if (args.context?.type === "job" && args.context.automationId) {
-          logDir = join(
-            agentDir,
-            "automations",
-            ".runs",
-            args.context.automationId,
-            args.context.id,
-          );
-        } else if (args.context?.type === "conversation") {
-          logDir = join(agentDir, "conversations", args.context.id);
-        } else {
-          // Fallback: log to a shared desktop-actions directory
-          logDir = join(agentDir, "desktop-actions");
-        }
-        mkdirSync(logDir, { recursive: true });
-      }
-    }
-
-    const result = await deps.computerUse.run({
-      instruction: args.instruction,
-      model: args.model,
-      maxActions: args.maxActions,
-      timeoutMs: args.timeoutMs,
-      logDir,
-    });
-
-    // Build screenshot URLs for the brain to share with the user
-    const screenshotUrls = result.screenshots.map(
-      (ss) => `/api/assets/screenshots/${ss.filename}`,
-    );
-
-    // Build response: text summary with URLs + last screenshot as image
-    const content: ToolResult["content"] = [
-      {
-        type: "text" as const,
-        text: JSON.stringify({
-          success: result.success,
-          summary: result.summary,
-          actionsPerformed: result.actionsPerformed,
-          screenshotCount: result.screenshots.length,
-          screenshotUrls,
-          error: result.error,
-        }),
-      },
-    ];
-
-    // Attach the last screenshot as an image block for the brain to see
-    if (result.screenshots.length > 0) {
-      const lastSS = result.screenshots[result.screenshots.length - 1];
-      try {
-        const { readFileSync } = await import("node:fs");
-        const imageBuffer = readFileSync(lastSS.path);
-        content.push({
-          type: "image" as const,
-          data: imageBuffer.toString("base64"),
-          mimeType: "image/png",
-        });
-      } catch {
-        // Screenshot file may have been cleaned up; skip image
-      }
-    }
-
-    return {
-      content,
-      isError: !result.success,
-    };
-  } catch (err) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Desktop task failed: ${err instanceof Error ? err.message : "Unknown error"}`,
-        },
-      ],
-      isError: true,
-    };
-  }
-}
-
-export async function handleDesktopScreenshot(
-  deps: DesktopServerDeps,
-  args: { region?: any },
-): Promise<ToolResult> {
-  if (deps.isEnabled && !deps.isEnabled()) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: "Desktop control is disabled. Enable it in Settings > Desktop Control.",
-        },
-      ],
-      isError: true,
-    };
-  }
-  if (!deps.backend) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: "Desktop backend is not available. No display detected.",
-        },
-      ],
-      isError: true,
-    };
-  }
-
-  try {
-    const buffer = await deps.backend.screenshot(
-      args.region ? { region: args.region } : undefined,
-    );
-
-    // Store via VisualActionService if available
-    if (deps.visualService) {
-      const display = await deps.backend.displayInfo();
-      deps.visualService.store(buffer, {
-        description: "desktop_screenshot tool",
-        width: display.width,
-        height: display.height,
-        source: "desktop",
-      });
-    }
-
-    const base64 = buffer.toString("base64");
-
-    return {
-      content: [
-        {
-          type: "image" as const,
-          source: {
-            type: "base64" as const,
-            media_type: "image/png" as const,
-            data: base64,
-          },
-        },
-      ],
-    };
-  } catch (err) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Screenshot failed: ${err instanceof Error ? err.message : "Unknown error"}`,
-        },
-      ],
-      isError: true,
-    };
-  }
-}
+// ── Exported handler (testable) ─────────────────────────────────────────────
 
 export async function handleDesktopInfo(
   deps: DesktopServerDeps,
@@ -276,7 +40,6 @@ export async function handleDesktopInfo(
             text: JSON.stringify({
               capabilities: null,
               platform: null,
-              computerUseAvailable: false,
               available: false,
               reason: "No desktop backend configured — no display detected.",
             }),
@@ -331,7 +94,6 @@ export async function handleDesktopInfo(
               text: JSON.stringify({
                 capabilities,
                 platform: deps.backend.platform,
-                computerUseAvailable: deps.computerUse !== null,
               }),
             },
           ],
@@ -354,48 +116,6 @@ export async function handleDesktopInfo(
 // ── MCP server creator ───────────────────────────────────────────────────────
 
 export function createDesktopServer(deps: DesktopServerDeps) {
-  const desktopTaskTool = tool(
-    "desktop_task",
-    "Delegate a multi-step GUI task to Claude computer use. Describe the goal, not individual clicks. Returns a summary of what was done.",
-    {
-      instruction: z
-        .string()
-        .describe(
-          "What to accomplish on the desktop — describe the goal, not individual steps",
-        ),
-      model: z
-        .string()
-        .optional()
-        .describe("Model override (default: claude-sonnet-4-6)"),
-      maxActions: z
-        .number()
-        .optional()
-        .describe("Maximum number of actions before stopping (default: 50)"),
-      timeoutMs: z
-        .number()
-        .optional()
-        .describe("Timeout in milliseconds (default: 120000)"),
-    },
-    (args) => handleDesktopTask(deps, args),
-  );
-
-  const desktopScreenshotTool = tool(
-    "desktop_screenshot",
-    "Take a screenshot of the current desktop state. Use to visually inspect the screen without performing any action.",
-    {
-      region: z
-        .object({
-          x: z.number(),
-          y: z.number(),
-          width: z.number(),
-          height: z.number(),
-        })
-        .optional()
-        .describe("Capture a specific region instead of the full screen"),
-    },
-    (args) => handleDesktopScreenshot(deps, args),
-  );
-
   const desktopInfoTool = tool(
     "desktop_info",
     "Query desktop state: open windows, display configuration, or available capabilities. Use first to orient before interacting.",
@@ -411,6 +131,6 @@ export function createDesktopServer(deps: DesktopServerDeps) {
 
   return createSdkMcpServer({
     name: "desktop-tools",
-    tools: [desktopTaskTool, desktopScreenshotTool, desktopInfoTool],
+    tools: [desktopInfoTool],
   });
 }

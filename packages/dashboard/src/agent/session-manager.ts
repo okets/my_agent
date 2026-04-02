@@ -151,6 +151,39 @@ export function addMcpServer(
   console.log(`[SessionManager] MCP server added: ${name}`);
 }
 
+/**
+ * MCP server factories — create a new instance per session.
+ * Use for in-process SDK MCP servers that can only bind to one transport
+ * at a time (concurrent sessions would fail with "Already connected").
+ */
+const mcpServerFactories: Record<
+  string,
+  () => Promise<NonNullable<Options["mcpServers"]>[string]>
+> = {};
+
+export function addMcpServerFactory(
+  name: string,
+  factory: () => Promise<NonNullable<Options["mcpServers"]>[string]>,
+): void {
+  mcpServerFactories[name] = factory;
+  console.log(`[SessionManager] MCP server factory added: ${name}`);
+}
+
+/**
+ * Build MCP servers for a session — shared singletons + fresh factory instances.
+ */
+export async function buildMcpServersForSession(): Promise<
+  Options["mcpServers"] | undefined
+> {
+  const servers: NonNullable<Options["mcpServers"]> = {
+    ...(sharedMcpServers ?? {}),
+  };
+  for (const [name, factory] of Object.entries(mcpServerFactories)) {
+    servers[name] = await factory();
+  }
+  return Object.keys(servers).length > 0 ? servers : undefined;
+}
+
 interface StreamOptions {
   /** Override the default model */
   model?: string;
@@ -363,7 +396,7 @@ export class SessionManager {
       includePartialMessages: true,
       reasoning,
       hooks: this.hooks ?? undefined,
-      mcpServers: sharedMcpServers ?? undefined,
+      mcpServers: await buildMcpServersForSession(),
     };
 
     if (this.sdkSessionId) {

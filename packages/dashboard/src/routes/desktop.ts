@@ -45,7 +45,7 @@ export async function registerDesktopRoutes(
         accessibility: false,
       },
       setupNeeded: app.desktopEnv?.setupNeeded ?? [],
-      computerUseAvailable: !!app.desktopComputerUse,
+      computerUseAvailable: !!app.desktopBackend,
       enabled: isDesktopEnabled(),
     };
   });
