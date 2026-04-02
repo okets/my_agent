@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-01 (M8 complete, Voice sprint absorbed into new M9: Capability System; M9–M13 renumbered M10–M14; M13-S6 Self-Service MCP absorbed into M9)
+> **Updated:** 2026-04-02 (M8-S5 correction sprint: Agent SDK computer use — raw API incompatible with Max subscription OAuth)
 
 ---
 
@@ -24,8 +24,8 @@
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
-| **M8: Visual & Desktop Automation** | **Complete** | 5/5 sprints (S1-S4 + S3.5 + S4.1 + S4.2), 884 tests. Voice sprint absorbed into M9 |
-| **M9: Capability System** | **Planned** | 4 sprints (registry + dummies, dashboard + secrets, WhatsApp + skill gen, real test + roadmap) |
+| **M8: Visual & Desktop Automation** | **In Progress** | S5 correction sprint: Agent SDK computer use (blocks M9) |
+| **M9: Capability System** | **Blocked** | Blocked by M8-S5. 4 sprints planned |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -717,11 +717,12 @@ Nina can see and interact with GUI applications. All visual actions (desktop con
 | S4.1 | Tool Redesign | **Done** | Split store_image into `create_chart` + `fetch_image` (purpose-built tools), visual presenter skill updated, standing order for visual communication, augmentation hook (Haiku safety net), SVG sanitization, WhatsApp agentDir fix. [plan](../sprints/m8-s4.1-tool-redesign/plan.md) · [review](../sprints/m8-s4.1-tool-redesign/review.md) · [test-report](../sprints/m8-s4.1-tool-redesign/test-report.md) |
 | S4.2 | Visual Working Ninas | **Done** | chart-tools + image-fetch-tools MCP wired to workers, post-execution deliverable augmentation hook, deliverable.md written for all jobs (not just tagged). 884 tests. |
 | ~~S5~~ | ~~Voice~~ | Absorbed | → M9 Capability System (voice is the first capability, not a standalone sprint) |
+| S5 | Computer Use OAuth Fix | **In Progress** | Correction sprint: replace raw Anthropic API (`computer_20251124` beta) with Agent SDK `query()` + custom MCP tools. Required for Max subscription (OAuth only). [plan](../sprints/m8-s5-computer-use-oauth/plan.md) · [spec](../superpowers/specs/2026-04-02-agent-sdk-computer-use-design.md) |
 
 **Key design decisions (resolved in spec):**
 - No dedicated Computer Use Agent — tools on Working Nina directly, safety via hooks + autonomy
 - Trust rule: user-initiated = proceed, agent-initiated = state app + reason, wait for approval
-- Native Claude computer use API (`computer_20251124` beta) for accuracy, bridged via MCP tool
+- ~~Native Claude computer use API (`computer_20251124` beta) for accuracy, bridged via MCP tool~~ → **Corrected M8-S5:** Agent SDK `query()` with custom MCP tools (raw API incompatible with OAuth/Max subscription)
 - Backend abstraction from day one for cross-platform (macOS + Wayland deferred to M13)
 - Dependencies managed via hatching + settings (auto-detect, guided install, graceful degradation)
 
@@ -758,7 +759,7 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 - M8-S5 (Voice) — STT/TTS engine selection, dashboard audio, WhatsApp voice notes
 - Old M12-S6 (Self-Service MCP Integration) — capability system supersedes the MCP-specific approach
 
-**Dependencies:** M8 (rich I/O — capabilities build on the visual pipeline and asset serving)
+**Dependencies:** M8 (rich I/O — capabilities build on the visual pipeline and asset serving). **Blocked by M8-S5** (computer use OAuth fix must land before M9 work continues).
 
 ---
 

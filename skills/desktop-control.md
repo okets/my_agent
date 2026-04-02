@@ -28,7 +28,17 @@ You can see and interact with the desktop GUI using the desktop tools.
 
 - **desktop_info** — see what windows are open and what's available. Use first to orient.
 - **desktop_screenshot** — see the current screen state without performing any action.
-- **desktop_task** — perform a multi-step GUI task. Describe the goal, not individual clicks.
+- **desktop_task** — perform a multi-step GUI task. Describe the goal, not individual clicks. Returns screenshot URLs.
+
+## Sharing screenshots with the user
+
+When `desktop_task` or `desktop_screenshot` returns screenshot URLs, **always include the last screenshot as a markdown image** in your response so the user can see it:
+
+```
+![Screenshot](/api/assets/screenshots/ss-xxx.png)
+```
+
+The `screenshotUrls` array in the tool result contains the URLs. Use the last one. The user asked to SEE something — show them.
 
 ## Permission rules
 

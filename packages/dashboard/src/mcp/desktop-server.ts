@@ -11,12 +11,20 @@
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { DesktopBackend } from "@my-agent/core";
-import type { ComputerUseService } from "../desktop/computer-use-service.js";
+import type {
+  ComputerUseTask,
+  ComputerUseResult,
+} from "../desktop/computer-use-service.js";
 import type { VisualActionService } from "../visual/visual-action-service.js";
+
+/** Any service that implements the computer use run() interface */
+type ComputerUseServiceLike = {
+  run(task: ComputerUseTask): Promise<ComputerUseResult>;
+};
 
 export interface DesktopServerDeps {
   backend: DesktopBackend | null;
-  computerUse: ComputerUseService | null;
+  computerUse: ComputerUseServiceLike | null;
   visualService?: VisualActionService;
   rateLimiter?: { check(): { allowed: boolean; reason?: string } };
   auditLogger?: {
@@ -32,6 +40,7 @@ type ToolResult = {
         type: "image";
         source: { type: "base64"; media_type: "image/png"; data: string };
       }
+    | { type: "image"; data: string; mimeType: string }
   >;
   isError?: boolean;
 };
@@ -131,19 +140,44 @@ export async function handleDesktopTask(
       logDir,
     });
 
+    // Build screenshot URLs for the brain to share with the user
+    const screenshotUrls = result.screenshots.map(
+      (ss) => `/api/assets/screenshots/${ss.filename}`,
+    );
+
+    // Build response: text summary with URLs + last screenshot as image
+    const content: ToolResult["content"] = [
+      {
+        type: "text" as const,
+        text: JSON.stringify({
+          success: result.success,
+          summary: result.summary,
+          actionsPerformed: result.actionsPerformed,
+          screenshotCount: result.screenshots.length,
+          screenshotUrls,
+          error: result.error,
+        }),
+      },
+    ];
+
+    // Attach the last screenshot as an image block for the brain to see
+    if (result.screenshots.length > 0) {
+      const lastSS = result.screenshots[result.screenshots.length - 1];
+      try {
+        const { readFileSync } = await import("node:fs");
+        const imageBuffer = readFileSync(lastSS.path);
+        content.push({
+          type: "image" as const,
+          data: imageBuffer.toString("base64"),
+          mimeType: "image/png",
+        });
+      } catch {
+        // Screenshot file may have been cleaned up; skip image
+      }
+    }
+
     return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify({
-            success: result.success,
-            summary: result.summary,
-            actionsPerformed: result.actionsPerformed,
-            screenshots: result.screenshots.length,
-            error: result.error,
-          }),
-        },
-      ],
+      content,
       isError: !result.success,
     };
   } catch (err) {
