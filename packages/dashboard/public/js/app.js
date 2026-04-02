@@ -1051,7 +1051,7 @@ function chat() {
       } catch (err) {
         console.error("Failed to start recording:", err);
         const errorMsg = err.message?.includes("HTTPS")
-          ? err.message
+          ? `${err.message} Ask ${this.agentName?.split(/\s+/)[0] || "your agent"} how to set up HTTPS access on your machine.`
           : "Microphone access denied. Please allow microphone access to use voice messages.";
         this.messages.push({
           id: ++this.messageIdCounter,
