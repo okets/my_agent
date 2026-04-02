@@ -446,6 +446,11 @@ export class SessionManager {
    * NOT appending this synthetic turn to the transcript — only the
    * brain's response should be recorded.
    */
+  /** Whether the session is currently streaming a response. */
+  isStreaming(): boolean {
+    return this.activeQuery !== null;
+  }
+
   async *injectSystemTurn(prompt: string): AsyncGenerator<StreamEvent> {
     yield* this.streamMessage(`[SYSTEM: ${prompt}]`);
   }

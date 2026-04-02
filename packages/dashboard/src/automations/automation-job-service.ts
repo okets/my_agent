@@ -137,6 +137,48 @@ export class AutomationJobService {
   }
 
   /**
+   * Update job context (merges into existing context).
+   * Used for notification retry state — avoids changing the Job type.
+   */
+  updateJobContext(jobId: string, context: Record<string, unknown>): void {
+    const dbJob = this.db.getJob(jobId);
+    if (!dbJob) return;
+
+    const automationId = dbJob.automationId;
+    const jsonlPath = this.getJsonlPath(automationId);
+
+    const lines = this.readJsonlLines(jsonlPath);
+    const newLines = lines.map((line) => {
+      let job: Job;
+      try {
+        job = JSON.parse(line) as Job;
+      } catch {
+        return line;
+      }
+      if (job.id === jobId) {
+        job.context = context;
+        return JSON.stringify(job);
+      }
+      return line;
+    });
+
+    fs.writeFileSync(jsonlPath, newLines.join("\n") + "\n", "utf-8");
+    this.db.upsertJob({
+      id: dbJob.id,
+      automationId: dbJob.automationId,
+      status: dbJob.status,
+      created: dbJob.created,
+      completed: dbJob.completed ?? undefined,
+      summary: dbJob.summary ?? undefined,
+      context: JSON.stringify(context),
+      sdkSessionId: dbJob.sdkSessionId ?? undefined,
+      runDir: dbJob.runDir ?? undefined,
+      deliverablePath: dbJob.deliverablePath ?? undefined,
+      screenshotIds: dbJob.screenshotIds ?? undefined,
+    });
+  }
+
+  /**
    * Query jobs from agent.db (fast).
    */
   listJobs(filter?: {

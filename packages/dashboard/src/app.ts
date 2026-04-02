@@ -399,6 +399,9 @@ export class App extends EventEmitter {
     const hatched = isHatched(agentDir);
     const app = new App(agentDir, hatched);
 
+    // Shared map for collision suppression between conversation + automation watchdogs (M9-S3.1)
+    const recentAutomationAlerts = new Map<string, number>();
+
     // ── Wire connection registry for model broadcasts (M9-S3) ──
     if (connectionRegistry) {
       setConnectionRegistry(connectionRegistry);
@@ -703,6 +706,59 @@ export class App extends EventEmitter {
             await (ci as any).trySendViaChannel(content);
           },
         },
+        recentAutomationAlerts,
+        injectRecovery: async (conversationId, prompt) => {
+          const convDb = app.conversationManager.getConversationDb();
+          const sdkSessionId = convDb.getSdkSessionId(conversationId);
+          const sm = await app.sessionRegistry.getOrCreate(
+            conversationId,
+            sdkSessionId,
+          );
+          if (sm.isStreaming()) {
+            console.log(
+              `[ResponseWatchdog] Session busy for ${conversationId}, skipping recovery`,
+            );
+            return null;
+          }
+
+          let response = "";
+          for await (const event of sm.injectSystemTurn(prompt)) {
+            if (event.type === "text_delta" && event.text) {
+              response += event.text;
+            }
+          }
+
+          if (response) {
+            const conv = await app.conversationManager.get(conversationId);
+            await app.conversationManager.appendTurn(conversationId, {
+              type: "turn",
+              role: "assistant",
+              content: response,
+              timestamp: new Date().toISOString(),
+              turnNumber: (conv?.turnCount ?? 0) + 1,
+            });
+            // Broadcast to WebSocket clients
+            connectionRegistry?.broadcastToConversation?.(conversationId, {
+              type: "conversation_updated",
+              conversationId,
+              turn: {
+                role: "assistant" as const,
+                content: response,
+                timestamp: new Date().toISOString(),
+                turnNumber: (conv?.turnCount ?? 0) + 1,
+              },
+            });
+            // Send via outbound channel if available
+            const ci = app.conversationInitiator;
+            if (ci) {
+              await (ci as any).trySendViaChannel(response);
+            }
+          }
+          console.log(
+            `[ResponseWatchdog] Recovery for ${conversationId}: ${response.length} chars`,
+          );
+          return response || null;
+        },
       });
     }
 
@@ -758,6 +814,10 @@ export class App extends EventEmitter {
           async *streamNewConversation(conversationId, prompt) {
             const sm = await app.sessionRegistry.getOrCreate(conversationId);
             yield* sm.streamMessage(prompt || "");
+          },
+          isStreaming(conversationId) {
+            const sm = app.sessionRegistry.get(conversationId);
+            return sm?.isStreaming() ?? false;
           },
         },
         channelManager: {
@@ -1164,6 +1224,16 @@ export class App extends EventEmitter {
           get conversationInitiator() {
             return app.conversationInitiator ?? null;
           },
+          onAlertDelivered: () => {
+            // Set timestamp for collision suppression with conversation watchdog.
+            // Uses the active conversation ID since that's what ci.alert() targets.
+            const active = app.conversationManager
+              .getConversationDb()
+              .getActiveConversation?.(15);
+            if (active?.id && recentAutomationAlerts) {
+              recentAutomationAlerts.set(active.id, Date.now());
+            }
+          },
         });
 
         // Sync service — watch automation manifests
@@ -1218,6 +1288,9 @@ export class App extends EventEmitter {
           jobService: app.automationJobService,
           agentDir,
           pollIntervalMs: 60_000,
+          get conversationInitiator() {
+            return app.conversationInitiator ?? null;
+          },
         });
         await app.automationScheduler.start();
 
@@ -1627,7 +1700,9 @@ function wireAudioCallbacks(plugin: BaileysPlugin, app: App): void {
     try {
       await execFileAsync(scriptPath, [text, outputFile], { timeout: 30000 });
       const buffer = readFileSync(outputFile);
-      try { unlinkSync(outputFile); } catch {}
+      try {
+        unlinkSync(outputFile);
+      } catch {}
       return buffer;
     } catch (err: unknown) {
       console.warn(

@@ -17,6 +17,11 @@ export interface AutomationSchedulerConfig {
   jobService: AutomationJobService;
   agentDir: string;
   pollIntervalMs?: number;
+  /** Optional ConversationInitiator for stale job alerts */
+  conversationInitiator?: {
+    alert(prompt: string): Promise<boolean>;
+    initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
+  } | null;
 }
 
 export class AutomationScheduler {
@@ -30,10 +35,12 @@ export class AutomationScheduler {
 
   async start(): Promise<void> {
     this.isRunning = true;
-    this.interval = setInterval(
-      () => this.checkDue(),
-      this.config.pollIntervalMs ?? 60_000,
-    );
+    this.interval = setInterval(() => {
+      this.checkDue();
+      this.checkStaleJobs().catch((err) =>
+        console.error("[AutomationScheduler] checkStaleJobs error:", err),
+      );
+    }, this.config.pollIntervalMs ?? 60_000);
     // Check immediately
     await this.checkDue();
     console.log(
@@ -169,5 +176,101 @@ export class AutomationScheduler {
     return runs
       .sort((a, b) => a.nextRun.getTime() - b.nextRun.getTime())
       .slice(0, count);
+  }
+
+  /**
+   * Check for stale jobs (stuck in "running" >30 min) and pending notifications.
+   * Called alongside checkDue() on every scheduler tick.
+   */
+  async checkStaleJobs(): Promise<void> {
+    const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+    const MAX_NOTIFICATION_ATTEMPTS = 3;
+    const now = Date.now();
+
+    const runningJobs = this.config.jobService.listJobs({ status: "running" });
+
+    for (const job of runningJobs) {
+      const age = now - new Date(job.created).getTime();
+      if (age > STALE_THRESHOLD_MS) {
+        console.warn(
+          `[AutomationScheduler] Stale job detected: ${job.id} (running for ${Math.round(age / 60_000)} min)`,
+        );
+        this.config.jobService.updateJob(job.id, {
+          status: "failed",
+          completed: new Date().toISOString(),
+          summary: `Timed out — stuck in running state for >${Math.round(STALE_THRESHOLD_MS / 60_000)} minutes`,
+        });
+
+        // Alert user
+        try {
+          await this.notifyFailure(
+            job.automationId,
+            job.id,
+            "timed out while running",
+          );
+        } catch {
+          this.config.jobService.updateJobContext(job.id, {
+            ...(job.context as Record<string, unknown>),
+            notificationPending: true,
+            notificationAttempts: 1,
+          });
+        }
+      }
+    }
+
+    // Retry pending notifications
+    const allRecentJobs = this.config.jobService.listJobs({ limit: 50 });
+    for (const job of allRecentJobs) {
+      const ctx = job.context as Record<string, unknown> | undefined;
+      if (!ctx?.notificationPending) continue;
+      const attempts = (ctx.notificationAttempts as number) ?? 0;
+      if (attempts >= MAX_NOTIFICATION_ATTEMPTS) {
+        console.error(
+          `[AutomationScheduler] Giving up on notification for job ${job.id} after ${attempts} attempts`,
+        );
+        this.config.jobService.updateJobContext(job.id, {
+          ...ctx,
+          notificationPending: false,
+        });
+        continue;
+      }
+
+      try {
+        await this.notifyFailure(
+          job.automationId,
+          job.id,
+          job.summary ?? "failed",
+        );
+        this.config.jobService.updateJobContext(job.id, {
+          ...ctx,
+          notificationPending: false,
+        });
+      } catch {
+        this.config.jobService.updateJobContext(job.id, {
+          ...ctx,
+          notificationAttempts: attempts + 1,
+        });
+      }
+    }
+  }
+
+  private async notifyFailure(
+    automationId: string,
+    jobId: string,
+    errorSummary: string,
+  ): Promise<void> {
+    const ci = this.config.conversationInitiator;
+    if (!ci) return;
+
+    const automation = this.config.automationManager.findById(automationId);
+    const name = automation?.manifest.name ?? automationId;
+    const prompt =
+      `A working agent running "${name}" ${errorSummary}.\n\n` +
+      `Job ID: ${jobId}\n\n` +
+      `You are the conversation layer — let the user know briefly.`;
+    const alerted = await ci.alert(prompt);
+    if (!alerted) {
+      await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+    }
   }
 }

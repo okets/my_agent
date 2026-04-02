@@ -27,6 +27,9 @@ export interface SessionFactory {
     conversationId: string,
     prompt?: string,
   ): AsyncGenerator<{ type: string; text?: string }>;
+
+  /** Check if a conversation's session is currently streaming a response */
+  isStreaming(conversationId: string): boolean;
 }
 
 /**
@@ -92,6 +95,14 @@ export class ConversationInitiator {
     if (!active) {
       console.warn(
         "[ConversationInitiator] alert() called but no active conversation found",
+      );
+      return false;
+    }
+
+    // Skip if the session is already streaming (prevents race with user messages or other alerts)
+    if (this.sessionFactory.isStreaming(active.id)) {
+      console.warn(
+        "[ConversationInitiator] Session busy for conversation, falling back to initiate()",
       );
       return false;
     }

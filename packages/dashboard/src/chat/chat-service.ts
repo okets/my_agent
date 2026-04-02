@@ -568,6 +568,11 @@ export class AppChatService {
     let hasSplit = false;
     const originalTurnNumber = turnNumber;
 
+    // Track stream metadata for response watchdog
+    let toolUseCount = 0;
+    let textLengthAfterLastTool = 0;
+    let fullAssistantContent = ""; // tracks across splits (assistantContent resets on split)
+
     // Track images stored during this turn (for visual augmentation hook)
     let imagesStoredDuringTurn = 0;
     const unsubScreenshots = this.app.visualActionService?.onScreenshot(() => {
@@ -598,6 +603,8 @@ export class AppChatService {
         switch (event.type) {
           case "text_delta":
             assistantContent += event.text;
+            fullAssistantContent += event.text;
+            textLengthAfterLastTool += event.text.length;
             yield { type: "text_delta" as const, text: event.text };
             break;
           case "thinking_delta":
@@ -608,6 +615,8 @@ export class AppChatService {
             yield { type: "thinking_end" as const };
             break;
           case "tool_use_start": {
+            toolUseCount++;
+            textLengthAfterLastTool = 0;
             // Split on first tool use if there's meaningful text before it.
             // This delivers the ack ("On it") as a complete message immediately,
             // instead of making the user wait for the full tool execution.
@@ -651,7 +660,9 @@ export class AppChatService {
             // TTS: synthesize audio response if input was voice + TTS available
             let audioUrl: string | undefined;
             if (isAudioInput && assistantContent.trim()) {
-              audioUrl = (await this.synthesizeAudio(assistantContent, convId)) ?? undefined;
+              audioUrl =
+                (await this.synthesizeAudio(assistantContent, convId)) ??
+                undefined;
             }
 
             yield {
@@ -717,10 +728,20 @@ export class AppChatService {
       // Post-response hooks (if split, include both halves for full context)
       if (deps?.postResponseHooks) {
         deps.postResponseHooks
-          .run(convId, content.trim().toLowerCase(), assistantContent, {
-            turnNumber,
-            imagesStoredDuringTurn,
-          })
+          .run(
+            convId,
+            content.trim().toLowerCase(),
+            fullAssistantContent || assistantContent,
+            {
+              turnNumber,
+              imagesStoredDuringTurn,
+              streamMetadata: {
+                toolUseCount,
+                cost,
+                textLengthAfterLastTool,
+              },
+            },
+          )
           .catch(() => {});
       }
 

@@ -32,6 +32,8 @@ export interface AutomationProcessorConfig {
     alert(prompt: string): Promise<boolean>;
     initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
   } | null;
+  /** Called after a failure alert is delivered — for collision suppression with conversation watchdog */
+  onAlertDelivered?: () => void;
 }
 
 export class AutomationProcessor {
@@ -82,6 +84,19 @@ export class AutomationProcessor {
       job,
       triggerContext,
     );
+
+    // 2.5. Empty deliverable detection — downgrade to failed if nothing useful
+    if (result.success && (!result.work || result.work.trim().length < 20)) {
+      console.warn(
+        `[AutomationProcessor] Empty deliverable for "${automation.manifest.name}" (job ${job.id})`,
+      );
+      this.config.jobService.updateJob(job.id, {
+        status: "failed",
+        summary: "Completed with empty deliverable — no useful output produced",
+      });
+      result.success = false;
+      result.error = "empty_deliverable";
+    }
 
     // 3. Emit granular completion event
     const updatedJob = this.config.jobService.getJob(job.id);
@@ -200,6 +215,32 @@ export class AutomationProcessor {
       }
     }
 
+    // Always alert on failure — regardless of notify setting
+    if (!result.success && ci) {
+      const errorSummary =
+        result.error === "empty_deliverable"
+          ? `completed but produced no useful output`
+          : `failed: ${result.error ?? "unknown error"}`;
+      const prompt =
+        `A working agent running "${automation.manifest.name}" ${errorSummary}.\n\n` +
+        `Job ID: ${jobId}\n\n` +
+        `You are the conversation layer — let the user know briefly. ` +
+        `If the error seems transient, suggest they can re-trigger it. ` +
+        `Don't be dramatic — just inform.`;
+      try {
+        const alerted = await ci.alert(prompt);
+        if (alerted) {
+          this.config.onAlertDelivered?.();
+        } else {
+          await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+          this.config.onAlertDelivered?.();
+        }
+      } catch {
+        // Notification delivery failed — store pending state for retry
+        this.markNotificationPending(jobId);
+      }
+    }
+
     // needs_review always alerts immediately
     const job = this.config.jobService.getJob(jobId);
     if (job?.status === "needs_review" && ci) {
@@ -211,5 +252,24 @@ export class AutomationProcessor {
         await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
       }
     }
+  }
+
+  /**
+   * Mark a job as having a pending notification for retry.
+   * Uses the job's existing context field to avoid schema changes.
+   */
+  private markNotificationPending(jobId: string): void {
+    const job = this.config.jobService.getJob(jobId);
+    if (!job) return;
+    const context = (job.context as Record<string, unknown>) ?? {};
+    const attempts = (context.notificationAttempts as number | undefined) ?? 0;
+    this.config.jobService.updateJobContext(jobId, {
+      ...context,
+      notificationPending: true,
+      notificationAttempts: attempts + 1,
+    });
+    console.warn(
+      `[AutomationProcessor] Notification failed for job ${jobId}, marked pending (attempt ${attempts + 1})`,
+    );
   }
 }

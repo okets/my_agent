@@ -54,6 +54,13 @@ export class SessionRegistry {
   }
 
   /**
+   * Get a session if it exists (does not create).
+   */
+  get(conversationId: string): SessionManager | undefined {
+    return this.sessions.get(conversationId);
+  }
+
+  /**
    * Remove a session from the registry
    */
   remove(conversationId: string): void {
