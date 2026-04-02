@@ -1050,17 +1050,32 @@ function chat() {
         this.isRecording = true;
       } catch (err) {
         console.error("Failed to start recording:", err);
-        const errorMsg = err.message?.includes("HTTPS")
-          ? `${err.message} Ask ${this.agentName?.split(/\s+/)[0] || "your agent"} how to set up HTTPS access on your machine.`
-          : "Microphone access denied. Please allow microphone access to use voice messages.";
-        this.messages.push({
-          id: ++this.messageIdCounter,
-          role: "system",
-          content: errorMsg,
-          renderedContent: this.renderMarkdown(errorMsg,
-          ),
-          timestamp: this.formatTime(new Date()),
-        });
+        const firstName = this.agentName?.split(/\s+/)[0] || "your agent";
+        if (err.message?.includes("HTTPS")) {
+          const helpPrompt = `Help me set up HTTPS for the dashboard so I can use voice recording.`;
+          this.messages.push({
+            id: ++this.messageIdCounter,
+            role: "assistant",
+            content: err.message,
+            renderedContent: this.renderMarkdown(
+              `${err.message}\n\nI can help you set this up.`,
+            ),
+            actionLabel: `Ask ${firstName}`,
+            actionPrompt: helpPrompt,
+            timestamp: this.formatTime(new Date()),
+          });
+        } else {
+          this.messages.push({
+            id: ++this.messageIdCounter,
+            role: "system",
+            content:
+              "Microphone access denied. Please allow microphone access to use voice messages.",
+            renderedContent: this.renderMarkdown(
+              "Microphone access denied. Please allow microphone access to use voice messages.",
+            ),
+            timestamp: this.formatTime(new Date()),
+          });
+        }
       }
     },
 
