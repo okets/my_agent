@@ -230,8 +230,8 @@ export type {
 } from './desktop/index.js'
 
 // Capabilities
-export { CapabilityRegistry, scanCapabilities } from './capabilities/index.js'
-export type { Capability, CapabilityFrontmatter, CapabilityMcpConfig } from './capabilities/index.js'
+export { CapabilityRegistry, scanCapabilities, testCapability } from './capabilities/index.js'
+export type { Capability, CapabilityFrontmatter, CapabilityMcpConfig, CapabilityTestResult } from './capabilities/index.js'
 
 // Memory system
 export {
