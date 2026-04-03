@@ -1531,6 +1531,14 @@ function chat() {
             this.currentConversationId = data.conversation.id;
             this._pendingNewConversation = false;
 
+            // Sync serverCurrentId immediately to prevent the Alpine
+            // effect from sending a stale "connect" before the debounced
+            // state:conversations broadcast arrives (~100ms later).
+            if (Alpine.store("conversations")) {
+              Alpine.store("conversations").serverCurrentId =
+                data.conversation.id;
+            }
+
             // If there's a pending event prompt, send it now
             if (this._pendingEventPrompt) {
               this.inputText = this._pendingEventPrompt;
