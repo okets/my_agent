@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-02 (M8-S5 correction sprint: Agent SDK computer use — raw API incompatible with Max subscription OAuth)
+> **Updated:** 2026-04-01 (M9 status update: S1-S3.1 complete, S4 failed, M8 complete)
 
 ---
 
@@ -24,8 +24,8 @@
 | **M6.8: Skills Architecture**| Complete | 6/6 sprints, 548 tests |
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
-| **M8: Visual & Desktop Automation** | **In Progress** | S5 correction sprint: Agent SDK computer use (blocks M9) |
-| **M9: Capability System** | **Active** | 4/7 sprints done (S1-S3.1), S4 failed, S5-S6 planned (S5 may split into S5+S5.5) |
+| **M8: Visual & Desktop Automation** | Complete | 8/8 sprints (S1-S5.1), 884 tests |
+| **M9: Capability System** | **In Progress** | 4/7 sprints done (S1-S3.1), S4 failed, S5-S6 planned |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -45,7 +45,7 @@ M1 Foundation ► M2 Web UI ► M3 WhatsApp ► M4 Notebook ► M4.5 Calendar �
 
 COMPLETED (M8)
 ══════════════
-M8 Visual & Desktop Automation — 879 tests
+M8 Visual & Desktop Automation — 884 tests
 
 FUTURE (M9–M14) — ~22 sprints to release
 ═════════════════════════════════════════
@@ -717,7 +717,7 @@ Nina can see and interact with GUI applications. All visual actions (desktop con
 | S4.1 | Tool Redesign | **Done** | Split store_image into `create_chart` + `fetch_image` (purpose-built tools), visual presenter skill updated, standing order for visual communication, augmentation hook (Haiku safety net), SVG sanitization, WhatsApp agentDir fix. [plan](../sprints/m8-s4.1-tool-redesign/plan.md) · [review](../sprints/m8-s4.1-tool-redesign/review.md) · [test-report](../sprints/m8-s4.1-tool-redesign/test-report.md) |
 | S4.2 | Visual Working Ninas | **Done** | chart-tools + image-fetch-tools MCP wired to workers, post-execution deliverable augmentation hook, deliverable.md written for all jobs (not just tagged). 884 tests. |
 | ~~S5~~ | ~~Voice~~ | Absorbed | → M9 Capability System (voice is the first capability, not a standalone sprint) |
-| S5 | Computer Use OAuth Fix | **In Progress** | Correction sprint: replace raw Anthropic API (`computer_20251124` beta) with Agent SDK `query()` + custom MCP tools. Required for Max subscription (OAuth only). [plan](../sprints/m8-s5-computer-use-oauth/plan.md) · [spec](../superpowers/specs/2026-04-02-agent-sdk-computer-use-design.md) |
+| S5 | Computer Use OAuth Fix | **Done** | Correction sprint: replace raw Anthropic API (`computer_20251124` beta) with Agent SDK `query()` + custom MCP tools. Required for Max subscription (OAuth only). [plan](../sprints/m8-s5-computer-use-oauth/plan.md) · [review](../sprints/m8-s5-computer-use-oauth/review.md) · [spec](../superpowers/specs/2026-04-02-agent-sdk-computer-use-design.md) |
 
 **Key design decisions (resolved in spec):**
 - No dedicated Computer Use Agent — tools on Working Nina directly, safety via hooks + autonomy
@@ -732,7 +732,7 @@ Nina can see and interact with GUI applications. All visual actions (desktop con
 
 ---
 
-### M9: Capability System — PLANNED
+### M9: Capability System — IN PROGRESS
 
 Self-extending agent capabilities. The agent itself can research, build, and install new capabilities (voice, image generation, custom tools) — using Claude's coding ability. The framework provides conventions and a registry; the agent does the rest. Voice (STT/TTS) is the proving ground.
 
@@ -745,9 +745,9 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 | S2 | Dashboard Voice + Secrets | **Done** | WebSocket capabilities protocol, record button (desktop + mobile), audio playback, TTS post-processing, model indicator, Secrets API + UI, re-scan trigger — [plan](sprints/m9-s2-dashboard-secrets/plan.md) · [review](sprints/m9-s2-dashboard-secrets/review.md) · [code-review](sprints/m9-s2-dashboard-secrets/code-review.md) |
 | S3 | WhatsApp Voice + Skill Generation | **Done** | WhatsApp voice notes (download + transcribe + voice replies), `onAudioMessage` callback, medium mirroring, error handling, capability-builder `AgentDefinition` (Opus), brainstorming skill, model switch UX — [plan](sprints/m9-s3-whatsapp-skillgen/plan.md) · [review](sprints/m9-s3-whatsapp-skillgen/review.md) |
 | S3.1 | Heartbeat & Error Recovery | **Done** | Conversation watchdog (garbled response, tool-heavy silence, missing deliverable), working agent watchdog (empty deliverable, failed job alerting, stale job, notification retry), collision guards — [plan](sprints/m9-s3.1-heartbeat-error-recovery/plan.md) · [review](sprints/m9-s3.1-heartbeat-error-recovery/review.md) |
-| S4 | The Real Test | **Failed** | Nina gave generic LLM advice instead of using her capability system. Root causes: brainstorming skill didn't fire, no persistent brain awareness, no measurable contract for builder output — [plan](sprints/m9-s4-real-test/plan.md) |
+| S4 | The Real Test | **Failed** | Agent lacked awareness of extension framework — gave generic LLM advice instead of using capability system. Root causes: brainstorming skill didn't fire, no persistent brain awareness, no measurable contract for builder output — [plan](sprints/m9-s4-real-test/plan.md) |
 | S5 | Capability Templates + Test Harness | Planned | Fix skill triggering (root cause), notebook reference (permanent brain awareness), 3 framework-authored templates with TDD-like test contracts, test harness in registry (non-blocking validation-on-activation, startup, on-demand, health status), builder/brainstorming updates (template precedence, composites, self-healing). May split into S5 + S5.5 if scope is too large — [plan](sprints/m9-s5-capability-templates/plan.md) |
-| S6 | The Real Test (Retry) | Planned | Retest with full infrastructure: Nina creates real STT+TTS from scratch using templates, test harness validates, composite requests, self-healing loop, activation validation — [plan](sprints/m9-s6-real-test-retry/plan.md) |
+| S6 | The Real Test (Retry) | Planned | Depends on S5. Retest with full infrastructure: Nina creates real STT+TTS from scratch using templates, test harness validates, composite requests, self-healing loop, activation validation — [plan](sprints/m9-s6-real-test-retry/plan.md) |
 
 **Key design decisions (resolved in spec):**
 - Capabilities are files (CAPABILITY.md + scripts), not code registrations — auto-discovered from `.my_agent/capabilities/`
@@ -762,7 +762,7 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 - M8-S5 (Voice) — STT/TTS engine selection, dashboard audio, WhatsApp voice notes
 - Old M12-S6 (Self-Service MCP Integration) — capability system supersedes the MCP-specific approach
 
-**Dependencies:** M8 (rich I/O — capabilities build on the visual pipeline and asset serving). **Blocked by M8-S5** (computer use OAuth fix must land before M9 work continues).
+**Dependencies:** M8 (rich I/O — capabilities build on the visual pipeline and asset serving). M8 complete.
 
 ---
 
@@ -939,7 +939,7 @@ COMPLETED (M7–M8)                                                             
 M7 Workspaces ◄─────────────────────────────────────────────────────────────────┘
   │
   ▼
-M8 Visual & Desktop Automation — 879 tests
+M8 Visual & Desktop Automation — 884 tests
 
 FUTURE (linear chain to release)
 ════════════════════════════════
@@ -961,7 +961,7 @@ M13 Platform Hardening (+ macOS/Wayland backends)
 M14 Release
 ```
 
-**Completed critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8 → M6.10 → M7 → M8. All complete. 879 tests.
+**Completed critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8 → M6.10 → M7 → M8. All complete. 919 tests (884 passing, 27 failing, 8 skipped).
 
 **Future path:** M9 → M10 → M11 → M12 → M13 → M14. ~20 sprints. Each milestone builds on the previous. Minimal rework, natural progression.
 
