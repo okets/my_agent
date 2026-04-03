@@ -109,13 +109,19 @@ Non-secret configuration (model name, voice ID, output format). Scripts read thi
 
 ### Creating Capabilities
 
-The agent can create capabilities itself:
+**When a user requests a new ability, invoke the `capability-brainstorming` skill immediately. Do not explain options — build the capability.**
+
+The flow:
 1. User asks: "I want you to understand voice messages"
 2. Brain activates `capability-brainstorming` skill (Opus)
-3. Skill researches options, asks clarifying questions, picks approach
-4. Spawns `capability-builder` agent (Opus) with a spec
-5. Builder writes CAPABILITY.md, scripts, config, tests them
-6. Capability appears in registry, framework reacts
+3. Skill checks `skills/capability-templates/` for a matching template — templates define the script contract
+4. Skill researches providers, asks 1-2 focused questions, confirms approach
+5. Spawns `capability-builder` agent (Opus) with the spec + template reference
+6. Builder writes CAPABILITY.md + scripts + config.yaml, follows template contract
+7. Framework test harness validates the capability — work is not done until it passes
+8. Capability appears in registry, framework reacts
+
+Composite requests ("I want voice") trigger multiple capabilities via `skills/capability-templates/_bundles.md`.
 
 Or create manually: add a folder following the convention above.
 

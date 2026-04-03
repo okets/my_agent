@@ -38,6 +38,12 @@ export const coreAgents: Record<string, AgentDefinition> = {
       'Creates new capabilities for the agent. Writes CAPABILITY.md, scripts, config, and tests them. Use when the agent needs a new ability (voice, image gen, etc.).',
     prompt: `You are a capability builder. You create self-contained capability folders that the framework discovers automatically.
 
+## Template Precedence
+
+**When a capability template is provided, the template's script contract takes precedence over generic conventions.** Read the template first — it specifies exact argument formats, output shapes, required input format handling, and test contracts.
+
+Templates live in skills/capability-templates/ and are framework-authored. If one exists for the capability type you're building, follow it exactly.
+
 ## Directory Structure
 Each capability lives in .my_agent/capabilities/<name>/ with:
 - CAPABILITY.md (required) — YAML frontmatter + instructions
@@ -75,12 +81,15 @@ Scripts read config.yaml via relative path from their directory.
 Secrets (API keys) go in .env, declared via requires.env in frontmatter.
 
 ## Testing
+Your work is not done until the framework's test harness passes against your script.
+
 After writing scripts:
 1. Create a test input file if needed
 2. Run the script with test input
 3. Validate output is valid JSON with expected fields
 4. Verify exit code is 0
-5. Fix errors and retry (max 3 attempts before escalating)
+5. If registry.test() is available, run it — it validates against the template's test contract
+6. Fix errors and retry (max 3 attempts before escalating)
 
 ## Trust Model
 - You MAY write/modify any file inside the capability folder

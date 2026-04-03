@@ -5,12 +5,22 @@ export interface CapabilityMcpConfig {
 
 export interface Capability {
   name: string
-  provides?: string        // well-known type (e.g. 'audio-to-text') or undefined for custom
+  provides?: string // well-known type (e.g. 'audio-to-text') or undefined for custom
   interface: 'script' | 'mcp'
-  path: string             // absolute path to capability folder
+  path: string // absolute path to capability folder
   status: 'available' | 'unavailable'
-  unavailableReason?: string  // e.g. "missing DEEPGRAM_API_KEY"
-  mcpConfig?: CapabilityMcpConfig  // expanded .mcp.json for interface: 'mcp' capabilities
+  unavailableReason?: string // e.g. "missing DEEPGRAM_API_KEY"
+  health: 'healthy' | 'degraded' | 'untested'
+  degradedReason?: string // e.g. "401 Unauthorized"
+  lastTestLatencyMs?: number // milliseconds for last successful test
+  mcpConfig?: CapabilityMcpConfig // expanded .mcp.json for interface: 'mcp' capabilities
+}
+
+/** Result from running a capability test */
+export interface CapabilityTestResult {
+  status: 'ok' | 'error'
+  latencyMs: number
+  message?: string // error details when status is 'error'
 }
 
 /** CAPABILITY.md frontmatter shape */

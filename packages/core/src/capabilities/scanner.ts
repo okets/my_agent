@@ -61,13 +61,14 @@ function loadMcpConfig(
 
     // Inject requires.env vars into the MCP server's env field
     if (requiredEnv.length > 0 && typeof expanded === 'object' && expanded !== null) {
-      const envVars: Record<string, string> = (expanded as Record<string, unknown>).env as Record<string, string> ?? {}
+      const envVars: Record<string, string> =
+        ((expanded as Record<string, unknown>).env as Record<string, string>) ?? {}
       for (const key of requiredEnv) {
         const val = process.env[key] ?? getEnvValue(envPath, key)
         if (val) envVars[key] = val
       }
       if (Object.keys(envVars).length > 0) {
-        (expanded as Record<string, unknown>).env = envVars
+        ;(expanded as Record<string, unknown>).env = envVars
       }
     }
 
@@ -110,6 +111,7 @@ export async function scanCapabilities(
         interface: data.interface,
         path: capDir,
         status: missingVars.length === 0 ? 'available' : 'unavailable',
+        health: 'untested',
       }
 
       if (missingVars.length > 0) {

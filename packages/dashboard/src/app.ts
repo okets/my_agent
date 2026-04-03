@@ -443,6 +443,28 @@ export class App extends EventEmitter {
         console.log(
           `[Capabilities] Discovered ${caps.length} capabilities: ${caps.map((c) => `${c.name} [${c.status}]`).join(", ") || "none"}`,
         );
+
+        // Non-blocking: test all available capabilities on startup (D4)
+        registry
+          .testAll()
+          .then(() => {
+            const tested = registry
+              .list()
+              .filter((c) => c.health !== "untested");
+            if (tested.length > 0) {
+              console.log(
+                `[Capabilities] Startup tests complete: ${tested.map((c) => `${c.name} [${c.health}${c.lastTestLatencyMs != null ? `, ${(c.lastTestLatencyMs / 1000).toFixed(1)}s` : ""}${c.degradedReason ? `: ${c.degradedReason}` : ""}]`).join(", ")}`,
+              );
+              app.emit("capability:changed", registry.list());
+              getPromptBuilder()?.invalidateCache();
+            }
+          })
+          .catch((err) => {
+            console.warn(
+              "[Capabilities] Startup test failed:",
+              err instanceof Error ? err.message : String(err),
+            );
+          });
       } catch (err) {
         console.warn(
           "[Capabilities] Scan failed:",
@@ -489,6 +511,22 @@ export class App extends EventEmitter {
           app.emit("capability:changed", caps);
           getPromptBuilder()?.invalidateCache();
           console.log(`[Capabilities] Re-scanned: ${caps.length} capabilities`);
+
+          // Non-blocking: test newly available capabilities (D3)
+          registry
+            .testAll()
+            .then(() => {
+              const tested = registry
+                .list()
+                .filter((c) => c.health !== "untested");
+              if (tested.length > 0) {
+                app.emit("capability:changed", registry.list());
+                getPromptBuilder()?.invalidateCache();
+              }
+            })
+            .catch(() => {
+              /* logged inside testAll */
+            });
         } catch (err) {
           console.warn(
             "[Capabilities] Re-scan failed:",

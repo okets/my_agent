@@ -28,11 +28,7 @@ function makeTmp(): string {
  * Write a CAPABILITY.md file with raw YAML frontmatter.
  * Accepts a pre-formatted YAML string to avoid serialization issues.
  */
-function writeCapabilityRaw(
-  name: string,
-  yaml: string,
-  body = "",
-): void {
+function writeCapabilityRaw(name: string, yaml: string, body = ""): void {
   const dir = join(capDir, name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "CAPABILITY.md"), `---\n${yaml}\n---\n${body}`);
@@ -74,7 +70,7 @@ describe("scanCapabilities", () => {
   it("discovers capabilities from CAPABILITY.md files", async () => {
     writeCapabilityRaw(
       "audio-stt",
-      'name: deepgram-stt\nprovides: audio-to-text\ninterface: script',
+      "name: deepgram-stt\nprovides: audio-to-text\ninterface: script",
     );
 
     const caps = await scanCapabilities(capDir, envPath);
@@ -85,7 +81,7 @@ describe("scanCapabilities", () => {
   it("parses frontmatter correctly (name, provides, interface)", async () => {
     writeCapabilityRaw(
       "tts",
-      'name: elevenlabs-tts\nprovides: text-to-audio\ninterface: mcp',
+      "name: elevenlabs-tts\nprovides: text-to-audio\ninterface: mcp",
     );
 
     const caps = await scanCapabilities(capDir, envPath);
@@ -99,7 +95,7 @@ describe("scanCapabilities", () => {
   it("marks capabilities as available when no env requirements", async () => {
     writeCapabilityRaw(
       "simple",
-      'name: simple-cap\nprovides: test\ninterface: script',
+      "name: simple-cap\nprovides: test\ninterface: script",
     );
 
     const caps = await scanCapabilities(capDir, envPath);
@@ -110,7 +106,7 @@ describe("scanCapabilities", () => {
   it("marks capabilities as unavailable when env vars are missing", async () => {
     writeCapabilityRaw(
       "needs-key",
-      'name: needs-key-cap\nprovides: test\ninterface: script\nrequires:\n  env:\n    - DEEPGRAM_API_KEY',
+      "name: needs-key-cap\nprovides: test\ninterface: script\nrequires:\n  env:\n    - DEEPGRAM_API_KEY",
     );
 
     const caps = await scanCapabilities(capDir, envPath);
@@ -121,7 +117,7 @@ describe("scanCapabilities", () => {
   it("marks as available when env vars exist in process.env", async () => {
     writeCapabilityRaw(
       "has-key",
-      'name: has-key-cap\nprovides: test\ninterface: script\nrequires:\n  env:\n    - TEST_CAP_KEY',
+      "name: has-key-cap\nprovides: test\ninterface: script\nrequires:\n  env:\n    - TEST_CAP_KEY",
     );
 
     process.env.TEST_CAP_KEY = "secret123";
@@ -132,7 +128,7 @@ describe("scanCapabilities", () => {
   it("marks as available when env vars exist in .env file (not in process.env)", async () => {
     writeCapabilityRaw(
       "env-file",
-      'name: env-file-cap\nprovides: test\ninterface: script\nrequires:\n  env:\n    - SOME_KEY',
+      "name: env-file-cap\nprovides: test\ninterface: script\nrequires:\n  env:\n    - SOME_KEY",
     );
 
     // NOT in process.env, but in .env file
@@ -146,7 +142,7 @@ describe("scanCapabilities", () => {
   it("handles interface: mcp with .mcp.json — expands ${CAPABILITY_ROOT}", async () => {
     writeCapabilityRaw(
       "mcp-cap",
-      'name: mcp-test\nprovides: test-mcp\ninterface: mcp',
+      "name: mcp-test\nprovides: test-mcp\ninterface: mcp",
     );
 
     const mcpDir = join(capDir, "mcp-cap");
@@ -180,7 +176,7 @@ describe("scanCapabilities", () => {
     // Also create a valid one
     writeCapabilityRaw(
       "valid",
-      'name: valid-cap\nprovides: test\ninterface: script',
+      "name: valid-cap\nprovides: test\ninterface: script",
     );
 
     const caps = await scanCapabilities(capDir, envPath);
@@ -207,6 +203,7 @@ describe("CapabilityRegistry", () => {
     interface: "script",
     path: "/tmp/fake/deepgram-stt",
     status: "available",
+    health: "untested",
   };
 
   const unavailableCap: Capability = {
@@ -216,6 +213,7 @@ describe("CapabilityRegistry", () => {
     path: "/tmp/fake/whisper-stt",
     status: "unavailable",
     unavailableReason: "missing OPENAI_API_KEY",
+    health: "untested",
   };
 
   const otherCap: Capability = {
@@ -224,6 +222,7 @@ describe("CapabilityRegistry", () => {
     interface: "mcp",
     path: "/tmp/fake/elevenlabs-tts",
     status: "available",
+    health: "untested",
   };
 
   beforeEach(() => {
@@ -298,6 +297,7 @@ describe("CapabilityRegistry", () => {
       interface: "script",
       path: realDir,
       status: "available",
+      health: "untested",
     };
     registry.load([realCap]);
 
@@ -321,7 +321,10 @@ describe("CapabilityRegistry", () => {
       join(realDir, "CAPABILITY.md"),
       "---\nname: ref-cap\nprovides: ref-test\ninterface: script\n---\n",
     );
-    writeFileSync(join(refsDir, "api-docs.md"), "# API Reference\n\nSome docs.");
+    writeFileSync(
+      join(refsDir, "api-docs.md"),
+      "# API Reference\n\nSome docs.",
+    );
 
     const refCap: Capability = {
       name: "ref-cap",
@@ -329,6 +332,7 @@ describe("CapabilityRegistry", () => {
       interface: "script",
       path: realDir,
       status: "available",
+      health: "untested",
     };
     registry.load([refCap]);
 
@@ -352,6 +356,7 @@ describe("CapabilityRegistry", () => {
       interface: "script",
       path: realDir,
       status: "available",
+      health: "untested",
     };
     registry.load([refCap]);
 
@@ -365,12 +370,14 @@ describe("CapabilityRegistry", () => {
 // ===========================================================================
 
 describe("loadCapabilityHints", () => {
-  it("returns null for empty array", () => {
+  it("returns empty-registry message for empty array", () => {
     const result = loadCapabilityHints([]);
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result).toContain("No capabilities installed");
+    expect(result).toContain("capability-brainstorming");
   });
 
-  it("formats available capabilities correctly", () => {
+  it("formats available capabilities with health status", () => {
     const caps: Capability[] = [
       {
         name: "deepgram-stt",
@@ -378,13 +385,50 @@ describe("loadCapabilityHints", () => {
         interface: "script",
         path: "/tmp/test",
         status: "available",
+        health: "healthy",
+        lastTestLatencyMs: 1200,
       },
     ];
 
     const result = loadCapabilityHints(caps);
     expect(result).not.toBeNull();
-    expect(result).toContain("[available]");
+    expect(result).toContain("[healthy, 1.2s]");
     expect(result).toContain("audio-to-text (deepgram-stt)");
+  });
+
+  it("formats degraded capabilities with reason", () => {
+    const caps: Capability[] = [
+      {
+        name: "deepgram-stt",
+        provides: "audio-to-text",
+        interface: "script",
+        path: "/tmp/test",
+        status: "available",
+        health: "degraded",
+        degradedReason: "401 Unauthorized",
+      },
+    ];
+
+    const result = loadCapabilityHints(caps);
+    expect(result).not.toBeNull();
+    expect(result).toContain("[degraded: 401 Unauthorized]");
+  });
+
+  it("formats untested capabilities", () => {
+    const caps: Capability[] = [
+      {
+        name: "deepgram-stt",
+        provides: "audio-to-text",
+        interface: "script",
+        path: "/tmp/test",
+        status: "available",
+        health: "untested",
+      },
+    ];
+
+    const result = loadCapabilityHints(caps);
+    expect(result).not.toBeNull();
+    expect(result).toContain("[untested]");
   });
 
   it("formats unavailable capabilities with reason", () => {
@@ -396,6 +440,7 @@ describe("loadCapabilityHints", () => {
         path: "/tmp/test",
         status: "unavailable",
         unavailableReason: "missing OPENAI_API_KEY",
+        health: "untested",
       },
     ];
 
@@ -412,6 +457,8 @@ describe("loadCapabilityHints", () => {
         interface: "script",
         path: "/tmp/a",
         status: "available",
+        health: "healthy",
+        lastTestLatencyMs: 500,
       },
       {
         name: "cap-b",
@@ -420,11 +467,12 @@ describe("loadCapabilityHints", () => {
         path: "/tmp/b",
         status: "unavailable",
         unavailableReason: "missing KEY",
+        health: "untested",
       },
     ];
 
     const result = loadCapabilityHints(caps)!;
-    expect(result).toContain("type-a (cap-a) [available]");
+    expect(result).toContain("type-a (cap-a) [healthy, 0.5s]");
     expect(result).toContain("type-b (cap-b) [unavailable: missing KEY]");
   });
 
@@ -436,6 +484,7 @@ describe("loadCapabilityHints", () => {
         interface: "script",
         path: "/tmp/test",
         status: "available",
+        health: "untested",
       },
     ];
 
@@ -450,11 +499,12 @@ describe("loadCapabilityHints", () => {
         interface: "script",
         path: "/tmp/test",
         status: "available",
+        health: "untested",
       },
     ];
 
     const result = loadCapabilityHints(caps)!;
-    expect(result).toContain("- custom-tool [available]");
+    expect(result).toContain("- custom-tool [untested]");
     // Should NOT contain parentheses pattern when no provides
     expect(result).not.toMatch(/\(custom-tool\)/);
   });

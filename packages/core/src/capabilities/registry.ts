@@ -1,10 +1,17 @@
 import { readFileSync, existsSync } from 'node:fs'
 import * as path from 'node:path'
 import { parseFrontmatterContent } from '../metadata/frontmatter.js'
-import type { Capability } from './types.js'
+import { testCapability } from './test-harness.js'
+import type { Capability, CapabilityTestResult } from './types.js'
 
 export class CapabilityRegistry {
   private capabilities: Map<string, Capability> = new Map()
+  private projectRoot: string = ''
+
+  /** Set the project root for template lookups during testing */
+  setProjectRoot(root: string): void {
+    this.projectRoot = root
+  }
 
   /** Initialize with scan results */
   load(capabilities: Capability[]): void {
@@ -79,6 +86,46 @@ export class CapabilityRegistry {
       return readFileSync(filePath, 'utf-8')
     } catch {
       return null
+    }
+  }
+
+  /**
+   * Test a capability against its template's test contract.
+   * Updates the capability's health status based on the result.
+   * Returns the test result.
+   */
+  async test(type: string): Promise<CapabilityTestResult> {
+    const cap = this.get(type)
+    if (!cap) {
+      return { status: 'error', latencyMs: 0, message: `No capability found for type: ${type}` }
+    }
+
+    const result = await testCapability(cap, this.projectRoot)
+
+    // Update health status in-place
+    if (result.status === 'ok') {
+      cap.health = 'healthy'
+      cap.lastTestLatencyMs = result.latencyMs
+      cap.degradedReason = undefined
+    } else {
+      cap.health = 'degraded'
+      cap.degradedReason = result.message
+      cap.lastTestLatencyMs = undefined
+    }
+
+    return result
+  }
+
+  /**
+   * Test all available capabilities in the background.
+   * Non-blocking — fires and forgets, updating health as results come in.
+   */
+  async testAll(): Promise<void> {
+    const available = this.list().filter((c) => c.status === 'available' && c.provides)
+    const types = new Set(available.map((c) => c.provides!))
+    for (const type of types) {
+      // Run sequentially to avoid overwhelming the system
+      await this.test(type)
     }
   }
 }

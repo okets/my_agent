@@ -314,16 +314,14 @@ export async function loadProperties(agentDir: string): Promise<string | null> {
  * Returns compact format: ~50 chars per automation.
  * At 50+ automations, returns pull-model instruction.
  */
-export async function loadAutomationHints(
-  agentDir: string,
-): Promise<string | null> {
+export async function loadAutomationHints(agentDir: string): Promise<string | null> {
   const automationsDir = path.join(agentDir, 'automations')
   if (!existsSync(automationsDir)) return null
 
   let mdFiles: string[]
   try {
     const files = await readdir(automationsDir)
-    mdFiles = files.filter(f => f.endsWith('.md')).sort()
+    mdFiles = files.filter((f) => f.endsWith('.md')).sort()
   } catch {
     return null
   }
@@ -354,9 +352,7 @@ export async function loadAutomationHints(
         .filter((t) => t.type === 'channel' && t.hint)
         .map((t) => t.hint as string)
         .join(', ')
-      const triggerTypes = [
-        ...new Set(triggers.map((t) => t.type as string)),
-      ].join(', ')
+      const triggerTypes = [...new Set(triggers.map((t) => t.type as string))].join(', ')
       const spaces = ((data.spaces as string[]) ?? []).join(', ')
       let line = `- ${name} (${triggerTypes}`
       if (hints) line += `, hints: ${hints}`
@@ -456,17 +452,26 @@ async function loadSkillContent(skillsDirs: string[]): Promise<string[]> {
  * Shows both available and unavailable capabilities with reasons.
  */
 export function loadCapabilityHints(capabilities: Capability[]): string | null {
-  if (capabilities.length === 0) return null
+  if (capabilities.length === 0) {
+    return [
+      '## Capabilities',
+      '',
+      'No capabilities installed. If the user asks for a new ability (voice, image generation, etc.), use the capability-brainstorming skill to create it. Do not explain — build it.',
+    ].join('\n')
+  }
 
-  const lines: string[] = [
-    '## Available Capabilities',
-    '',
-  ]
+  const lines: string[] = ['## Available Capabilities', '']
 
   for (const cap of capabilities) {
     const label = cap.provides ? `${cap.provides} (${cap.name})` : cap.name
     if (cap.status === 'available') {
-      lines.push(`- ${label} [available]`)
+      const healthTag =
+        cap.health === 'healthy'
+          ? `healthy${cap.lastTestLatencyMs != null ? `, ${(cap.lastTestLatencyMs / 1000).toFixed(1)}s` : ''}`
+          : cap.health === 'degraded'
+            ? `degraded: ${cap.degradedReason ?? 'unknown'}`
+            : 'untested'
+      lines.push(`- ${label} [${healthTag}]`)
     } else {
       lines.push(`- ${label} [unavailable: ${cap.unavailableReason ?? 'unknown'}]`)
     }

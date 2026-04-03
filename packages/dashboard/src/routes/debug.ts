@@ -816,4 +816,53 @@ export async function registerDebugRoutes(
       });
     }
   });
+
+  // ── Capability Test (M9-S5) ──
+
+  /**
+   * GET /api/debug/capabilities — list all capabilities with health status
+   */
+  fastify.get("/capabilities", async () => {
+    const registry = fastify.app?.capabilityRegistry;
+    if (!registry) return { capabilities: [] };
+    return { capabilities: registry.list() };
+  });
+
+  /**
+   * POST /api/debug/capabilities/test/:type — run test harness for a capability type
+   */
+  fastify.post<{ Params: { type: string } }>(
+    "/capabilities/test/:type",
+    async (request) => {
+      const registry = fastify.app?.capabilityRegistry;
+      if (!registry) {
+        return {
+          status: "error",
+          latencyMs: 0,
+          message: "No capability registry",
+        };
+      }
+      return registry.test(request.params.type);
+    },
+  );
+
+  /**
+   * POST /api/debug/capabilities/test-all — run test harness for all capabilities
+   */
+  fastify.post("/capabilities/test-all", async () => {
+    const registry = fastify.app?.capabilityRegistry;
+    if (!registry) {
+      return { results: [] };
+    }
+    await registry.testAll();
+    return {
+      results: registry.list().map((c) => ({
+        name: c.name,
+        type: c.provides,
+        health: c.health,
+        latencyMs: c.lastTestLatencyMs,
+        degradedReason: c.degradedReason,
+      })),
+    };
+  });
 }
