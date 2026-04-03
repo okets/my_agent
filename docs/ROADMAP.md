@@ -25,7 +25,7 @@
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
 | **M8: Visual & Desktop Automation** | Complete | 8/8 sprints (S1-S5.1), 884 tests |
-| **M9: Capability System** | **In Progress** | 4/7 sprints done (S1-S3.1), S4 failed, S5-S6 planned |
+| **M9: Capability System** | **In Progress** | 5/7 sprints done (S1-S3.1, S5), S4 failed, S6 planned |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -746,7 +746,7 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 | S3 | WhatsApp Voice + Skill Generation | **Done** | WhatsApp voice notes (download + transcribe + voice replies), `onAudioMessage` callback, medium mirroring, error handling, capability-builder `AgentDefinition` (Opus), brainstorming skill, model switch UX — [plan](sprints/m9-s3-whatsapp-skillgen/plan.md) · [review](sprints/m9-s3-whatsapp-skillgen/review.md) |
 | S3.1 | Heartbeat & Error Recovery | **Done** | Conversation watchdog (garbled response, tool-heavy silence, missing deliverable), working agent watchdog (empty deliverable, failed job alerting, stale job, notification retry), collision guards — [plan](sprints/m9-s3.1-heartbeat-error-recovery/plan.md) · [review](sprints/m9-s3.1-heartbeat-error-recovery/review.md) |
 | S4 | The Real Test | **Failed** | Agent lacked awareness of extension framework — gave generic LLM advice instead of using capability system. Root causes: brainstorming skill didn't fire, no persistent brain awareness, no measurable contract for builder output — [plan](sprints/m9-s4-real-test/plan.md) |
-| S5 | Capability Templates + Test Harness | Planned | Fix skill triggering (root cause), notebook reference (permanent brain awareness), 3 framework-authored templates with TDD-like test contracts, test harness in registry (non-blocking validation-on-activation, startup, on-demand, health status), builder/brainstorming updates (template precedence, composites, self-healing). May split into S5 + S5.5 if scope is too large — [plan](sprints/m9-s5-capability-templates/plan.md) |
+| S5 | Capability Templates + Test Harness | **Done** | Fixed brainstorming skill triggering, notebook reference (permanent brain awareness), 3 framework-authored templates with TDD-like test contracts, test harness in registry (`registry.test()`, health field, non-blocking validation-on-activation/startup, debug API), builder/brainstorming updates (template precedence, composites, self-healing), 45 tests — [plan](sprints/m9-s5-capability-templates/plan.md) · [review](sprints/m9-s5-capability-templates/review.md) |
 | S6 | The Real Test (Retry) | Planned | Depends on S5. Retest with full infrastructure: Nina creates real STT+TTS from scratch using templates, test harness validates, composite requests, self-healing loop, activation validation — [plan](sprints/m9-s6-real-test-retry/plan.md) |
 
 **Key design decisions (resolved in spec):**
@@ -961,7 +961,7 @@ M13 Platform Hardening (+ macOS/Wayland backends)
 M14 Release
 ```
 
-**Completed critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8 → M6.10 → M7 → M8. All complete. 919 tests (884 passing, 27 failing, 8 skipped).
+**Completed critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8 → M6.10 → M7 → M8. All complete. 935 tests (896 passing, 31 failing, 8 skipped).
 
 **Future path:** M9 → M10 → M11 → M12 → M13 → M14. ~20 sprints. Each milestone builds on the previous. Minimal rework, natural progression.
 
