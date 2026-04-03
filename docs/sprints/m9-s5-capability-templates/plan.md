@@ -17,6 +17,14 @@ Build the TDD-like expansion point infrastructure: framework-authored templates 
 
 ---
 
+## Scope Note
+
+This sprint has 5 phases. If scope is too large for one sprint, the natural split is:
+- **S5 (this sprint):** Phases A + B + C + E — skill fixes, brain awareness, templates, prompt updates. No new framework engineering beyond the prompt footer in B3.
+- **S5.5:** Phase D — test harness in registry. Real engineering: test() method, health field, validation-on-activation (non-blocking), background startup testing, system prompt health display.
+
+S6 (real test retry) depends on all of S5 (including D). If split, S6 depends on S5.5.
+
 ## Tasks
 
 ### Phase A: Fix Skill Triggering (Root Cause)
@@ -53,7 +61,7 @@ Templates are framework code — they define the contract between our integratio
 |---|------|-------|---------|
 | D1 | Add `test()` method to registry | `packages/core/src/capabilities/registry.ts` | Runs template's test contract against capability's script. Returns `{ status: "ok", latency_ms }` or `{ status: "error", message }` |
 | D2 | Add `health` field to Capability type | `packages/core/src/capabilities/types.ts` | New field: `health: "healthy" | "degraded" | "untested"`. `degraded` includes error message |
-| D3 | Validate on activation | `packages/core/src/capabilities/registry.ts` | When capability transitions from `unavailable` → env vars present, run test. If passes → `available` + `healthy`. If fails → `available` + `degraded` with error |
+| D3 | Validate on activation | `packages/core/src/capabilities/registry.ts` | When capability transitions from `unavailable` → env vars present: mark `available` immediately (so UI reacts), then run test in background. If passes → `healthy`. If fails → `degraded` with error. Non-blocking — user sees record button instantly, gets degraded notification within seconds if key is bad |
 | D4 | Validate on startup | `packages/dashboard/src/app.ts` | After initial scan, run tests for all capabilities with env vars. Non-blocking (don't delay startup — run in background, update status when done) |
 | D5 | Expose test-on-demand | `packages/core/src/capabilities/registry.ts` | `registry.test(type)` — brain can call to diagnose. Also callable from debug API |
 | D6 | Update system prompt with health | `packages/core/src/prompt.ts` | Show health in hints: `audio-to-text (Deepgram STT) [healthy, 1.2s]` or `[degraded: 401 Unauthorized]` |

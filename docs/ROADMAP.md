@@ -25,7 +25,7 @@
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
 | **M8: Visual & Desktop Automation** | **In Progress** | S5 correction sprint: Agent SDK computer use (blocks M9) |
-| **M9: Capability System** | **Active** | 4/6 sprints done (S1-S3.1), S4 failed, S5-S6 planned |
+| **M9: Capability System** | **Active** | 4/7 sprints done (S1-S3.1), S4 failed, S5-S6 planned (S5 may split into S5+S5.5) |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -47,10 +47,10 @@ COMPLETED (M8)
 ══════════════
 M8 Visual & Desktop Automation — 879 tests
 
-FUTURE (M9–M14) — ~20 sprints to release
+FUTURE (M9–M14) — ~22 sprints to release
 ═════════════════════════════════════════
 M9 Capabilities ──► M10 Channel SDK ──► M11 External Comms ──► M12 iOS ──► M13 Hardening ──► M14 Release
-  (6 sprints)         (4 sprints)          (2 sprints)           (3 sprints)   (5 sprints)       (2 sprints)
+  (7 sprints)         (4 sprints)          (2 sprints)           (3 sprints)   (5 sprints)       (2 sprints)
 ```
 
 ---
@@ -741,12 +741,12 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | Registry + Dummies | Planned | Capability types, CapabilityRegistry, CapabilityScanner (frontmatter + env check), FileWatcher on `.my_agent/capabilities/`, `capability:changed` event, system prompt injection, dummy STT + TTS capabilities, `.env` path unification — [plan](sprints/m9-s1-registry-dummies/plan.md) |
-| S2 | Dashboard Voice + Secrets | Planned | WebSocket capabilities protocol, record button (MediaRecorder, desktop + mobile), audio playback component, TTS post-processing, model indicator in header, Secrets API (GET/PUT/DELETE), Secrets UI in Settings (masked values, add/reveal/delete), re-scan trigger on secret change — [plan](sprints/m9-s2-dashboard-secrets/plan.md) |
-| S3 | WhatsApp Voice + Skill Generation | Planned | WhatsApp voice note handling (download + transcribe + send voice replies), `onAudioMessage` callback, medium mirroring, error handling for failed scripts, capability-builder `AgentDefinition` (Opus), brainstorming skill (SKILL.md + references), model switch UX (chat messages + status bar) — [plan](sprints/m9-s3-whatsapp-skillgen/plan.md) |
-| S3.1 | Heartbeat & Error Recovery | Planned | Conversation watchdog (garbled response detection, tool-heavy silence, missing deliverable), working agent watchdog (empty deliverable, failed job alerting, stale job detection, notification retry), collision guards between both systems — [plan](sprints/m9-s3.1-heartbeat-error-recovery/plan.md) |
+| S1 | Registry + Dummies | **Done** | Capability types, CapabilityRegistry, CapabilityScanner, FileWatcher, `capability:changed` event, system prompt injection, dummy STT + TTS, `.env` path unification — [plan](sprints/m9-s1-registry-dummies/plan.md) · [review](sprints/m9-s1-registry-dummies/review.md) · [code-review](sprints/m9-s1-registry-dummies/code-review.md) |
+| S2 | Dashboard Voice + Secrets | **Done** | WebSocket capabilities protocol, record button (desktop + mobile), audio playback, TTS post-processing, model indicator, Secrets API + UI, re-scan trigger — [plan](sprints/m9-s2-dashboard-secrets/plan.md) · [review](sprints/m9-s2-dashboard-secrets/review.md) · [code-review](sprints/m9-s2-dashboard-secrets/code-review.md) |
+| S3 | WhatsApp Voice + Skill Generation | **Done** | WhatsApp voice notes (download + transcribe + voice replies), `onAudioMessage` callback, medium mirroring, error handling, capability-builder `AgentDefinition` (Opus), brainstorming skill, model switch UX — [plan](sprints/m9-s3-whatsapp-skillgen/plan.md) · [review](sprints/m9-s3-whatsapp-skillgen/review.md) |
+| S3.1 | Heartbeat & Error Recovery | **Done** | Conversation watchdog (garbled response, tool-heavy silence, missing deliverable), working agent watchdog (empty deliverable, failed job alerting, stale job, notification retry), collision guards — [plan](sprints/m9-s3.1-heartbeat-error-recovery/plan.md) · [review](sprints/m9-s3.1-heartbeat-error-recovery/review.md) |
 | S4 | The Real Test | **Failed** | Nina gave generic LLM advice instead of using her capability system. Root causes: brainstorming skill didn't fire, no persistent brain awareness, no measurable contract for builder output — [plan](sprints/m9-s4-real-test/plan.md) |
-| S5 | Capability Templates + Test Harness | Planned | Fix skill triggering (root cause), notebook reference (permanent brain awareness), 3 framework-authored templates (audio-to-text, text-to-audio, text-to-image) with TDD-like test contracts, test harness in registry (validation-on-activation, startup, on-demand, health status), builder/brainstorming updates (template precedence, composites, self-healing) — [plan](sprints/m9-s5-capability-templates/plan.md) |
+| S5 | Capability Templates + Test Harness | Planned | Fix skill triggering (root cause), notebook reference (permanent brain awareness), 3 framework-authored templates with TDD-like test contracts, test harness in registry (non-blocking validation-on-activation, startup, on-demand, health status), builder/brainstorming updates (template precedence, composites, self-healing). May split into S5 + S5.5 if scope is too large — [plan](sprints/m9-s5-capability-templates/plan.md) |
 | S6 | The Real Test (Retry) | Planned | Retest with full infrastructure: Nina creates real STT+TTS from scratch using templates, test harness validates, composite requests, self-healing loop, activation validation — [plan](sprints/m9-s6-real-test-retry/plan.md) |
 
 **Key design decisions (resolved in spec):**
