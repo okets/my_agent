@@ -35,6 +35,21 @@ const MAX_MESSAGE_LENGTH = 10000;
 const MAX_TITLE_LENGTH = 100;
 
 /**
+ * Injected into the user message when input is voice.
+ * Guides the brain to write for speech, not for reading.
+ */
+const VOICE_MODE_HINT = `[VOICE MODE: The user sent a voice message. Your response will be spoken aloud via TTS.
+
+Write for the ear, not the eye:
+- Natural conversational sentences — no bullet points, numbered lists, or tables
+- No emojis — they don't translate to speech
+- No markdown formatting — bold, italic, and headers are invisible in audio
+- Keep it concise — spoken responses should be shorter than written ones
+- Use punctuation expressively — commas for pauses, em-dashes for emphasis, question marks for rising tone
+- No URLs — if you need to share a link, say "I'll send you the link" and follow up in text
+- Don't mention that this is a voice message or that you're in voice mode]`;
+
+/**
  * Convert markdown/rich text to speech-friendly plain text.
  * Strips URLs, code blocks, images, and formatting that sounds wrong when spoken.
  */
@@ -576,8 +591,13 @@ export class AppChatService {
         const sttResult = await this.transcribeAudio(absoluteAudioPath);
         if (sttResult.text) {
           transcribedContent = `[Voice message] ${sttResult.text}`;
-          // Replace content blocks with transcribed text for brain
-          contentBlocks = [{ type: "text", text: transcribedContent }];
+          // Replace content blocks with transcribed text + voice mode hint
+          contentBlocks = [
+            {
+              type: "text",
+              text: VOICE_MODE_HINT + "\n\n" + transcribedContent,
+            },
+          ];
         } else if (sttResult.error) {
           transcribedContent = `[Voice message — transcription failed: ${sttResult.error}]`;
           contentBlocks = [{ type: "text", text: transcribedContent }];
