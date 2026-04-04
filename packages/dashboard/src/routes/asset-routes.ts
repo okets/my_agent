@@ -40,4 +40,25 @@ export async function registerAssetRoutes(
 
     return reply.type("image/png").send(createReadStream(filePath));
   });
+
+  // GET /api/assets/audio/:filename
+  fastify.get<{
+    Params: { filename: string };
+  }>("/api/assets/audio/:filename", async (request, reply) => {
+    const { filename } = request.params;
+
+    if (!isSafe(filename)) {
+      return reply.code(400).send({ error: "Invalid path segment" });
+    }
+
+    const filePath = join(fastify.agentDir, "audio", filename);
+
+    try {
+      await access(filePath);
+    } catch {
+      return reply.code(404).send({ error: "File not found" });
+    }
+
+    return reply.type("audio/ogg").send(createReadStream(filePath));
+  });
 }

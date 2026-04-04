@@ -33,6 +33,61 @@ import type {
 const TURNS_PER_PAGE = 50;
 const MAX_MESSAGE_LENGTH = 10000;
 const MAX_TITLE_LENGTH = 100;
+
+/**
+ * Convert markdown/rich text to speech-friendly plain text.
+ * Strips URLs, code blocks, images, and formatting that sounds wrong when spoken.
+ */
+function prepareForSpeech(text: string): string {
+  let s = text;
+
+  // Remove code blocks (``` ... ```)
+  s = s.replace(/```[\s\S]*?```/g, "");
+
+  // Remove inline code (`...`)
+  s = s.replace(/`([^`]+)`/g, "$1");
+
+  // Remove image references ![alt](url)
+  s = s.replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1");
+
+  // Convert markdown links [text](url) → keep text only
+  s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+
+  // Remove bare URLs (http/https)
+  s = s.replace(/https?:\/\/[^\s)>\]]+/g, "");
+
+  // Remove markdown headings (# ## ### etc) — keep the text
+  s = s.replace(/^#{1,6}\s+/gm, "");
+
+  // Remove bold/italic markers
+  s = s.replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1");
+  s = s.replace(/_{1,3}([^_]+)_{1,3}/g, "$1");
+
+  // Remove strikethrough
+  s = s.replace(/~~([^~]+)~~/g, "$1");
+
+  // Remove HTML tags
+  s = s.replace(/<[^>]+>/g, "");
+
+  // Remove horizontal rules
+  s = s.replace(/^[-*_]{3,}\s*$/gm, "");
+
+  // Remove table formatting (pipes and dashes)
+  s = s.replace(/^\|.*\|$/gm, "");
+  s = s.replace(/^[-|: ]+$/gm, "");
+
+  // Remove bullet markers (-, *, numbered lists)
+  s = s.replace(/^\s*[-*+]\s+/gm, "");
+  s = s.replace(/^\s*\d+\.\s+/gm, "");
+
+  // Collapse multiple newlines
+  s = s.replace(/\n{3,}/g, "\n\n");
+
+  // Collapse multiple spaces
+  s = s.replace(/ {2,}/g, " ");
+
+  return s.trim();
+}
 const CONVERSATION_ID_RE = /^conv-[A-Z0-9]{26}$/;
 
 export function isValidConversationId(id: string): boolean {
@@ -803,23 +858,19 @@ export class AppChatService {
     if (!cap || cap.status !== "available") return null;
 
     const scriptPath = join(cap.path, "scripts", "synthesize.sh");
-    const assetsDir = join(
-      this.app.agentDir,
-      "..",
-      "packages",
-      "dashboard",
-      "public",
-      "assets",
-      "audio",
-    );
-    mkdirSync(assetsDir, { recursive: true });
-    const outputFile = join(assetsDir, `tts-${randomUUID()}.ogg`);
+    const audioDir = join(this.app.agentDir, "audio");
+    mkdirSync(audioDir, { recursive: true });
+    const outputFile = join(audioDir, `tts-${randomUUID()}.ogg`);
+
+    const spokenText = prepareForSpeech(text);
+    if (!spokenText.trim()) return null;
 
     try {
       const execFileAsync = promisify(execFile);
-      await execFileAsync(scriptPath, [text, outputFile], { timeout: 30000 });
-      // Return URL path relative to dashboard public root
-      return `/assets/audio/${outputFile.split("/").pop()}`;
+      await execFileAsync(scriptPath, [spokenText, outputFile], {
+        timeout: 30000,
+      });
+      return `/api/assets/audio/${outputFile.split("/").pop()}`;
     } catch {
       return null;
     }
