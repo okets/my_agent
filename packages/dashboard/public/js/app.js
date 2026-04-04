@@ -122,6 +122,8 @@ function chat() {
     mediaRecorder: null,
     audioChunks: [],
     lastInputWasAudio: false,
+    audioQueue: [],
+    audioPlaying: false,
     dragOver: false,
     wsConnected: false,
     ws: null,
@@ -981,6 +983,25 @@ function chat() {
         }
       }
       return "Start a conversation...";
+    },
+
+    queueAudio(el) {
+      this.audioQueue.push(el);
+      if (!this.audioPlaying) {
+        this.playNextAudio();
+      }
+    },
+
+    playNextAudio() {
+      if (this.audioQueue.length === 0) {
+        this.audioPlaying = false;
+        return;
+      }
+      this.audioPlaying = true;
+      const el = this.audioQueue.shift();
+      el.onended = () => this.playNextAudio();
+      el.onerror = () => this.playNextAudio();
+      el.play().catch(() => this.playNextAudio());
     },
 
     async toggleRecording() {
