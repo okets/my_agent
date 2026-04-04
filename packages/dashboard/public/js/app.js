@@ -1402,9 +1402,10 @@ function chat() {
           // Response complete
           console.log("[App] Response complete");
           if (data.audioUrl && this.currentAssistantMessage) {
-            this.currentAssistantMessage.audioUrl = data.audioUrl;
-            // Autoplay voice replies when the user sent a voice message
+            // Set autoplay BEFORE audioUrl — Alpine reacts to audioUrl by rendering
+            // the <audio> template, which reads autoplay in x-init
             this.currentAssistantMessage.autoplay = this.lastInputWasAudio || false;
+            this.currentAssistantMessage.audioUrl = data.audioUrl;
           }
           this.lastInputWasAudio = false;
           this.isResponding = false;
@@ -1593,6 +1594,11 @@ function chat() {
                   msg.attachmentPreviews = this.buildAttachmentPreviews(
                     data.turn.attachments,
                   );
+                  // Update content with transcript (voice messages get transcribed server-side)
+                  if (data.turn.content && data.turn.content !== msg.content) {
+                    msg.content = data.turn.content;
+                    msg.renderedContent = this.renderMarkdown(data.turn.content);
+                  }
                   break;
                 }
               }
