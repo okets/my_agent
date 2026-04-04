@@ -29,8 +29,11 @@ Use `ffmpeg` for transcoding if needed. The script is responsible for format det
 
 JSON on stdout, single line:
 ```json
-{ "text": "the transcribed text" }
+{ "text": "the transcribed text", "language": "en" }
 ```
+
+- `text` (required): the transcribed text
+- `language` (optional): ISO 639-1 language code detected by the provider (e.g., "en", "he", "th"). If the provider supports language detection and `language: multi` is configured, include this field. The framework uses it to select the correct TTS voice for responses.
 
 On error, write a human-readable message to stderr and exit 1. Do NOT output JSON on error.
 

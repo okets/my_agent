@@ -11,7 +11,7 @@ Framework-authored contract for text-to-speech capabilities.
 ## Script Contract
 
 **Script:** `scripts/synthesize.sh`
-**Invocation:** `synthesize.sh <text> <output-path>`
+**Invocation:** `synthesize.sh <text> <output-path> [language]`
 **Output (stdout):** `{ "path": "/path/to/output.ogg" }`
 **Exit codes:** 0 = success, 1 = error (details on stderr)
 
@@ -19,6 +19,7 @@ Framework-authored contract for text-to-speech capabilities.
 
 - `<text>` — the text to synthesize (shell-quoted by caller)
 - `<output-path>` — where to write the audio file
+- `[language]` — optional ISO 639-1 language code (e.g., "en", "he", "th"). When provided, the script should select a voice appropriate for that language. When omitted, use the default voice from config.yaml. This enables automatic language-matched TTS when the STT capability detects the input language.
 
 ### Output Format
 

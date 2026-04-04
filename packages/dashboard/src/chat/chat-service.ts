@@ -579,6 +579,7 @@ export class AppChatService {
     // ── STT: Transcribe audio attachments ────────────────────────
     const isAudioInput = options?.inputMedium === "audio";
     let transcribedContent = expandedContent;
+    let detectedLanguage: string | undefined;
 
     if (isAudioInput && savedAttachments.length > 0) {
       const audioAttachment = savedAttachments.find((a) =>
@@ -591,6 +592,7 @@ export class AppChatService {
         const sttResult = await this.transcribeAudio(absoluteAudioPath);
         if (sttResult.text) {
           transcribedContent = `[Voice message] ${sttResult.text}`;
+          detectedLanguage = sttResult.language;
           // Replace content blocks with transcribed text + voice mode hint
           contentBlocks = [
             {
@@ -730,8 +732,11 @@ export class AppChatService {
               let splitAudioUrl: string | undefined;
               if (isAudioInput && assistantContent.trim()) {
                 splitAudioUrl =
-                  (await this.synthesizeAudio(assistantContent, convId)) ??
-                  undefined;
+                  (await this.synthesizeAudio(
+                    assistantContent,
+                    convId,
+                    detectedLanguage,
+                  )) ?? undefined;
               }
 
               // Advance to message 2
@@ -758,8 +763,11 @@ export class AppChatService {
             let audioUrl: string | undefined;
             if (isAudioInput && assistantContent.trim()) {
               audioUrl =
-                (await this.synthesizeAudio(assistantContent, convId)) ??
-                undefined;
+                (await this.synthesizeAudio(
+                  assistantContent,
+                  convId,
+                  detectedLanguage,
+                )) ?? undefined;
             }
 
             yield {
@@ -860,7 +868,7 @@ export class AppChatService {
    */
   private async transcribeAudio(
     audioPath: string,
-  ): Promise<{ text?: string; error?: string }> {
+  ): Promise<{ text?: string; language?: string; error?: string }> {
     const cap = this.app.capabilityRegistry?.get("audio-to-text");
     if (!cap || cap.status !== "available") {
       return { error: "No audio-to-text capability available" };
@@ -873,7 +881,7 @@ export class AppChatService {
         timeout: 30000,
       });
       const result = JSON.parse(stdout.trim());
-      return { text: result.text || stdout.trim() };
+      return { text: result.text || stdout.trim(), language: result.language };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return { error: `Transcription failed: ${msg}` };
@@ -887,6 +895,7 @@ export class AppChatService {
   private async synthesizeAudio(
     text: string,
     conversationId: string,
+    language?: string,
   ): Promise<string | null> {
     const cap = this.app.capabilityRegistry?.get("text-to-audio");
     if (!cap || cap.status !== "available") return null;
@@ -901,7 +910,9 @@ export class AppChatService {
 
     try {
       const execFileAsync = promisify(execFile);
-      await execFileAsync(scriptPath, [spokenText, outputFile], {
+      const args = [spokenText, outputFile];
+      if (language) args.push(language);
+      await execFileAsync(scriptPath, args, {
         timeout: 30000,
       });
       return `/api/assets/audio/${outputFile.split("/").pop()}`;

@@ -849,7 +849,7 @@ Infrastructure that makes the agent safe, recoverable, updatable, and cross-plat
 |--------|------|--------|-------|
 | S1 | Dashboard Authentication | Planned | Session-based auth for web UI. Login flow, session tokens, secure cookies. Multi-user foundation (owner + guests). |
 | S2 | Backup & Restore | Planned | Full/partial backup (`.my_agent/` + DBs + config). Restore with index rebuild. CLI commands. Automated pre-update backup. |
-| S3 | Update Mechanism | Planned | Version tracking, `my-agent update`, schema migrations, breaking change detection, rollback via backup. |
+| S3 | Update Mechanism | Planned | Version tracking, `my-agent update`, schema migrations, breaking change detection, rollback via backup. Includes framework skill updates: detect newer versions in `packages/core/skills/`, prompt user to update `.my_agent/.claude/skills/` copies (respect user customizations). |
 | S4 | Desktop Control — macOS | Planned | MacBackend implementation (nut-js + screencapture + AppleScript), macOS environment detection, hatching flow updates. Deferred from M8 — blocked on hardware availability. |
 | S5 | Desktop Control — Wayland | Planned | WaylandBackend (ydotool + kdotool + PipeWire screen capture), KWin D-Bus integration. Deferred from M8 — needed when KDE drops X11 (Plasma 6.8, October 2026). Backend abstraction from M8-S2 makes this a swap, not a rewrite. |
 | ~~S6~~ | ~~Self-Service MCP Integration~~ | Absorbed | → M9 Capability System (capabilities supersede MCP-specific approach) |

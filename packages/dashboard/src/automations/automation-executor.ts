@@ -10,6 +10,7 @@ import {
   loadConfig,
   filterSkillsByTools,
   cleanupSkillFilters,
+  parseFrontmatterContent,
 } from "@my-agent/core";
 import type {
   Automation,
@@ -202,7 +203,28 @@ export class AutomationExecutor {
         });
       }
 
-      // 6. Execute query
+      // 6. Execute query (try session resumption if resume_from_job is specified)
+      let resumeSessionId: string | undefined;
+      const resumeMatch = automation.instructions.match(
+        /resume_from_job:\s*(\S+)/,
+      );
+      if (resumeMatch) {
+        const priorJobId = resumeMatch[1];
+        // Look up the prior job to get its automation ID (may differ from current)
+        const priorJob = this.config.jobService.getJob(priorJobId);
+        const priorAutomationId = priorJob?.automationId ?? automation.id;
+        const priorSession = this.config.jobService.getSessionId(
+          priorAutomationId,
+          priorJobId,
+        );
+        if (priorSession) {
+          resumeSessionId = priorSession;
+          console.log(
+            `[AutomationExecutor] Attempting session resume from job ${priorJobId} (automation: ${priorAutomationId})`,
+          );
+        }
+      }
+
       const query = createBrainQuery(userMessage, {
         model,
         systemPrompt,
@@ -212,6 +234,7 @@ export class AutomationExecutor {
         additionalDirectories: [this.config.agentDir],
         mcpServers: workerMcpServers,
         hooks: this.config.hooks,
+        ...(resumeSessionId ? { resume: resumeSessionId } : {}),
       });
 
       // 6. Iterate and collect response (follows TaskExecutor.iterateBrainQuery pattern)
@@ -329,6 +352,11 @@ export class AutomationExecutor {
         deliverablePath,
         screenshotIds,
       });
+
+      // 11. Paper trail: if deliverable has target_path frontmatter, append to DECISIONS.md
+      if (finalDeliverable) {
+        this.writePaperTrail(finalDeliverable, automation, job);
+      }
 
       console.log(
         `[AutomationExecutor] Automation "${automation.manifest.name}" ${finalStatus} (job ${job.id})`,
@@ -586,6 +614,91 @@ export class AutomationExecutor {
           "Mark this job as needs_review.",
           "A human will approve before execution proceeds.",
         ].join("\n");
+    }
+  }
+
+  /**
+   * Write paper trail: parse deliverable frontmatter, append structured entry to DECISIONS.md
+   * at the target artifact path. Non-fatal — failures are logged but don't affect job status.
+   */
+  private writePaperTrail(
+    deliverable: string,
+    automation: Automation,
+    job: Job,
+  ): void {
+    try {
+      const { data } = parseFrontmatterContent<{
+        target_path?: string;
+        change_type?: string;
+        provider?: string;
+        test_result?: string;
+        test_duration_ms?: number;
+        files_changed?: string[];
+      }>(deliverable);
+
+      if (!data.target_path) return; // Non-artifact job, skip
+
+      const targetDir = path.resolve(
+        this.config.agentDir,
+        "..",
+        data.target_path,
+      );
+      const decisionsPath = path.join(targetDir, "DECISIONS.md");
+      const date = new Date().toISOString().slice(0, 10);
+      const changeType = data.change_type ?? "unknown";
+
+      // Build structured entry
+      const lines: string[] = [];
+      lines.push(`## ${date} — ${automation.manifest.name}`);
+      lines.push(`- **Change type:** ${changeType}`);
+      if (data.provider) lines.push(`- **Provider:** ${data.provider}`);
+      if (data.test_result) {
+        const latency = data.test_duration_ms
+          ? ` (${(data.test_duration_ms / 1000).toFixed(1)}s)`
+          : "";
+        lines.push(`- **Test:** ${data.test_result}${latency}`);
+      }
+      if (data.files_changed?.length) {
+        lines.push(`- **Files:** ${data.files_changed.join(", ")}`);
+      }
+      // Relative link from target to .runs/
+      const runDirName = job.run_dir
+        ? path.basename(path.dirname(job.run_dir)) +
+          "/" +
+          path.basename(job.run_dir)
+        : job.id;
+      lines.push(
+        `- **Job:** [${runDirName}](../../automations/.runs/${runDirName}/)`,
+      );
+
+      const entry = lines.join("\n");
+
+      if (fs.existsSync(decisionsPath)) {
+        // Prepend after the "# Decisions" header
+        const existing = fs.readFileSync(decisionsPath, "utf-8");
+        const headerEnd = existing.indexOf("\n\n");
+        if (headerEnd !== -1) {
+          const header = existing.slice(0, headerEnd);
+          const rest = existing.slice(headerEnd + 2);
+          fs.writeFileSync(
+            decisionsPath,
+            `${header}\n\n${entry}\n\n${rest}`,
+            "utf-8",
+          );
+        } else {
+          fs.appendFileSync(decisionsPath, `\n\n${entry}\n`, "utf-8");
+        }
+      } else {
+        // Create new DECISIONS.md
+        fs.mkdirSync(path.dirname(decisionsPath), { recursive: true });
+        fs.writeFileSync(decisionsPath, `# Decisions\n\n${entry}\n`, "utf-8");
+      }
+
+      console.log(
+        `[AutomationExecutor] Paper trail written to ${decisionsPath}`,
+      );
+    } catch (err) {
+      console.warn("[AutomationExecutor] Paper trail write failed:", err);
     }
   }
 

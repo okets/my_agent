@@ -49,6 +49,14 @@ Every job that creates or modifies an artifact leaves a traceable paper trail (D
 | 8 | Retroactively create DECISIONS.md for stt-deepgram | `.my_agent/capabilities/stt-deepgram/DECISIONS.md` | Write "Initial build" entry from existing job status report. Link to original job in `.runs/` |
 | 9 | Retroactively create DECISIONS.md for tts-edge | `.my_agent/capabilities/tts-edge/DECISIONS.md` | Same as above |
 
+### Language Autodetect (Framework)
+
+| # | Task | Files | Details |
+|---|------|-------|---------|
+| 10 | Update audio-to-text template — add `language` field to output | `skills/capability-templates/audio-to-text.md` | Output JSON becomes `{ "text": "...", "language": "en" }`. Language is optional (backwards compatible). Test contract validates `language` field when present |
+| 11 | Update text-to-audio template — add optional language arg | `skills/capability-templates/text-to-audio.md` | Invocation becomes `synthesize.sh <text> <output-path> [language]`. Script picks voice based on language if provided, falls back to default |
+| 12 | Thread detected language from STT → TTS in chat-service | `packages/dashboard/src/chat/chat-service.ts` | `transcribeAudio()` returns `{ text, language }`. `synthesizeAudio()` accepts optional language param, passes as arg 3 to script. ~10 lines |
+
 ---
 
 ## Verification
@@ -63,6 +71,9 @@ Every job that creates or modifies an artifact leaves a traceable paper trail (D
 - [ ] Brainstorming skill detects existing capability, reads DECISIONS.md
 - [ ] Existing capabilities have retroactive DECISIONS.md
 - [ ] TypeScript compiles, existing tests pass
+- [ ] audio-to-text template output includes optional `language` field
+- [ ] text-to-audio template invocation accepts optional `[language]` arg
+- [ ] chat-service threads detected language from STT to TTS
 
 ---
 
