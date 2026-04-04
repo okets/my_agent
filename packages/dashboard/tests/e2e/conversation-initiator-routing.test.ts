@@ -37,6 +37,13 @@ describe("Conversation Initiator Reply Routing", () => {
       async *streamNewConversation(_convId: string, _prompt?: string) {
         yield { type: "text", text: "Hello, I have news for you." };
       },
+      isStreaming(_convId: string): boolean {
+        return false;
+      },
+      async queueNotification(
+        _convId: string,
+        _prompt: string,
+      ): Promise<void> {},
     };
 
     channelManager = {
@@ -107,9 +114,11 @@ describe("Conversation Initiator Reply Routing", () => {
       channel: TRANSPORT_ID,
     });
     // Set lastUserMessageAt to make it active
-    conversationManager.getConversationDb().getDb().prepare(
-      "UPDATE conversations SET last_user_message_at = ? WHERE id = ?",
-    ).run(new Date().toISOString(), conv.id);
+    conversationManager
+      .getConversationDb()
+      .getDb()
+      .prepare("UPDATE conversations SET last_user_message_at = ? WHERE id = ?")
+      .run(new Date().toISOString(), conv.id);
 
     const alerted = await initiator.alert("Test notification to user");
     expect(alerted).toBe(true);

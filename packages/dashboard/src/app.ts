@@ -79,6 +79,7 @@ import {
   addMcpServer,
   addMcpServerFactory,
   setConnectionRegistry,
+  setRunningTasksChecker,
 } from "./agent/session-manager.js";
 import { createSpaceToolsServer } from "./mcp/space-tools-server.js";
 import { createSkillServer } from "./mcp/skill-server.js";
@@ -859,6 +860,14 @@ export class App extends EventEmitter {
             const sm = app.sessionRegistry.get(conversationId);
             return sm?.isStreaming() ?? false;
           },
+          async queueNotification(conversationId, prompt) {
+            const sdkSessionId = convDb.getSdkSessionId(conversationId);
+            const sm = await app.sessionRegistry.getOrCreate(
+              conversationId,
+              sdkSessionId,
+            );
+            sm.queueNotification(prompt);
+          },
         },
         channelManager: {
           async send(transportId, to, message) {
@@ -1334,6 +1343,25 @@ export class App extends EventEmitter {
         });
         await app.automationScheduler.start();
 
+        // Wire running tasks checker — populates activeWorkingAgents in system prompt
+        setRunningTasksChecker((_conversationId: string) => {
+          const runningJobs = app.automationJobService!.listJobs({
+            status: "running",
+          });
+          const pendingJobs = app.automationJobService!.listJobs({
+            status: "pending",
+          });
+          const activeJobs = [...runningJobs, ...pendingJobs];
+          return activeJobs.map((job) => {
+            const automation = app.automationManager!.findById(
+              job.automationId,
+            );
+            const name = automation?.manifest.name ?? job.automationId;
+            return `${name} (job ${job.id}, status: ${job.status})`;
+          });
+        });
+        console.log("[App] Running tasks checker wired to automation jobs");
+
         // Service namespace
         app.automations = new AppAutomationService(
           app.automationManager,
@@ -1371,7 +1399,9 @@ export class App extends EventEmitter {
         watchTriggerService.on("mount_failure", async ({ path, attempts }) => {
           if (app.conversationInitiator) {
             const prompt = `A filesystem watch on "${path}" has failed after ${attempts} retry attempts. The mount may be down.\n\nYou are the conversation layer — let the user know about this infrastructure issue briefly. Don't be dramatic, just inform them so they can check if needed.`;
-            const alerted = await app.conversationInitiator.alert(prompt);
+            const alerted = await app.conversationInitiator.alert(prompt, {
+              sourceChannel: "dashboard",
+            });
             if (!alerted) {
               await app.conversationInitiator.initiate({
                 firstTurnPrompt: `[SYSTEM: ${prompt}]`,

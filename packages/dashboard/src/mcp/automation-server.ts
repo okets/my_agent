@@ -1,8 +1,8 @@
 /**
  * Automation MCP Tools Server
  *
- * Exposes create_automation, fire_automation, list_automations, and resume_job
- * tools for the brain to manage automations during conversation.
+ * Exposes create_automation, fire_automation, list_automations, resume_job,
+ * and check_job_status tools for the brain to manage automations during conversation.
  */
 
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
@@ -139,9 +139,17 @@ export function createAutomationServer(deps: AutomationServerDeps) {
       }
 
       try {
+        // Tag source as 'dashboard' — the brain's MCP tools always run in a
+        // dashboard session. This prevents job notifications from bleeding
+        // to WhatsApp when the active conversation has channel history.
+        const contextWithSource = {
+          ...args.context,
+          sourceChannel: "dashboard",
+        };
+
         // Fire is async — don't await, let it run in the background
         deps.processor
-          .fire(automation, args.context)
+          .fire(automation, contextWithSource)
           .catch((err) =>
             console.error(
               `[automation-server] fire failed for ${args.automationId}:`,
@@ -309,6 +317,121 @@ export function createAutomationServer(deps: AutomationServerDeps) {
     },
   );
 
+  const checkJobStatusTool = tool(
+    "check_job_status",
+    "Check status of running and recent jobs. Use when the user asks about a task in progress, or to check if a fired automation has completed. Returns running, pending, and recently completed/failed jobs.",
+    {
+      automationId: z
+        .string()
+        .optional()
+        .describe("Filter by automation ID (omit for all automations)"),
+      includeCompleted: z
+        .boolean()
+        .optional()
+        .describe("Include recently completed/failed jobs (default: true)"),
+      limit: z
+        .number()
+        .optional()
+        .describe("Max completed jobs to return (default: 5)"),
+    },
+    async (args) => {
+      const completedLimit = args.limit ?? 5;
+      const includeCompleted = args.includeCompleted ?? true;
+
+      // Fetch running and pending jobs
+      const baseFilter = args.automationId
+        ? { automationId: args.automationId }
+        : {};
+      const runningJobs = deps.jobService.listJobs({
+        ...baseFilter,
+        status: "running",
+      });
+      const pendingJobs = deps.jobService.listJobs({
+        ...baseFilter,
+        status: "pending",
+      });
+      const reviewJobs = deps.jobService.listJobs({
+        ...baseFilter,
+        status: "needs_review",
+      });
+
+      const sections: string[] = [];
+
+      // Active jobs
+      const activeJobs = [...runningJobs, ...pendingJobs];
+      if (activeJobs.length > 0) {
+        const lines = activeJobs.map((job) => {
+          const automation = deps.automationManager.findById(job.automationId);
+          const name = automation?.manifest.name ?? job.automationId;
+          return `- **${name}** (${job.id}) — ${job.status}, started ${job.created}`;
+        });
+        sections.push(
+          `**Active jobs (${activeJobs.length}):**\n${lines.join("\n")}`,
+        );
+      } else {
+        sections.push("**No active jobs.**");
+      }
+
+      // Needs review
+      if (reviewJobs.length > 0) {
+        const lines = reviewJobs.map((job) => {
+          const automation = deps.automationManager.findById(job.automationId);
+          const name = automation?.manifest.name ?? job.automationId;
+          return `- **${name}** (${job.id}) — needs review: ${job.summary ?? "no details"}`;
+        });
+        sections.push(
+          `**Awaiting review (${reviewJobs.length}):**\n${lines.join("\n")}`,
+        );
+      }
+
+      // Recently completed/failed
+      if (includeCompleted) {
+        const completedJobs = deps.jobService.listJobs({
+          ...baseFilter,
+          status: "completed",
+          limit: completedLimit,
+        });
+        const failedJobs = deps.jobService.listJobs({
+          ...baseFilter,
+          status: "failed",
+          limit: completedLimit,
+        });
+        const recentJobs = [...completedJobs, ...failedJobs]
+          .sort(
+            (a, b) =>
+              new Date(b.completed ?? b.created).getTime() -
+              new Date(a.completed ?? a.created).getTime(),
+          )
+          .slice(0, completedLimit);
+
+        if (recentJobs.length > 0) {
+          const lines = recentJobs.map((job) => {
+            const automation = deps.automationManager.findById(
+              job.automationId,
+            );
+            const name = automation?.manifest.name ?? job.automationId;
+            const summary = job.summary
+              ? ` — ${job.summary.slice(0, 200)}`
+              : "";
+            return `- **${name}** (${job.id}) — ${job.status}${summary}`;
+          });
+          sections.push(
+            `**Recent jobs (${recentJobs.length}):**\n${lines.join("\n")}`,
+          );
+        }
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: sections.join("\n\n"),
+          },
+        ],
+      };
+    },
+  );
+
   return createSdkMcpServer({
     name: "automation-tools",
     tools: [
@@ -316,6 +439,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
       fireAutomationTool,
       listAutomationsTool,
       resumeJobTool,
+      checkJobStatusTool,
     ],
   });
 }

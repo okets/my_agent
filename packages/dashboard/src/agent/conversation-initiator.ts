@@ -30,6 +30,9 @@ export interface SessionFactory {
 
   /** Check if a conversation's session is currently streaming a response */
   isStreaming(conversationId: string): boolean;
+
+  /** Queue a notification for delivery on the session's next turn */
+  queueNotification(conversationId: string, prompt: string): Promise<void>;
 }
 
 /**
@@ -86,8 +89,16 @@ export class ConversationInitiator {
    *
    * The synthetic turn is NOT appended to the transcript —
    * only the brain's response is appended as an assistant turn.
+   *
+   * @param options.sourceChannel - Where the triggering action originated.
+   *   When `'dashboard'`, channel inference is skipped and the response is
+   *   NOT forwarded to any external channel (prevents WhatsApp bleed).
+   *   When undefined, falls back to inferring from recent conversation turns.
    */
-  async alert(prompt: string): Promise<boolean> {
+  async alert(
+    prompt: string,
+    options?: { sourceChannel?: string },
+  ): Promise<boolean> {
     const active = await this.conversationManager.getActiveConversation(
       this.thresholdMinutes,
     );
@@ -99,12 +110,14 @@ export class ConversationInitiator {
       return false;
     }
 
-    // Skip if the session is already streaming (prevents race with user messages or other alerts)
+    // If the session is busy streaming, queue the notification for next-turn delivery
+    // instead of falling back to initiate() (which creates a new conversation)
     if (this.sessionFactory.isStreaming(active.id)) {
-      console.warn(
-        "[ConversationInitiator] Session busy for conversation, falling back to initiate()",
+      console.log(
+        "[ConversationInitiator] Session busy, queuing notification for next turn",
       );
-      return false;
+      await this.sessionFactory.queueNotification(active.id, prompt);
+      return true;
     }
 
     // Collect brain response from synthetic turn
@@ -119,18 +132,27 @@ export class ConversationInitiator {
     }
 
     if (response) {
-      // Send via the active conversation's channel, not the global preference
-      // Search enough turns back to find the inbound channel, even if assistant
-      // turns have accumulated since the last user message
-      const CHANNEL_SEARCH_DEPTH = 20;
-      const recentTurns = await this.conversationManager.getRecentTurns(
-        active.id,
-        CHANNEL_SEARCH_DEPTH,
-      );
-      const lastChannelTurn = recentTurns
-        .filter((t) => t.channel && t.role === "user")
-        .at(-1);
-      const outboundChannel = lastChannelTurn?.channel ?? undefined;
+      // Determine outbound channel:
+      // - 'dashboard' source = never forward to an external channel (prevents WhatsApp bleed)
+      // - undefined source = infer from recent conversation turns (legacy behavior)
+      let outboundChannel: string | undefined;
+
+      if (options?.sourceChannel === "dashboard") {
+        // Dashboard-originated action — do NOT send via any external channel
+        outboundChannel = undefined;
+      } else {
+        // Infer from recent turns: search enough turns back to find the inbound
+        // channel, even if assistant turns have accumulated since the last user message
+        const CHANNEL_SEARCH_DEPTH = 20;
+        const recentTurns = await this.conversationManager.getRecentTurns(
+          active.id,
+          CHANNEL_SEARCH_DEPTH,
+        );
+        const lastChannelTurn = recentTurns
+          .filter((t) => t.channel && t.role === "user")
+          .at(-1);
+        outboundChannel = lastChannelTurn?.channel ?? undefined;
+      }
 
       // Only append the brain's response — NOT the synthetic system turn
       await this.conversationManager.appendTurn(active.id, {
@@ -142,7 +164,10 @@ export class ConversationInitiator {
         channel: outboundChannel,
       });
 
-      await this.trySendViaChannel(response, outboundChannel);
+      // Skip channel send for dashboard-originated actions
+      if (options?.sourceChannel !== "dashboard") {
+        await this.trySendViaChannel(response, outboundChannel);
+      }
     }
 
     return true;

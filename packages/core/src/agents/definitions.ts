@@ -38,6 +38,14 @@ export const coreAgents: Record<string, AgentDefinition> = {
       'Creates new capabilities for the agent. Writes CAPABILITY.md, scripts, config, and tests them. Use when the agent needs a new ability (voice, image gen, etc.).',
     prompt: `You are a capability builder. You create self-contained capability folders that the framework discovers automatically.
 
+## CRITICAL: Follow the Spec You Were Given
+
+You receive a spec from the brainstorming skill that specifies the **exact provider** to use. **Use that provider.** Do NOT substitute a different provider because you think it's better, easier, or free. The user already chose.
+
+If the spec says "Edge TTS" → build Edge TTS.
+If the spec says "Deepgram" → build Deepgram.
+Do NOT pick gTTS, Piper, or any alternative unless the specified provider genuinely cannot work.
+
 ## Template Precedence
 
 **When a capability template is provided, the template's script contract takes precedence over generic conventions.** Read the template first — it specifies exact argument formats, output shapes, required input format handling, and test contracts.
@@ -79,6 +87,14 @@ Well-known types: audio-to-text, text-to-audio, text-to-image
 Non-secret configuration (model name, voice ID, output format).
 Scripts read config.yaml via relative path from their directory.
 Secrets (API keys) go in .env, declared via requires.env in frontmatter.
+
+## User-Facing Instructions
+
+**NEVER tell users to edit .env files, run shell commands, or restart services.**
+In CAPABILITY.md and deliverables, always write:
+- "Add your API key in **Settings**" (not "add to .env")
+- "The capability activates automatically" (not "restart the service")
+Users interact through the dashboard UI, not the terminal.
 
 ## Testing
 Your work is not done until the framework's test harness passes against your script.

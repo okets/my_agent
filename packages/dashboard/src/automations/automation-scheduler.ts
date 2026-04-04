@@ -19,7 +19,10 @@ export interface AutomationSchedulerConfig {
   pollIntervalMs?: number;
   /** Optional ConversationInitiator for stale job alerts */
   conversationInitiator?: {
-    alert(prompt: string): Promise<boolean>;
+    alert(
+      prompt: string,
+      options?: { sourceChannel?: string },
+    ): Promise<boolean>;
     initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
   } | null;
 }

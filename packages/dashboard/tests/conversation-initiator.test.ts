@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { ConversationManager } from "../src/conversations/manager.js";
-import type { TranscriptTurn, Conversation } from "../src/conversations/types.js";
+import type {
+  TranscriptTurn,
+  Conversation,
+} from "../src/conversations/types.js";
 import {
   ConversationInitiator,
   type SessionFactory,
@@ -172,20 +175,22 @@ function createMockSessionFactory(
     ): AsyncGenerator<{ type: string; text?: string }> {
       yield { type: "text_delta", text: response };
     },
+    isStreaming(_convId: string): boolean {
+      return false;
+    },
+    async queueNotification(_convId: string, _prompt: string): Promise<void> {},
   };
 }
 
 function createMockChannelManager(
   connected: boolean = true,
-): ChannelManagerLike & { sent: Array<{ channelId: string; to: string; content: string }> } {
+): ChannelManagerLike & {
+  sent: Array<{ channelId: string; to: string; content: string }>;
+} {
   const sent: Array<{ channelId: string; to: string; content: string }> = [];
   return {
     sent,
-    async send(
-      channelId: string,
-      to: string,
-      message: { content: string },
-    ) {
+    async send(channelId: string, to: string, message: { content: string }) {
       sent.push({ channelId, to, content: message.content });
     },
     getTransportConfig(_id: string) {
@@ -414,7 +419,9 @@ describe("Task 5: ConversationInitiator", () => {
 
   describe("daily brief integration flow", () => {
     it("calls initiate when alert returns false (no active conversation)", async () => {
-      const sessionFactory = createMockSessionFactory("Here is your daily brief.");
+      const sessionFactory = createMockSessionFactory(
+        "Here is your daily brief.",
+      );
       const channelManager = createMockChannelManager(false);
       const initiator = new ConversationInitiator({
         conversationManager: manager,
@@ -447,7 +454,9 @@ describe("Task 5: ConversationInitiator", () => {
         turnNumber: 1,
       });
 
-      const sessionFactory = createMockSessionFactory("Brief is ready, shall we?");
+      const sessionFactory = createMockSessionFactory(
+        "Brief is ready, shall we?",
+      );
       const channelManager = createMockChannelManager(false);
       const initiator = new ConversationInitiator({
         conversationManager: manager,

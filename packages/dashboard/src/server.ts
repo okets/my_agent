@@ -68,7 +68,10 @@ declare module "fastify" {
     pluginRegistry: PluginRegistry | null;
     conversationSearchService: ConversationSearchService | null;
     conversationInitiator: {
-      alert(prompt: string): Promise<boolean>;
+      alert(
+        prompt: string,
+        options?: { sourceChannel?: string },
+      ): Promise<boolean>;
       initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
     } | null;
     postResponseHooks:

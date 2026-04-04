@@ -29,7 +29,10 @@ export interface AutomationProcessorConfig {
   onJobEvent?: (event: JobEventName, job: Job) => void;
   /** Optional ConversationInitiator for proactive notifications */
   conversationInitiator?: {
-    alert(prompt: string): Promise<boolean>;
+    alert(
+      prompt: string,
+      options?: { sourceChannel?: string },
+    ): Promise<boolean>;
     initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
   } | null;
   /** Called after a failure alert is delivered — for collision suppression with conversation watchdog */
@@ -174,6 +177,13 @@ export class AutomationProcessor {
     const notify = automation.manifest.notify ?? "debrief";
     const ci = this.config.conversationInitiator;
 
+    // Read sourceChannel from job context — tagged at creation time to prevent
+    // channel bleed (e.g. dashboard-triggered jobs sending to WhatsApp)
+    const job = this.config.jobService.getJob(jobId);
+    const sourceChannel = (job?.context as Record<string, unknown> | undefined)
+      ?.sourceChannel as string | undefined;
+    const alertOptions = sourceChannel ? { sourceChannel } : undefined;
+
     if (notify === "immediate" && result.success && ci) {
       // Resolve user's local time so the brain doesn't guess the time of day
       let localTimeContext = "";
@@ -194,11 +204,11 @@ export class AutomationProcessor {
       // Prefer full deliverable from disk (not truncated to 500 chars)
       let summary: string;
       if (result.success) {
-        const job = this.config.jobService.getJob(jobId);
-        if (job?.deliverablePath) {
+        const completedJob = this.config.jobService.getJob(jobId);
+        if (completedJob?.deliverablePath) {
           try {
             const fs = await import("node:fs");
-            summary = fs.readFileSync(job.deliverablePath, "utf-8");
+            summary = fs.readFileSync(completedJob.deliverablePath, "utf-8");
           } catch {
             summary = result.work ?? "Completed successfully.";
           }
@@ -209,7 +219,7 @@ export class AutomationProcessor {
         summary = `Error: ${result.error}`;
       }
       const prompt = `A working agent just finished the "${automation.manifest.name}" task.${localTimeContext}\n\nResults:\n${summary}\n\nYou are the conversation layer — present what matters to the user naturally. Don't acknowledge the system message itself. Don't say "noted" or "logging". Just relay the useful information as if you're giving the user an update.`;
-      const alerted = await ci.alert(prompt);
+      const alerted = await ci.alert(prompt, alertOptions);
       if (!alerted) {
         await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
       }
@@ -228,7 +238,7 @@ export class AutomationProcessor {
         `If the error seems transient, suggest they can re-trigger it. ` +
         `Don't be dramatic — just inform.`;
       try {
-        const alerted = await ci.alert(prompt);
+        const alerted = await ci.alert(prompt, alertOptions);
         if (alerted) {
           this.config.onAlertDelivered?.();
         } else {
@@ -242,12 +252,12 @@ export class AutomationProcessor {
     }
 
     // needs_review always alerts immediately
-    const job = this.config.jobService.getJob(jobId);
-    if (job?.status === "needs_review" && ci) {
-      const question = job.summary ?? "A job requires your review.";
+    const reviewJob = this.config.jobService.getJob(jobId);
+    if (reviewJob?.status === "needs_review" && ci) {
+      const question = reviewJob.summary ?? "A job requires your review.";
       const automationName = automation.manifest.name;
       const prompt = `A working agent running "${automationName}" needs the user's input before it can continue.\n\nQuestion: ${question}\n\nJob ID: ${jobId}\n\nYou are the conversation layer — present this to the user naturally. Ask for their input. When they respond, you can resume the job with resume_job("${jobId}", <their response>).`;
-      const alerted = await ci.alert(prompt);
+      const alerted = await ci.alert(prompt, alertOptions);
       if (!alerted) {
         await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
       }
