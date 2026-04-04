@@ -547,15 +547,20 @@ export async function registerChatWebSocket(
                 socket,
               );
             }
+            const userTurnUpdate = {
+              type: "conversation_updated" as const,
+              conversationId: effects.conversationId,
+              turn: effects.userTurn,
+            };
+            // Send to other tabs
             connectionRegistry.broadcastToConversation(
               effects.conversationId,
-              {
-                type: "conversation_updated",
-                conversationId: effects.conversationId,
-                turn: effects.userTurn,
-              },
+              userTurnUpdate,
               socket,
             );
+            // Also send back to sender — needed for voice transcript updates
+            // (client sent "[Voice message]", server has the transcribed text)
+            send(userTurnUpdate);
           }
 
           // Handle turn advancement from message split (internal bookkeeping)
