@@ -1092,6 +1092,8 @@ function chat() {
       if (!text && !hasAttachments) {
         return;
       }
+      // Clear voice input flag — new user message breaks the voice reply chain
+      this.lastInputWasAudio = false;
       if (!this.wsConnected) {
         return;
       }
@@ -1407,7 +1409,8 @@ function chat() {
             this.currentAssistantMessage.autoplay = this.lastInputWasAudio || false;
             this.currentAssistantMessage.audioUrl = data.audioUrl;
           }
-          this.lastInputWasAudio = false;
+          // Don't clear lastInputWasAudio here — split turns need it for subsequent messages.
+          // It gets cleared when the user sends their next message.
           this.isResponding = false;
           this.isThinking = false;
           this.currentAssistantMessage = null;

@@ -706,11 +706,25 @@ export class AppChatService {
                   .catch(() => {});
               }
 
+              // TTS for split turn if input was voice
+              let splitAudioUrl: string | undefined;
+              if (isAudioInput && assistantContent.trim()) {
+                splitAudioUrl =
+                  (await this.synthesizeAudio(assistantContent, convId)) ??
+                  undefined;
+              }
+
               // Advance to message 2
               turnNumber++;
               assistantContent = "";
               thinkingText = "";
 
+              yield {
+                type: "done" as const,
+                cost: undefined,
+                usage: undefined,
+                audioUrl: splitAudioUrl,
+              };
               yield { type: "turn_advanced" as const, turnNumber };
               yield { type: "start" as const };
             }
