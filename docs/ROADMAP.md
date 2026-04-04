@@ -25,7 +25,7 @@
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
 | **M8: Visual & Desktop Automation** | Complete | 8/8 sprints (S1-S5.1), 884 tests |
-| **M9: Capability System** | **Complete** | 6/7 sprints done (S1-S3.1, S5-S6), S4 failed. Voice E2E working (Deepgram STT + Edge TTS, both channels). |
+| **M9: Capability System** | **Active** | 6/9 sprints done (S1-S3.1, S5-S6), S4 failed. S7-S8 planned (paper trail + modify test). Voice E2E working |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -47,10 +47,10 @@ COMPLETED (M8)
 ══════════════
 M8 Visual & Desktop Automation — 884 tests
 
-FUTURE (M9–M14) — ~22 sprints to release
+FUTURE (M9–M14) — ~24 sprints to release
 ═════════════════════════════════════════
 M9 Capabilities ──► M10 Channel SDK ──► M11 External Comms ──► M12 iOS ──► M13 Hardening ──► M14 Release
-  (7 sprints)         (4 sprints)          (2 sprints)           (3 sprints)   (5 sprints)       (2 sprints)
+  (9 sprints)         (4 sprints)          (2 sprints)           (3 sprints)   (5 sprints)       (2 sprints)
 ```
 
 ---
@@ -748,6 +748,8 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 | S4 | The Real Test | **Failed** | Agent lacked awareness of extension framework — gave generic LLM advice instead of using capability system. Root causes: brainstorming skill didn't fire, no persistent brain awareness, no measurable contract for builder output — [plan](sprints/m9-s4-real-test/plan.md) |
 | S5 | Capability Templates + Test Harness | **Done** | Fixed brainstorming skill triggering, notebook reference (permanent brain awareness), 3 framework-authored templates with TDD-like test contracts, test harness in registry (`registry.test()`, health field, non-blocking validation-on-activation/startup, debug API), builder/brainstorming updates (template precedence, composites, self-healing), 45 tests — [plan](sprints/m9-s5-capability-templates/plan.md) · [review](sprints/m9-s5-capability-templates/review.md) |
 | S6 | The Real Test (Retry) | **Done** | Nina created Deepgram STT + Edge TTS from scratch via tracked jobs. Voice E2E on dashboard + WhatsApp. Also fixed: MCP transport collision, job monitoring (3-layer), WhatsApp bleed #3, voice UX (autoplay queue, voice mode hint, prepareForSpeech, transcript display, split-turn TTS) — [plan](sprints/m9-s6-real-test-retry/plan.md) · [lessons](sprints/m9-s6-real-test-retry/lessons-learned.md) |
+| S7 | Universal Paper Trail | Planned | Builder deliverable frontmatter (target_path, change_type), executor post-completion hook (parse → write DECISIONS.md at artifact), session resumption (resume_from_job), brainstorming modify flow (detect existing, read history, classify change type, spawn modify builder), retroactive DECISIONS.md for existing capabilities — [plan](sprints/m9-s7-paper-trail/plan.md) |
+| S8 | Modify Test — Hebrew Voice | Planned | Ask Nina to add Hebrew to existing STT. Validates: modify detection, context recovery from DECISIONS.md, session resumption, config-only change (not rebuild), test harness after modify, paper trail with job links, Hebrew E2E on both channels — [plan](sprints/m9-s8-modify-test/plan.md) |
 
 **Key design decisions (resolved in spec):**
 - Capabilities are files (CAPABILITY.md + scripts), not code registrations — auto-discovered from `.my_agent/capabilities/`
@@ -757,6 +759,8 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 - Secrets in `.env`, managed via Settings UI — credential vault deferred to M13
 - No marketplace — sharing is copy-paste, deliberate rejection for security
 - Registry is the contract between capabilities and UI/channels/brain
+- Universal paper trail: DECISIONS.md at every artifact, written by brainstorming (strategic) + framework (structured metadata), linked to job artifacts in `.runs/`
+- Session resumption: try resume for recent modifies, fall back to DECISIONS.md as durable context
 
 **Absorbs:**
 - M8-S5 (Voice) — STT/TTS engine selection, dashboard audio, WhatsApp voice notes
@@ -915,6 +919,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Release Roadmap      | Approved | M8–M13      | [superpowers/specs/2026-03-21-release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) |
 | Visual & Desktop Automation | Complete | M8 | [superpowers/specs/2026-03-29-m8-desktop-automation-design.md](superpowers/specs/2026-03-29-m8-desktop-automation-design.md) |
 | Capability System    | Approved | M9          | [design/capability-system.md](design/capability-system.md) |
+| Universal Paper Trail | Approved | M9 (S7-S8)  | [design/paper-trail.md](design/paper-trail.md) |
 | ~~Multimodal~~       | Absorbed | ~~M9~~ → M9 Capability System | Voice/audio covered by M9; rich I/O covered by M8-S4 |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
 | Knowledge Lifecycle  | Approved | M6.9        | [sprints/m6.6-s6-knowledge-lifecycle/design.md](sprints/m6.6-s6-knowledge-lifecycle/design.md) |
