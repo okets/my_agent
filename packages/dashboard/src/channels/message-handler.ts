@@ -542,9 +542,28 @@ export class ChannelMessageHandler {
       contentBlocks.push({ type: "text", text: textContent });
     }
 
-    // Use ContentBlocks if we have attachments, otherwise plain string
+    // Inject voice mode hint for voice notes so brain writes for speech
+    if (first.isVoiceNote && textContent) {
+      const voiceHint = `[VOICE MODE: The user sent a voice message. Your response will be spoken aloud via TTS.
+
+Write for the ear, not the eye:
+- Natural conversational sentences — no bullet points, numbered lists, or tables
+- No emojis — they don't translate to speech
+- No markdown formatting — bold, italic, and headers are invisible in audio
+- Keep it concise — spoken responses should be shorter than written ones
+- Use punctuation expressively — commas for pauses, em-dashes for emphasis, question marks for rising tone
+- No URLs — if you need to share a link, say "I'll send you the link" and follow up in text
+- Don't mention that this is a voice message or that you're in voice mode]`;
+      if (contentBlocks.length > 0) {
+        contentBlocks.unshift({ type: "text", text: voiceHint });
+      } else {
+        contentBlocks.push({ type: "text", text: voiceHint + "\n\n" + textContent });
+      }
+    }
+
+    // Use ContentBlocks if we have attachments or voice hint, otherwise plain string
     const messageContent: string | ContentBlock[] =
-      contentBlocks.length > 0 && savedAttachments.length > 0
+      contentBlocks.length > 0 && (savedAttachments.length > 0 || first.isVoiceNote)
         ? contentBlocks
         : textContent;
 

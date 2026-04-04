@@ -53,7 +53,7 @@ Write for the ear, not the eye:
  * Convert markdown/rich text to speech-friendly plain text.
  * Strips URLs, code blocks, images, and formatting that sounds wrong when spoken.
  */
-function prepareForSpeech(text: string): string {
+export function prepareForSpeech(text: string): string {
   let s = text;
 
   // Remove code blocks (``` ... ```)

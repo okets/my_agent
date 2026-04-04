@@ -1760,13 +1760,17 @@ function wireAudioCallbacks(plugin: BaileysPlugin, app: App): void {
     const cap = app.capabilityRegistry?.get("text-to-audio");
     if (!cap || cap.status !== "available") return null;
 
+    const { prepareForSpeech } = await import("./chat/chat-service.js");
+    const spokenText = prepareForSpeech(text);
+    if (!spokenText.trim()) return null;
+
     const scriptPath = join(cap.path, "scripts", "synthesize.sh");
     const outputDir = join(tmpdir(), "wa-tts");
     mkdirSync(outputDir, { recursive: true });
     const outputFile = join(outputDir, `tts-${randomUUID()}.ogg`);
 
     try {
-      await execFileAsync(scriptPath, [text, outputFile], { timeout: 30000 });
+      await execFileAsync(scriptPath, [spokenText, outputFile], { timeout: 30000 });
       const buffer = readFileSync(outputFile);
       try {
         unlinkSync(outputFile);
