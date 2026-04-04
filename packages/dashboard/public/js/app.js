@@ -1571,29 +1571,28 @@ function chat() {
           // If another tab updated the current conversation, render the new turn
           // For user turns with attachments from this tab, just update the attachment URLs
           if (data.conversationId === this.currentConversationId) {
-            // Check if this is a user turn with attachments - find matching message
-            if (
-              data.turn.role === "user" &&
-              data.turn.attachments &&
-              data.turn.attachments.length > 0
-            ) {
-              // Find the most recent user message with blob/data URL attachments
+            // Check if this is a user turn from this tab — update content/attachments
+            if (data.turn.role === "user") {
+              // Find the matching message — by attachments or by voice message placeholder
               for (let i = this.messages.length - 1; i >= 0; i--) {
                 const msg = this.messages[i];
-                if (
-                  msg.role === "user" &&
-                  msg.attachmentPreviews &&
-                  msg.attachmentPreviews.some(
-                    (att) =>
-                      att.preview &&
-                      (att.preview.startsWith("data:") ||
-                        att.preview.startsWith("blob:")),
-                  )
-                ) {
-                  // Update with server URLs
-                  msg.attachmentPreviews = this.buildAttachmentPreviews(
-                    data.turn.attachments,
-                  );
+                if (msg.role !== "user") continue;
+
+                const hasLocalAttachments = msg.attachmentPreviews?.some(
+                  (att) =>
+                    att.preview &&
+                    (att.preview.startsWith("data:") ||
+                      att.preview.startsWith("blob:")),
+                );
+                const isVoicePlaceholder = msg.content === "[Voice message]";
+
+                if (hasLocalAttachments || isVoicePlaceholder) {
+                  // Update attachment URLs if present
+                  if (data.turn.attachments?.length && hasLocalAttachments) {
+                    msg.attachmentPreviews = this.buildAttachmentPreviews(
+                      data.turn.attachments,
+                    );
+                  }
                   // Update content with transcript (voice messages get transcribed server-side)
                   if (data.turn.content && data.turn.content !== msg.content) {
                     msg.content = data.turn.content;
