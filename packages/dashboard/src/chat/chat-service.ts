@@ -515,7 +515,10 @@ export class AppChatService {
         a.mimeType.startsWith("audio/"),
       );
       if (audioAttachment) {
-        const sttResult = await this.transcribeAudio(audioAttachment.localPath);
+        const absoluteAudioPath = deps?.attachmentService
+          ? deps.attachmentService.getAbsolutePath(audioAttachment.localPath)
+          : audioAttachment.localPath;
+        const sttResult = await this.transcribeAudio(absoluteAudioPath);
         if (sttResult.text) {
           transcribedContent = `[Voice message] ${sttResult.text}`;
           // Replace content blocks with transcribed text for brain
@@ -528,11 +531,16 @@ export class AppChatService {
     }
 
     // ── Save user turn ──────────────────────────────────────────
+    // Use transcribed content for voice messages so the transcript shows actual text
+    const savedContent =
+      isAudioInput && transcribedContent !== expandedContent
+        ? transcribedContent
+        : content;
     const userTimestamp = new Date().toISOString();
     const userTurn: TranscriptTurn = {
       type: "turn",
       role: "user",
-      content,
+      content: savedContent,
       timestamp: userTimestamp,
       turnNumber,
       attachments: savedAttachments.length > 0 ? savedAttachments : undefined,
@@ -543,7 +551,7 @@ export class AppChatService {
     // Fire-and-forget search indexing
     if (deps?.conversationSearchService) {
       deps.conversationSearchService
-        .indexTurn(convId, turnNumber, "user", content)
+        .indexTurn(convId, turnNumber, "user", savedContent)
         .catch(() => {});
     }
 
