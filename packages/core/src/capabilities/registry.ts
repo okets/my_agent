@@ -107,6 +107,11 @@ export class CapabilityRegistry {
       cap.health = 'healthy'
       cap.lastTestLatencyMs = result.latencyMs
       cap.degradedReason = undefined
+    } else if (result.message?.includes('not found')) {
+      // Script not yet written (builder still working) — keep untested, don't mark degraded
+      cap.health = 'untested'
+      cap.degradedReason = undefined
+      cap.lastTestLatencyMs = undefined
     } else {
       cap.health = 'degraded'
       cap.degradedReason = result.message

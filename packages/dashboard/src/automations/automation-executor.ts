@@ -187,11 +187,11 @@ export class AutomationExecutor {
         screenshotIds.push(ss.id);
       });
 
-      // 5. Build MCP servers for worker (fresh instances for in-process SDK servers)
-      const { buildMcpServersForSession } =
-        await import("../agent/session-manager.js");
-      const sessionServers = await buildMcpServersForSession();
-      const workerMcpServers = { ...sessionServers };
+      // 5. Build MCP servers for worker — fresh instances only, never shared singletons.
+      // Shared MCP servers (space-tools, automation-tools, skills, etc.) are bound to the
+      // brain's transport and cannot be reused by worker sessions. Workers only get fresh
+      // chart/image servers when visual capabilities are needed.
+      const workerMcpServers: NonNullable<Options["mcpServers"]> = {};
       if (this.config.visualService) {
         const vs = this.config.visualService;
         workerMcpServers["chart-tools"] = createChartServer({
@@ -411,7 +411,17 @@ export class AutomationExecutor {
             tools: WORKER_TOOLS,
             settingSources: ["project"],
             additionalDirectories: [this.config.agentDir],
-            mcpServers: this.config.mcpServers,
+            // Use fresh chart/image servers if visual service available, never shared singletons
+            mcpServers: this.config.visualService
+              ? {
+                  "chart-tools": createChartServer({
+                    visualService: this.config.visualService,
+                  }),
+                  "image-fetch-tools": createImageFetchServer({
+                    visualService: this.config.visualService,
+                  }),
+                }
+              : undefined,
             hooks: this.config.hooks,
             includePartialMessages: false,
           });

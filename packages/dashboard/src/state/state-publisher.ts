@@ -276,6 +276,9 @@ export class StatePublisher {
         interface: c.interface,
         status: c.status,
         unavailableReason: c.unavailableReason,
+        health: c.health,
+        lastTestLatencyMs: c.lastTestLatencyMs,
+        degradedReason: c.degradedReason,
       })),
     });
   }
@@ -372,6 +375,9 @@ export class StatePublisher {
           interface: c.interface,
           status: c.status,
           unavailableReason: c.unavailableReason,
+          health: c.health,
+          lastTestLatencyMs: c.lastTestLatencyMs,
+          degradedReason: c.degradedReason,
         })),
       });
       if (socket.readyState === 1) {

@@ -1235,12 +1235,10 @@ export class App extends EventEmitter {
           jobService: app.automationJobService,
           agentDir,
           db: convDb,
-          get mcpServers() {
-            // Note: Working Ninas need fresh MCP server instances for
-            // in-process SDK servers (concurrent transport binding).
-            // The executor calls buildMcpServersForSession() at run time.
-            return getSharedMcpServers() ?? undefined;
-          },
+          // Workers must NOT use shared MCP servers — they're bound to the brain's
+          // transport and crash with "Already connected" errors. The executor creates
+          // fresh chart/image servers when needed. Keep undefined for resume path too.
+          mcpServers: undefined,
           hooks: createHooks("task", { agentDir }),
           visualService: app.visualActionService,
         });

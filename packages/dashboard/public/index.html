@@ -5652,6 +5652,7 @@
                     <template x-if="msg.audioUrl">
                       <div class="mt-2">
                         <audio :src="msg.audioUrl" controls preload="none"
+                               x-init="if (msg.autoplay) { $nextTick(() => $el.play().catch(() => {})) }"
                                class="w-full h-8 rounded-lg opacity-80"
                                style="filter: sepia(20%) saturate(70%) hue-rotate(210deg);"
                                @error="$el.parentElement.style.display='none'">
@@ -8732,6 +8733,7 @@
                     <template x-if="msg.audioUrl">
                       <div class="mt-2">
                         <audio :src="msg.audioUrl" controls preload="none"
+                               x-init="if (msg.autoplay) { $nextTick(() => $el.play().catch(() => {})) }"
                                class="w-full h-8 rounded-lg opacity-80"
                                style="filter: sepia(20%) saturate(70%) hue-rotate(210deg);"
                                @error="$el.parentElement.style.display='none'">

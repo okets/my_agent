@@ -121,6 +121,7 @@ function chat() {
     isRecording: false,
     mediaRecorder: null,
     audioChunks: [],
+    lastInputWasAudio: false,
     dragOver: false,
     wsConnected: false,
     ws: null,
@@ -1022,6 +1023,7 @@ function chat() {
           const reader = new FileReader();
           reader.onload = () => {
             const base64 = reader.result.split(",")[1];
+            this.lastInputWasAudio = true;
             this.ws.send({
               type: "message",
               content: "[Voice message]",
@@ -1401,7 +1403,10 @@ function chat() {
           console.log("[App] Response complete");
           if (data.audioUrl && this.currentAssistantMessage) {
             this.currentAssistantMessage.audioUrl = data.audioUrl;
+            // Autoplay voice replies when the user sent a voice message
+            this.currentAssistantMessage.autoplay = this.lastInputWasAudio || false;
           }
+          this.lastInputWasAudio = false;
           this.isResponding = false;
           this.isThinking = false;
           this.currentAssistantMessage = null;
@@ -1861,6 +1866,9 @@ function chat() {
 
         case "state:automations":
         case "state:jobs":
+        case "capabilities":
+        case "model_changed":
+        case "state:screenshot":
           // Handled by ws-client.js → Alpine store
           break;
 
