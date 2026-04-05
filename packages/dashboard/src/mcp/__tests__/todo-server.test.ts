@@ -2,12 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { createTodoTools } from "../todo-server.js";
+import { createTodoTools, type ValidatorFn } from "../todo-server.js";
 import {
   readTodoFile,
   writeTodoFile,
   createEmptyTodoFile,
 } from "../../automations/todo-file.js";
+import { runValidation } from "../../automations/todo-validators.js";
 
 describe("todo-server tools", () => {
   let tmpDir: string;
@@ -111,5 +112,123 @@ describe("todo-server tools", () => {
     expect(new Date(after).getTime()).toBeGreaterThanOrEqual(
       new Date(before).getTime(),
     );
+  });
+});
+
+describe("todo-server validation", () => {
+  let tmpDir: string;
+  let todoPath: string;
+  let tools: ReturnType<typeof createTodoTools>;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "todo-val-"));
+    todoPath = path.join(tmpDir, "todos.json");
+    createEmptyTodoFile(todoPath);
+    tools = createTodoTools(todoPath, runValidation);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("todo_update with validation rejects when validator fails", async () => {
+    // Pre-populate with mandatory item that has a validator
+    const file = readTodoFile(todoPath);
+    file.items.push({
+      id: "t1",
+      text: "Fill completion report",
+      status: "in_progress",
+      mandatory: true,
+      validation: "completion_report",
+      created_by: "framework",
+    });
+    writeTodoFile(todoPath, file);
+
+    // No deliverable.md exists, so validator should fail
+    const result = await tools.todo_update({ id: "t1", status: "done" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("deliverable.md");
+    // Item should still be in_progress
+    expect(readTodoFile(todoPath).items[0].status).toBe("in_progress");
+    // validation_attempts should be 1
+    expect(readTodoFile(todoPath).items[0].validation_attempts).toBe(1);
+  });
+
+  it("todo_update auto-blocks after 3 failed validations", async () => {
+    const file = readTodoFile(todoPath);
+    file.items.push({
+      id: "t1",
+      text: "Fill report",
+      status: "in_progress",
+      mandatory: true,
+      validation: "completion_report",
+      created_by: "framework",
+      validation_attempts: 2, // Already failed twice
+    });
+    writeTodoFile(todoPath, file);
+
+    const result = await tools.todo_update({ id: "t1", status: "done" });
+    expect(result.isError).toBe(true);
+    // Should be auto-blocked now
+    const item = readTodoFile(todoPath).items[0];
+    expect(item.status).toBe("blocked");
+    expect(item.validation_attempts).toBe(3);
+  });
+
+  it("todo_update passes validation when deliverable is valid", async () => {
+    // Write a valid deliverable
+    fs.writeFileSync(
+      path.join(tmpDir, "deliverable.md"),
+      ["---", "change_type: configure", "---", "Done."].join("\n"),
+    );
+
+    const file = readTodoFile(todoPath);
+    file.items.push({
+      id: "t1",
+      text: "Fill completion report",
+      status: "in_progress",
+      mandatory: true,
+      validation: "completion_report",
+      created_by: "framework",
+    });
+    writeTodoFile(todoPath, file);
+
+    const result = await tools.todo_update({ id: "t1", status: "done" });
+    expect(result.isError).toBeUndefined();
+    expect(readTodoFile(todoPath).items[0].status).toBe("done");
+  });
+
+  it("non-mandatory items skip validation", async () => {
+    const file = readTodoFile(todoPath);
+    file.items.push({
+      id: "t1",
+      text: "Optional task",
+      status: "in_progress",
+      mandatory: false,
+      validation: "completion_report",
+      created_by: "agent",
+    });
+    writeTodoFile(todoPath, file);
+
+    // No deliverable.md — but should pass because not mandatory
+    const result = await tools.todo_update({ id: "t1", status: "done" });
+    expect(result.isError).toBeUndefined();
+    expect(readTodoFile(todoPath).items[0].status).toBe("done");
+  });
+
+  it("items without validation skip validation check", async () => {
+    const file = readTodoFile(todoPath);
+    file.items.push({
+      id: "t1",
+      text: "No validator",
+      status: "in_progress",
+      mandatory: true,
+      created_by: "delegator",
+    });
+    writeTodoFile(todoPath, file);
+
+    const result = await tools.todo_update({ id: "t1", status: "done" });
+    expect(result.isError).toBeUndefined();
+    expect(readTodoFile(todoPath).items[0].status).toBe("done");
   });
 });

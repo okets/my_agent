@@ -11,10 +11,19 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { readTodoFile, writeTodoFile } from "../automations/todo-file.js";
-import type { TodoItem, TodoFile } from "@my-agent/core";
+import type { TodoItem, TodoFile, ValidationResult } from "@my-agent/core";
+import path from "node:path";
+
+export type ValidatorFn = (
+  ruleId: string,
+  dir: string,
+) => ValidationResult;
 
 /** Bare tool handlers — testable without MCP server */
-export function createTodoTools(todoPath: string) {
+export function createTodoTools(
+  todoPath: string,
+  validatorFn?: ValidatorFn,
+) {
   function touch(file: TodoFile): TodoFile {
     file.last_activity = new Date().toISOString();
     return file;
@@ -87,6 +96,46 @@ export function createTodoTools(todoPath: string) {
         };
       }
 
+      // Validation check: when marking a validated mandatory item as "done"
+      if (
+        args.status === "done" &&
+        item.mandatory &&
+        item.validation &&
+        validatorFn
+      ) {
+        const jobDir = path.dirname(todoPath);
+        const result = validatorFn(item.validation, jobDir);
+        if (!result.pass) {
+          item.validation_attempts = (item.validation_attempts || 0) + 1;
+          if (item.validation_attempts >= 3) {
+            item.status = "blocked";
+            item.notes = `Validation failed 3 times: ${result.message}`;
+            touch(file);
+            writeTodoFile(todoPath, file);
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Validation failed 3 times. Item ${item.id} marked blocked. The framework will flag this for review.`,
+                },
+              ],
+              isError: true,
+            };
+          }
+          touch(file);
+          writeTodoFile(todoPath, file);
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Cannot mark done: ${result.message}. Fix and try again. (attempt ${item.validation_attempts}/3)`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
       if (args.status) item.status = args.status as TodoItem["status"];
       if (args.notes !== undefined) item.notes = args.notes;
       touch(file);
@@ -136,8 +185,11 @@ export function createTodoTools(todoPath: string) {
 }
 
 /** MCP server factory — creates a new server instance per job/conversation */
-export function createTodoServer(todoPath: string) {
-  const tools = createTodoTools(todoPath);
+export function createTodoServer(
+  todoPath: string,
+  validatorFn?: ValidatorFn,
+) {
+  const tools = createTodoTools(todoPath, validatorFn);
 
   return createSdkMcpServer({
     name: "todo",
