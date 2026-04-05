@@ -1362,11 +1362,7 @@ export class App extends EventEmitter {
               job.automationId,
             );
             const name = automation?.manifest.name ?? job.automationId;
-            const label =
-              job.status === "interrupted"
-                ? `${job.status} (interrupted)`
-                : job.status;
-            return `${name} (job ${job.id}, status: ${label})`;
+            return `${name} (job ${job.id}, status: ${job.status})`;
           });
         });
         console.log("[App] Running tasks checker wired to automation jobs");
