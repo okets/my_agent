@@ -99,6 +99,20 @@ Same as S6: **fix the process, not the instance.** When the modify flow fails, f
 
 ---
 
+### Process Fix: Guaranteed Paper Trail (from S8 iteration 1)
+
+| # | Task | Files | Details |
+|---|------|-------|---------|
+| 18 | Add `target_path` to AutomationManifest + CreateAutomationInput | `packages/core/src/spaces/automation-types.ts` | Optional string field. Set by `create_automation` for artifact-producing jobs. Null for research/summary jobs |
+| 19 | Add `target_path` to create_automation MCP tool schema | `packages/dashboard/src/mcp/automation-server.ts` | New param, pass through to manifest |
+| 20 | Pass `target_path` through automation-manager.create() | `packages/dashboard/src/automations/automation-manager.ts` | Wire the field |
+| 21 | Executor reads target_path from manifest, frontmatter as fallback | `packages/dashboard/src/automations/automation-executor.ts` | `automation.manifest.target_path ?? frontmatter.target_path`. Guaranteed entry when manifest has it |
+| 22 | Demote builder frontmatter from MUST to SHOULD | `packages/core/src/agents/definitions.ts` | Frontmatter is optional enrichment, not required for paper trail |
+
+**Design spec:** [paper-trail-v2-guaranteed.md](../../design/paper-trail-v2-guaranteed.md)
+
+---
+
 ## Deliverables
 
 - Verified modify flow (detection → context → classification → build → test → paper trail)

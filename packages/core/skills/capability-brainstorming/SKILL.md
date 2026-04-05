@@ -95,7 +95,7 @@ Once the user confirms:
    - Expected script I/O format
    - Any dependencies to install
    - **Template reference** — if a template exists, include it so the builder follows the contract exactly
-2. **Create a tracked task/job** for the builder work — do NOT run it inline in the conversation. The builder must leave a paper trail.
+2. **Create a tracked automation** for the builder work — do NOT run it inline in the conversation. When calling `create_automation`, always include `target_path` set to the capability folder path (e.g., `.my_agent/capabilities/stt-deepgram`). This enables the framework to write a guaranteed paper trail entry to DECISIONS.md after the job completes.
 3. **Build capabilities ONE AT A TIME, sequentially.** Do NOT launch multiple builder jobs in parallel — they share MCP resources and will collide. Wait for the first to complete before starting the next.
 4. Monitor progress — the builder will escalate if it hits issues
 5. **Work is not done until the framework's test harness passes** — if `registry.test()` is available, run it

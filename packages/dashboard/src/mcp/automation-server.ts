@@ -72,6 +72,12 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         .boolean()
         .optional()
         .describe("true = fire once and auto-disable"),
+      target_path: z
+        .string()
+        .optional()
+        .describe(
+          "Path to the artifact folder this job creates or modifies (e.g., .my_agent/capabilities/stt-deepgram). When set, the framework writes a paper trail entry to DECISIONS.md at this path after job completion.",
+        ),
     },
     async (args) => {
       try {
@@ -85,6 +91,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
             notify: args.notify,
             autonomy: args.autonomy,
             once: args.once,
+            target_path: args.target_path,
           },
         });
 

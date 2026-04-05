@@ -353,9 +353,31 @@ export class AutomationExecutor {
         screenshotIds,
       });
 
-      // 11. Paper trail: if deliverable has target_path frontmatter, append to DECISIONS.md
-      if (finalDeliverable) {
-        this.writePaperTrail(finalDeliverable, automation, job);
+      // 11. Paper trail: write DECISIONS.md at artifact path
+      // target_path source cascade (most reliable first):
+      //   1. manifest.target_path (schema field, set by create_automation)
+      //   2. regex from automation instructions (code-guaranteed fallback)
+      //   3. deliverable frontmatter (optional LLM enrichment)
+      const manifestTargetPath = automation.manifest.target_path;
+      const instructionsTargetPath = this.extractTargetPath(
+        automation.instructions,
+      );
+      const frontmatterData = finalDeliverable
+        ? parseFrontmatterContent<{ target_path?: string }>(finalDeliverable)
+            .data
+        : undefined;
+      const targetPath =
+        manifestTargetPath ??
+        instructionsTargetPath ??
+        frontmatterData?.target_path;
+
+      if (targetPath) {
+        this.writePaperTrail(
+          targetPath,
+          finalDeliverable ?? "",
+          automation,
+          job,
+        );
       }
 
       console.log(
@@ -618,17 +640,31 @@ export class AutomationExecutor {
   }
 
   /**
-   * Write paper trail: parse deliverable frontmatter, append structured entry to DECISIONS.md
-   * at the target artifact path. Non-fatal — failures are logged but don't affect job status.
+   * Extract target_path from automation instructions by looking for
+   * .my_agent/capabilities/<name>/ patterns. Code-guaranteed fallback
+   * that doesn't depend on any LLM passing a field.
+   */
+  private extractTargetPath(instructions: string): string | undefined {
+    const match = instructions.match(
+      /\.my_agent\/capabilities\/[a-z0-9_-]+\/?/i,
+    );
+    return match ? match[0].replace(/\/$/, "") : undefined;
+  }
+
+  /**
+   * Write paper trail: append structured entry to DECISIONS.md at the target artifact path.
+   * target_path comes from the manifest (guaranteed) or frontmatter (enrichment).
+   * Non-fatal — failures are logged but don't affect job status.
    */
   private writePaperTrail(
+    targetPath: string,
     deliverable: string,
     automation: Automation,
     job: Job,
   ): void {
     try {
+      // Parse frontmatter for optional enrichment fields
       const { data } = parseFrontmatterContent<{
-        target_path?: string;
         change_type?: string;
         provider?: string;
         test_result?: string;
@@ -636,13 +672,7 @@ export class AutomationExecutor {
         files_changed?: string[];
       }>(deliverable);
 
-      if (!data.target_path) return; // Non-artifact job, skip
-
-      const targetDir = path.resolve(
-        this.config.agentDir,
-        "..",
-        data.target_path,
-      );
+      const targetDir = path.resolve(this.config.agentDir, "..", targetPath);
       const decisionsPath = path.join(targetDir, "DECISIONS.md");
       const date = new Date().toISOString().slice(0, 10);
       const changeType = data.change_type ?? "unknown";

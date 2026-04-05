@@ -53,6 +53,7 @@ export class AutomationManager {
       autonomy: input.manifest.autonomy ?? "full",
       once: input.manifest.once,
       created: input.manifest.created ?? new Date().toISOString(),
+      target_path: input.manifest.target_path,
     };
 
     // Ensure directory exists
@@ -214,8 +215,9 @@ export class AutomationManager {
    * Get by ID from agent.db.
    */
   findById(id: string): Automation | null {
-    const automations = this.list();
-    return automations.find((a) => a.id === id) ?? null;
+    // Read from disk to get full content including instructions
+    // (list() returns DB rows with empty instructions)
+    return this.read(id);
   }
 
   /**
@@ -295,6 +297,7 @@ export class AutomationManager {
     if (manifest.autonomy && manifest.autonomy !== "full")
       fm.autonomy = manifest.autonomy;
     if (manifest.once) fm.once = manifest.once;
+    if (manifest.target_path) fm.target_path = manifest.target_path;
 
     return fm;
   }

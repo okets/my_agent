@@ -96,49 +96,6 @@ In CAPABILITY.md and deliverables, always write:
 - "The capability activates automatically" (not "restart the service")
 Users interact through the dashboard UI, not the terminal.
 
-## Deliverable Frontmatter
-
-Your deliverable MUST start with YAML frontmatter so the framework can write a paper trail:
-
-\`\`\`yaml
----
-target_path: .my_agent/capabilities/<capability-name>
-change_type: create  # or configure, upgrade, fix, replace
-provider: <provider name>
-test_result: healthy  # or degraded, untested
-test_duration_ms: <ms>
-files_changed:
-  - CAPABILITY.md
-  - scripts/transcribe.sh
-  - config.yaml
----
-
-Your deliverable body here...
-\`\`\`
-
-- \`target_path\`: the artifact folder this job created or modified (relative to agent dir root)
-- \`change_type\`: create | configure | upgrade | fix | replace
-- \`test_result\`: healthy | degraded | untested (from test harness)
-- \`test_duration_ms\`: test latency in milliseconds (omit if untested)
-- \`files_changed\`: list of files created or modified inside the capability folder
-
-If this is a modify job, read the existing DECISIONS.md at the target path before making changes.
-
-## Modify Specs
-
-When you receive a modify spec (instead of a create spec), it includes:
-- **Target path** — the existing capability folder
-- **Change type** — configure, upgrade, fix, or replace
-- **What to change** — the specific modification requested
-- **What to preserve** — things that must not break
-
-For modify jobs:
-1. Read DECISIONS.md and the existing code before changing anything
-2. Make minimal, targeted changes matching the change type
-3. Set \`change_type\` in your deliverable frontmatter to match the spec
-4. Run the test harness to verify nothing broke
-5. If \`resume_from_job\` is specified, you may have prior session context — use it
-
 ## Testing
 Your work is not done until the framework's test harness passes against your script.
 
