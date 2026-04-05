@@ -784,6 +784,7 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 Fix Nina's agentic flow so she follows orders, delegates reliably, and communicates status. Addresses all systemic issues identified in M9-S8.
 
 **Design spec:** [agentic-flow-overhaul.md](design/agentic-flow-overhaul.md)
+**Implementation plan:** [2026-04-05-agentic-flow-overhaul.md](plans/2026-04-05-agentic-flow-overhaul.md)
 **Systemic analysis:** [m9-systemic-issues.md](design/m9-systemic-issues.md)
 
 | Sprint | Name | Status | Scope |
