@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-01 (M9 status update: S1-S3.1 complete, S4 failed, M8 complete)
+> **Updated:** 2026-04-05 (M9 complete, M9.1 Agentic Flow Overhaul designed)
 
 ---
 
@@ -25,7 +25,8 @@
 | **M6.10: Headless App**     | **Complete** | 4/4 sprints, 682 tests, headless App + debug service + mock sessions |
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
 | **M8: Visual & Desktop Automation** | Complete | 8/8 sprints (S1-S5.1), 884 tests |
-| **M9: Capability System** | **Active** | 6/9 sprints done (S1-S3.1, S5-S6), S4 failed. S7-S8 planned (paper trail + modify test). Voice E2E working |
+| **M9: Capability System** | Complete | 8/8 sprints (S1-S3.1, S5-S8), S4 failed/absorbed. Voice E2E working. Paper trail v2 done. |
+| **M9.1: Agentic Flow Overhaul** | **Active** | Design approved. Todo system, heartbeat service, enforcement hooks, restart recovery. |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -47,10 +48,18 @@ COMPLETED (M8)
 ══════════════
 M8 Visual & Desktop Automation — 884 tests
 
-FUTURE (M9–M14) — ~24 sprints to release
-═════════════════════════════════════════
-M9 Capabilities ──► M10 Channel SDK ──► M11 External Comms ──► M12 iOS ──► M13 Hardening ──► M14 Release
-  (9 sprints)         (4 sprints)          (2 sprints)           (3 sprints)   (5 sprints)       (2 sprints)
+COMPLETED (M9)
+══════════════
+M9 Capability System — 8 sprints, Voice E2E, paper trail v2
+
+ACTIVE (M9.1)
+═════════════
+M9.1 Agentic Flow Overhaul — todo system, heartbeat, enforcement, restart recovery
+
+FUTURE (M10–M14) — ~16 sprints to release
+══════════════════════════════════════════
+M10 Channel SDK ──► M11 External Comms ──► M12 iOS ──► M13 Hardening ──► M14 Release
+  (4 sprints)          (2 sprints)           (3 sprints)   (5 sprints)       (2 sprints)
 ```
 
 ---
@@ -732,7 +741,7 @@ Nina can see and interact with GUI applications. All visual actions (desktop con
 
 ---
 
-### M9: Capability System — IN PROGRESS
+### M9: Capability System — COMPLETE
 
 Self-extending agent capabilities. The agent itself can research, build, and install new capabilities (voice, image generation, custom tools) — using Claude's coding ability. The framework provides conventions and a registry; the agent does the rest. Voice (STT/TTS) is the proving ground.
 
@@ -748,8 +757,8 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 | S4 | The Real Test | **Failed** | Agent lacked awareness of extension framework — gave generic LLM advice instead of using capability system. Root causes: brainstorming skill didn't fire, no persistent brain awareness, no measurable contract for builder output — [plan](sprints/m9-s4-real-test/plan.md) |
 | S5 | Capability Templates + Test Harness | **Done** | Fixed brainstorming skill triggering, notebook reference (permanent brain awareness), 3 framework-authored templates with TDD-like test contracts, test harness in registry (`registry.test()`, health field, non-blocking validation-on-activation/startup, debug API), builder/brainstorming updates (template precedence, composites, self-healing), 45 tests — [plan](sprints/m9-s5-capability-templates/plan.md) · [review](sprints/m9-s5-capability-templates/review.md) |
 | S6 | The Real Test (Retry) | **Done** | Nina created Deepgram STT + Edge TTS from scratch via tracked jobs. Voice E2E on dashboard + WhatsApp. Also fixed: MCP transport collision, job monitoring (3-layer), WhatsApp bleed #3, voice UX (autoplay queue, voice mode hint, prepareForSpeech, transcript display, split-turn TTS) — [plan](sprints/m9-s6-real-test-retry/plan.md) · [lessons](sprints/m9-s6-real-test-retry/lessons-learned.md) |
-| S7 | Universal Paper Trail | Planned | Builder deliverable frontmatter (target_path, change_type), executor post-completion hook (parse → write DECISIONS.md at artifact), session resumption (resume_from_job), brainstorming modify flow (detect existing, read history, classify change type, spawn modify builder), retroactive DECISIONS.md for existing capabilities — [plan](sprints/m9-s7-paper-trail/plan.md) |
-| S8 | Modify Test — Hebrew Voice | Planned | Ask Nina to add Hebrew to existing STT. Validates: modify detection, context recovery from DECISIONS.md, session resumption, config-only change (not rebuild), test harness after modify, paper trail with job links, Hebrew E2E on both channels — [plan](sprints/m9-s8-modify-test/plan.md) |
+| S7 | Universal Paper Trail | **Done** | Paper trail v2: guaranteed writes via regex extraction, executor post-completion DECISIONS.md, session resumption support, brainstorming modify flow — [plan](sprints/m9-s7-paper-trail/plan.md) · [review](sprints/m9-s7-paper-trail/review.md) |
+| S8 | Paper Trail + Infra Fixes | **Done (PASS WITH CONCERNS)** | Validated paper trail on real builds, found 9 systemic issues + 3 dev issues. Paper trail works but agentic flow unreliable. Systemic analysis → M9.1 — [plan](sprints/m9-s8-modify-test/plan.md) · [review](sprints/m9-s8-modify-test/review.md) · [systemic issues](design/m9-systemic-issues.md) |
 
 **Key design decisions (resolved in spec):**
 - Capabilities are files (CAPABILITY.md + scripts), not code registrations — auto-discovered from `.my_agent/capabilities/`
@@ -767,6 +776,43 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 - Old M12-S6 (Self-Service MCP Integration) — capability system supersedes the MCP-specific approach
 
 **Dependencies:** M8 (rich I/O — capabilities build on the visual pipeline and asset serving). M8 complete.
+
+---
+
+### M9.1: Agentic Flow Overhaul — ACTIVE
+
+Fix Nina's agentic flow so she follows orders, delegates reliably, and communicates status. Addresses all systemic issues identified in M9-S8.
+
+**Design spec:** [agentic-flow-overhaul.md](design/agentic-flow-overhaul.md)
+**Systemic analysis:** [m9-systemic-issues.md](design/m9-systemic-issues.md)
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Todo System + MCP Server | Planned | `todo-server` MCP (4 tools), `TodoItem` type, JSON storage per session, wired to all agent sessions |
+| S2 | Todo Templates + Validation | Planned | Static templates (`capability_build`, `capability_modify`), validation registry, `create_automation` gets `todos` + `job_type` fields, 3-layer assembly in executor, job completion gating |
+| S3 | Heartbeat Jobs Service | Planned | 30s interval loop, stale job detection (5min threshold via todo activity), persistent notification queue (`pending/` → `delivered/`), capability health checks (hourly), notification delivery unification |
+| S4 | Enforcement Hooks | Planned | Source code protection (all Ninas), capability routing (Conversation Nina), todo completion check (Working Nina), updated trust model |
+| S5 | Status Communication + System Prompt | Planned | Enhanced `check_job_status` with todo progress, `[Pending Briefing]` section in system prompt, `[Your Pending Tasks]` for Conversation Nina, 3-channel delivery (pull/push/briefing) |
+| S6 | Restart Recovery | Planned | Startup recovery sequence (mark interrupted → notify → clean stale → re-scan → start heartbeat), `interrupted` job status, resume flow (SDK session + todo state), fresh-session fallback |
+| S7 | Infrastructure Fixes + Integration Test | Planned | Scanner loudness, findById from disk, builder prompt simplification, target_path from manifest. E2E test: create capability → verify paper trail → modify → verify updated → interrupt → recover → resume |
+| S8 | The Real Test | Planned | Ask Nina to build a new capability and modify an existing one. Validate: todo-driven execution, heartbeat notifications, restart recovery, paper trail completeness. Voice sprint follows if passed. |
+
+**Key design decisions:**
+- Todo system is an MCP server, not reused from Claude Code (needs persistence, mandatory items, validation)
+- Conversation Nina defines the todo list when delegating — she's the project manager
+- Static templates for known job types add mandatory process items
+- Heartbeat detects stale jobs through todo file activity, not worker-sent heartbeats
+- Persistent notification queue on disk replaces in-memory queue
+- Source code protection prevents Nina from modifying framework code (self-harm prevention)
+- Capability routing forces Conversation Nina through automation flow (no inline edits)
+
+**Absorbs:**
+- M9-S7 (Paper Trail) — paper trail reliability now handled by todo templates + validation
+- M9-S8 (Modify Test) — retry after agentic flow is solid
+
+**Dependencies:** M9 (capability system complete), M7 (automation infrastructure)
+
+**Follow-up:** Voice sprint after M9.1 passes — concurrent message handling, voice UX, E2E voice testing with working agentic flow underneath.
 
 ---
 
