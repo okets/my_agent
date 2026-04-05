@@ -103,9 +103,10 @@ describe("Automation type definitions", () => {
       "completed",
       "failed",
       "needs_review",
+      "interrupted",
     ];
-    expect(statuses).toHaveLength(5);
-    expect(new Set(statuses).size).toBe(5);
+    expect(statuses).toHaveLength(6);
+    expect(new Set(statuses).size).toBe(6);
   });
 
   it("Job interface has correct shape", () => {

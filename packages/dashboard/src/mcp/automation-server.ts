@@ -357,6 +357,10 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         ...baseFilter,
         status: "pending",
       });
+      const interruptedJobs = deps.jobService.listJobs({
+        ...baseFilter,
+        status: "interrupted",
+      });
       const reviewJobs = deps.jobService.listJobs({
         ...baseFilter,
         status: "needs_review",
@@ -364,8 +368,8 @@ export function createAutomationServer(deps: AutomationServerDeps) {
 
       const sections: string[] = [];
 
-      // Active jobs
-      const activeJobs = [...runningJobs, ...pendingJobs];
+      // Active jobs (including interrupted — they need attention)
+      const activeJobs = [...runningJobs, ...pendingJobs, ...interruptedJobs];
       if (activeJobs.length > 0) {
         const lines = activeJobs.map((job) => {
           const automation = deps.automationManager.findById(job.automationId);

@@ -210,6 +210,10 @@ export type {
   Automation, AutomationManifest, TriggerConfig,
   Job, JobStatus, CreateAutomationInput,
 } from './spaces/index.js'
+export type {
+  TodoStatus, TodoCreator, TodoItem, TodoFile,
+  TodoTemplate, ValidationResult,
+} from './spaces/index.js'
 
 // Visual action pipeline (M8-S1, refactored S3.5)
 export type {

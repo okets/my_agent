@@ -295,9 +295,9 @@ export class AutomationJobService {
         if (!jobStat.isDirectory()) continue;
         if (jobStat.mtimeMs > cutoff) continue;
 
-        // Check if job is needs_review -- don't prune
+        // Check if job is needs_review or interrupted -- don't prune
         const job = this.getJob(jobDir);
-        if (job?.status === "needs_review") continue;
+        if (job?.status === "needs_review" || job?.status === "interrupted") continue;
 
         // Check if automation has once: true -- keep indefinitely
         const automation = this.db.getAutomation(automationDir);

@@ -18,7 +18,8 @@ export type JobEventName =
   | "job:created"
   | "job:completed"
   | "job:failed"
-  | "job:needs_review";
+  | "job:needs_review"
+  | "job:interrupted";
 
 export interface AutomationProcessorConfig {
   automationManager: AutomationManager;

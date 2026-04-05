@@ -1349,13 +1349,24 @@ export class App extends EventEmitter {
           const pendingJobs = app.automationJobService!.listJobs({
             status: "pending",
           });
-          const activeJobs = [...runningJobs, ...pendingJobs];
+          const interruptedJobs = app.automationJobService!.listJobs({
+            status: "interrupted",
+          });
+          const activeJobs = [
+            ...runningJobs,
+            ...pendingJobs,
+            ...interruptedJobs,
+          ];
           return activeJobs.map((job) => {
             const automation = app.automationManager!.findById(
               job.automationId,
             );
             const name = automation?.manifest.name ?? job.automationId;
-            return `${name} (job ${job.id}, status: ${job.status})`;
+            const label =
+              job.status === "interrupted"
+                ? `${job.status} (interrupted)`
+                : job.status;
+            return `${name} (job ${job.id}, status: ${label})`;
           });
         });
         console.log("[App] Running tasks checker wired to automation jobs");

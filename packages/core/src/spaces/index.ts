@@ -19,3 +19,12 @@ export type {
   Job,
   CreateAutomationInput,
 } from './automation-types.js'
+
+export type {
+  TodoStatus,
+  TodoCreator,
+  TodoItem,
+  TodoFile,
+  TodoTemplate,
+  ValidationResult,
+} from './todo-types.js'
