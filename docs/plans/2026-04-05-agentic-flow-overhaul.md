@@ -12,6 +12,293 @@
 
 ---
 
+## Smoke Test Infrastructure (used by S2–S8)
+
+Every sprint from S2 onward has a live smoke test against the real dashboard with a real LLM. These tests are repeatable — a reset script returns the system to a known baseline so you can run the same test over and over until it passes consistently.
+
+### Reset script: `scripts/smoke-test-reset.sh`
+
+This script cleans all test artifacts and creates a known baseline. Safe to run repeatedly.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+AGENT_DIR="${MY_AGENT_DIR:-$HOME/.my_agent}"
+DASHBOARD_URL="${DASHBOARD_URL:-http://localhost:4321}"
+
+echo "=== Smoke Test Reset ==="
+
+# 1. Delete test automations, jobs, and run directories
+echo "[reset] Cleaning test automations..."
+find "$AGENT_DIR/automations" -name "smoke-test-*.md" -delete 2>/dev/null || true
+find "$AGENT_DIR/automations" -name "smoke-test-*.jsonl" -delete 2>/dev/null || true
+rm -rf "$AGENT_DIR/automations/.runs/smoke-test-"* 2>/dev/null || true
+rm -rf "$AGENT_DIR/automations/.sessions/smoke-test-"* 2>/dev/null || true
+
+# 2. Delete test notifications
+echo "[reset] Cleaning test notifications..."
+rm -rf "$AGENT_DIR/notifications/pending/"*smoke-test* 2>/dev/null || true
+rm -rf "$AGENT_DIR/notifications/delivered/"*smoke-test* 2>/dev/null || true
+
+# 3. Delete test capability (will be recreated)
+echo "[reset] Cleaning test capability..."
+rm -rf "$AGENT_DIR/capabilities/smoke-test-cap" 2>/dev/null || true
+
+# 4. Create a known test capability to modify
+echo "[reset] Creating baseline test capability..."
+mkdir -p "$AGENT_DIR/capabilities/smoke-test-cap/scripts"
+cat > "$AGENT_DIR/capabilities/smoke-test-cap/CAPABILITY.md" << 'CAPEOF'
+---
+name: Smoke Test Capability
+provides: smoke-test
+interface: script
+requires:
+  env: []
+---
+
+A dummy capability for smoke testing the agentic flow.
+Script echoes input back with a prefix.
+CAPEOF
+
+cat > "$AGENT_DIR/capabilities/smoke-test-cap/scripts/process.sh" << 'SCRIPTEOF'
+#!/usr/bin/env bash
+echo '{"result": "smoke-test-echo: '"$1"'"}'
+SCRIPTEOF
+chmod +x "$AGENT_DIR/capabilities/smoke-test-cap/scripts/process.sh"
+
+cat > "$AGENT_DIR/capabilities/smoke-test-cap/config.yaml" << 'CONFEOF'
+language: en
+format: json
+CONFEOF
+
+# 5. Initialize empty DECISIONS.md
+cat > "$AGENT_DIR/capabilities/smoke-test-cap/DECISIONS.md" << 'DECEOF'
+# Decisions
+DECEOF
+
+# 6. Restart dashboard to pick up clean state
+echo "[reset] Restarting dashboard..."
+systemctl --user restart nina-dashboard.service
+sleep 3
+
+# 7. Health check
+echo "[reset] Checking dashboard health..."
+if curl -sf "$DASHBOARD_URL/health" > /dev/null 2>&1; then
+  echo "[reset] Dashboard is healthy"
+else
+  echo "[reset] WARNING: Dashboard health check failed"
+  exit 1
+fi
+
+echo "=== Reset Complete ==="
+echo "Baseline: smoke-test-cap capability at $AGENT_DIR/capabilities/smoke-test-cap/"
+echo "Ready for smoke test."
+```
+
+### Test runner: `scripts/smoke-test-run.sh`
+
+Fires a real automation against the live dashboard and verifies artifacts on disk.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+AGENT_DIR="${MY_AGENT_DIR:-$HOME/.my_agent}"
+DASHBOARD_URL="${DASHBOARD_URL:-http://localhost:4321}"
+PASS=true
+
+echo "=== Smoke Test: Agentic Flow ==="
+
+# Step 1: Create a capability_modify automation via admin API
+echo "[test] Creating automation..."
+AUTOMATION_RESPONSE=$(curl -sf "$DASHBOARD_URL/api/automations" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "smoke-test-modify-cap",
+    "instructions": "Modify the smoke-test-cap capability: add a --verbose flag to process.sh that prints extra debug output. Update config.yaml to include verbose: true.",
+    "todos": [
+      {"text": "Read current process.sh and config.yaml"},
+      {"text": "Add --verbose flag handling to process.sh"},
+      {"text": "Update config.yaml with verbose: true"},
+      {"text": "Test the script with and without --verbose"}
+    ],
+    "job_type": "capability_modify",
+    "target_path": ".my_agent/capabilities/smoke-test-cap",
+    "trigger": [{"type": "manual"}],
+    "notify": "immediate",
+    "once": true
+  }')
+
+AUTOMATION_ID=$(echo "$AUTOMATION_RESPONSE" | grep -oP '"id"\s*:\s*"\K[^"]+' || echo "")
+if [ -z "$AUTOMATION_ID" ]; then
+  echo "[FAIL] Could not create automation"
+  exit 1
+fi
+echo "[test] Automation created: $AUTOMATION_ID"
+
+# Step 2: Fire the automation
+echo "[test] Firing automation..."
+curl -sf "$DASHBOARD_URL/api/automations/$AUTOMATION_ID/fire" -X POST > /dev/null
+
+# Step 3: Poll for job completion (timeout: 5 minutes)
+echo "[test] Waiting for job to complete..."
+TIMEOUT=300
+ELAPSED=0
+JOB_STATUS="pending"
+JOB_ID=""
+
+while [ "$ELAPSED" -lt "$TIMEOUT" ]; do
+  JOBS_RESPONSE=$(curl -sf "$DASHBOARD_URL/api/automations/$AUTOMATION_ID/jobs" || echo "")
+  JOB_STATUS=$(echo "$JOBS_RESPONSE" | grep -oP '"status"\s*:\s*"\K[^"]+' | head -1 || echo "pending")
+  JOB_ID=$(echo "$JOBS_RESPONSE" | grep -oP '"id"\s*:\s*"\K[^"]+' | head -1 || echo "")
+  
+  if [ "$JOB_STATUS" = "completed" ] || [ "$JOB_STATUS" = "needs_review" ] || [ "$JOB_STATUS" = "failed" ]; then
+    break
+  fi
+  
+  echo "  ... $JOB_STATUS (${ELAPSED}s)"
+  sleep 10
+  ELAPSED=$((ELAPSED + 10))
+done
+
+echo "[test] Job finished: status=$JOB_STATUS, id=$JOB_ID"
+
+# Step 4: Check artifacts
+echo ""
+echo "=== Artifact Verification ==="
+
+# 4a. Check todos.json
+RUN_DIR="$AGENT_DIR/automations/.runs/$AUTOMATION_ID/$JOB_ID"
+TODOS_FILE="$RUN_DIR/todos.json"
+
+if [ -f "$TODOS_FILE" ]; then
+  echo "[CHECK] todos.json exists: YES"
+  
+  # Count items by status
+  TOTAL=$(python3 -c "import json; d=json.load(open('$TODOS_FILE')); print(len(d['items']))")
+  DONE=$(python3 -c "import json; d=json.load(open('$TODOS_FILE')); print(len([i for i in d['items'] if i['status']=='done']))")
+  MANDATORY=$(python3 -c "import json; d=json.load(open('$TODOS_FILE')); print(len([i for i in d['items'] if i['mandatory']]))")
+  MANDATORY_DONE=$(python3 -c "import json; d=json.load(open('$TODOS_FILE')); print(len([i for i in d['items'] if i['mandatory'] and i['status']=='done']))")
+  
+  echo "[CHECK] Todo items: $DONE/$TOTAL done ($MANDATORY_DONE/$MANDATORY mandatory done)"
+  
+  if [ "$MANDATORY_DONE" -lt "$MANDATORY" ]; then
+    echo "[WARN] Not all mandatory items completed"
+    PASS=false
+  fi
+else
+  echo "[FAIL] todos.json NOT FOUND at $TODOS_FILE"
+  PASS=false
+fi
+
+# 4b. Check deliverable
+DELIVERABLE="$RUN_DIR/deliverable.md"
+if [ -f "$DELIVERABLE" ]; then
+  echo "[CHECK] deliverable.md exists: YES"
+  
+  # Check for change_type in frontmatter
+  if grep -q "change_type:" "$DELIVERABLE"; then
+    CHANGE_TYPE=$(grep "change_type:" "$DELIVERABLE" | head -1 | sed 's/.*change_type:\s*//')
+    echo "[CHECK] change_type: $CHANGE_TYPE"
+    if [ "$CHANGE_TYPE" = "unknown" ]; then
+      echo "[FAIL] change_type is 'unknown'"
+      PASS=false
+    fi
+  else
+    echo "[FAIL] No change_type in deliverable"
+    PASS=false
+  fi
+else
+  echo "[WARN] deliverable.md not found (may be in job response)"
+fi
+
+# 4c. Check DECISIONS.md was updated
+DECISIONS="$AGENT_DIR/capabilities/smoke-test-cap/DECISIONS.md"
+if [ -f "$DECISIONS" ]; then
+  ENTRY_COUNT=$(grep -c "^## " "$DECISIONS" || echo "0")
+  if [ "$ENTRY_COUNT" -gt 0 ]; then
+    echo "[CHECK] DECISIONS.md has $ENTRY_COUNT entries: YES"
+  else
+    echo "[WARN] DECISIONS.md exists but has no entries"
+  fi
+else
+  echo "[FAIL] DECISIONS.md not found"
+  PASS=false
+fi
+
+# 4d. Check job status
+echo "[CHECK] Final job status: $JOB_STATUS"
+if [ "$JOB_STATUS" != "completed" ]; then
+  echo "[FAIL] Expected 'completed', got '$JOB_STATUS'"
+  PASS=false
+fi
+
+# 4e. Check notification was created
+NOTIF_COUNT=$(find "$AGENT_DIR/notifications" -name "*$JOB_ID*" 2>/dev/null | wc -l)
+echo "[CHECK] Notifications for this job: $NOTIF_COUNT"
+
+echo ""
+echo "=== Results ==="
+if [ "$PASS" = true ]; then
+  echo "SMOKE TEST: PASS"
+  echo "All checks passed. The agentic flow works correctly."
+else
+  echo "SMOKE TEST: FAIL"
+  echo "Some checks failed. Review output above."
+  echo ""
+  echo "To retry: ./scripts/smoke-test-reset.sh && ./scripts/smoke-test-run.sh"
+fi
+```
+
+### Repeatable loop
+
+```bash
+# Run once:
+./scripts/smoke-test-reset.sh && ./scripts/smoke-test-run.sh
+
+# Run until it passes 3 times in a row:
+CONSECUTIVE=0
+while [ "$CONSECUTIVE" -lt 3 ]; do
+  ./scripts/smoke-test-reset.sh
+  if ./scripts/smoke-test-run.sh; then
+    CONSECUTIVE=$((CONSECUTIVE + 1))
+    echo "Pass $CONSECUTIVE/3"
+  else
+    CONSECUTIVE=0
+    echo "Failed — resetting counter"
+    echo "Fix the issue, then re-run this loop."
+    exit 1
+  fi
+done
+echo "3 consecutive passes — flow is stable."
+```
+
+### What the smoke test proves
+
+| Check | What it proves |
+|---|---|
+| todos.json exists with items | Worker engaged with the todo system |
+| Mandatory items all done | Validators passed, worker completed bureaucracy |
+| change_type is not "unknown" | Completion report filled correctly |
+| DECISIONS.md has entry | Paper trail written by framework |
+| Job status = completed | Completion gating passed |
+| Notification created | Heartbeat or processor wrote to persistent queue |
+
+### When to run it
+
+| Sprint | What to smoke test | Expectation |
+|---|---|---|
+| S2 | Worker todo compliance | todos.json populated, mandatory items addressed |
+| S3 | + notification delivery | Notification in pending/, delivered after heartbeat |
+| S4 | + hooks (separate manual check) | Smoke test still passes (hooks don't affect workers) |
+| S5 | + status in system prompt | Add system prompt dump check |
+| S6 | + restart recovery | Run reset → fire → kill dashboard → restart → check interrupted |
+| S7 | + infra fixes | Full chain passes, DECISIONS.md entry has all metadata |
+| S8 | Full live test (conversation-initiated) | User triggers via chat, not script |
+
+---
+
 ## Sprint 1: Todo System + MCP Server
 
 **Goal:** Every agent session has a persistent todo list. Items can be added, updated, removed. Mandatory items can't be removed. `interrupted` job status available system-wide.
