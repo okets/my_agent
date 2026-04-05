@@ -789,7 +789,7 @@ Fix Nina's agentic flow so she follows orders, delegates reliably, and communica
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | Todo System + MCP Server | Planned | `todo-server` MCP (4 tools), `TodoItem` type, JSON storage per session, wired to all agent sessions |
+| S1 | Todo System + MCP Server | Done | `todo-server` MCP (4 tools), `TodoItem` type, JSON storage per session, wired to all agent sessions. [Review](../sprints/m9.1-s1-todo-system/review.md) |
 | S2 | Todo Templates + Validation | Planned | Static templates (`capability_build`, `capability_modify`), validation registry, `create_automation` gets `todos` + `job_type` fields, 3-layer assembly in executor, job completion gating |
 | S3 | Heartbeat Jobs Service | Planned | 30s interval loop, stale job detection (5min threshold via todo activity), persistent notification queue (`pending/` → `delivered/`), capability health checks (hourly), notification delivery unification |
 | S4 | Enforcement Hooks | Planned | Source code protection (all Ninas), capability routing (Conversation Nina), todo completion check (Working Nina), updated trust model |
