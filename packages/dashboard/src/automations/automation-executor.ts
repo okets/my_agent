@@ -31,7 +31,9 @@ import { extractDeliverable } from "./deliverable-utils.js";
 import { createChartServer } from "../mcp/chart-server.js";
 import { createImageFetchServer } from "../mcp/image-fetch-server.js";
 import { createTodoServer } from "../mcp/todo-server.js";
-import { createEmptyTodoFile } from "./todo-file.js";
+import { createEmptyTodoFile, readTodoFile, writeTodoFile } from "./todo-file.js";
+import { assembleJobTodos } from "./todo-templates.js";
+import { runValidation } from "./todo-validators.js";
 import { handleCreateChart } from "../mcp/chart-server.js";
 import { queryModel } from "../scheduler/query-model.js";
 
@@ -70,6 +72,20 @@ export class AutomationExecutor {
 
   constructor(config: AutomationExecutorConfig) {
     this.config = config;
+  }
+
+  /** Auto-detect job type from manifest or target_path */
+  private detectJobType(automation: Automation): string | undefined {
+    if (automation.manifest.job_type) return automation.manifest.job_type;
+    // Auto-detect from target_path for existing automations
+    const tp = automation.manifest.target_path;
+    if (tp && tp.includes("capabilities/")) {
+      const capPath = path.resolve(this.config.agentDir, tp);
+      return fs.existsSync(path.join(capPath, "CAPABILITY.md"))
+        ? "capability_modify"
+        : "capability_build";
+    }
+    return undefined;
   }
 
   async run(
@@ -196,11 +212,25 @@ export class AutomationExecutor {
       // chart/image servers when visual capabilities are needed.
       const workerMcpServers: NonNullable<Options["mcpServers"]> = {};
 
-      // Todo server — every worker gets persistent task tracking
-      if (job.run_dir) {
-        const todoPath = path.join(job.run_dir, "todos.json");
-        createEmptyTodoFile(todoPath);
-        workerMcpServers["todo"] = createTodoServer(todoPath);
+      // Todo server — every worker gets persistent task tracking with 3-layer assembly
+      const todoPath = job.run_dir
+        ? path.join(job.run_dir, "todos.json")
+        : null;
+      if (todoPath) {
+        const jobType = this.detectJobType(automation);
+        const todoItems = assembleJobTodos(
+          automation.manifest.todos,
+          jobType,
+        );
+        if (todoItems.length > 0) {
+          writeTodoFile(todoPath, {
+            items: todoItems,
+            last_activity: new Date().toISOString(),
+          });
+        } else {
+          createEmptyTodoFile(todoPath);
+        }
+        workerMcpServers["todo"] = createTodoServer(todoPath, runValidation);
       }
 
       if (this.config.visualService) {
@@ -342,7 +372,28 @@ export class AutomationExecutor {
         response.includes("needs_review") ||
         automation.manifest.autonomy === "review";
 
-      const finalStatus = hasNeedsReview ? "needs_review" : "completed";
+      let finalStatus: string = hasNeedsReview ? "needs_review" : "completed";
+      let todoGatingSummary: string | undefined;
+
+      // 8.5 Todo completion gating — check mandatory items
+      if (todoPath && finalStatus === "completed") {
+        const finalTodos = readTodoFile(todoPath);
+        const mandatoryItems = finalTodos.items.filter((i) => i.mandatory);
+        const blockedItems = mandatoryItems.filter(
+          (i) => i.status === "blocked",
+        );
+        const incompleteItems = mandatoryItems.filter(
+          (i) => i.status !== "done",
+        );
+
+        if (blockedItems.length > 0) {
+          finalStatus = "needs_review";
+          todoGatingSummary = `Blocked items: ${blockedItems.map((i) => `${i.id}: ${i.notes || i.text}`).join("; ")}`;
+        } else if (incompleteItems.length > 0) {
+          finalStatus = "needs_review";
+          todoGatingSummary = `Incomplete mandatory items: ${incompleteItems.map((i) => i.text).join(", ")}`;
+        }
+      }
 
       // 9. Store session ID in sidecar file
       if (sdkSessionId) {
@@ -355,9 +406,9 @@ export class AutomationExecutor {
 
       // 10. Update job
       this.config.jobService.updateJob(job.id, {
-        status: finalStatus,
+        status: finalStatus as Job["status"],
         completed: new Date().toISOString(),
-        summary: (deliverable ?? work).slice(0, 500),
+        summary: todoGatingSummary ?? (deliverable ?? work).slice(0, 500),
         sdk_session_id: sdkSessionId ?? undefined,
         deliverablePath,
         screenshotIds,

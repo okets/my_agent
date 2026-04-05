@@ -54,6 +54,8 @@ export class AutomationManager {
       once: input.manifest.once,
       created: input.manifest.created ?? new Date().toISOString(),
       target_path: input.manifest.target_path,
+      todos: input.manifest.todos,
+      job_type: input.manifest.job_type,
     };
 
     // Ensure directory exists
@@ -298,6 +300,8 @@ export class AutomationManager {
       fm.autonomy = manifest.autonomy;
     if (manifest.once) fm.once = manifest.once;
     if (manifest.target_path) fm.target_path = manifest.target_path;
+    if (manifest.todos?.length) fm.todos = manifest.todos;
+    if (manifest.job_type) fm.job_type = manifest.job_type;
 
     return fm;
   }
@@ -320,6 +324,9 @@ export class AutomationManager {
       created: (data.created as string) ?? new Date().toISOString(),
       system: (data.system as boolean) ?? undefined,
       handler: (data.handler as string) ?? undefined,
+      target_path: (data.target_path as string) ?? undefined,
+      todos: data.todos as Array<{ text: string }> | undefined,
+      job_type: data.job_type as AutomationManifest["job_type"],
     };
   }
 }

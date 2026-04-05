@@ -42,6 +42,10 @@ export interface AutomationManifest {
    *  When set, the executor writes a DECISIONS.md entry at this path after job completion.
    *  Null for non-artifact jobs (research, summaries, debriefs). */
   target_path?: string
+  /** Delegator's task breakdown — each item becomes a mandatory checklist entry */
+  todos?: Array<{ text: string }>
+  /** Job type — triggers template-based mandatory items for known types */
+  job_type?: 'capability_build' | 'capability_modify' | 'generic'
 }
 
 export interface Automation {
@@ -88,4 +92,8 @@ export interface CreateAutomationInput {
   once?: boolean
   /** Path to the artifact this automation creates/modifies */
   target_path?: string
+  /** Delegator's task breakdown */
+  todos?: Array<{ text: string }>
+  /** Job type for template-based mandatory items */
+  job_type?: 'capability_build' | 'capability_modify' | 'generic'
 }

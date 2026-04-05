@@ -78,6 +78,18 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         .describe(
           "Path to the artifact folder this job creates or modifies (e.g., .my_agent/capabilities/stt-deepgram). When set, the framework writes a paper trail entry to DECISIONS.md at this path after job completion.",
         ),
+      todos: z
+        .array(z.object({ text: z.string() }))
+        .optional()
+        .describe(
+          "Task breakdown for the working agent. Each item becomes a mandatory checklist entry.",
+        ),
+      job_type: z
+        .enum(["capability_build", "capability_modify", "generic"])
+        .optional()
+        .describe(
+          "Job type — triggers template-based mandatory items for known types like capability builds",
+        ),
     },
     async (args) => {
       try {
@@ -92,6 +104,8 @@ export function createAutomationServer(deps: AutomationServerDeps) {
             autonomy: args.autonomy,
             once: args.once,
             target_path: args.target_path,
+            todos: args.todos,
+            job_type: args.job_type,
           },
         });
 
@@ -250,6 +264,12 @@ export function createAutomationServer(deps: AutomationServerDeps) {
       userResponse: z
         .string()
         .describe("The user's answer to the review question"),
+      force: z
+        .boolean()
+        .optional()
+        .describe(
+          "Accept job as-is despite incomplete mandatory items (user override for validator bugs)",
+        ),
     },
     async (args) => {
       const job = deps.jobService.getJob(args.jobId);
@@ -274,6 +294,23 @@ export function createAutomationServer(deps: AutomationServerDeps) {
             },
           ],
           isError: true,
+        };
+      }
+
+      // Force-complete: accept job as-is despite incomplete mandatory items
+      if (args.force) {
+        deps.jobService.updateJob(args.jobId, {
+          status: "completed",
+          completed: new Date().toISOString(),
+          summary: "Force-completed by user (incomplete mandatory items accepted)",
+        });
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Job "${args.jobId}" force-completed. Incomplete mandatory items accepted.`,
+            },
+          ],
         };
       }
 
