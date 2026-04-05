@@ -27,7 +27,7 @@ describe("todo-server tools", () => {
 
   it("todo_add creates an agent item", async () => {
     const result = await tools.todo_add({ text: "Do something" });
-    expect(result.isError).toBeUndefined();
+    expect((result as Record<string, unknown>).isError).toBeUndefined();
     const file = readTodoFile(todoPath);
     expect(file.items).toHaveLength(1);
     expect(file.items[0].text).toBe("Do something");

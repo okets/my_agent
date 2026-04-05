@@ -24,6 +24,8 @@ import { createConversationServer } from "../mcp/conversation-server.js";
 import { createKnowledgeServer } from "../mcp/knowledge-server.js";
 import { createDebriefMcpServer } from "../mcp/debrief-server.js";
 import type { DebriefSchedulerLike } from "../mcp/debrief-server.js";
+import { createTodoServer } from "../mcp/todo-server.js";
+import path from "node:path";
 import type { ConversationSearchService } from "../conversations/search-service.js";
 import type { ConversationManager } from "../conversations/manager.js";
 
@@ -444,6 +446,17 @@ export class SessionManager {
       hooks: this.hooks ?? undefined,
       mcpServers: await buildMcpServersForSession(),
     };
+
+    // Add per-conversation todo server (conversation-scoped, not shared)
+    if (this.agentDir && opts.mcpServers) {
+      const todoPath = path.join(
+        this.agentDir,
+        "conversations",
+        this.conversationId,
+        "todos.json",
+      );
+      opts.mcpServers["todo"] = createTodoServer(todoPath);
+    }
 
     if (this.sdkSessionId) {
       opts.resume = this.sdkSessionId;

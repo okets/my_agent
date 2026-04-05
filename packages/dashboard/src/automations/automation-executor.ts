@@ -30,6 +30,8 @@ import { buildWorkingNinaPrompt } from "./working-nina-prompt.js";
 import { extractDeliverable } from "./deliverable-utils.js";
 import { createChartServer } from "../mcp/chart-server.js";
 import { createImageFetchServer } from "../mcp/image-fetch-server.js";
+import { createTodoServer } from "../mcp/todo-server.js";
+import { createEmptyTodoFile } from "./todo-file.js";
 import { handleCreateChart } from "../mcp/chart-server.js";
 import { queryModel } from "../scheduler/query-model.js";
 
@@ -193,6 +195,14 @@ export class AutomationExecutor {
       // brain's transport and cannot be reused by worker sessions. Workers only get fresh
       // chart/image servers when visual capabilities are needed.
       const workerMcpServers: NonNullable<Options["mcpServers"]> = {};
+
+      // Todo server — every worker gets persistent task tracking
+      if (job.run_dir) {
+        const todoPath = path.join(job.run_dir, "todos.json");
+        createEmptyTodoFile(todoPath);
+        workerMcpServers["todo"] = createTodoServer(todoPath);
+      }
+
       if (this.config.visualService) {
         const vs = this.config.visualService;
         workerMcpServers["chart-tools"] = createChartServer({

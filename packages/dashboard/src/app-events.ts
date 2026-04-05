@@ -49,6 +49,7 @@ export interface AppEventMap {
   "job:completed": [job: Job];
   "job:failed": [job: Job];
   "job:needs_review": [job: Job];
+  "job:interrupted": [job: Job];
 
   // Skills
   "skills:changed": [];
