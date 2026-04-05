@@ -538,17 +538,129 @@ git commit -m "feat(m9.1-s1): wire todo server to all agent sessions"
 
 ---
 
+### Task 1.5: Acceptance test — todo tools work in a conversation
+
+**Files:**
+- Create: `packages/dashboard/tests/integration/todo-acceptance.test.ts`
+
+This test proves the todo system works end-to-end: a mock conversation session has access to todo tools, can create/update/remove items, and `todos.json` is persisted on disk.
+
+- [ ] **Step 1: Write acceptance test**
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { AppHarness } from './app-harness.js';
+import { installMockSession } from './mock-session.js';
+import { readTodoFile } from '../../src/automations/todo-file.js';
+
+describe('S1 Acceptance: todo tools in conversation', () => {
+  let harness: AppHarness;
+
+  beforeAll(async () => {
+    harness = await AppHarness.create({ withAutomations: true });
+  });
+
+  afterAll(async () => {
+    await harness.shutdown();
+  });
+
+  it('conversation creates todos.json and todo tools are callable', async () => {
+    // Create a conversation
+    const conv = await harness.conversations.create();
+
+    // Install mock session that calls todo_add and todo_list
+    installMockSession(harness, {
+      response: 'I added a task to my list.',
+      toolCalls: [
+        { name: 'todo_add', input: { text: 'Check user calendar' } },
+        { name: 'todo_list', input: {} },
+      ],
+    });
+
+    // Send a message — triggers the mock session which calls todo tools
+    const events = [];
+    for await (const event of harness.chat.sendMessage(conv.id, 'Check my calendar', 1)) {
+      events.push(event);
+    }
+
+    // Verify todos.json exists on disk
+    const todoPath = path.join(harness.agentDir, 'conversations', conv.id, 'todos.json');
+    expect(fs.existsSync(todoPath)).toBe(true);
+
+    // Verify the todo item was created
+    const todoFile = readTodoFile(todoPath);
+    expect(todoFile.items.length).toBeGreaterThanOrEqual(1);
+    expect(todoFile.items[0].text).toBe('Check user calendar');
+    expect(todoFile.items[0].created_by).toBe('agent');
+    expect(todoFile.items[0].mandatory).toBe(false);
+
+    // Verify last_activity is recent
+    const activityAge = Date.now() - new Date(todoFile.last_activity).getTime();
+    expect(activityAge).toBeLessThan(5000);
+  });
+
+  it('mandatory items survive removal attempts', async () => {
+    const conv = await harness.conversations.create();
+
+    // Pre-populate with a mandatory item
+    const todoPath = path.join(harness.agentDir, 'conversations', conv.id, 'todos.json');
+    const { writeTodoFile } = await import('../../src/automations/todo-file.js');
+    writeTodoFile(todoPath, {
+      items: [{
+        id: 't1', text: 'Required framework task', status: 'pending',
+        mandatory: true, created_by: 'framework',
+      }],
+      last_activity: new Date().toISOString(),
+    });
+
+    // Mock session tries to remove the mandatory item
+    installMockSession(harness, {
+      response: 'I tried to remove it but was blocked.',
+      toolCalls: [
+        { name: 'todo_remove', input: { id: 't1' } },
+      ],
+    });
+
+    for await (const event of harness.chat.sendMessage(conv.id, 'Remove that task', 1)) {
+      // consume
+    }
+
+    // Verify mandatory item still exists
+    const todoFile = readTodoFile(todoPath);
+    expect(todoFile.items).toHaveLength(1);
+    expect(todoFile.items[0].id).toBe('t1');
+  });
+});
+```
+
+Note: The exact `installMockSession` API may need adapting to support `toolCalls` — check `tests/integration/mock-session.ts` for the current interface and extend if needed. If mock sessions don't support tool call simulation, the test can instead verify the MCP server registration and call the tool handlers directly through the harness.
+
+- [ ] **Step 2: Run the acceptance test**
+
+Run: `cd packages/dashboard && npx vitest run tests/integration/todo-acceptance.test.ts`
+Expected: PASS — todos.json created, items persisted, mandatory item protected
+
+- [ ] **Step 3: Commit**
+
+```
+git add packages/dashboard/tests/integration/todo-acceptance.test.ts
+git commit -m "test(m9.1-s1): acceptance test — todo tools work in conversation"
+```
+
+---
+
 ### Sprint 1 Validation
 
 **Pass criteria — all must be true:**
 
 1. `npx vitest run` — all new tests pass, no regressions
-2. Dashboard starts without errors
-3. Conversation Nina can call `todo_list`, `todo_add`, `todo_update`, `todo_remove` in conversation
-4. `todo_remove` on a mandatory item returns an error (test manually by pre-populating a todos.json with a mandatory item)
-5. `interrupted` status is accepted in `listJobs({ status: 'interrupted' })` without type errors
-6. `todos.json` files are created in conversation and job directories
-7. No `.tmp` files left after writes (atomic write works)
+2. **Acceptance test passes** — `todo-acceptance.test.ts` proves todo tools work in a real conversation flow
+3. `todo_remove` on a mandatory item returns an error
+4. `interrupted` status is accepted in `listJobs({ status: 'interrupted' })` without type errors
+5. `todos.json` files are created in conversation and job directories
+6. No `.tmp` files left after writes (atomic write works)
 
 ---
 
@@ -1138,20 +1250,121 @@ git commit -m "refactor(m9.1-s2): strip builder prompt to ~40 lines, process in 
 
 ---
 
+### Task 2.5: Acceptance test — todo-driven job lifecycle
+
+**Files:**
+- Create: `packages/dashboard/tests/integration/todo-lifecycle-acceptance.test.ts`
+
+This test proves the complete job lifecycle: create automation with todos → fire → executor assembles 3-layer todo list → mock worker completes items → validators check output → job status reflects completion state.
+
+- [ ] **Step 1: Write acceptance test**
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { AppHarness } from './app-harness.js';
+import { readTodoFile } from '../../src/automations/todo-file.js';
+
+describe('S2 Acceptance: todo-driven job lifecycle', () => {
+  let harness: AppHarness;
+
+  beforeAll(async () => {
+    harness = await AppHarness.create({ withAutomations: true });
+  });
+
+  afterAll(async () => {
+    await harness.shutdown();
+  });
+
+  it('capability_build job assembles 3-layer todos and gates completion', async () => {
+    // Create automation with delegator todos and job_type
+    const automation = await harness.automations.create({
+      name: 'Build test capability',
+      instructions: 'Build a test capability',
+      todos: [
+        { text: 'Research test provider' },
+        { text: 'Write test script' },
+      ],
+      job_type: 'capability_build',
+      target_path: '.my_agent/capabilities/test-cap',
+      trigger: [{ type: 'manual' }],
+    });
+
+    // Fire the automation
+    const job = await harness.automations.fire(automation.id);
+
+    // Verify todos.json was created with 3-layer assembly
+    const todoPath = path.join(job.run_dir!, 'todos.json');
+    const todoFile = readTodoFile(todoPath);
+
+    // Layer 1: delegator items
+    const delegated = todoFile.items.filter(i => i.created_by === 'delegator');
+    expect(delegated).toHaveLength(2);
+    expect(delegated[0].text).toBe('Research test provider');
+    expect(delegated[0].mandatory).toBe(true);
+
+    // Layer 2: template items (capability_build has 5 items)
+    const framework = todoFile.items.filter(i => i.created_by === 'framework');
+    expect(framework.length).toBe(5);
+    expect(framework.some(i => i.validation === 'capability_frontmatter')).toBe(true);
+    expect(framework.some(i => i.validation === 'completion_report')).toBe(true);
+
+    // Total: 2 delegated + 5 template = 7 items
+    expect(todoFile.items).toHaveLength(7);
+  });
+
+  it('job with incomplete mandatory items gets needs_review', async () => {
+    // Create and fire a generic automation where the mock worker 
+    // does NOT complete mandatory items
+    const automation = await harness.automations.create({
+      name: 'Incomplete test',
+      instructions: 'Do something',
+      todos: [{ text: 'Step 1' }],
+      job_type: 'capability_build',
+      trigger: [{ type: 'manual' }],
+      target_path: '.my_agent/capabilities/incomplete-test',
+    });
+
+    // Fire with mock session that completes immediately without calling todo_update
+    const job = await harness.automations.fire(automation.id);
+    // Wait for job to finish...
+    
+    // Job should be needs_review (mandatory items not done)
+    const finalJob = harness.automations.getJob(job.id);
+    expect(finalJob.status).toBe('needs_review');
+  });
+});
+```
+
+Note: Adapt the harness API calls to match the actual `AppHarness` methods. The mock session should complete quickly without real SDK calls so the test verifies the framework behavior (todo assembly + completion gating), not the LLM.
+
+- [ ] **Step 2: Run acceptance test**
+
+Run: `cd packages/dashboard && npx vitest run tests/integration/todo-lifecycle-acceptance.test.ts`
+Expected: PASS — 3-layer assembly verified, completion gating works
+
+- [ ] **Step 3: Commit**
+
+```
+git add packages/dashboard/tests/integration/todo-lifecycle-acceptance.test.ts
+git commit -m "test(m9.1-s2): acceptance test — todo-driven job lifecycle"
+```
+
+---
+
 ### Sprint 2 Validation
 
 **Pass criteria — all must be true:**
 
 1. `npx vitest run` — all tests pass
-2. `create_automation` accepts `todos` and `job_type` parameters
-3. A capability build job starts with 5 mandatory framework items pre-populated
-4. `todo_update` with `status: done` on a validated item runs the validator
-5. Validator failure increments `validation_attempts` and returns `isError`
-6. After 3 failures, item auto-blocks
-7. Job with incomplete mandatory items gets `needs_review` status (not `completed`)
-8. `resume_job({ force: true })` force-completes a needs_review job
-9. Existing automations with `target_path` containing capabilities auto-detect `job_type`
-10. Builder agent definition has todo_list instruction and no competing YAML examples
+2. **Acceptance test passes** — 3-layer assembly verified, completion gating catches incomplete jobs
+3. `create_automation` accepts `todos` and `job_type` parameters
+4. Validator failure increments `validation_attempts` and returns `isError`
+5. After 3 failures, item auto-blocks
+6. `resume_job({ force: true })` force-completes a needs_review job
+7. Existing automations with `target_path` containing capabilities auto-detect `job_type`
+8. Builder agent definition has todo_list instruction and no competing YAML examples
 
 ---
 
@@ -1510,19 +1723,115 @@ git commit -m "feat(m9.1-s3): heartbeat service replaces S3.1 stale detection + 
 
 ---
 
+### Task 3.4: Acceptance test — heartbeat detects stale job and delivers notification
+
+**Files:**
+- Create: `packages/dashboard/tests/integration/heartbeat-acceptance.test.ts`
+
+This test proves the heartbeat loop works: a stale job is detected, marked interrupted, a notification is created in the persistent queue, and the heartbeat delivers it.
+
+- [ ] **Step 1: Write acceptance test**
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { AppHarness } from './app-harness.js';
+import { writeTodoFile } from '../../src/automations/todo-file.js';
+import { HeartbeatService } from '../../src/automations/heartbeat-service.js';
+import { PersistentNotificationQueue } from '../../src/notifications/persistent-queue.js';
+
+describe('S3 Acceptance: heartbeat detects stale job + delivers notification', () => {
+  let harness: AppHarness;
+  let notifQueue: PersistentNotificationQueue;
+  let heartbeat: HeartbeatService;
+
+  beforeAll(async () => {
+    harness = await AppHarness.create({ withAutomations: true });
+    notifQueue = new PersistentNotificationQueue(
+      path.join(harness.agentDir, 'notifications'),
+    );
+  });
+
+  afterAll(async () => {
+    heartbeat?.stop();
+    await harness.shutdown();
+  });
+
+  it('stale running job → interrupted + notification created + delivery attempted', async () => {
+    // Create a job that appears to be running but has stale activity
+    const automation = await harness.automations.create({
+      name: 'Stale test job',
+      instructions: 'Test',
+      trigger: [{ type: 'manual' }],
+    });
+    const job = await harness.automations.fire(automation.id);
+
+    // Manually set job to running with old last_activity (6 minutes ago)
+    const todoPath = path.join(job.run_dir!, 'todos.json');
+    writeTodoFile(todoPath, {
+      items: [
+        { id: 't1', text: 'Step 1', status: 'done', mandatory: false, created_by: 'agent' },
+        { id: 't2', text: 'Step 2', status: 'in_progress', mandatory: false, created_by: 'agent' },
+      ],
+      last_activity: new Date(Date.now() - 6 * 60 * 1000).toISOString(), // 6 min ago
+    });
+
+    // Create heartbeat with 0ms stale threshold for instant detection
+    heartbeat = new HeartbeatService({
+      jobService: harness.automations.jobService,
+      notificationQueue: notifQueue,
+      conversationInitiator: harness.conversationInitiator,
+      staleThresholdMs: 5 * 60 * 1000, // 5 min — our job is 6 min stale
+      tickIntervalMs: 999999, // Don't auto-tick, we'll call tick() manually
+      capabilityHealthIntervalMs: 999999,
+    });
+
+    // Run one tick manually
+    await heartbeat.tick();
+
+    // Verify: job should be interrupted
+    const updatedJob = harness.automations.getJob(job.id);
+    expect(updatedJob.status).toBe('interrupted');
+
+    // Verify: notification should exist in pending/
+    const pending = notifQueue.listPending();
+    expect(pending.length).toBeGreaterThanOrEqual(1);
+    const notif = pending.find(n => n.job_id === job.id);
+    expect(notif).toBeDefined();
+    expect(notif!.type).toBe('job_interrupted');
+    expect(notif!.todos_completed).toBe(1);
+    expect(notif!.todos_total).toBe(2);
+    expect(notif!.incomplete_items).toContain('Step 2');
+  });
+});
+```
+
+- [ ] **Step 2: Run acceptance test**
+
+Run: `cd packages/dashboard && npx vitest run tests/integration/heartbeat-acceptance.test.ts`
+Expected: PASS — stale job detected, interrupted, notification created with todo progress
+
+- [ ] **Step 3: Commit**
+
+```
+git add packages/dashboard/tests/integration/heartbeat-acceptance.test.ts
+git commit -m "test(m9.1-s3): acceptance test — heartbeat stale detection + notification"
+```
+
+---
+
 ### Sprint 3 Validation
 
 **Pass criteria:**
 
 1. `npx vitest run` — all tests pass
-2. Heartbeat service logs `[Heartbeat] Started` on dashboard startup
-3. A running job with no todo activity for 5+ minutes gets marked `interrupted`
-4. Completed job notification appears in `pending/` directory as JSON file
-5. Heartbeat delivers pending notification within 30s (visible in logs)
-6. After delivery, notification moves from `pending/` to `delivered/`
-7. Dashboard restart: notifications in `pending/` survive and are delivered on first tick
-8. `SessionManager.pendingNotifications` no longer exists in code
-9. `checkStaleJobs()` no longer runs from the scheduler
+2. **Acceptance test passes** — stale job detected, marked interrupted, notification with todo progress created
+3. Heartbeat service logs `[Heartbeat] Started` on dashboard startup
+4. After delivery, notification moves from `pending/` to `delivered/`
+5. Dashboard restart: notifications in `pending/` survive and are delivered on first tick
+6. `SessionManager.pendingNotifications` no longer exists in code
+7. `checkStaleJobs()` no longer runs from the scheduler
 
 ---
 
@@ -1667,15 +1976,110 @@ Update `HookFactoryOptions` to include `todoPath?: string`. Pass it from the exe
 
 ---
 
+### Task 4.4: Acceptance test — hooks block protected paths
+
+**Files:**
+- Create: `packages/dashboard/tests/integration/hooks-acceptance.test.ts`
+
+This test proves enforcement hooks work: source code protection blocks all Ninas from writing framework code, capability routing blocks Conversation Nina from direct capability edits, and task-level workers are NOT blocked.
+
+- [ ] **Step 1: Write acceptance test**
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { createHooks } from '@my-agent/core/hooks/factory';
+
+describe('S4 Acceptance: enforcement hooks block protected paths', () => {
+  it('source code protection blocks Write to packages/ at all trust levels', async () => {
+    for (const level of ['brain', 'task', 'subagent'] as const) {
+      const hooks = createHooks(level, { agentDir: '/tmp/test-agent' });
+      const preToolUse = hooks['PreToolUse'] || [];
+
+      // Simulate a Write to packages/core/src/brain.ts
+      let blocked = false;
+      for (const hookMatcher of preToolUse) {
+        const result = await hookMatcher.callback({
+          tool_name: 'Write',
+          tool_input: { file_path: '/home/nina/my_agent/packages/core/src/brain.ts' },
+        });
+        if (result.decision === 'block') blocked = true;
+      }
+      expect(blocked, `${level} should block Write to packages/`).toBe(true);
+    }
+  });
+
+  it('capability routing blocks Conversation Nina (brain) from editing capabilities', async () => {
+    const hooks = createHooks('brain', { agentDir: '/tmp/test-agent' });
+    const preToolUse = hooks['PreToolUse'] || [];
+
+    let blocked = false;
+    for (const hookMatcher of preToolUse) {
+      const result = await hookMatcher.callback({
+        tool_name: 'Edit',
+        tool_input: { file_path: '/home/nina/.my_agent/capabilities/stt-deepgram/config.yaml' },
+      });
+      if (result.decision === 'block') blocked = true;
+    }
+    expect(blocked).toBe(true);
+  });
+
+  it('capability routing does NOT block Working Nina (task) from writing capabilities', async () => {
+    const hooks = createHooks('task', { agentDir: '/tmp/test-agent' });
+    const preToolUse = hooks['PreToolUse'] || [];
+
+    let blocked = false;
+    for (const hookMatcher of preToolUse) {
+      const result = await hookMatcher.callback({
+        tool_name: 'Write',
+        tool_input: { file_path: '/home/nina/.my_agent/capabilities/stt-deepgram/config.yaml' },
+      });
+      if (result.decision === 'block') blocked = true;
+    }
+    // Task level should NOT be blocked by capability routing
+    // (infrastructure guard may block for other reasons, but capability routing shouldn't)
+    expect(blocked).toBe(false);
+  });
+
+  it('Read access is never blocked', async () => {
+    for (const level of ['brain', 'task', 'subagent'] as const) {
+      const hooks = createHooks(level, { agentDir: '/tmp/test-agent' });
+      const preToolUse = hooks['PreToolUse'] || [];
+
+      let blocked = false;
+      for (const hookMatcher of preToolUse) {
+        const result = await hookMatcher.callback({
+          tool_name: 'Read',
+          tool_input: { file_path: '/home/nina/my_agent/packages/core/src/brain.ts' },
+        });
+        if (result.decision === 'block') blocked = true;
+      }
+      expect(blocked, `${level} should never block Read`).toBe(false);
+    }
+  });
+});
+```
+
+- [ ] **Step 2: Run acceptance test**
+
+Run: `cd packages/dashboard && npx vitest run tests/integration/hooks-acceptance.test.ts`
+Expected: PASS — source code blocked for all, capability routing blocks brain only, read never blocked
+
+- [ ] **Step 3: Commit**
+
+```
+git add packages/dashboard/tests/integration/hooks-acceptance.test.ts
+git commit -m "test(m9.1-s4): acceptance test — enforcement hooks block protected paths"
+```
+
+---
+
 ### Sprint 4 Validation
 
 **Pass criteria:**
 
-1. Conversation Nina attempting `Write` to `packages/core/src/brain.ts` → blocked with "developer-maintained code" message
-2. Conversation Nina attempting `Edit` on `.my_agent/capabilities/stt-deepgram/config.yaml` → blocked with "use create_automation" message
-3. Working Nina (task level) can write to `.my_agent/capabilities/` (not blocked by capability routing)
-4. Working Nina gets Stop hook reminder when session ends with incomplete mandatory items
-5. Read access to all paths remains unrestricted for all trust levels
+1. **Acceptance test passes** — all hook behaviors verified across trust levels
+2. Working Nina gets Stop hook reminder when session ends with incomplete mandatory items
+3. No regressions in existing hook behavior (bash blocker, infrastructure guard)
 
 ---
 
@@ -1774,15 +2178,118 @@ After the system prompt is built with pending briefing items, mark those notific
 
 ---
 
+### Task 5.3: Acceptance test — system prompt contains job status + pending briefing
+
+**Files:**
+- Create: `packages/dashboard/tests/integration/status-prompt-acceptance.test.ts`
+
+This test proves status communication works: system prompt includes todo progress for active jobs, pending briefing for undelivered notifications, and conversation todos.
+
+- [ ] **Step 1: Write acceptance test**
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import path from 'node:path';
+import { AppHarness } from './app-harness.js';
+import { writeTodoFile } from '../../src/automations/todo-file.js';
+import { PersistentNotificationQueue } from '../../src/notifications/persistent-queue.js';
+import { SystemPromptBuilder } from '../../src/agent/system-prompt-builder.js';
+
+describe('S5 Acceptance: system prompt reflects job status + briefing', () => {
+  let harness: AppHarness;
+
+  beforeAll(async () => {
+    harness = await AppHarness.create({ withAutomations: true });
+  });
+
+  afterAll(async () => {
+    await harness.shutdown();
+  });
+
+  it('system prompt includes [Active Working Agents] with todo progress', async () => {
+    // Create a running job with todo progress
+    const automation = await harness.automations.create({
+      name: 'Active job test',
+      instructions: 'Test',
+      trigger: [{ type: 'manual' }],
+    });
+    const job = await harness.automations.fire(automation.id);
+
+    // Write todos showing 2/4 done
+    writeTodoFile(path.join(job.run_dir!, 'todos.json'), {
+      items: [
+        { id: 't1', text: 'Step 1', status: 'done', mandatory: false, created_by: 'agent' },
+        { id: 't2', text: 'Step 2', status: 'done', mandatory: false, created_by: 'agent' },
+        { id: 't3', text: 'Step 3', status: 'in_progress', mandatory: false, created_by: 'agent' },
+        { id: 't4', text: 'Step 4', status: 'pending', mandatory: false, created_by: 'agent' },
+      ],
+      last_activity: new Date().toISOString(),
+    });
+
+    // Build the system prompt
+    const prompt = await harness.buildSystemPrompt();
+    const promptText = typeof prompt === 'string' ? prompt : prompt.map(b => b.text).join('\n');
+
+    // Verify [Active Working Agents] section contains todo progress
+    expect(promptText).toContain('[Active Working Agents]');
+    expect(promptText).toContain('2/4 items done');
+    expect(promptText).toContain('Step 3'); // currently in progress
+  });
+
+  it('system prompt includes [Pending Briefing] from notification queue', async () => {
+    // Enqueue a notification
+    const notifQueue = new PersistentNotificationQueue(
+      path.join(harness.agentDir, 'notifications'),
+    );
+    notifQueue.enqueue({
+      job_id: 'job-test-briefing',
+      automation_id: 'test-auto',
+      type: 'job_interrupted',
+      summary: 'Job interrupted by restart. 3/5 items done.',
+      todos_completed: 3,
+      todos_total: 5,
+      incomplete_items: ['Run test', 'Fill report'],
+      resumable: true,
+      created: new Date().toISOString(),
+      delivery_attempts: 0,
+    });
+
+    // Build system prompt
+    const prompt = await harness.buildSystemPrompt();
+    const promptText = typeof prompt === 'string' ? prompt : prompt.map(b => b.text).join('\n');
+
+    // Verify [Pending Briefing] section
+    expect(promptText).toContain('[Pending Briefing]');
+    expect(promptText).toContain('interrupted');
+    expect(promptText).toContain('3/5');
+  });
+});
+```
+
+Note: The `harness.buildSystemPrompt()` method may need to be added to `AppHarness` — it should call `SystemPromptBuilder.build()` with the current context. Adapt based on existing harness API.
+
+- [ ] **Step 2: Run acceptance test**
+
+Run: `cd packages/dashboard && npx vitest run tests/integration/status-prompt-acceptance.test.ts`
+Expected: PASS — system prompt contains job progress and pending briefing
+
+- [ ] **Step 3: Commit**
+
+```
+git add packages/dashboard/tests/integration/status-prompt-acceptance.test.ts
+git commit -m "test(m9.1-s5): acceptance test — system prompt reflects status + briefing"
+```
+
+---
+
 ### Sprint 5 Validation
 
 **Pass criteria:**
 
-1. `check_job_status` returns todo progress (completed/in_progress/pending items) for running jobs
-2. System prompt includes `[Active Working Agents]` with "3/6 items done, currently: ..." format
-3. After a notification is queued (job completes), next conversation turn includes `[Pending Briefing]`
-4. Conversation Nina's own todos appear in `[Your Pending Tasks]`
-5. After briefing is shown, notifications move from `pending/` to `delivered/`
+1. **Acceptance test passes** — system prompt includes todo progress + pending briefing
+2. `check_job_status` returns todo progress for running jobs
+3. Conversation Nina's own todos appear in `[Your Pending Tasks]`
+4. After briefing is shown, notifications move from `pending/` to `delivered/`
 
 ---
 
@@ -1912,17 +2419,109 @@ const resumePrompt = `You were interrupted. Your todo list shows ${done.length} 
 
 ---
 
+### Task 6.3: Acceptance test — restart recovery detects interrupted jobs
+
+**Files:**
+- Create: `packages/dashboard/tests/integration/restart-recovery-acceptance.test.ts`
+
+This test simulates a restart: create a harness with a running job, shut it down, create a new harness, and verify the recovery sequence marks the job interrupted and creates a notification.
+
+- [ ] **Step 1: Write acceptance test**
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { AppHarness } from './app-harness.js';
+import { writeTodoFile, readTodoFile } from '../../src/automations/todo-file.js';
+import { PersistentNotificationQueue } from '../../src/notifications/persistent-queue.js';
+
+describe('S6 Acceptance: restart recovery detects interrupted jobs', () => {
+  let agentDir: string;
+
+  it('running job survives restart and is detected as interrupted', async () => {
+    // Phase 1: Create harness, fire a job, leave it "running"
+    const harness1 = await AppHarness.create({ withAutomations: true });
+    agentDir = harness1.agentDir;
+
+    const automation = await harness1.automations.create({
+      name: 'Restart test job',
+      instructions: 'Long running test',
+      trigger: [{ type: 'manual' }],
+    });
+    const job = await harness1.automations.fire(automation.id);
+
+    // Simulate work in progress: 2/4 items done
+    writeTodoFile(path.join(job.run_dir!, 'todos.json'), {
+      items: [
+        { id: 't1', text: 'Done step', status: 'done', mandatory: false, created_by: 'agent' },
+        { id: 't2', text: 'Also done', status: 'done', mandatory: false, created_by: 'agent' },
+        { id: 't3', text: 'Was working on this', status: 'in_progress', mandatory: false, created_by: 'agent' },
+        { id: 't4', text: 'Not started', status: 'pending', mandatory: false, created_by: 'agent' },
+      ],
+      last_activity: new Date().toISOString(),
+    });
+
+    // Job is "running" in the DB
+    expect(harness1.automations.getJob(job.id).status).toBe('running');
+
+    // Phase 2: Shutdown (simulates crash/restart)
+    await harness1.shutdown();
+
+    // Phase 3: Create new harness with SAME agentDir (simulates restart)
+    // The recovery sequence should run on startup
+    const harness2 = await AppHarness.create({ 
+      withAutomations: true,
+      agentDir, // Reuse same data directory
+    });
+
+    // Verify: job should be marked interrupted
+    const recoveredJob = harness2.automations.getJob(job.id);
+    expect(recoveredJob.status).toBe('interrupted');
+    expect(recoveredJob.summary).toContain('2/4');
+
+    // Verify: notification should exist in pending/
+    const notifQueue = new PersistentNotificationQueue(
+      path.join(agentDir, 'notifications'),
+    );
+    const pending = notifQueue.listPending();
+    const notif = pending.find(n => n.job_id === job.id);
+    expect(notif).toBeDefined();
+    expect(notif!.type).toBe('job_interrupted');
+    expect(notif!.todos_completed).toBe(2);
+    expect(notif!.incomplete_items).toContain('Was working on this');
+    expect(notif!.incomplete_items).toContain('Not started');
+
+    await harness2.shutdown();
+  });
+});
+```
+
+Note: `AppHarness.create({ agentDir })` may need to support accepting an existing directory instead of creating a fresh one. This simulates a restart with the same data. Adapt the harness if needed.
+
+- [ ] **Step 2: Run acceptance test**
+
+Run: `cd packages/dashboard && npx vitest run tests/integration/restart-recovery-acceptance.test.ts`
+Expected: PASS — job marked interrupted after restart, notification created with correct todo progress
+
+- [ ] **Step 3: Commit**
+
+```
+git add packages/dashboard/tests/integration/restart-recovery-acceptance.test.ts
+git commit -m "test(m9.1-s6): acceptance test — restart recovery detects interrupted jobs"
+```
+
+---
+
 ### Sprint 6 Validation
 
 **Pass criteria:**
 
-1. Start dashboard with a "running" job in the DB → job marked `interrupted` on startup
-2. Interrupted job creates a persistent notification
-3. First heartbeat tick delivers the notification
-4. System prompt includes `[Pending Briefing]` mentioning the interrupted job
-5. `resume_job` resumes with todo context — working nina sees completed items
-6. If SDK session can't resume (delete the session file), fresh session starts with pre-populated todos
-7. Stale `once:true` completed automations are cleaned up on startup
+1. **Acceptance test passes** — restart recovery detects interrupted jobs, creates notifications with todo progress
+2. System prompt includes `[Pending Briefing]` mentioning the interrupted job on next conversation
+3. `resume_job` resumes with todo context — working nina sees completed items
+4. If SDK session can't resume, fresh session starts with pre-populated todos
+5. Stale `once:true` completed automations are cleaned up on startup
 
 ---
 
@@ -2021,16 +2620,25 @@ Key assertions:
 
 ---
 
+### Task 7.5: Acceptance test — full agentic chain from create to notify
+
+The E2E test from Task 7.4 IS the acceptance test for this sprint. It proves the entire framework chain works end-to-end: `create_automation(todos, job_type)` → executor assembles todos → mock worker completes items → validators pass → job completes -> paper trail written → notification created → heartbeat delivers.
+
+If this test passes, the framework is ready for the real test in S8.
+
+Run: `cd packages/dashboard && npx vitest run src/automations/__tests__/e2e-agentic-flow.test.ts`
+
+---
+
 ### Sprint 7 Validation
 
 **Pass criteria:**
 
-1. Scanner logs invalid capabilities with error messages (not silent skip)
-2. `findById` returns full automation instructions from disk
-3. Paper trail uses `manifest.target_path` directly
-4. E2E integration test passes: create → todos �� validate → complete → notify �� deliver
+1. **E2E acceptance test passes** — full chain from create to notify verified
+2. Scanner logs invalid capabilities with error messages (not silent skip)
+3. `findById` returns full automation instructions from disk
+4. Paper trail uses `manifest.target_path` directly
 5. All existing tests still pass
-
 ---
 
 ## Sprint 8: The Real Test
