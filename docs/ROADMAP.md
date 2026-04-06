@@ -826,11 +826,12 @@ Extend M9.1's code-enforced Todo system to all worker job types. Every Working N
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | Generic & Research Templates | Planned | `research` added to job_type union, `generic` + `research` todo templates, `status_report` validator, generic fallback in `assembleJobTodos`. Real LLM smoke tests for both. |
-| S2 | Working Nina Self-Check | Planned | Replace prose "Principles" with structured pre-completion self-check referencing `todo_list`. Behavioral smoke test. |
-| S3 | Automation Design Checklist | Planned | 8-field checklist in task-triage skill. Addresses D7 (Conversation Nina leaves `todos` empty). Delegation smoke test. |
-| S4 | Visual System Upgrade | Planned | Skill rewrite as decision tree + smart hook (Haiku pre-check gate filters non-chart-worthy data, prevents dumb charts). Smoke tests for both. |
-| S5 | Integration Verification | Planned | Full E2E with real LLM: generic jobs, research jobs with charts, delegation with populated todos. Test report following M9.1-S8 pattern. |
+| S1 | Generic & Research Templates | Done | `research` added to job_type union, `generic` + `research` todo templates, `status_report` validator, generic fallback in `assembleJobTodos`. Real LLM smoke tests for both. [Review](../sprints/m9.2-s1-generic-research-templates/review.md) |
+| S2 | S1 Gap Fixes | Planned | `status_report` validator unit tests, consolidate duplicate test files, debrief pipeline includes `needs_review` jobs with warning flag (G4), handler bypass invariant comment (G5), monorepo build order docs. |
+| S3 | Working Nina Self-Check | Planned | Replace prose "Principles" with structured pre-completion self-check referencing `todo_list`. Behavioral smoke test. |
+| S4 | Automation Design Checklist | Planned | 8-field checklist in task-triage skill. Addresses D7 (Conversation Nina leaves `todos` empty). Delegation smoke test. |
+| S5 | Visual System Upgrade | Planned | Skill rewrite as decision tree + smart hook (Haiku pre-check gate filters non-chart-worthy data, prevents dumb charts). Smoke tests for both. |
+| S6 | Integration Verification | Planned | Full E2E with real LLM: generic jobs, research jobs with charts, delegation with populated todos. Test report following M9.1-S8 pattern. |
 
 **Key decisions:**
 - Working Nina = todo-oriented (code enforcement). Conversation Nina = conversational (no todos).
