@@ -10,7 +10,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { chromium, type Browser, type Page } from "playwright";
-import { mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const DASHBOARD_URL =
@@ -53,6 +53,7 @@ describe.skipIf(!dashboardAvailable)(
 
     afterAll(async () => {
       await browser?.close();
+      rmSync(SCREENSHOT_DIR, { recursive: true, force: true });
     });
 
     it("calendar tab renders timeline events", async () => {
