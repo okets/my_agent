@@ -109,11 +109,22 @@ export class HeartbeatService {
     }
   }
 
+  private static readonly MAX_DELIVERY_ATTEMPTS = 20;
+
   private async deliverPendingNotifications(): Promise<void> {
     if (!this.config.conversationInitiator) return;
 
     const pending = this.config.notificationQueue.listPending();
     for (const notification of pending) {
+      // Stop retrying after max attempts — system prompt briefing is the safety net
+      if (notification.delivery_attempts >= HeartbeatService.MAX_DELIVERY_ATTEMPTS) {
+        this.config.notificationQueue.markDelivered(notification._filename!);
+        console.warn(
+          `[Heartbeat] Notification for ${notification.job_id} exceeded ${HeartbeatService.MAX_DELIVERY_ATTEMPTS} attempts, moving to delivered/`,
+        );
+        continue;
+      }
+
       try {
         const delivered = await this.config.conversationInitiator.alert(
           this.formatNotification(notification),

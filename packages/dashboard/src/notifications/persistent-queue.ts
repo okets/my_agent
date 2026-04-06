@@ -61,8 +61,12 @@ export class PersistentNotificationQueue {
 
   incrementAttempts(filename: string): void {
     const filePath = path.join(this.pendingDir, filename);
-    const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    data.delivery_attempts = (data.delivery_attempts || 0) + 1;
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    try {
+      const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      data.delivery_attempts = (data.delivery_attempts || 0) + 1;
+      fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    } catch {
+      // File may have been deleted between listPending() and incrementAttempts()
+    }
   }
 }

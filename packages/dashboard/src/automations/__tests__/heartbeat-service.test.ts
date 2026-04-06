@@ -185,6 +185,28 @@ describe("HeartbeatService", () => {
     expect(mockJobService.updateJob).not.toHaveBeenCalled();
   });
 
+  it("stops retrying after max delivery attempts", async () => {
+    mockCi.alert.mockResolvedValue(false);
+
+    queue.enqueue({
+      job_id: "job-maxed",
+      automation_id: "a1",
+      type: "job_completed",
+      summary: "Done",
+      created: new Date().toISOString(),
+      delivery_attempts: 20, // Already at max
+    });
+
+    const hb = createHeartbeat();
+    await hb.tick();
+
+    // Should NOT call alert — just move to delivered
+    expect(mockCi.alert).not.toHaveBeenCalled();
+    expect(queue.listPending()).toHaveLength(0);
+    const delivered = fs.readdirSync(path.join(notifDir, "delivered"));
+    expect(delivered).toHaveLength(1);
+  });
+
   it("capability health check fires on schedule", async () => {
     const healthCheck = vi.fn(async () => {});
     const hb = createHeartbeat({
