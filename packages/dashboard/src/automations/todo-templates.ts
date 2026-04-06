@@ -14,12 +14,12 @@ const TEMPLATES: Record<string, TodoTemplate> = {
         mandatory: true,
       },
       {
-        text: "Run test harness — record pass/fail and latency",
+        text: "Run test harness — record result in deliverable.md frontmatter as test_result",
         mandatory: true,
         validation: "test_executed",
       },
       {
-        text: "Fill completion report",
+        text: "Write deliverable.md with YAML frontmatter (change_type, test_result, summary)",
         mandatory: true,
         validation: "completion_report",
       },
@@ -32,18 +32,18 @@ const TEMPLATES: Record<string, TodoTemplate> = {
         mandatory: true,
       },
       {
-        text: "Identify change type (configure/upgrade/fix/replace)",
+        text: "Identify change type (configure/upgrade/fix/replace) — write to deliverable.md frontmatter as change_type",
         mandatory: true,
         validation: "change_type_set",
       },
       { text: "Apply changes per spec", mandatory: true },
       {
-        text: "Run test harness — record pass/fail and latency",
+        text: "Run test harness — record result in deliverable.md frontmatter as test_result",
         mandatory: true,
         validation: "test_executed",
       },
       {
-        text: "Fill completion report",
+        text: "Write deliverable.md with YAML frontmatter (change_type, test_result, summary)",
         mandatory: true,
         validation: "completion_report",
       },
