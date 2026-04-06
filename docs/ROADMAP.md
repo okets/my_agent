@@ -795,7 +795,7 @@ Fix Nina's agentic flow so she follows orders, delegates reliably, and communica
 | S4 | Enforcement Hooks | Done | Source code protection (all Ninas), capability routing (Conversation Nina), todo completion check (Working Nina), updated trust model. [Review](../sprints/m9.1-s4-enforcement-hooks/review.md) |
 | S5 | Status Communication + System Prompt | Done | Enhanced `check_job_status` with todo progress, `[Pending Briefing]` section in system prompt, `[Your Pending Tasks]` for Conversation Nina, 3-channel delivery (pull/push/briefing). [Review](../sprints/m9.1-s5-status-communication/review.md) |
 | S6 | Restart Recovery | Done | Startup recovery sequence (mark interrupted → notify → clean stale → re-scan → start heartbeat), resume_job for interrupted jobs with todo-aware prompt, session ID mismatch detection. [Review](../sprints/m9.1-s6-restart-recovery/review.md) |
-| S7 | Infrastructure Fixes + Integration Test | Planned | Scanner loudness, findById from disk, builder prompt simplification, target_path from manifest. E2E test: create capability → verify paper trail → modify → verify updated → interrupt → recover → resume |
+| S7 | Infrastructure Fixes + Integration Test | Done | Scanner loudness (invalid caps reported), target_path from manifest (regex removed), E2E integration test (5 tests: todo assembly, completion gating, notification delivery, stale detection). [Review](sprints/m9.1-s7-infra-fixes/review.md) |
 | S8 | The Real Test | Planned | Ask Nina to build a new capability and modify an existing one. Validate: todo-driven execution, heartbeat notifications, restart recovery, paper trail completeness. Voice sprint follows if passed. |
 
 **Key design decisions:**
