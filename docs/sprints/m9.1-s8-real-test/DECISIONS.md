@@ -20,6 +20,29 @@
 
 **Architect approved:** "Writing the manifest to disk and syncing is how automations are created outside of a conversation."
 
+## D4: Executor overwrites worker deliverable with stream text
+
+**Date:** 2026-04-06
+**Context:** Smoke test run 2 — worker wrote `deliverable.md` with proper YAML frontmatter (validators passed during session). After session ended, executor extracted response text and overwrote the file, losing frontmatter.
+
+**Root cause:** `automation-executor.ts` line 339-340 unconditionally writes extracted deliverable to `deliverable.md`.
+
+**Decision:** Check if `deliverable.md` already exists and starts with `---` (YAML frontmatter). If so, preserve the worker's version.
+
+## D5: Todo template text too vague for validated items
+
+**Date:** 2026-04-06
+**Context:** Smoke test run 2 — worker tried to mark `change_type_set` validator item done before writing the deliverable. Failed 3x and got auto-blocked.
+
+**Decision:** Updated template text to explicitly mention what file and frontmatter field the validator checks. E.g., "Identify change type ... — write to deliverable.md frontmatter as change_type".
+
+## D6: Worker forgets to retry failed validation
+
+**Date:** 2026-04-06
+**Context:** Smoke test run 3 — t8 (test_executed) failed validation once, worker wrote deliverable with `test_result: pass`, but never retried `todo_update(t8, "done")`. Session ended with t8 in_progress.
+
+**Decision:** Strengthened retry instruction in prompt: "read the error, fix the issue, then call todo_update AGAIN. Do not move on until validated items pass." This is a compliance improvement, not a code fix — the system correctly gated the job as needs_review.
+
 ## D3: Health check endpoint — use root instead of /health
 
 **Date:** 2026-04-06

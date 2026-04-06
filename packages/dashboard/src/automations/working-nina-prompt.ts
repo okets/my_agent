@@ -80,7 +80,7 @@ You have a todo list managed via MCP tools. This is your work plan — follow it
 2. **Before starting each item**, call \`todo_update(id, "in_progress")\`.
 3. **After completing each item**, call \`todo_update(id, "done")\`.
 4. Items marked \`mandatory: true\` MUST be completed. You cannot delete them.
-5. Some items have validators — if \`todo_update(id, "done")\` fails, fix the issue and retry.
+5. Some items have validators — if \`todo_update(id, "done")\` fails, read the error, fix the issue, then call \`todo_update(id, "done")\` AGAIN. Do not move on until validated items pass.
 6. You may add your own items with \`todo_add(text)\` for sub-tasks you discover.
 
 If you skip the todo system, your job will be flagged as needs_review regardless of how well you did the actual work.
