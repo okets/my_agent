@@ -68,4 +68,38 @@ describe("todo-templates", () => {
     expect(ids[1]).toBe("t2");
     expect(ids[ids.length - 1]).toBe(`t${result.length}`);
   });
+
+  it("returns generic template with 2+ mandatory items", () => {
+    const tpl = getTemplate("generic");
+    expect(tpl).toBeDefined();
+    expect(tpl!.items.length).toBeGreaterThanOrEqual(2);
+    expect(tpl!.items.every((i) => i.mandatory)).toBe(true);
+  });
+
+  it("returns research template with sources and chart items", () => {
+    const tpl = getTemplate("research");
+    expect(tpl).toBeDefined();
+    expect(tpl!.items.some((i) => i.text.includes("sources"))).toBe(true);
+    expect(tpl!.items.some((i) => i.text.includes("create_chart"))).toBe(true);
+  });
+
+  it("falls back to generic when job type has no template", () => {
+    const items = assembleJobTodos([], "unknown_type");
+    const frameworkItems = items.filter((i) => i.created_by === "framework");
+    expect(frameworkItems.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("capability_build does NOT get generic status-report items", () => {
+    const items = assembleJobTodos([], "capability_build");
+    const frameworkItems = items.filter((i) => i.created_by === "framework");
+    expect(frameworkItems.some((i) => i.text.includes("CAPABILITY.md"))).toBe(true);
+    expect(frameworkItems.some((i) => i.text.includes("status-report"))).toBe(false);
+  });
+
+  it("uses research template for research job type", () => {
+    const items = assembleJobTodos([{ text: "Research X" }], "research");
+    const frameworkItems = items.filter((i) => i.created_by === "framework");
+    expect(frameworkItems.some((i) => i.text.includes("sources"))).toBe(true);
+    expect(frameworkItems.some((i) => i.text.includes("create_chart"))).toBe(true);
+  });
 });

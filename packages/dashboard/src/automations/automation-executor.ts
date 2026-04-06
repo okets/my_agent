@@ -115,7 +115,10 @@ export class AutomationExecutor {
       `[AutomationExecutor] Running automation "${automation.manifest.name}" (job ${job.id})`,
     );
 
-    // Check for built-in handler (system automations)
+    // INVARIANT: Handler-dispatched jobs (system automations like debrief-prep)
+    // bypass the SDK session flow entirely, including todo assembly and gating.
+    // The handler returns before assembleJobTodos is called.
+    // If this path changes, generic mandatory items would gate handler jobs.
     const handlerKey = automation.manifest.handler;
     if (handlerKey) {
       const handler = getHandler(handlerKey);

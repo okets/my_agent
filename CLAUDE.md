@@ -220,6 +220,12 @@ When modifying any of the following, **invoke the `claude-developer-platform` sk
 
 ## Build & Run
 
+**Build order:** Core must be built before dashboard (dashboard imports core types):
+```bash
+cd packages/core && npx tsc        # Build core types first
+cd packages/dashboard && npx tsc   # Then dashboard
+```
+
 ```bash
 # Core (M1 — CLI REPL)
 cd packages/core && npm install && npx tsx src/index.ts

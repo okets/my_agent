@@ -157,4 +157,29 @@ describe("todo-validators", () => {
     const result = runValidation("completion_report", tmpDir, targetDir);
     expect(result.pass).toBe(true);
   });
+
+  it("status_report passes with valid status-report.md", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "status-report.md"),
+      "## Actions\nListed all files and described each one.\n\n## Results\nFound 8 TypeScript files in the automations directory.",
+    );
+    const result = runValidation("status_report", tmpDir);
+    expect(result.pass).toBe(true);
+  });
+
+  it("status_report fails when file is missing", () => {
+    const result = runValidation("status_report", tmpDir);
+    expect(result.pass).toBe(false);
+    expect(result.message).toContain("status-report.md");
+  });
+
+  it("status_report fails when file is too short", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, "status-report.md"),
+      "Done.",
+    );
+    const result = runValidation("status_report", tmpDir);
+    expect(result.pass).toBe(false);
+    expect(result.message).toContain("too short");
+  });
 });

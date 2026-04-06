@@ -625,14 +625,13 @@ describe("Debrief Pipeline Mechanics (real services)", () => {
     });
     expect(jobs[0].status).toBe("needs_review");
 
-    // Debrief collector only finds completed jobs — needs_review jobs are correctly excluded
-    // (incomplete work shouldn't appear in debrief until mandatory items are done)
+    // Debrief collector now includes needs_review jobs with warning flag (M9.2-S2 G4 fix)
     const db = harness.conversationManager.getConversationDb();
     const since = new Date(Date.now() - 86400000).toISOString();
     const pending = db.getDebriefPendingJobs(since);
-    expect(pending.some((j) => j.automationName === "Thailand News Worker")).toBe(
-      false,
-    );
+    const newsJob = pending.find((j) => j.automationName === "Thailand News Worker");
+    expect(newsJob).toBeDefined();
+    expect(newsJob!.needsReview).toBe(true);
   });
 
   it("debrief adapter reads debrief-digest.md from disk", () => {

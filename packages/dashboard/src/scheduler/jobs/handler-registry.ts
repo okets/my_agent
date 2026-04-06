@@ -326,6 +326,7 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
     );
 
     for (const job of pendingJobs) {
+      const prefix = job.needsReview ? "\u26a0\ufe0f INCOMPLETE \u2014 " : "";
       let content = job.summary ?? "No output available.";
 
       // Prefer full deliverable → status-report.md → summary
@@ -347,8 +348,8 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
         }
       }
 
-      workerSections.push(`## ${job.automationName}\n\n${content}`);
-      fullReports.push({ name: job.automationName, content });
+      workerSections.push(`## ${prefix}${job.automationName}\n\n${content}`);
+      fullReports.push({ name: `${prefix}${job.automationName}`, content });
     }
   }
 

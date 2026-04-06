@@ -1050,8 +1050,9 @@ export class ConversationDatabase {
   }
 
   /**
-   * Get completed jobs from automations with notify="debrief" since a given time.
+   * Get completed and needs_review jobs from automations with notify="debrief" since a given time.
    * Used by the debrief reporter to collect worker results.
+   * needs_review jobs are included with a flag so the debrief surfaces incomplete work with a warning.
    */
   getDebriefPendingJobs(since: string): Array<{
     jobId: string;
@@ -1061,18 +1062,19 @@ export class ConversationDatabase {
     runDir: string | null;
     deliverablePath: string | null;
     completed: string | null;
+    needsReview: boolean;
   }> {
     const rows = this.db
       .prepare(
-        `SELECT j.id, j.automation_id, a.name, j.summary, j.run_dir, j.deliverablePath, j.completed
+        `SELECT j.id, j.automation_id, a.name, j.summary, j.run_dir, j.deliverablePath, j.completed, j.status
          FROM jobs j
          JOIN automations a ON j.automation_id = a.id
          WHERE a.notify = 'debrief'
-           AND j.status = 'completed'
-           AND j.completed >= ?
+           AND j.status IN ('completed', 'needs_review')
+           AND (j.completed >= ? OR (j.status = 'needs_review' AND j.created >= ?))
          ORDER BY j.completed ASC`,
       )
-      .all(since) as any[];
+      .all(since, since) as any[];
 
     return rows.map((row) => ({
       jobId: row.id,
@@ -1082,6 +1084,7 @@ export class ConversationDatabase {
       runDir: row.run_dir,
       deliverablePath: row.deliverablePath,
       completed: row.completed,
+      needsReview: row.status === "needs_review",
     }));
   }
 
