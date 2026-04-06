@@ -37,16 +37,19 @@ describe("todo-templates", () => {
     expect(framework.every((i) => i.mandatory)).toBe(true);
   });
 
-  it("assembleJobTodos with no template or todos returns empty", () => {
+  it("assembleJobTodos with no template or todos falls back to generic", () => {
     const result = assembleJobTodos(undefined, undefined);
-    expect(result).toEqual([]);
+    expect(result.length).toBeGreaterThanOrEqual(2);
+    expect(result.every((i) => i.created_by === "framework")).toBe(true);
   });
 
-  it("assembleJobTodos with only delegator todos returns delegator items", () => {
+  it("assembleJobTodos with only delegator todos includes generic fallback", () => {
     const result = assembleJobTodos([{ text: "Do this" }], undefined);
-    expect(result).toHaveLength(1);
-    expect(result[0].created_by).toBe("delegator");
-    expect(result[0].mandatory).toBe(true);
+    const delegator = result.filter((i) => i.created_by === "delegator");
+    const framework = result.filter((i) => i.created_by === "framework");
+    expect(delegator).toHaveLength(1);
+    expect(delegator[0].mandatory).toBe(true);
+    expect(framework.length).toBeGreaterThanOrEqual(2);
   });
 
   it("assembleJobTodos with only template returns template items", () => {

@@ -194,7 +194,8 @@ Unknown handler.
 
     const result = await executor.run(automation, job);
 
-    expect(result.success).toBe(true);
+    // Generic fallback adds mandatory items — needs_review due to incomplete todos (M9.2-S1)
+    expect(result.success).toBe(false);
     expect(createBrainQuery).toHaveBeenCalledOnce();
   });
 });

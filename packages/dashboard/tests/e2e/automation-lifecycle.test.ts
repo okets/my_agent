@@ -161,11 +161,12 @@ System automation for testing.
     const job = jobService.createJob(automation.id);
     const result = await executor.run(automation, job);
 
-    expect(result.success).toBe(true);
+    // Generic fallback adds mandatory items that mock brain can't complete → needs_review (M9.2-S1)
+    expect(result.success).toBe(false);
     expect(createBrainQuery).toHaveBeenCalledOnce();
 
     const completedJob = jobService.getJob(job.id);
-    expect(completedJob!.status).toBe("completed");
+    expect(completedJob!.status).toBe("needs_review");
   });
 
   it("listAutomations with excludeSystem returns only user automations", async () => {

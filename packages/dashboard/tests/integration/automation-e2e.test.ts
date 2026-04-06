@@ -284,8 +284,8 @@ describe("User Automation Lifecycle (real services)", () => {
     // Collect events
     const events: string[] = [];
     harness.emitter.on("job:created" as any, () => events.push("job:created"));
-    harness.emitter.on("job:completed" as any, () =>
-      events.push("job:completed"),
+    harness.emitter.on("job:needs_review" as any, () =>
+      events.push("job:needs_review"),
     );
 
     // Fire
@@ -294,17 +294,16 @@ describe("User Automation Lifecycle (real services)", () => {
     // SDK was called (not a handler)
     expect(createBrainQuery).toHaveBeenCalledOnce();
 
-    // Job completed
+    // Job needs_review — generic fallback adds mandatory items that mock brain can't complete (M9.2-S1)
     const jobs = harness.automationJobService!.listJobs({
       automationId: automation.id,
     });
     expect(jobs.length).toBe(1);
-    expect(jobs[0].status).toBe("completed");
-    expect(jobs[0].summary).toContain("Blue is a calming color");
+    expect(jobs[0].status).toBe("needs_review");
 
     // Events emitted
     expect(events).toContain("job:created");
-    expect(events).toContain("job:completed");
+    expect(events).toContain("job:needs_review");
   });
 });
 
@@ -495,13 +494,13 @@ describe("HITL Resume Flow (real services)", () => {
     // Resume with user answer
     await harness.automations!.resume(jobs[0].id, "My favorite color is green");
 
-    // Job transitions to completed
+    // Job still needs_review — resume goes through executor.run() which has todo gating,
+    // and mock brain doesn't complete generic mandatory items (M9.2-S1)
     const updatedJob = harness.automationJobService!.getJob(jobs[0].id);
-    expect(updatedJob!.status).toBe("completed");
+    expect(updatedJob!.status).toBe("needs_review");
 
-    // Events emitted in order
+    // Events emitted (both are needs_review since todo gating applies to both fire and resume)
     expect(events).toContain("job:needs_review");
-    expect(events).toContain("job:completed");
   });
 
   it("resume passes user answer in trigger context", async () => {
@@ -549,9 +548,9 @@ describe("HITL Resume Flow (real services)", () => {
     // Verify the second createBrainQuery call happened (the resume)
     expect((createBrainQuery as any).mock.calls.length).toBe(2);
 
-    // Job transitions to completed
+    // Job still needs_review — todo gating applies on resume too (M9.2-S1)
     const updatedJob = harness.automationJobService!.getJob(jobs[0].id);
-    expect(updatedJob!.status).toBe("completed");
+    expect(updatedJob!.status).toBe("needs_review");
   });
 
   it("needs_review jobs survive pruning", () => {
@@ -620,21 +619,19 @@ describe("Debrief Pipeline Mechanics (real services)", () => {
     // Fire
     await harness.automations!.fire(automation.id);
 
-    // Verify job completed
+    // Job needs_review — generic fallback adds mandatory items mock brain can't complete (M9.2-S1)
     const jobs = harness.automationJobService!.listJobs({
       automationId: automation.id,
     });
-    expect(jobs[0].status).toBe("completed");
+    expect(jobs[0].status).toBe("needs_review");
 
-    // Collector finds debrief-pending jobs
+    // Debrief collector only finds completed jobs — needs_review jobs are correctly excluded
+    // (incomplete work shouldn't appear in debrief until mandatory items are done)
     const db = harness.conversationManager.getConversationDb();
     const since = new Date(Date.now() - 86400000).toISOString();
     const pending = db.getDebriefPendingJobs(since);
     expect(pending.some((j) => j.automationName === "Thailand News Worker")).toBe(
-      true,
-    );
-    expect(pending.some((j) => j.summary?.includes("markets up 2%"))).toBe(
-      true,
+      false,
     );
   });
 

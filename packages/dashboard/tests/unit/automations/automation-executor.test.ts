@@ -95,13 +95,15 @@ describe("AutomationExecutor", () => {
 
     const result = await executor.run(automation, job);
 
-    expect(result.success).toBe(true);
+    // Generic fallback adds mandatory items that mocked brain can't complete,
+    // so todo gating correctly marks as needs_review (M9.2-S1 behavior change)
+    expect(result.success).toBe(false);
     expect(result.work).toContain("completed the automation");
     expect(result.error).toBeUndefined();
 
-    // Verify job was updated
+    // Verify job was updated — needs_review due to incomplete mandatory items
     const updatedJob = jobService.getJob(job.id);
-    expect(updatedJob!.status).toBe("completed");
+    expect(updatedJob!.status).toBe("needs_review");
     expect(updatedJob!.summary).toBeTruthy();
   });
 
@@ -127,7 +129,8 @@ describe("AutomationExecutor", () => {
 
     const result = await executor.run(automation, job);
 
-    expect(result.success).toBe(true);
+    // Generic fallback adds mandatory items — needs_review due to incomplete todos
+    expect(result.success).toBe(false);
     expect(result.deliverable).toBe("Here is the result");
     expect(result.work).toContain("Working on it");
   });

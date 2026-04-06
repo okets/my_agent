@@ -49,6 +49,40 @@ const TEMPLATES: Record<string, TodoTemplate> = {
       },
     ],
   },
+  generic: {
+    items: [
+      {
+        text: "Verify output matches the requested format and content — re-read your deliverable before marking done",
+        mandatory: true,
+      },
+      {
+        text: "Write status-report.md with: what you did, what you found, artifacts created, any issues",
+        mandatory: true,
+        validation: "status_report",
+      },
+    ],
+  },
+  research: {
+    items: [
+      {
+        text: "Identify and document at least 3 sources — list URLs or file paths consulted",
+        mandatory: true,
+      },
+      {
+        text: "Cross-check key claims across sources — flag any contradictions",
+        mandatory: true,
+      },
+      {
+        text: "Does your output contain numeric data, comparisons, or trends? If you have the create_chart tool, call it with an SVG and embed the result inline in your deliverable. If no numeric data or no chart tool available, mark done with a note explaining why",
+        mandatory: true,
+      },
+      {
+        text: "Write status-report.md with: findings summary, sources list, confidence assessment, any gaps",
+        mandatory: true,
+        validation: "status_report",
+      },
+    ],
+  },
 };
 
 export function getTemplate(jobType: string): TodoTemplate | undefined {
@@ -76,7 +110,7 @@ export function assembleJobTodos(
   }
 
   // Layer 2: Job-type template items
-  const template = jobType ? getTemplate(jobType) : undefined;
+  const template = (jobType ? getTemplate(jobType) : undefined) ?? getTemplate("generic");
   if (template) {
     for (const tplItem of template.items) {
       items.push({

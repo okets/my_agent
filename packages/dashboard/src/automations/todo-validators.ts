@@ -82,6 +82,26 @@ const VALIDATORS: Record<string, ValidatorFn> = {
     return { pass: true };
   },
 
+  status_report: (runDir) => {
+    const reportPath = path.join(runDir, "status-report.md");
+    if (!fs.existsSync(reportPath)) {
+      return {
+        pass: false,
+        message:
+          "status-report.md not found in workspace. Write it with: what you did, what you found, artifacts created, any issues.",
+      };
+    }
+    const content = fs.readFileSync(reportPath, "utf-8").trim();
+    if (content.length < 50) {
+      return {
+        pass: false,
+        message:
+          "status-report.md is too short (< 50 chars). Include meaningful content: actions, results, artifacts, issues.",
+      };
+    }
+    return { pass: true };
+  },
+
   change_type_set: (runDir) => {
     const delPath = path.join(runDir, "deliverable.md");
     if (!fs.existsSync(delPath)) {

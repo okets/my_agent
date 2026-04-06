@@ -103,20 +103,18 @@ describe("S1 Acceptance: todo system in agent sessions", () => {
     const automation = harness.automationManager!.findById("todo-test");
     expect(automation).toBeDefined();
 
-    // Listen for job completion/failure before firing
+    // Listen for job completion/failure/needs_review before firing
     const jobDone = new Promise<Job>((resolve, reject) => {
       const timeout = setTimeout(
         () => reject(new Error("Job did not complete in 5s")),
         5000,
       );
-      harness.emitter.on("job:completed" as any, (job: Job) => {
-        clearTimeout(timeout);
-        resolve(job);
-      });
-      harness.emitter.on("job:failed" as any, (job: Job) => {
-        clearTimeout(timeout);
-        resolve(job); // resolve even on failure — we want to check the file
-      });
+      for (const event of ["job:completed", "job:failed", "job:needs_review"] as const) {
+        harness.emitter.on(event as any, (job: Job) => {
+          clearTimeout(timeout);
+          resolve(job);
+        });
+      }
     });
 
     // Fire — returns Promise<void>, job created internally
@@ -130,9 +128,10 @@ describe("S1 Acceptance: todo system in agent sessions", () => {
     const todoPath = path.join(completedJob.run_dir!, "todos.json");
     expect(fs.existsSync(todoPath)).toBe(true);
 
-    // Verify it's a valid empty todo file
+    // Verify it contains generic fallback items (M9.2-S1: every job gets baseline checklist)
     const todoFile = readTodoFile(todoPath);
-    expect(todoFile.items).toEqual([]);
+    expect(todoFile.items.length).toBeGreaterThanOrEqual(2);
+    expect(todoFile.items.every((i: any) => i.created_by === "framework")).toBe(true);
     expect(todoFile.last_activity).toBeDefined();
   });
 

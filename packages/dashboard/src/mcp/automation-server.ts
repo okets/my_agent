@@ -115,7 +115,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
           "Task breakdown for the working agent. Each item becomes a mandatory checklist entry the worker must complete. ALWAYS include this for capability work — break the user's request into concrete steps. Without it, the worker only gets generic process items.",
         ),
       job_type: z
-        .enum(["capability_build", "capability_modify", "generic"])
+        .enum(["capability_build", "capability_modify", "generic", "research"])
         .optional()
         .describe(
           "Job type — triggers template-based mandatory items for known types like capability builds",

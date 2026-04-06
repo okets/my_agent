@@ -321,7 +321,8 @@ describe("E2E agentic flow", () => {
     // Verify notification was enqueued
     const pending = queue.listPending();
     expect(pending).toHaveLength(1);
-    expect(pending[0].type).toBe("job_completed");
+    // Generic fallback adds mandatory items → needs_review (M9.2-S1)
+    expect(pending[0].type).toBe("job_needs_review");
     expect(pending[0].summary).toContain("Notification Test");
     expect(pending[0].automation_id).toBe("notify-test");
 
