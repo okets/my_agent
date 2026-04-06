@@ -53,6 +53,8 @@ export interface AppHarnessOptions {
   withMemory?: boolean;
   /** If true, wire up the full automation stack (Manager, JobService, Executor, Processor) */
   withAutomations?: boolean;
+  /** Reuse an existing agent directory (for restart simulation). Skips initial dir creation. */
+  agentDir?: string;
 }
 
 /**
@@ -106,6 +108,9 @@ export class AppHarness {
   automationExecutor: AutomationExecutor | null = null;
   automationProcessor: AutomationProcessor | null = null;
   automationsDir: string | null = null;
+
+  /** If true, agentDir was provided externally and should NOT be deleted on shutdown */
+  private externalAgentDir = false;
 
   private constructor(agentDir: string) {
     this.agentDir = agentDir;
@@ -161,22 +166,25 @@ export class AppHarness {
   }
 
   /**
-   * Factory — creates temp agentDir, initializes services.
+   * Factory — creates temp agentDir (or reuses existing one), initializes services.
    */
   static async create(options?: AppHarnessOptions): Promise<AppHarness> {
-    const agentDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "my-agent-integration-"),
-    );
+    const agentDir =
+      options?.agentDir ??
+      fs.mkdtempSync(path.join(os.tmpdir(), "my-agent-integration-"));
 
-    // Create minimal agent directory structure
+    // Create minimal agent directory structure (idempotent — safe for reuse)
     fs.mkdirSync(path.join(agentDir, "brain"), { recursive: true });
     fs.mkdirSync(path.join(agentDir, "runtime"), { recursive: true });
-    fs.writeFileSync(
-      path.join(agentDir, "brain", "AGENTS.md"),
-      "# Test Agent\nYou are a test agent.\n",
-    );
+    if (!fs.existsSync(path.join(agentDir, "brain", "AGENTS.md"))) {
+      fs.writeFileSync(
+        path.join(agentDir, "brain", "AGENTS.md"),
+        "# Test Agent\nYou are a test agent.\n",
+      );
+    }
 
     const harness = new AppHarness(agentDir);
+    harness.externalAgentDir = !!options?.agentDir;
 
     // Initialize automation subsystem if requested
     if (options?.withAutomations) {
@@ -265,7 +273,9 @@ export class AppHarness {
     }
     this.conversationManager.close();
 
-    // Remove temp directory
-    fs.rmSync(this.agentDir, { recursive: true, force: true });
+    // Remove temp directory (unless externally provided — needed for restart simulation)
+    if (!this.externalAgentDir) {
+      fs.rmSync(this.agentDir, { recursive: true, force: true });
+    }
   }
 }
