@@ -102,6 +102,8 @@ import {
   WatchTriggerService,
 } from "./automations/index.js";
 import { createAutomationServer } from "./mcp/automation-server.js";
+import { HeartbeatService } from "./automations/heartbeat-service.js";
+import { PersistentNotificationQueue } from "./notifications/persistent-queue.js";
 import { VisualActionService } from "./visual/visual-action-service.js";
 import { detectDesktopEnvironment } from "./desktop/desktop-capability-detector.js";
 import { X11Backend } from "./desktop/x11-backend.js";
@@ -1243,11 +1245,17 @@ export class App extends EventEmitter {
           visualService: app.visualActionService,
         });
 
+        // Persistent notification queue — heartbeat handles delivery
+        const notificationQueue = new PersistentNotificationQueue(
+          join(agentDir, "notifications"),
+        );
+
         app.automationProcessor = new AutomationProcessor({
           automationManager: app.automationManager,
           executor: app.automationExecutor,
           jobService: app.automationJobService,
           agentDir,
+          notificationQueue,
           onJobEvent: (event, job) => {
             app.statePublisher?.publishJobs();
             app.emit(event, job);
@@ -1366,6 +1374,19 @@ export class App extends EventEmitter {
           });
         });
         console.log("[App] Running tasks checker wired to automation jobs");
+
+        // Heartbeat service — stale job detection + notification delivery
+        const heartbeatService = new HeartbeatService({
+          jobService: app.automationJobService,
+          notificationQueue,
+          get conversationInitiator() {
+            return app.conversationInitiator ?? null;
+          },
+          staleThresholdMs: 5 * 60 * 1000,
+          tickIntervalMs: 30 * 1000,
+          capabilityHealthIntervalMs: 60 * 60 * 1000,
+        });
+        heartbeatService.start();
 
         // Service namespace
         app.automations = new AppAutomationService(

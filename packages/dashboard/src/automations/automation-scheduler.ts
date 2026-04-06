@@ -40,9 +40,8 @@ export class AutomationScheduler {
     this.isRunning = true;
     this.interval = setInterval(() => {
       this.checkDue();
-      this.checkStaleJobs().catch((err) =>
-        console.error("[AutomationScheduler] checkStaleJobs error:", err),
-      );
+      // Note: checkStaleJobs() replaced by HeartbeatService (M9.1-S3).
+      // Kept as method for backward compat but no longer called on interval.
     }, this.config.pollIntervalMs ?? 60_000);
     // Check immediately
     await this.checkDue();

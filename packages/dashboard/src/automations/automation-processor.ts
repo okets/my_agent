@@ -6,13 +6,15 @@
  */
 
 import type { Automation, Job } from "@my-agent/core";
-import { resolveTimezone } from "../utils/timezone.js";
 import type { AutomationManager } from "./automation-manager.js";
 import type {
   AutomationExecutor,
   ExecutionResult,
 } from "./automation-executor.js";
 import type { AutomationJobService } from "./automation-job-service.js";
+import type { PersistentNotificationQueue } from "../notifications/persistent-queue.js";
+import { readTodoFile } from "./todo-file.js";
+import path from "node:path";
 
 export type JobEventName =
   | "job:created"
@@ -38,6 +40,8 @@ export interface AutomationProcessorConfig {
   } | null;
   /** Called after a failure alert is delivered — for collision suppression with conversation watchdog */
   onAlertDelivered?: () => void;
+  /** Persistent notification queue — heartbeat handles delivery */
+  notificationQueue?: PersistentNotificationQueue;
 }
 
 export class AutomationProcessor {
@@ -170,117 +174,92 @@ export class AutomationProcessor {
     return this.runningJobs.has(automationId);
   }
 
+  /**
+   * Write notification to persistent queue. Heartbeat service handles delivery.
+   * Falls back to direct ci.alert() if no queue is configured (backward compat).
+   */
   private async handleNotification(
     automation: Automation,
     jobId: string,
     result: ExecutionResult,
   ): Promise<void> {
     const notify = automation.manifest.notify ?? "debrief";
-    const ci = this.config.conversationInitiator;
-
-    // Read sourceChannel from job context — tagged at creation time to prevent
-    // channel bleed (e.g. dashboard-triggered jobs sending to WhatsApp)
-    const job = this.config.jobService.getJob(jobId);
-    const sourceChannel = (job?.context as Record<string, unknown> | undefined)
-      ?.sourceChannel as string | undefined;
-    const alertOptions = sourceChannel ? { sourceChannel } : undefined;
-
-    if (notify === "immediate" && result.success && ci) {
-      // Resolve user's local time so the brain doesn't guess the time of day
-      let localTimeContext = "";
-      try {
-        const tz = await resolveTimezone(this.config.agentDir);
-        const localTime = new Date().toLocaleString("en-US", {
-          timeZone: tz,
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-          weekday: "short",
-        });
-        localTimeContext = ` User's local time: ${localTime} (${tz}).`;
-      } catch {
-        // Timezone unavailable — brain will use its own judgment
-      }
-
-      // Prefer full deliverable from disk (not truncated to 500 chars)
-      let summary: string;
-      if (result.success) {
-        const completedJob = this.config.jobService.getJob(jobId);
-        if (completedJob?.deliverablePath) {
-          try {
-            const fs = await import("node:fs");
-            summary = fs.readFileSync(completedJob.deliverablePath, "utf-8");
-          } catch {
-            summary = result.work ?? "Completed successfully.";
-          }
-        } else {
-          summary = result.work ?? "Completed successfully.";
-        }
-      } else {
-        summary = `Error: ${result.error}`;
-      }
-      const prompt = `A working agent just finished the "${automation.manifest.name}" task.${localTimeContext}\n\nResults:\n${summary}\n\nYou are the conversation layer — present what matters to the user naturally. Don't acknowledge the system message itself. Don't say "noted" or "logging". Just relay the useful information as if you're giving the user an update.`;
-      const alerted = await ci.alert(prompt, alertOptions);
-      if (!alerted) {
-        await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
-      }
-    }
-
-    // Always alert on failure — regardless of notify setting
-    if (!result.success && ci) {
-      const errorSummary =
-        result.error === "empty_deliverable"
-          ? `completed but produced no useful output`
-          : `failed: ${result.error ?? "unknown error"}`;
-      const prompt =
-        `A working agent running "${automation.manifest.name}" ${errorSummary}.\n\n` +
-        `Job ID: ${jobId}\n\n` +
-        `You are the conversation layer — let the user know briefly. ` +
-        `If the error seems transient, suggest they can re-trigger it. ` +
-        `Don't be dramatic — just inform.`;
-      try {
-        const alerted = await ci.alert(prompt, alertOptions);
-        if (alerted) {
-          this.config.onAlertDelivered?.();
-        } else {
-          await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
-          this.config.onAlertDelivered?.();
-        }
-      } catch {
-        // Notification delivery failed — store pending state for retry
-        this.markNotificationPending(jobId);
-      }
-    }
-
-    // needs_review always alerts immediately
-    const reviewJob = this.config.jobService.getJob(jobId);
-    if (reviewJob?.status === "needs_review" && ci) {
-      const question = reviewJob.summary ?? "A job requires your review.";
-      const automationName = automation.manifest.name;
-      const prompt = `A working agent running "${automationName}" needs the user's input before it can continue.\n\nQuestion: ${question}\n\nJob ID: ${jobId}\n\nYou are the conversation layer — present this to the user naturally. Ask for their input. When they respond, you can resume the job with resume_job("${jobId}", <their response>).`;
-      const alerted = await ci.alert(prompt, alertOptions);
-      if (!alerted) {
-        await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
-      }
-    }
-  }
-
-  /**
-   * Mark a job as having a pending notification for retry.
-   * Uses the job's existing context field to avoid schema changes.
-   */
-  private markNotificationPending(jobId: string): void {
     const job = this.config.jobService.getJob(jobId);
     if (!job) return;
-    const context = (job.context as Record<string, unknown>) ?? {};
-    const attempts = (context.notificationAttempts as number | undefined) ?? 0;
-    this.config.jobService.updateJobContext(jobId, {
-      ...context,
-      notificationPending: true,
-      notificationAttempts: attempts + 1,
-    });
-    console.warn(
-      `[AutomationProcessor] Notification failed for job ${jobId}, marked pending (attempt ${attempts + 1})`,
-    );
+
+    // Build todo progress from disk
+    let todosCompleted = 0;
+    let todosTotal = 0;
+    let incompleteItems: string[] = [];
+    if (job.run_dir) {
+      try {
+        const todoFile = readTodoFile(
+          path.join(job.run_dir, "todos.json"),
+        );
+        todosTotal = todoFile.items.length;
+        todosCompleted = todoFile.items.filter((i) => i.status === "done").length;
+        incompleteItems = todoFile.items
+          .filter((i) => i.status !== "done")
+          .map((i) => i.text);
+      } catch {
+        // No todo file — legacy job
+      }
+    }
+
+    // Determine notification type
+    const type = job.status === "needs_review"
+      ? ("job_needs_review" as const)
+      : result.success
+        ? ("job_completed" as const)
+        : ("job_failed" as const);
+
+    // Skip queue for debrief notifications (bundled later)
+    if (notify === "debrief" && type === "job_completed") return;
+    // Skip queue for none
+    if (notify === "none" && type === "job_completed") return;
+
+    const summary =
+      type === "job_needs_review"
+        ? (job.summary ?? "A job requires your review.")
+        : type === "job_failed"
+          ? `Failed: ${result.error ?? "unknown error"}`
+          : (result.work ?? "Completed successfully.").slice(0, 500);
+
+    // Write to persistent queue — heartbeat handles delivery
+    if (this.config.notificationQueue) {
+      this.config.notificationQueue.enqueue({
+        job_id: jobId,
+        automation_id: job.automationId,
+        type,
+        summary: `[${automation.manifest.name}] ${summary}`,
+        todos_completed: todosCompleted,
+        todos_total: todosTotal,
+        incomplete_items: incompleteItems.length > 0 ? incompleteItems : undefined,
+        resumable: job.status === "needs_review",
+        created: new Date().toISOString(),
+        delivery_attempts: 0,
+      });
+      this.config.onAlertDelivered?.();
+      return;
+    }
+
+    // Fallback: direct ci.alert() (no persistent queue configured)
+    const ci = this.config.conversationInitiator;
+    if (!ci) return;
+
+    const prompt = `[${type}] ${automation.manifest.name}: ${summary}`;
+    try {
+      const alerted = await ci.alert(prompt);
+      if (alerted) {
+        this.config.onAlertDelivered?.();
+      } else {
+        await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+        this.config.onAlertDelivered?.();
+      }
+    } catch {
+      console.warn(
+        `[AutomationProcessor] Notification delivery failed for job ${jobId}`,
+      );
+    }
   }
 }
