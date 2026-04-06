@@ -1963,9 +1963,13 @@ git commit -m "feat(m9.1-s3): heartbeat service — stale detection + notificati
 
 Replace the current delivery logic in `automation-processor.ts` `handleNotification()` with a single queue write. Remove direct `ci.alert()` calls from the processor — the heartbeat service handles all delivery.
 
-- [ ] **Step 2: Remove SessionManager.pendingNotifications**
+- [ ] **Step 2: Keep SessionManager.pendingNotifications (revised)**
 
-Remove the `pendingNotifications` array, `queueNotification()`, and `hasPendingNotifications()` from `session-manager.ts`. Remove the drain logic that prepends `[SYSTEM: ...]` blocks.
+**Do NOT remove** the in-memory `pendingNotifications` array. It handles within-session delivery (mid-stream queuing for the next turn). The persistent queue handles between-session durability. They're complementary:
+- Persistent queue: job finishes, no active session, restart recovery (minutes to hours)
+- In-memory queue: `ci.alert()` fires while streaming, queued for next turn (seconds)
+
+Handoff: `ci.alert()` → session streaming → `sm.queueNotification()` → returns true → heartbeat marks persistent notification delivered. No double delivery.
 
 - [ ] **Step 3: Remove checkStaleJobs from scheduler**
 
@@ -2117,7 +2121,7 @@ git commit -m "test(m9.1-s3): acceptance test — heartbeat stale detection + no
 3. Heartbeat service logs `[Heartbeat] Started` on dashboard startup
 4. After delivery, notification moves from `pending/` to `delivered/`
 5. Dashboard restart: notifications in `pending/` survive and are delivered on first tick
-6. `SessionManager.pendingNotifications` no longer exists in code
+6. `SessionManager.pendingNotifications` still works for mid-stream delivery (kept, not removed)
 7. `checkStaleJobs()` no longer runs from the scheduler
 
 ---

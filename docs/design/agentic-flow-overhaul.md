@@ -279,7 +279,7 @@ The **guarantee** is the system prompt `[Pending Briefing]` section (System 5). 
 | Existing S3.1 Component | Action |
 |---|---|
 | `AutomationScheduler.checkStaleJobs()` | **Replaced** by heartbeat stale detection (todo-activity-based, 5min threshold) |
-| `SessionManager.pendingNotifications[]` | **Replaced** by persistent notification queue on disk |
+| `SessionManager.pendingNotifications[]` | **Kept** — handles within-session delivery (mid-stream queuing for next turn). Persistent queue handles between-session durability. Complementary, not redundant. |
 | `AutomationProcessor.handleNotification()` | **Simplified** — writes to persistent queue only, heartbeat handles all delivery |
 | `response-watchdog.ts` | **Kept** — conversation-side quality check, orthogonal to working agent systems |
 | `ConversationInitiator.alert()` | **Kept** — still the push delivery mechanism, called by heartbeat service |
@@ -548,7 +548,7 @@ Design validated by two independent agents (2026-04-05). Findings addressed:
 | Session resume fails silently | High | Detect by comparing returned session_id to requested one, fall back to fresh session |
 | No migration path for existing automations | High | Auto-detect `job_type` from `target_path`, grandfather all others |
 | S3.1 coexistence unclear | High | Explicit replace/keep table for each component |
-| `ci.alert()` still unreliable for push | Medium | System prompt `[Pending Briefing]` is the guarantee, push is best-effort optimization |
+| `ci.alert()` still unreliable for push | Medium | System prompt `[Pending Briefing]` is the guarantee, push is best-effort optimization. In-memory `pendingNotifications` kept for mid-stream responsiveness. |
 | Race condition on todos.json | Medium | Atomic writes (temp + rename), `last_activity` on all tool calls |
 | `interrupted` status ripple effects | Medium | Type change in S1, all filter locations documented |
 
