@@ -13,12 +13,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { AppHarness } from "../../../tests/integration/app-harness.js";
-import { readTodoFile, writeTodoFile } from "../todo-file.js";
-import { assembleJobTodos } from "../todo-templates.js";
-import { AutomationProcessor } from "../automation-processor.js";
-import { PersistentNotificationQueue } from "../../notifications/persistent-queue.js";
-import { HeartbeatService } from "../heartbeat-service.js";
+import { AppHarness } from "./app-harness.js";
+import { readTodoFile, writeTodoFile } from "../../src/automations/todo-file.js";
+import { assembleJobTodos } from "../../src/automations/todo-templates.js";
+import { AutomationProcessor } from "../../src/automations/automation-processor.js";
+import { PersistentNotificationQueue } from "../../src/notifications/persistent-queue.js";
+import { HeartbeatService } from "../../src/automations/heartbeat-service.js";
 
 // ---------------------------------------------------------------------------
 // Mock SDK boundary — deterministic, no LLM calls
@@ -40,11 +40,11 @@ vi.mock("@my-agent/core", async () => {
   };
 });
 
-vi.mock("../../automations/working-nina-prompt.js", () => ({
+vi.mock("../../src/automations/working-nina-prompt.js", () => ({
   buildWorkingNinaPrompt: vi.fn(async () => "You are a test worker."),
 }));
 
-vi.mock("../../utils/timezone.js", () => ({
+vi.mock("../../src/utils/timezone.js", () => ({
   resolveTimezone: vi.fn(async () => "UTC"),
 }));
 
@@ -416,7 +416,7 @@ describe("E2E agentic flow", () => {
     expect(mockAlert).toHaveBeenCalledTimes(1);
 
     // Notification content should include todo progress
-    const alertPrompt = mockAlert.mock.calls[0][0] as string;
+    const alertPrompt = mockAlert.mock.lastCall![0] as string;
     expect(alertPrompt).toContain("1/3");
 
     await harness.shutdown();
