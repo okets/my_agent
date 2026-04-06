@@ -541,6 +541,23 @@ export class AutomationExecutor {
           );
           const model = automation?.manifest.model ?? brainConfig.model;
 
+          // Build MCP servers for resume — todo server + optional visual servers
+          const resumeMcpServers: NonNullable<Options["mcpServers"]> = {};
+          const todoPath = job.run_dir
+            ? path.join(job.run_dir, "todos.json")
+            : null;
+          if (todoPath) {
+            resumeMcpServers["todo"] = createTodoServer(todoPath);
+          }
+          if (this.config.visualService) {
+            resumeMcpServers["chart-tools"] = createChartServer({
+              visualService: this.config.visualService,
+            });
+            resumeMcpServers["image-fetch-tools"] = createImageFetchServer({
+              visualService: this.config.visualService,
+            });
+          }
+
           const query = createBrainQuery(userInput, {
             model,
             resume: effectiveSessionId,
@@ -548,17 +565,10 @@ export class AutomationExecutor {
             tools: WORKER_TOOLS,
             settingSources: ["project"],
             additionalDirectories: [this.config.agentDir],
-            // Use fresh chart/image servers if visual service available, never shared singletons
-            mcpServers: this.config.visualService
-              ? {
-                  "chart-tools": createChartServer({
-                    visualService: this.config.visualService,
-                  }),
-                  "image-fetch-tools": createImageFetchServer({
-                    visualService: this.config.visualService,
-                  }),
-                }
-              : undefined,
+            mcpServers:
+              Object.keys(resumeMcpServers).length > 0
+                ? resumeMcpServers
+                : undefined,
             hooks: this.buildJobHooks(
               job.run_dir ? path.join(job.run_dir, "todos.json") : null,
             ),

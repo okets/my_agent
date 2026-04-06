@@ -1562,6 +1562,7 @@ export class App extends EventEmitter {
           automationManager: app.automationManager,
           processor: app.automationProcessor,
           jobService: app.automationJobService,
+          executor: app.automationExecutor,
         });
         addMcpServer("automation-tools", automationToolsServer);
 
