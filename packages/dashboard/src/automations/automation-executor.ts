@@ -590,6 +590,21 @@ export class AutomationExecutor {
             }
           }
 
+          // Detect silent fresh session — SDK doesn't throw on failed resume
+          if (
+            effectiveSessionId &&
+            newSessionId &&
+            newSessionId !== effectiveSessionId
+          ) {
+            console.log(
+              `[AutomationExecutor] Resume detection: fresh session ${newSessionId} created instead of resuming ${effectiveSessionId} for job ${job.id}. Worker will verify completed work from todo list.`,
+            );
+          } else if (effectiveSessionId && newSessionId === null) {
+            console.log(
+              `[AutomationExecutor] Resume detection: no session_id in init message for job ${job.id}. Treating as fresh session.`,
+            );
+          }
+
           const { work, deliverable } = extractDeliverable(response);
           const summary = (deliverable ?? work).slice(0, 500);
 

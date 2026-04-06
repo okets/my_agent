@@ -288,12 +288,15 @@ export function createAutomationServer(deps: AutomationServerDeps) {
 
   const resumeJobTool = tool(
     "resume_job",
-    "Resume a needs_review job with the user's response. The worker's SDK session will be restored with the user's input.",
+    "Resume a needs_review or interrupted job. For needs_review: pass the user's response. For interrupted: the worker resumes with todo context showing completed/remaining items. The worker's SDK session will be restored when possible.",
     {
       jobId: z.string().describe("Job ID to resume"),
       userResponse: z
         .string()
-        .describe("The user's answer to the review question"),
+        .optional()
+        .describe(
+          "The user's answer (required for needs_review, optional for interrupted)",
+        ),
       force: z
         .boolean()
         .optional()
@@ -315,12 +318,12 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         };
       }
 
-      if (job.status !== "needs_review") {
+      if (job.status !== "needs_review" && job.status !== "interrupted") {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Job "${args.jobId}" is ${job.status}, not in needs_review state`,
+              text: `Job "${args.jobId}" is ${job.status}, not in needs_review or interrupted state`,
             },
           ],
           isError: true,
@@ -357,11 +360,27 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         };
       }
 
+      // Build resume prompt — todo-aware for interrupted jobs
+      let resumePrompt = args.userResponse ?? "";
+      if (job.status === "interrupted" && job.run_dir) {
+        const todoFile = readTodoFile(path.join(job.run_dir, "todos.json"));
+        const done = todoFile.items
+          .filter((i) => i.status === "done")
+          .map((i) => i.text);
+        const remaining = todoFile.items
+          .filter((i) => i.status !== "done")
+          .map((i) => i.text);
+
+        resumePrompt =
+          `You were interrupted. Your todo list shows ${done.length} items completed:\n${done.map((t) => `\u2713 ${t}`).join("\n")}\n\nRemaining:\n${remaining.map((t) => `\u2610 ${t}`).join("\n")}\n\nContinue from where you left off. Call todo_list to see your full assignment.` +
+          (args.userResponse ? `\n\nUser message: ${args.userResponse}` : "");
+      }
+
       // Resume with SDK session if executor.resume() is available
       if (deps.executor?.resume) {
         const sessionId = job.sdk_session_id ?? null;
         deps.executor
-          .resume(job, args.userResponse, sessionId)
+          .resume(job, resumePrompt, sessionId)
           .catch((err) =>
             console.error(
               `[automation-server] resume failed for ${args.jobId}:`,
@@ -371,7 +390,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
       } else {
         // Fallback to processor.resume (no SDK session restoration)
         deps.processor
-          .resume(automation, job, args.userResponse)
+          .resume(automation, job, resumePrompt)
           .catch((err) =>
             console.error(
               `[automation-server] resume failed for ${args.jobId}:`,
@@ -384,7 +403,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         content: [
           {
             type: "text" as const,
-            text: `Job "${args.jobId}" resumed with your response. The worker will continue${job.sdk_session_id ? " with prior context" : ""}.`,
+            text: `Job "${args.jobId}" resumed. The worker will continue${job.sdk_session_id ? " with prior context" : ""}.`,
           },
         ],
       };

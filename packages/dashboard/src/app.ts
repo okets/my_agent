@@ -1445,6 +1445,97 @@ export class App extends EventEmitter {
         });
         console.log("[App] Conversation todo provider wired");
 
+        // === Restart Recovery Sequence ===
+        // Runs synchronously before heartbeat starts. Detects work interrupted by prior shutdown.
+
+        // Step 1: Mark interrupted jobs
+        const staleRunning = app.automationJobService.listJobs({
+          status: "running",
+        });
+        const stalePending = app.automationJobService.listJobs({
+          status: "pending",
+        });
+        const staleJobs = [...staleRunning, ...stalePending];
+
+        for (const job of staleJobs) {
+          const todoFile = job.run_dir
+            ? readTodoFile(join(job.run_dir, "todos.json"))
+            : { items: [] };
+          const completed = todoFile.items.filter(
+            (i) => i.status === "done",
+          ).length;
+          const total = todoFile.items.length;
+          const incomplete = todoFile.items
+            .filter((i) => i.status !== "done")
+            .map((i) => i.text);
+
+          app.automationJobService.updateJob(job.id, {
+            status: "interrupted",
+            summary: `Interrupted by restart. ${completed}/${total} items done.`,
+          });
+
+          notificationQueue.enqueue({
+            job_id: job.id,
+            automation_id: job.automationId,
+            type: "job_interrupted",
+            summary: `Job interrupted by restart. ${completed}/${total} items done.`,
+            todos_completed: completed,
+            todos_total: total,
+            incomplete_items: incomplete,
+            resumable: !!job.sdk_session_id,
+            created: new Date().toISOString(),
+            delivery_attempts: 0,
+          });
+        }
+
+        if (staleJobs.length > 0) {
+          console.log(
+            `[Recovery] Marked ${staleJobs.length} interrupted job(s)`,
+          );
+        }
+
+        // Step 2: Disable stale once-automations (spec says delete, but disable is equivalent)
+        const allAutomations = app.automationManager.list();
+        let disabledOnce = 0;
+        for (const auto of allAutomations) {
+          if (auto.manifest.once && auto.manifest.status === "disabled") {
+            // Already disabled from prior run — skip
+            continue;
+          }
+          if (auto.manifest.once) {
+            // Check if all jobs for this automation are completed
+            const jobs = app.automationJobService.listJobs({
+              automationId: auto.id,
+              status: "completed",
+            });
+            if (jobs.length > 0) {
+              app.automationManager.disable(auto.id);
+              disabledOnce++;
+            }
+          }
+        }
+        if (disabledOnce > 0) {
+          console.log(
+            `[Recovery] Disabled ${disabledOnce} completed once-automation(s)`,
+          );
+        }
+
+        // Step 3: Re-scan capabilities (may have been mid-modification at shutdown)
+        if (app.capabilityRegistry) {
+          try {
+            const capDir = join(agentDir, "capabilities");
+            const envFile = resolveEnvPath(agentDir);
+            const freshCaps = await scanCapabilities(capDir, envFile);
+            app.capabilityRegistry.load(freshCaps);
+            console.log(
+              `[Recovery] Capability rescan: ${freshCaps.length} capabilities`,
+            );
+          } catch (err) {
+            console.warn("[Recovery] Capability rescan failed:", err);
+          }
+        }
+
+        // Step 4: Start heartbeat (picks up notifications from Step 1)
         // Heartbeat service — stale job detection + notification delivery
         const heartbeatService = new HeartbeatService({
           jobService: app.automationJobService,
