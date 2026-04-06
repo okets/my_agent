@@ -817,6 +817,31 @@ Fix Nina's agentic flow so she follows orders, delegates reliably, and communica
 
 ---
 
+### M9.2: Worker Todo Coverage — IN PROGRESS
+
+Extend M9.1's code-enforced Todo system to all worker job types. Every Working Nina gets a baseline checklist with validators. Also: smart visual hook that filters dumb charts.
+
+**Implementation plan:** [2026-04-06-m9.2-worker-todo-coverage.md](plans/2026-04-06-m9.2-worker-todo-coverage.md)
+**Origin:** [Cognitive Todo Boost proposal](superpowers/plans/2026-04-06-cognitive-todo-boost-proposal.md) (filtered — 4 of 10 tasks kept)
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Generic & Research Templates | Planned | `research` added to job_type union, `generic` + `research` todo templates, `status_report` validator, generic fallback in `assembleJobTodos`. Real LLM smoke tests for both. |
+| S2 | Working Nina Self-Check | Planned | Replace prose "Principles" with structured pre-completion self-check referencing `todo_list`. Behavioral smoke test. |
+| S3 | Automation Design Checklist | Planned | 8-field checklist in task-triage skill. Addresses D7 (Conversation Nina leaves `todos` empty). Delegation smoke test. |
+| S4 | Visual System Upgrade | Planned | Skill rewrite as decision tree + smart hook (Haiku pre-check gate filters non-chart-worthy data, prevents dumb charts). Smoke tests for both. |
+| S5 | Integration Verification | Planned | Full E2E with real LLM: generic jobs, research jobs with charts, delegation with populated todos. Test report following M9.1-S8 pattern. |
+
+**Key decisions:**
+- Working Nina = todo-oriented (code enforcement). Conversation Nina = conversational (no todos).
+- Visual hook upgraded from dumb heuristic to Haiku-evaluated pre-check (two-step flow)
+- `research` is a first-class job type with its own template (sources, cross-check, chart)
+- All smoke tests use M9.1's proven disk-write pattern (not REST creation)
+
+**Dependencies:** M9.1 (todo infrastructure complete)
+
+---
+
 ### M10: Channel SDK + Transports — PLANNED
 
 Mature the transport plugin interface into a proper SDK. Prove it with email (MS365) and Discord — two very different transport types (async polling vs. real-time websocket). If the SDK handles both cleanly, it handles anything.
