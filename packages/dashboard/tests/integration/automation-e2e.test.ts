@@ -318,7 +318,7 @@ describe("Trigger Types (real services)", () => {
     // Register handler for system automations in trigger tests
     registerHandler("trigger-test-handler", async () => ({
       success: true,
-      work: "trigger test output",
+      work: "trigger test output completed successfully",
       deliverable: null,
     }));
   });

@@ -33,11 +33,11 @@ describe("AutomationProcessor", () => {
         jobService.updateJob(job.id, {
           status: "completed",
           completed: new Date().toISOString(),
-          summary: "Mock execution completed",
+          summary: "Mock execution completed successfully",
         });
         return {
           success: true,
-          work: "Did the work",
+          work: "Mock execution completed successfully",
           deliverable: null,
         };
       }),
@@ -49,6 +49,7 @@ describe("AutomationProcessor", () => {
       automationManager: manager,
       executor: mockExecutor,
       jobService,
+      agentDir: tempDir,
       onJobEvent,
     });
   });
@@ -199,6 +200,7 @@ describe("AutomationProcessor", () => {
       automationManager: manager,
       executor: mockExecutor,
       jobService,
+      agentDir: tempDir,
       onJobEvent,
       conversationInitiator: {
         alert: mockAlert,
@@ -209,7 +211,7 @@ describe("AutomationProcessor", () => {
     await processorWithCi.fire(automation);
 
     expect(mockAlert).toHaveBeenCalledTimes(1);
-    expect(mockAlert.mock.calls[0][0]).toContain("just finished");
+    expect(mockAlert.mock.calls[0][0]).toContain("[job_completed]");
   });
 
   it("should notify on needs_review regardless of notify setting", async () => {
@@ -231,6 +233,7 @@ describe("AutomationProcessor", () => {
       automationManager: manager,
       executor: mockExecutor,
       jobService,
+      agentDir: tempDir,
       onJobEvent,
       conversationInitiator: {
         alert: mockAlert,
@@ -241,6 +244,6 @@ describe("AutomationProcessor", () => {
     await processorWithCi.fire(automation);
 
     expect(mockAlert).toHaveBeenCalledTimes(1);
-    expect(mockAlert.mock.calls[0][0]).toContain("needs the user's input");
+    expect(mockAlert.mock.calls[0][0]).toContain("[job_needs_review]");
   });
 });

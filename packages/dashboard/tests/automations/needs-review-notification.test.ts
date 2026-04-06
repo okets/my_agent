@@ -53,6 +53,7 @@ describe("needs_review notification", () => {
         updateJob: vi.fn(),
         getJob: vi.fn(),
       } as any,
+      agentDir: "/tmp/test-agent",
       conversationInitiator: {
         alert: alertFn,
         initiate: initiateFn,
@@ -69,7 +70,7 @@ describe("needs_review notification", () => {
     await processor.executeAndDeliver(makeAutomation());
 
     expect(alertFn).toHaveBeenCalledWith(
-      expect.stringContaining("needs the user's input"),
+      expect.stringContaining("[job_needs_review]"),
     );
     expect(alertFn).toHaveBeenCalledWith(
       expect.stringContaining("Should we deploy to production?"),
@@ -87,7 +88,7 @@ describe("needs_review notification", () => {
 
     expect(initiateFn).toHaveBeenCalledWith(
       expect.objectContaining({
-        firstTurnPrompt: expect.stringContaining("needs the user's input"),
+        firstTurnPrompt: expect.stringContaining("[job_needs_review]"),
       }),
     );
   });
@@ -106,7 +107,10 @@ describe("needs_review notification", () => {
     );
   });
 
-  it("includes resume_job instructions in the prompt", async () => {
+  it("enqueues resumable notification when queue is configured", async () => {
+    const enqueueFn = vi.fn();
+    config.notificationQueue = { enqueue: enqueueFn } as any;
+
     (config.jobService.createJob as ReturnType<typeof vi.fn>).mockReturnValue(
       makeJob({ id: "job-xyz" }),
     );
@@ -117,8 +121,12 @@ describe("needs_review notification", () => {
     processor = new AutomationProcessor(config);
     await processor.executeAndDeliver(makeAutomation());
 
-    expect(alertFn).toHaveBeenCalledWith(
-      expect.stringContaining('resume_job("job-xyz"'),
+    expect(enqueueFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        job_id: "job-xyz",
+        type: "job_needs_review",
+        resumable: true,
+      }),
     );
   });
 
@@ -135,9 +143,9 @@ describe("needs_review notification", () => {
     processor = new AutomationProcessor(config);
     await processor.executeAndDeliver(makeAutomation());
 
-    // Alert should NOT have been called for needs_review (only for immediate notify)
+    // Alert should NOT have been called for needs_review
     const needsReviewCalls = alertFn.mock.calls.filter(
-      (call: [string]) => call[0].includes("needs the user's input"),
+      (call: [string]) => call[0].includes("[job_needs_review]"),
     );
     expect(needsReviewCalls.length).toBe(0);
   });

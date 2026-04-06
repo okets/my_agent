@@ -1,8 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   createDesktopServer,
-  handleDesktopTask,
-  handleDesktopScreenshot,
   handleDesktopInfo,
 } from "../../../src/mcp/desktop-server.js";
 import type { DesktopBackend, DesktopCapabilities, DisplayInfo, WindowInfo } from "@my-agent/core";
@@ -62,7 +60,6 @@ function makeBackend(overrides: Partial<DesktopBackend> = {}): DesktopBackend {
 function makeDeps(overrides: Partial<DesktopServerDeps> = {}): DesktopServerDeps {
   return {
     backend: null,
-    computerUse: null,
     ...overrides,
   };
 }
@@ -70,111 +67,14 @@ function makeDeps(overrides: Partial<DesktopServerDeps> = {}): DesktopServerDeps
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("desktop-server", () => {
-  // ── isEnabled gate ──────────────────────────────────────────────────────────
-
-  describe("isEnabled gate", () => {
-    it("handleDesktopTask returns error when isEnabled returns false", async () => {
-      const deps = makeDeps({ isEnabled: () => false });
-      const result = await handleDesktopTask(deps, { instruction: "open browser" });
-      expect(result.isError).toBe(true);
-      expect((result.content[0] as any).text).toContain("Desktop control is disabled");
-    });
-
-    it("handleDesktopScreenshot returns error when isEnabled returns false", async () => {
-      const deps = makeDeps({ isEnabled: () => false });
-      const result = await handleDesktopScreenshot(deps, {});
-      expect(result.isError).toBe(true);
-      expect((result.content[0] as any).text).toContain("Desktop control is disabled");
-    });
-
-    it("handleDesktopTask proceeds when isEnabled returns true (hits null computerUse)", async () => {
-      const deps = makeDeps({ isEnabled: () => true });
-      const result = await handleDesktopTask(deps, { instruction: "open browser" });
-      expect(result.isError).toBe(true);
-      expect((result.content[0] as any).text).toContain("No ComputerUseService was configured");
-    });
-
-    it("handleDesktopTask proceeds when isEnabled is not provided (default open)", async () => {
-      const deps = makeDeps();
-      const result = await handleDesktopTask(deps, { instruction: "open browser" });
-      expect(result.isError).toBe(true);
-      expect((result.content[0] as any).text).toContain("No ComputerUseService was configured");
-    });
-  });
-
-  // ── Rate limiter ────────────────────────────────────────────────────────────
-
-  describe("rate limiter", () => {
-    it("blocks desktop_task when rate limit exceeded", async () => {
-      const deps = makeDeps({
-        rateLimiter: { check: () => ({ allowed: false, reason: "Too many requests — slow down" }) },
-      });
-      const result = await handleDesktopTask(deps, { instruction: "click" });
-      expect(result.isError).toBe(true);
-      expect((result.content[0] as any).text).toContain("Too many requests");
-    });
-
-    it("uses default message when reason is absent", async () => {
-      const deps = makeDeps({
-        rateLimiter: { check: () => ({ allowed: false }) },
-      });
-      const result = await handleDesktopTask(deps, { instruction: "click" });
-      expect(result.isError).toBe(true);
-      expect((result.content[0] as any).text).toBe("Rate limit exceeded");
-    });
-
-    it("allows desktop_task when rate limiter passes", async () => {
-      const deps = makeDeps({
-        rateLimiter: { check: () => ({ allowed: true }) },
-      });
-      const result = await handleDesktopTask(deps, { instruction: "click" });
-      // Should proceed past rate limiter and hit null computerUse
-      expect(result.isError).toBe(true);
-      expect((result.content[0] as any).text).toContain("No ComputerUseService was configured");
-    });
-  });
-
-  // ── Audit logger ────────────────────────────────────────────────────────────
-
-  describe("audit logger", () => {
-    it("calls audit logger with correct tool name and instruction", async () => {
-      const log = vi.fn();
-      const deps = makeDeps({ auditLogger: { log } });
-      await handleDesktopTask(deps, { instruction: "open settings" });
-      expect(log).toHaveBeenCalledOnce();
-      expect(log).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tool: "desktop_task",
-          instruction: "open settings",
-          timestamp: expect.any(String),
-        }),
-      );
-    });
-  });
-
-  // ── Null deps ───────────────────────────────────────────────────────────────
+  // ── Null deps ───────────────────────────────────────────────────────────
 
   describe("null deps", () => {
-    it("handleDesktopTask with null computerUse returns error", async () => {
-      const deps = makeDeps();
-      const result = await handleDesktopTask(deps, { instruction: "click" });
-      expect(result.isError).toBe(true);
-      expect((result.content[0] as any).text).toContain("No ComputerUseService was configured");
-    });
-
-    it("handleDesktopScreenshot with null backend returns error", async () => {
-      const deps = makeDeps();
-      const result = await handleDesktopScreenshot(deps, {});
-      expect(result.isError).toBe(true);
-      expect((result.content[0] as any).text).toContain("No display detected");
-    });
-
     it("handleDesktopInfo with null backend + capabilities returns helpful JSON (not error)", async () => {
       const deps = makeDeps();
       const result = await handleDesktopInfo(deps, { query: "capabilities" });
       expect(result.isError).toBeUndefined();
       const parsed = JSON.parse((result.content[0] as any).text);
-      expect(parsed.computerUseAvailable).toBe(false);
       expect(parsed.available).toBe(false);
       expect(parsed.reason).toContain("No desktop backend configured");
     });
@@ -194,36 +94,17 @@ describe("desktop-server", () => {
     });
   });
 
-  // ── Happy paths (with mocks) ───────────────────────────────────────────────
+  // ── Happy paths (with mocks) ───────────────────────────────────────────
 
   describe("happy paths", () => {
-    it("handleDesktopScreenshot with mock backend returns image content block", async () => {
-      const backend = makeBackend();
-      const deps = makeDeps({ backend });
-      const result = await handleDesktopScreenshot(deps, {});
-      expect(result.isError).toBeUndefined();
-      expect(result.content[0]).toMatchObject({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: "image/png",
-          data: expect.any(String),
-        },
-      });
-      // Verify the base64 decodes to our fake PNG
-      const data = (result.content[0] as any).source.data;
-      expect(Buffer.from(data, "base64").toString()).toBe("fake-png");
-    });
-
     it("handleDesktopInfo with mock backend + capabilities returns JSON with platform", async () => {
       const backend = makeBackend();
-      const deps = makeDeps({ backend, computerUse: null });
+      const deps = makeDeps({ backend });
       const result = await handleDesktopInfo(deps, { query: "capabilities" });
       expect(result.isError).toBeUndefined();
       const parsed = JSON.parse((result.content[0] as any).text);
       expect(parsed.platform).toBe("x11");
       expect(parsed.capabilities.screenshot).toBe(true);
-      expect(parsed.computerUseAvailable).toBe(false);
     });
 
     it("handleDesktopInfo with mock backend + windows returns JSON array", async () => {
@@ -238,14 +119,13 @@ describe("desktop-server", () => {
     });
   });
 
-  // ── Server creation ─────────────────────────────────────────────────────────
+  // ── Server creation ─────────────────────────────────────────────────────
 
   describe("server creation", () => {
     it("createDesktopServer returns defined server with all deps", () => {
       const backend = makeBackend();
       const server = createDesktopServer({
         backend,
-        computerUse: null,
         rateLimiter: { check: () => ({ allowed: true }) },
         auditLogger: { log: vi.fn() },
         isEnabled: () => true,
@@ -254,84 +134,8 @@ describe("desktop-server", () => {
     });
 
     it("createDesktopServer returns defined server with null deps", () => {
-      const server = createDesktopServer({ backend: null, computerUse: null });
+      const server = createDesktopServer({ backend: null });
       expect(server).toBeDefined();
-    });
-  });
-
-  describe("logDir resolution", () => {
-    it("resolves logDir for job context", async () => {
-      const mockRun = vi.fn().mockResolvedValue({
-        success: true,
-        summary: "done",
-        screenshots: [],
-        actionsPerformed: 1,
-      });
-      const deps: DesktopServerDeps = {
-        backend: makeBackend(),
-        computerUse: { run: mockRun } as any,
-        visualService: { agentDir: "/tmp/test-agent" } as any,
-      };
-
-      await handleDesktopTask(deps, {
-        instruction: "test",
-        context: { type: "job", id: "job-1", automationId: "auto-1" },
-      });
-
-      expect(mockRun).toHaveBeenCalledWith(
-        expect.objectContaining({
-          logDir: expect.stringContaining("automations/.runs/auto-1/job-1"),
-        }),
-      );
-    });
-
-    it("resolves logDir for conversation context", async () => {
-      const mockRun = vi.fn().mockResolvedValue({
-        success: true,
-        summary: "done",
-        screenshots: [],
-        actionsPerformed: 1,
-      });
-      const deps: DesktopServerDeps = {
-        backend: makeBackend(),
-        computerUse: { run: mockRun } as any,
-        visualService: { agentDir: "/tmp/test-agent" } as any,
-      };
-
-      await handleDesktopTask(deps, {
-        instruction: "send a message",
-        context: { type: "conversation", id: "conv-123" },
-      });
-
-      expect(mockRun).toHaveBeenCalledWith(
-        expect.objectContaining({
-          logDir: expect.stringContaining("conversations/conv-123"),
-        }),
-      );
-    });
-
-    it("resolves fallback logDir when no context type matches", async () => {
-      const mockRun = vi.fn().mockResolvedValue({
-        success: true,
-        summary: "done",
-        screenshots: [],
-        actionsPerformed: 1,
-      });
-      const deps: DesktopServerDeps = {
-        backend: makeBackend(),
-        computerUse: { run: mockRun } as any,
-        visualService: { agentDir: "/tmp/test-agent" } as any,
-      };
-
-      await handleDesktopTask(deps, {
-        instruction: "test",
-      });
-
-      expect(mockRun).toHaveBeenCalledWith(
-        expect.objectContaining({
-          logDir: expect.stringContaining("desktop-actions"),
-        }),
-      );
     });
   });
 });

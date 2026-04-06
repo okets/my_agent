@@ -55,7 +55,7 @@ describe("Trigger Types E2E", () => {
   // Register a test handler for all system automations in this suite
   const testHandler: BuiltInHandler = vi.fn(async () => ({
     success: true,
-    work: "trigger test output",
+    work: "trigger test output completed successfully",
     deliverable: null,
   }));
 
