@@ -7,6 +7,7 @@
  */
 
 import { resolve, relative } from 'path'
+import { readFileSync } from 'fs'
 import type { HookCallback, PreToolUseHookInput } from '@anthropic-ai/claude-agent-sdk'
 
 /**
@@ -272,6 +273,44 @@ export function createPathRestrictor(allowedPaths?: string[]): HookCallback {
       }
     }
 
+    return {}
+  }
+}
+
+/**
+ * Stop hook soft reminder — reads todos.json when worker session ends.
+ *
+ * If mandatory items are incomplete, returns a systemMessage nudge.
+ * Applied at task trust level only. Fires once — the completion gate
+ * in the executor is the hard safety net if this is ignored.
+ */
+export function createStopReminder(todoPath: string): HookCallback {
+  return async () => {
+    try {
+      const raw = readFileSync(todoPath, 'utf-8')
+      const todoFile = JSON.parse(raw) as {
+        items: Array<{
+          id: string
+          text: string
+          status: string
+          mandatory: boolean
+        }>
+      }
+
+      const incomplete = todoFile.items.filter(
+        (i) => i.mandatory && i.status !== 'done' && i.status !== 'blocked',
+      )
+
+      if (incomplete.length > 0) {
+        const list = incomplete.map((i) => `${i.id}: ${i.text}`).join(', ')
+        return {
+          decision: undefined,
+          systemMessage: `You have ${incomplete.length} incomplete mandatory items: ${list}. Complete them before finishing.`,
+        }
+      }
+    } catch {
+      // No todos.json or parse error — no reminder needed
+    }
     return {}
   }
 }

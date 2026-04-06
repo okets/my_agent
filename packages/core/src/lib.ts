@@ -34,6 +34,7 @@ export {
   createAuditHook,
   createBashBlocker,
   createPathRestrictor,
+  createStopReminder,
 } from './hooks/index.js'
 export type { TrustLevel, HookFactoryOptions } from './hooks/index.js'
 

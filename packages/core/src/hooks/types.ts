@@ -20,4 +20,6 @@ export interface HookFactoryOptions {
   allowedPaths?: string[]
   /** Project root for source code protection (defaults to process.cwd()) */
   projectRoot?: string
+  /** Path to todos.json for Stop hook reminder (task level only) */
+  todoPath?: string
 }

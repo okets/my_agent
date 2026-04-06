@@ -11,6 +11,7 @@ import {
   filterSkillsByTools,
   cleanupSkillFilters,
   parseFrontmatterContent,
+  createStopReminder,
 } from "@my-agent/core";
 import type {
   Automation,
@@ -72,6 +73,22 @@ export class AutomationExecutor {
 
   constructor(config: AutomationExecutorConfig) {
     this.config = config;
+  }
+
+  /** Merge per-job Stop hook into static config hooks */
+  private buildJobHooks(
+    todoPath: string | null,
+  ): typeof this.config.hooks {
+    if (!todoPath || !this.config.hooks) return this.config.hooks;
+
+    return {
+      ...this.config.hooks,
+      Stop: [
+        {
+          hooks: [createStopReminder(todoPath)],
+        },
+      ],
+    };
   }
 
   /** Auto-detect job type from manifest or target_path */
@@ -281,7 +298,7 @@ export class AutomationExecutor {
         settingSources: ["project"],
         additionalDirectories: [this.config.agentDir],
         mcpServers: workerMcpServers,
-        hooks: this.config.hooks,
+        hooks: this.buildJobHooks(todoPath),
         ...(resumeSessionId ? { resume: resumeSessionId } : {}),
       });
 

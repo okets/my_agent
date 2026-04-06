@@ -14,5 +14,6 @@ export {
   createPathRestrictor,
   createSourceCodeProtection,
   createCapabilityRouting,
+  createStopReminder,
 } from './safety.js'
 export type { TrustLevel, HookFactoryOptions } from './types.js'

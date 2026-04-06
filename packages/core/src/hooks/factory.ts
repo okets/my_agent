@@ -19,6 +19,7 @@ import {
   createPathRestrictor,
   createSourceCodeProtection,
   createCapabilityRouting,
+  createStopReminder,
 } from './safety.js'
 import type { TrustLevel, HookFactoryOptions } from './types.js'
 
@@ -73,6 +74,15 @@ export function createHooks(
       matcher: 'Write|Edit',
       hooks: [createPathRestrictor(options.allowedPaths)],
     })
+  }
+
+  // Stop hook — task level only. Reminds worker about incomplete mandatory items.
+  if (trustLevel === 'task' && options?.todoPath) {
+    hooks.Stop = [
+      {
+        hooks: [createStopReminder(options.todoPath)],
+      },
+    ]
   }
 
   return hooks
