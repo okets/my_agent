@@ -13,10 +13,11 @@ export class CapabilityRegistry {
     this.projectRoot = root
   }
 
-  /** Initialize with scan results */
+  /** Initialize with scan results (skips invalid capabilities) */
   load(capabilities: Capability[]): void {
     this.capabilities.clear()
     for (const cap of capabilities) {
+      if (cap.status === 'invalid') continue
       this.capabilities.set(cap.name, cap)
     }
   }

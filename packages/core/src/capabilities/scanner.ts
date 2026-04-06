@@ -7,7 +7,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { readFrontmatter } from '../metadata/frontmatter.js'
 import { getEnvValue } from '../env.js'
 import type { Capability, CapabilityFrontmatter, CapabilityMcpConfig } from './types.js'
@@ -97,11 +97,21 @@ export async function scanCapabilities(
   const capabilities: Capability[] = []
 
   for (const filePath of files) {
+    const capDir = dirname(filePath)
     try {
       const { data } = readFrontmatter<CapabilityFrontmatter>(filePath)
-      if (!data.name) continue
+      if (!data.name) {
+        capabilities.push({
+          name: basename(capDir),
+          interface: data.interface ?? 'script',
+          path: capDir,
+          status: 'invalid',
+          error: 'Missing name in CAPABILITY.md frontmatter',
+          health: 'untested',
+        })
+        continue
+      }
 
-      const capDir = dirname(filePath)
       const requiredEnv = data.requires?.env ?? []
       const missingVars = requiredEnv.filter((key) => !hasEnvVar(envPath, key))
 
@@ -127,8 +137,15 @@ export async function scanCapabilities(
       }
 
       capabilities.push(capability)
-    } catch {
-      // Skip malformed capability files
+    } catch (err) {
+      capabilities.push({
+        name: basename(capDir),
+        interface: 'script',
+        path: capDir,
+        status: 'invalid',
+        error: err instanceof Error ? err.message : 'Unknown error parsing CAPABILITY.md',
+        health: 'untested',
+      })
     }
   }
 

@@ -8,8 +8,9 @@ export interface Capability {
   provides?: string // well-known type (e.g. 'audio-to-text') or undefined for custom
   interface: 'script' | 'mcp'
   path: string // absolute path to capability folder
-  status: 'available' | 'unavailable'
+  status: 'available' | 'unavailable' | 'invalid'
   unavailableReason?: string // e.g. "missing DEEPGRAM_API_KEY"
+  error?: string // parse/validation error when status is 'invalid'
   health: 'healthy' | 'degraded' | 'untested'
   degradedReason?: string // e.g. "401 Unauthorized"
   lastTestLatencyMs?: number // milliseconds for last successful test
