@@ -332,12 +332,22 @@ export class AutomationExecutor {
       // 7. Extract deliverable
       const { work, deliverable } = extractDeliverable(response);
 
-      // Write deliverable.md to run_dir (use work as fallback if no structured deliverable)
+      // Write deliverable.md to run_dir — but preserve the worker's version if it has
+      // valid frontmatter (workers write structured deliverables with metadata that
+      // validators check; the extracted stream text would overwrite that).
       let deliverablePath: string | undefined;
       let finalDeliverable = deliverable ?? work;
-      if (finalDeliverable && job.run_dir) {
+      if (job.run_dir) {
         deliverablePath = path.join(job.run_dir, "deliverable.md");
-        fs.writeFileSync(deliverablePath, finalDeliverable, "utf-8");
+        const workerWroteDeliverable =
+          fs.existsSync(deliverablePath) &&
+          fs.readFileSync(deliverablePath, "utf-8").startsWith("---");
+        if (workerWroteDeliverable) {
+          // Worker wrote structured deliverable with frontmatter — keep it
+          finalDeliverable = fs.readFileSync(deliverablePath, "utf-8");
+        } else if (finalDeliverable) {
+          fs.writeFileSync(deliverablePath, finalDeliverable, "utf-8");
+        }
       }
       if (unsubscribe) unsubscribe();
 

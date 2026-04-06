@@ -132,13 +132,15 @@ export class ConversationInitiator {
     }
 
     if (response) {
-      // Determine outbound channel:
-      // - 'dashboard' source = never forward to an external channel (prevents WhatsApp bleed)
-      // - undefined source = infer from recent conversation turns (legacy behavior)
+      // Determine outbound channel from the conversation's own turns.
+      // alert() injects into an EXISTING conversation — the response stays
+      // in that conversation's channel. If the conversation is browser-only
+      // (no channel in user turns), there is no external channel to send to.
+      // Never fall back to getOutboundChannel() — that's for initiate() only.
       let outboundChannel: string | undefined;
 
       if (options?.sourceChannel === "dashboard") {
-        // Dashboard-originated action — do NOT send via any external channel
+        // Dashboard-originated action — explicitly no external channel
         outboundChannel = undefined;
       } else {
         // Infer from recent turns: search enough turns back to find the inbound
@@ -164,8 +166,9 @@ export class ConversationInitiator {
         channel: outboundChannel,
       });
 
-      // Skip channel send for dashboard-originated actions
-      if (options?.sourceChannel !== "dashboard") {
+      // Forward to external channel only if the conversation has one.
+      // Browser-only conversations (outboundChannel === undefined) stay browser-only.
+      if (outboundChannel) {
         await this.trySendViaChannel(response, outboundChannel);
       }
     }

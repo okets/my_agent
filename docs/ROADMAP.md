@@ -26,7 +26,7 @@
 | **M7: Spaces, Automations & Jobs** | **Complete** | 9/9 sprints (S1-S9), 757 tests |
 | **M8: Visual & Desktop Automation** | Complete | 8/8 sprints (S1-S5.1), 884 tests |
 | **M9: Capability System** | Complete | 8/8 sprints (S1-S3.1, S5-S8), S4 failed/absorbed. Voice E2E working. Paper trail v2 done. |
-| **M9.1: Agentic Flow Overhaul** | **Active** | Design approved. Todo system, heartbeat service, enforcement hooks, restart recovery. |
+| **M9.1: Agentic Flow Overhaul** | **Done** | All 8 sprints complete. Todo system, heartbeat, hooks, restart recovery — validated with real LLM. Voice sprint unblocked. |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -779,7 +779,7 @@ Self-extending agent capabilities. The agent itself can research, build, and ins
 
 ---
 
-### M9.1: Agentic Flow Overhaul — ACTIVE
+### M9.1: Agentic Flow Overhaul — DONE
 
 Fix Nina's agentic flow so she follows orders, delegates reliably, and communicates status. Addresses all systemic issues identified in M9-S8.
 
@@ -795,8 +795,8 @@ Fix Nina's agentic flow so she follows orders, delegates reliably, and communica
 | S4 | Enforcement Hooks | Done | Source code protection (all Ninas), capability routing (Conversation Nina), todo completion check (Working Nina), updated trust model. [Review](../sprints/m9.1-s4-enforcement-hooks/review.md) |
 | S5 | Status Communication + System Prompt | Done | Enhanced `check_job_status` with todo progress, `[Pending Briefing]` section in system prompt, `[Your Pending Tasks]` for Conversation Nina, 3-channel delivery (pull/push/briefing). [Review](../sprints/m9.1-s5-status-communication/review.md) |
 | S6 | Restart Recovery | Done | Startup recovery sequence (mark interrupted → notify → clean stale → re-scan → start heartbeat), resume_job for interrupted jobs with todo-aware prompt, session ID mismatch detection. [Review](../sprints/m9.1-s6-restart-recovery/review.md) |
-| S7 | Infrastructure Fixes + Integration Test | Done | Scanner loudness (invalid caps reported), target_path from manifest (regex removed), E2E integration test (5 tests: todo assembly, completion gating, notification delivery, stale detection). [Review](sprints/m9.1-s7-infra-fixes/review.md) |
-| S8 | The Real Test | Planned | Ask Nina to build a new capability and modify an existing one. Validate: todo-driven execution, heartbeat notifications, restart recovery, paper trail completeness. Voice sprint follows if passed. |
+| S7 | Infrastructure Fixes + Integration Test | Done | Scanner loudness (invalid caps reported), target_path from manifest (regex removed), E2E integration test (5 tests: todo assembly, completion gating, notification delivery, stale detection). [Review](../sprints/m9.1-s7-infra-fixes/review.md) |
+| S8 | The Real Test | Done (PASS) | Live validation with real LLM sessions. 8 tests: order following, todo execution, validators, progress reporting, notifications, restart recovery, paper trail, source code protection. 4 bugs found and fixed (worker prompt, deliverable preservation, template text, retry instructions). All 8 pass. [Plan](../sprints/m9.1-s8-real-test/plan.md) · [Review](../sprints/m9.1-s8-real-test/review.md) · [Test Report](../sprints/m9.1-s8-real-test/test-report.md) |
 
 **Key design decisions:**
 - Todo system is an MCP server, not reused from Claude Code (needs persistence, mandatory items, validation)
