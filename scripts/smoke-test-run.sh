@@ -57,13 +57,20 @@ AUTOMEOF
 # Step 2: Restart dashboard to sync the new automation
 echo "[test] Restarting dashboard to sync automation..."
 systemctl --user restart nina-dashboard.service
-sleep 3
 
-# Verify dashboard is up
-if ! curl -sf "$DASHBOARD_URL/" > /dev/null 2>&1; then
-  echo "[FAIL] Dashboard not responding after restart"
-  exit 1
-fi
+# Wait for dashboard to come up
+echo "[test] Waiting for dashboard..."
+for i in $(seq 1 10); do
+  sleep 2
+  if curl -sf "$DASHBOARD_URL/" > /dev/null 2>&1; then
+    echo "[test] Dashboard is healthy (${i}x2s)"
+    break
+  fi
+  if [ "$i" -eq 10 ]; then
+    echo "[FAIL] Dashboard not responding after restart"
+    exit 1
+  fi
+done
 
 # Verify automation was indexed
 echo "[test] Verifying automation indexed..."

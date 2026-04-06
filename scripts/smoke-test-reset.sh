@@ -61,16 +61,20 @@ DECEOF
 # 6. Restart dashboard to pick up clean state
 echo "[reset] Restarting dashboard..."
 systemctl --user restart nina-dashboard.service
-sleep 3
 
-# 7. Health check (use root endpoint which returns 200)
-echo "[reset] Checking dashboard health..."
-if curl -sf "$DASHBOARD_URL/" > /dev/null 2>&1; then
-  echo "[reset] Dashboard is healthy"
-else
-  echo "[reset] WARNING: Dashboard health check failed"
-  exit 1
-fi
+# 7. Health check with retry (dashboard takes ~8s to start)
+echo "[reset] Waiting for dashboard..."
+for i in $(seq 1 10); do
+  sleep 2
+  if curl -sf "$DASHBOARD_URL/" > /dev/null 2>&1; then
+    echo "[reset] Dashboard is healthy (${i}x2s)"
+    break
+  fi
+  if [ "$i" -eq 10 ]; then
+    echo "[reset] WARNING: Dashboard health check failed after 20s"
+    exit 1
+  fi
+done
 
 echo "=== Reset Complete ==="
 echo "Baseline: smoke-test-cap capability at $AGENT_DIR/capabilities/smoke-test-cap/"
