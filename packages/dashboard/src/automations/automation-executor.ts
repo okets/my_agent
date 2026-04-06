@@ -79,10 +79,10 @@ export class AutomationExecutor {
   private buildJobHooks(
     todoPath: string | null,
   ): typeof this.config.hooks {
-    if (!todoPath || !this.config.hooks) return this.config.hooks;
+    if (!todoPath) return this.config.hooks;
 
     return {
-      ...this.config.hooks,
+      ...(this.config.hooks ?? {}),
       Stop: [
         {
           hooks: [createStopReminder(todoPath)],
@@ -558,7 +558,9 @@ export class AutomationExecutor {
                   }),
                 }
               : undefined,
-            hooks: this.config.hooks,
+            hooks: this.buildJobHooks(
+              job.run_dir ? path.join(job.run_dir, "todos.json") : null,
+            ),
             includePartialMessages: false,
           });
 
