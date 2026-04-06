@@ -740,7 +740,7 @@ export class AutomationExecutor {
 
   /**
    * Write paper trail: append structured entry to DECISIONS.md at the target artifact path.
-   * target_path comes from the manifest (guaranteed) or frontmatter (enrichment).
+   * target_path comes from the automation manifest.
    * Non-fatal — failures are logged but don't affect job status.
    */
   private writePaperTrail(

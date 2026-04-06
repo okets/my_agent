@@ -19,6 +19,8 @@ import { assembleJobTodos } from "../../src/automations/todo-templates.js";
 import { AutomationProcessor } from "../../src/automations/automation-processor.js";
 import { PersistentNotificationQueue } from "../../src/notifications/persistent-queue.js";
 import { HeartbeatService } from "../../src/automations/heartbeat-service.js";
+import { createTodoTools } from "../../src/mcp/todo-server.js";
+import { runValidation } from "../../src/automations/todo-validators.js";
 
 // ---------------------------------------------------------------------------
 // Mock SDK boundary — deterministic, no LLM calls
@@ -420,5 +422,63 @@ describe("E2E agentic flow", () => {
     expect(alertPrompt).toContain("1/3");
 
     await harness.shutdown();
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 6: Validator rejects todo_update("done") and blocks after 3 failures
+  // -------------------------------------------------------------------------
+
+  it("validator rejects marking todo done when validation fails, blocks after 3 attempts", async () => {
+    // Set up a todo file with a validated mandatory item
+    const jobDir = path.join(tmpDir, "run-validator-test");
+    fs.mkdirSync(jobDir, { recursive: true });
+    const todoPath = path.join(jobDir, "todos.json");
+
+    writeTodoFile(todoPath, {
+      items: [
+        {
+          id: "t1",
+          text: "Write CAPABILITY.md with required frontmatter",
+          status: "in_progress",
+          mandatory: true,
+          created_by: "framework",
+          validation: "capability_frontmatter",
+        },
+      ],
+      last_activity: new Date().toISOString(),
+    });
+
+    // No CAPABILITY.md exists in targetDir — validator will fail
+    const fakeTargetDir = path.join(tmpDir, "fake-capability");
+    fs.mkdirSync(fakeTargetDir, { recursive: true });
+
+    const tools = createTodoTools(todoPath, runValidation, fakeTargetDir);
+
+    // Attempt 1: rejected
+    const r1 = await tools.todo_update({ id: "t1", status: "done" });
+    expect(r1.isError).toBe(true);
+    expect(r1.content[0]).toHaveProperty("text");
+    expect((r1.content[0] as { text: string }).text).toContain("attempt 1/3");
+
+    // Item should still be in_progress
+    let todos = readTodoFile(todoPath);
+    expect(todos.items[0].status).toBe("in_progress");
+    expect(todos.items[0].validation_attempts).toBe(1);
+
+    // Attempt 2: rejected
+    const r2 = await tools.todo_update({ id: "t1", status: "done" });
+    expect(r2.isError).toBe(true);
+    expect((r2.content[0] as { text: string }).text).toContain("attempt 2/3");
+
+    // Attempt 3: blocked
+    const r3 = await tools.todo_update({ id: "t1", status: "done" });
+    expect(r3.isError).toBe(true);
+    expect((r3.content[0] as { text: string }).text).toContain("blocked");
+
+    // Item should now be blocked with validation failure reason
+    todos = readTodoFile(todoPath);
+    expect(todos.items[0].status).toBe("blocked");
+    expect(todos.items[0].notes).toContain("Validation failed 3 times");
+    expect(todos.items[0].notes).toContain("CAPABILITY.md");
   });
 });
