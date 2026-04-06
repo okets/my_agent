@@ -441,22 +441,7 @@ export class AutomationExecutor {
       });
 
       // 11. Paper trail: write DECISIONS.md at artifact path
-      // target_path source cascade (most reliable first):
-      //   1. manifest.target_path (schema field, set by create_automation)
-      //   2. regex from automation instructions (code-guaranteed fallback)
-      //   3. deliverable frontmatter (optional LLM enrichment)
-      const manifestTargetPath = automation.manifest.target_path;
-      const instructionsTargetPath = this.extractTargetPath(
-        automation.instructions,
-      );
-      const frontmatterData = finalDeliverable
-        ? parseFrontmatterContent<{ target_path?: string }>(finalDeliverable)
-            .data
-        : undefined;
-      const targetPath =
-        manifestTargetPath ??
-        instructionsTargetPath ??
-        frontmatterData?.target_path;
+      const targetPath = automation.manifest.target_path;
 
       if (targetPath) {
         this.writePaperTrail(
@@ -751,18 +736,6 @@ export class AutomationExecutor {
           "A human will approve before execution proceeds.",
         ].join("\n");
     }
-  }
-
-  /**
-   * Extract target_path from automation instructions by looking for
-   * .my_agent/capabilities/<name>/ patterns. Code-guaranteed fallback
-   * that doesn't depend on any LLM passing a field.
-   */
-  private extractTargetPath(instructions: string): string | undefined {
-    const match = instructions.match(
-      /\.my_agent\/capabilities\/[a-z0-9_-]+\/?/i,
-    );
-    return match ? match[0].replace(/\/$/, "") : undefined;
   }
 
   /**
