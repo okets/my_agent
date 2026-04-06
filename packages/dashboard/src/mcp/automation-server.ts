@@ -7,9 +7,12 @@
 
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import path from "node:path";
+import type { Job } from "@my-agent/core";
 import type { AutomationManager } from "../automations/automation-manager.js";
 import type { AutomationProcessor } from "../automations/automation-processor.js";
 import type { AutomationJobService } from "../automations/automation-job-service.js";
+import { readTodoFile } from "../automations/todo-file.js";
 
 export interface AutomationServerDeps {
   automationManager: AutomationManager;
@@ -28,6 +31,33 @@ export interface AutomationServerDeps {
       error?: string;
     }>;
   };
+}
+
+function formatJobTodoProgress(job: Job): string {
+  if (!job.run_dir) return "";
+  const todoFile = readTodoFile(path.join(job.run_dir, "todos.json"));
+  if (todoFile.items.length === 0) return "";
+
+  const completed = todoFile.items.filter((i) => i.status === "done");
+  const inProgress = todoFile.items.filter((i) => i.status === "in_progress");
+  const pending = todoFile.items.filter((i) => i.status === "pending");
+  const blocked = todoFile.items.filter((i) => i.status === "blocked");
+
+  const parts: string[] = [
+    `\n  Progress: ${completed.length}/${todoFile.items.length} items done`,
+  ];
+  if (inProgress.length > 0) {
+    parts.push(
+      `  In progress: ${inProgress.map((i) => i.text).join(", ")}`,
+    );
+  }
+  if (pending.length > 0) {
+    parts.push(`  Pending: ${pending.map((i) => i.text).join(", ")}`);
+  }
+  if (blocked.length > 0) {
+    parts.push(`  Blocked: ${blocked.map((i) => i.text).join(", ")}`);
+  }
+  return parts.join("\n");
 }
 
 export function createAutomationServer(deps: AutomationServerDeps) {
@@ -411,7 +441,8 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         const lines = activeJobs.map((job) => {
           const automation = deps.automationManager.findById(job.automationId);
           const name = automation?.manifest.name ?? job.automationId;
-          return `- **${name}** (${job.id}) — ${job.status}, started ${job.created}`;
+          const todoProgress = formatJobTodoProgress(job);
+          return `- **${name}** (${job.id}) — ${job.status}, started ${job.created}${todoProgress}`;
         });
         sections.push(
           `**Active jobs (${activeJobs.length}):**\n${lines.join("\n")}`,
@@ -425,7 +456,8 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         const lines = reviewJobs.map((job) => {
           const automation = deps.automationManager.findById(job.automationId);
           const name = automation?.manifest.name ?? job.automationId;
-          return `- **${name}** (${job.id}) — needs review: ${job.summary ?? "no details"}`;
+          const todoProgress = formatJobTodoProgress(job);
+          return `- **${name}** (${job.id}) — needs review: ${job.summary ?? "no details"}${todoProgress}`;
         });
         sections.push(
           `**Awaiting review (${reviewJobs.length}):**\n${lines.join("\n")}`,

@@ -103,6 +103,7 @@ import {
 } from "./automations/index.js";
 import { createAutomationServer } from "./mcp/automation-server.js";
 import { HeartbeatService } from "./automations/heartbeat-service.js";
+import { readTodoFile } from "./automations/todo-file.js";
 import { PersistentNotificationQueue } from "./notifications/persistent-queue.js";
 import { VisualActionService } from "./visual/visual-action-service.js";
 import { detectDesktopEnvironment } from "./desktop/desktop-capability-detector.js";
@@ -1373,7 +1374,21 @@ export class App extends EventEmitter {
               job.automationId,
             );
             const name = automation?.manifest.name ?? job.automationId;
-            return `${name} (job ${job.id}, status: ${job.status})`;
+            let progress = "";
+            if (job.run_dir) {
+              const todos = readTodoFile(join(job.run_dir, "todos.json"));
+              if (todos.items.length > 0) {
+                const done = todos.items.filter(
+                  (i) => i.status === "done",
+                ).length;
+                const total = todos.items.length;
+                const current = todos.items.find(
+                  (i) => i.status === "in_progress",
+                );
+                progress = `, ${done}/${total} items done${current ? `, currently: "${current.text}"` : ""}`;
+              }
+            }
+            return `"${name}" (${job.id}): ${job.status}${progress}`;
           });
         });
         console.log("[App] Running tasks checker wired to automation jobs");
