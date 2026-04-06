@@ -268,7 +268,10 @@ export class SessionManager {
       });
 
     // Wire hooks for audit logging and safety
-    this.hooks = createHooks("brain", { agentDir });
+    this.hooks = createHooks("brain", {
+      agentDir,
+      projectRoot: path.resolve(agentDir, ".."),
+    });
 
     // Add model change broadcast on capability-builder start/stop
     if (!this.hooks.SubagentStart) this.hooks.SubagentStart = [];

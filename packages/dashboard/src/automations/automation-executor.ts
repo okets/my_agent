@@ -84,6 +84,7 @@ export class AutomationExecutor {
     return {
       ...(this.config.hooks ?? {}),
       Stop: [
+        ...(this.config.hooks?.Stop ?? []),
         {
           hooks: [createStopReminder(todoPath)],
         },

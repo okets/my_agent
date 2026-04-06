@@ -3,10 +3,10 @@
  *
  * Creates trust-tiered hooks for the brain, tasks, and subagents.
  *
- * Trust levels:
- * - brain: Audit logging only (PostToolUse)
- * - task: Audit + bash command blocker (PostToolUse + PreToolUse)
- * - subagent: Audit + bash blocker + path restrictor (most restrictive)
+ * Trust levels (M9.1-S4):
+ * - brain: Audit + source code protection + capability routing
+ * - task: Audit + source code protection + bash blocker + infrastructure guard + Stop reminder
+ * - subagent: Audit + source code protection + bash blocker + path restrictor
  *
  * @module hooks/factory
  */

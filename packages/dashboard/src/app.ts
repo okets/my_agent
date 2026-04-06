@@ -1241,7 +1241,10 @@ export class App extends EventEmitter {
           // transport and crash with "Already connected" errors. The executor creates
           // fresh chart/image servers when needed. Keep undefined for resume path too.
           mcpServers: undefined,
-          hooks: createHooks("task", { agentDir }),
+          hooks: createHooks("task", {
+            agentDir,
+            projectRoot: join(agentDir, ".."),
+          }),
           visualService: app.visualActionService,
         });
 

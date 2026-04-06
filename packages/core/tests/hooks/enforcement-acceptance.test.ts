@@ -166,6 +166,22 @@ describe('S4 Acceptance: enforcement hooks across trust levels', () => {
     })
   })
 
+  it('source code protection works from dashboard cwd (production path)', async () => {
+    // In production, cwd = /home/nina/my_agent/packages/dashboard
+    // Without projectRoot, path.relative would resolve to ../core/... which starts with ..
+    // and would be allowed. With projectRoot = /home/nina/my_agent, it resolves correctly.
+    const hooks = createHooks('task', {
+      agentDir: '/home/nina/.my_agent',
+      projectRoot: '/home/nina/my_agent', // must be set for production
+    })
+    expect(
+      await isBlocked(hooks, 'Write', '/home/nina/my_agent/packages/core/src/brain.ts'),
+    ).toBe(true)
+    expect(
+      await isBlocked(hooks, 'Edit', '/home/nina/my_agent/skills/capability-templates/test.md'),
+    ).toBe(true)
+  })
+
   it('existing bash blocker still works at task level', async () => {
     const hooks = createHooks('task', {
       agentDir: '/home/nina/.my_agent',
