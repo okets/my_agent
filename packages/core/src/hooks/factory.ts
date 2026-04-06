@@ -13,7 +13,13 @@
 
 import type { HookEvent, HookCallbackMatcher } from '@anthropic-ai/claude-agent-sdk'
 import { createAuditHook } from './audit.js'
-import { createBashBlocker, createInfrastructureGuard, createPathRestrictor } from './safety.js'
+import {
+  createBashBlocker,
+  createInfrastructureGuard,
+  createPathRestrictor,
+  createSourceCodeProtection,
+  createCapabilityRouting,
+} from './safety.js'
 import type { TrustLevel, HookFactoryOptions } from './types.js'
 
 /**
@@ -32,17 +38,30 @@ export function createHooks(
     ],
   }
 
+  // Source code protection — all trust levels block Write/Edit to framework code
+  hooks.PreToolUse = [
+    {
+      matcher: 'Write|Edit',
+      hooks: [createSourceCodeProtection(options?.projectRoot)],
+    },
+  ]
+
+  // Capability routing — brain only (workers need to write capabilities)
+  if (trustLevel === 'brain') {
+    hooks.PreToolUse.push({
+      matcher: 'Write|Edit',
+      hooks: [createCapabilityRouting()],
+    })
+  }
+
   if (trustLevel === 'task' || trustLevel === 'subagent') {
-    hooks.PreToolUse = [
-      {
-        matcher: 'Bash',
-        hooks: [createBashBlocker()],
-      },
-    ]
+    hooks.PreToolUse.push({
+      matcher: 'Bash',
+      hooks: [createBashBlocker()],
+    })
   }
 
   if (trustLevel === 'task' && options?.agentDir) {
-    hooks.PreToolUse = hooks.PreToolUse ?? []
     hooks.PreToolUse.push({
       matcher: 'Write|Edit',
       hooks: [createInfrastructureGuard(options.agentDir)],
@@ -50,7 +69,6 @@ export function createHooks(
   }
 
   if (trustLevel === 'subagent' && options?.allowedPaths) {
-    hooks.PreToolUse = hooks.PreToolUse ?? []
     hooks.PreToolUse.push({
       matcher: 'Write|Edit',
       hooks: [createPathRestrictor(options.allowedPaths)],

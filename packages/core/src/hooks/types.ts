@@ -18,4 +18,6 @@ export interface HookFactoryOptions {
   agentDir?: string
   /** Paths that Write/Edit are allowed to touch (subagent level only) */
   allowedPaths?: string[]
+  /** Project root for source code protection (defaults to process.cwd()) */
+  projectRoot?: string
 }
