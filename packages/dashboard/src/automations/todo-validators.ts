@@ -3,10 +3,20 @@ import path from "node:path";
 import type { ValidationResult } from "@my-agent/core";
 import { readFrontmatter } from "../metadata/frontmatter.js";
 
-type ValidatorFn = (dir: string) => ValidationResult;
+/**
+ * Validator function signature.
+ * - runDir: the job's run directory (where deliverable.md, todos.json live)
+ * - targetDir: the artifact directory (where CAPABILITY.md lives), if set
+ *
+ * Validators checking deliverables use runDir.
+ * Validators checking capability artifacts use targetDir (falls back to runDir).
+ */
+type ValidatorFn = (runDir: string, targetDir?: string) => ValidationResult;
 
 const VALIDATORS: Record<string, ValidatorFn> = {
-  capability_frontmatter: (dir) => {
+  capability_frontmatter: (runDir, targetDir) => {
+    // CAPABILITY.md lives in the target capability folder, not the run dir
+    const dir = targetDir ?? runDir;
     const capPath = path.join(dir, "CAPABILITY.md");
     if (!fs.existsSync(capPath)) {
       return { pass: false, message: "CAPABILITY.md not found" };
@@ -34,8 +44,8 @@ const VALIDATORS: Record<string, ValidatorFn> = {
     return { pass: true };
   },
 
-  completion_report: (dir) => {
-    const delPath = path.join(dir, "deliverable.md");
+  completion_report: (runDir) => {
+    const delPath = path.join(runDir, "deliverable.md");
     if (!fs.existsSync(delPath)) {
       return {
         pass: false,
@@ -53,8 +63,8 @@ const VALIDATORS: Record<string, ValidatorFn> = {
     return { pass: true };
   },
 
-  test_executed: (dir) => {
-    const delPath = path.join(dir, "deliverable.md");
+  test_executed: (runDir) => {
+    const delPath = path.join(runDir, "deliverable.md");
     if (!fs.existsSync(delPath)) {
       return {
         pass: false,
@@ -72,8 +82,8 @@ const VALIDATORS: Record<string, ValidatorFn> = {
     return { pass: true };
   },
 
-  change_type_set: (dir) => {
-    const delPath = path.join(dir, "deliverable.md");
+  change_type_set: (runDir) => {
+    const delPath = path.join(runDir, "deliverable.md");
     if (!fs.existsSync(delPath)) {
       return { pass: false, message: "deliverable.md not found" };
     }
@@ -89,8 +99,12 @@ const VALIDATORS: Record<string, ValidatorFn> = {
   },
 };
 
-export function runValidation(ruleId: string, dir: string): ValidationResult {
+export function runValidation(
+  ruleId: string,
+  runDir: string,
+  targetDir?: string,
+): ValidationResult {
   const validator = VALIDATORS[ruleId];
-  if (!validator) return { pass: true }; // Unknown validator = no restriction
-  return validator(dir);
+  if (!validator) return { pass: true };
+  return validator(runDir, targetDir);
 }

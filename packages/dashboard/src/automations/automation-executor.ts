@@ -80,7 +80,7 @@ export class AutomationExecutor {
     // Auto-detect from target_path for existing automations
     const tp = automation.manifest.target_path;
     if (tp && tp.includes("capabilities/")) {
-      const capPath = path.resolve(this.config.agentDir, tp);
+      const capPath = path.resolve(this.config.agentDir, "..", tp);
       return fs.existsSync(path.join(capPath, "CAPABILITY.md"))
         ? "capability_modify"
         : "capability_build";
@@ -230,7 +230,15 @@ export class AutomationExecutor {
         } else {
           createEmptyTodoFile(todoPath);
         }
-        workerMcpServers["todo"] = createTodoServer(todoPath, runValidation);
+        // Resolve target_path for validators (capability_frontmatter checks this dir)
+        const resolvedTargetDir = automation.manifest.target_path
+          ? path.resolve(this.config.agentDir, "..", automation.manifest.target_path)
+          : undefined;
+        workerMcpServers["todo"] = createTodoServer(
+          todoPath,
+          runValidation,
+          resolvedTargetDir,
+        );
       }
 
       if (this.config.visualService) {

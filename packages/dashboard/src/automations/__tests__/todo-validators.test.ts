@@ -113,4 +113,48 @@ describe("todo-validators", () => {
     const result = runValidation("nonexistent_rule", tmpDir);
     expect(result.pass).toBe(true);
   });
+
+  it("capability_frontmatter uses targetDir when provided", () => {
+    // CAPABILITY.md is NOT in runDir (the job dir)
+    // but IS in targetDir (the capability folder)
+    const targetDir = path.join(tmpDir, "target-cap");
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(targetDir, "CAPABILITY.md"),
+      [
+        "---",
+        "name: Target Cap",
+        "provides: audio-to-text",
+        "interface: script",
+        "---",
+        "Instructions.",
+      ].join("\n"),
+    );
+
+    // runDir has no CAPABILITY.md — but targetDir does
+    const result = runValidation("capability_frontmatter", tmpDir, targetDir);
+    expect(result.pass).toBe(true);
+  });
+
+  it("capability_frontmatter fails when targetDir has no CAPABILITY.md", () => {
+    const targetDir = path.join(tmpDir, "empty-target");
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    const result = runValidation("capability_frontmatter", tmpDir, targetDir);
+    expect(result.pass).toBe(false);
+  });
+
+  it("completion_report uses runDir even when targetDir is provided", () => {
+    // deliverable.md should be in runDir, not targetDir
+    const targetDir = path.join(tmpDir, "target-cap");
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(tmpDir, "deliverable.md"),
+      ["---", "change_type: fix", "---", "Fixed."].join("\n"),
+    );
+
+    const result = runValidation("completion_report", tmpDir, targetDir);
+    expect(result.pass).toBe(true);
+  });
 });

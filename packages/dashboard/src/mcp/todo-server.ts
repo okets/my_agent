@@ -16,13 +16,15 @@ import path from "node:path";
 
 export type ValidatorFn = (
   ruleId: string,
-  dir: string,
+  runDir: string,
+  targetDir?: string,
 ) => ValidationResult;
 
 /** Bare tool handlers — testable without MCP server */
 export function createTodoTools(
   todoPath: string,
   validatorFn?: ValidatorFn,
+  targetDir?: string,
 ) {
   function touch(file: TodoFile): TodoFile {
     file.last_activity = new Date().toISOString();
@@ -104,7 +106,7 @@ export function createTodoTools(
         validatorFn
       ) {
         const jobDir = path.dirname(todoPath);
-        const result = validatorFn(item.validation, jobDir);
+        const result = validatorFn(item.validation, jobDir, targetDir);
         if (!result.pass) {
           item.validation_attempts = (item.validation_attempts || 0) + 1;
           if (item.validation_attempts >= 3) {
@@ -188,8 +190,9 @@ export function createTodoTools(
 export function createTodoServer(
   todoPath: string,
   validatorFn?: ValidatorFn,
+  targetDir?: string,
 ) {
-  const tools = createTodoTools(todoPath, validatorFn);
+  const tools = createTodoTools(todoPath, validatorFn, targetDir);
 
   return createSdkMcpServer({
     name: "todo",
