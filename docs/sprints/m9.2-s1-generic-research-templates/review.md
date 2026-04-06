@@ -69,6 +69,45 @@ This means the positive path (real worker completes generic items, job gets `"co
 
 There is no unit or integration test that verifies: "given a job where all generic mandatory items are marked done, the job status should be `completed`." The existing todo-lifecycle-acceptance tests (`todo-lifecycle-acceptance.test.ts`) test the capability_build path with explicit todo completion, but no equivalent exists for the generic template path. The smoke tests cover this for real LLM sessions.
 
+## Architectural Gaps (CTO-requested analysis)
+
+### G4: No recovery path for `needs_review` jobs with incomplete mandatory items (Medium-High Concern)
+
+The generic fallback means every job now has mandatory items with validators (specifically `status_report`). If a worker completes its LLM work but fails to satisfy a validator (e.g., didn't write `status-report.md`, or wrote one under 50 chars), the job lands in `needs_review` permanently.
+
+**What happens today:**
+1. Worker finishes LLM session with useful output
+2. Todo completion gating catches the incomplete mandatory item → `needs_review`
+3. A `job_needs_review` notification is sent to the brain via the heartbeat's notification delivery
+4. **Nothing else.** The heartbeat (`heartbeat-service.ts`) only monitors `running` jobs for staleness. It does not monitor or retry `needs_review` jobs.
+
+**The stuck state:** The job has real deliverable content, but it's invisible to:
+- The **debrief pipeline** — `getDebriefPendingJobs()` queries `WHERE status = 'completed'` only
+- The **user** — unless the brain successfully delivers the `job_needs_review` notification (which depends on an active conversation)
+- **Future workers** — no mechanism to resume and complete the missing item
+
+**Why this matters:** The generic fallback is universal — it applies to every job without a specific type template, including jobs created by Conversation Nina's `create_task` tool. A single missed `status-report.md` silently drops otherwise-useful work from all downstream pipelines.
+
+**Potential mitigations (for Architect to evaluate):**
+- **A.** Heartbeat monitors `needs_review` jobs with incomplete validators. After N minutes, auto-retry the validator (the worker may have written the file late). If still failing, escalate notification.
+- **B.** Debrief pipeline includes `needs_review` jobs with a flag: "incomplete — missing: status-report.md". Don't hide the work, surface it with a warning.
+- **C.** The executor retries the validator once after a short delay before committing to `needs_review` — workers sometimes write files asynchronously.
+- **D.** Accept the gap. Smoke tests proved real workers complete items. The `needs_review` state is rare in practice and the notification covers it.
+
+### G5: Generic fallback applies to handler-dispatched jobs (Low Concern)
+
+Built-in handler jobs (like `debrief-prep`) bypass the SDK session but still go through `assembleJobTodos`, which now adds generic mandatory items. Handlers return `{ success: true }` directly, but the executor's todo gating still checks the `todos.json` file. If the handler doesn't explicitly mark todos as done, the job gets `needs_review`.
+
+**Current state:** The handler dispatch tests pass because handler results bypass the todo gating code path (the handler returns before step 8.5 in the executor). This was verified in tests. But if the handler code path changes in the future, the generic fallback could inadvertently gate handler jobs.
+
+**Risk:** Low — handler path currently bypasses gating. But worth documenting the invariant.
+
+### G6: `status_report` validator has no content quality check (Low Concern)
+
+The `status_report` validator checks: (1) file exists, (2) content >= 50 chars. A worker could write "aaaa..." repeated 50 times and pass. The validator doesn't check for expected sections (actions, results, artifacts, issues) mentioned in the todo item text.
+
+**Risk:** Low — real LLM workers write substantive reports (3459 and 5516 bytes in smoke tests). A structural check could be added later but isn't critical now.
+
 ## Verdict
 
 **PASS WITH CONCERNS**
@@ -79,3 +118,8 @@ Concerns (non-blocking):
 1. **TypeScript compilation requires rebuilding core** — the monorepo's `dist/` is gitignored, so a fresh checkout fails `tsc --noEmit` until core is rebuilt. Document or add to CI.
 2. **Debrief pipeline behavioral change** — `needs_review` jobs are now excluded from debrief. This is intentional enforcement but affects production behavior.
 3. **Missing positive-path unit test** — no test verifies that completing generic mandatory items yields `"completed"` status. Only validated by smoke tests.
+
+Architectural gaps (for Architect review):
+4. **No recovery path for stuck `needs_review` jobs** — work is silently dropped from debrief and downstream pipelines. See G4 above.
+5. **Generic fallback applies to handler jobs** — currently safe but undocumented invariant. See G5 above.
+6. **Validator checks length, not content quality** — low risk, real workers write substantive reports. See G6 above.
