@@ -53,6 +53,7 @@ interface MessageHandlerDeps {
     transportId: string,
     to: string,
     text: string,
+    language?: string,
   ) => Promise<boolean>;
   agentDir: string;
   /** App instance for event-emitting mutations */
@@ -745,6 +746,7 @@ Write for the ear, not the eye:
             channelId,
             replyTo,
             assistantContent,
+            first.detectedLanguage,
           );
         } catch (err) {
           console.warn(

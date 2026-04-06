@@ -100,6 +100,8 @@ export interface IncomingMessage {
   groupName?: string
   /** Whether this message is a voice note (audio message with ptt flag) */
   isVoiceNote?: boolean
+  /** Language detected by STT (e.g. "he", "en") — only set for transcribed voice notes */
+  detectedLanguage?: string
   /** Reply context */
   replyTo?: {
     messageId: string

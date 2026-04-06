@@ -39,12 +39,13 @@ type QrHandler = (qr: string) => void;
 export type OnAudioMessageCallback = (
   audioPath: string,
   jid: string,
-) => Promise<{ text?: string; error?: string }>;
+) => Promise<{ text?: string; language?: string; error?: string }>;
 
 /** Callback for synthesizing outgoing voice replies */
 export type OnSendVoiceReplyCallback = (
   text: string,
   jid: string,
+  language?: string,
 ) => Promise<Buffer | null>;
 
 interface EventHandlers {
@@ -505,6 +506,7 @@ export class BaileysPlugin implements TransportPlugin {
           const audioMessage = msg.message?.audioMessage;
           if (audioMessage) {
             let content: string;
+            let detectedLanguage: string | undefined;
 
             if (this.onAudioMessage) {
               try {
@@ -524,6 +526,7 @@ export class BaileysPlugin implements TransportPlugin {
                 const result = await this.onAudioMessage(tempPath, remoteJid);
                 if (result.text) {
                   content = `[Voice note] ${result.text}`;
+                  detectedLanguage = result.language;
                 } else {
                   content = `[Voice note received — ${result.error || "transcription failed"}]`;
                 }
@@ -559,6 +562,7 @@ export class BaileysPlugin implements TransportPlugin {
               timestamp,
               channelId: this.config!.id,
               isVoiceNote: true,
+              ...(detectedLanguage && { detectedLanguage }),
               ...(isGroup && { groupId: remoteJid }),
               ...(msg.pushName && { senderName: msg.pushName }),
             };

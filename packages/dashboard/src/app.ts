@@ -651,7 +651,7 @@ export class App extends EventEmitter {
               app.transportManager!.send(transportId, to, message),
             sendTypingIndicator: (transportId, to) =>
               app.transportManager!.sendTypingIndicator(transportId, to),
-            sendAudioViaTransport: async (transportId, to, text) => {
+            sendAudioViaTransport: async (transportId, to, text, language) => {
               // Get the plugin and check if it supports voice replies
               const plugins = app.transportManager!.getPlugins();
               const plugin = plugins.find((p) => p.id === transportId);
@@ -664,7 +664,7 @@ export class App extends EventEmitter {
               }
               const bp = plugin as BaileysPlugin;
               if (!bp.onSendVoiceReply) return false;
-              const audioBuffer = await bp.onSendVoiceReply(text, to);
+              const audioBuffer = await bp.onSendVoiceReply(text, to, language);
               if (!audioBuffer) return false;
               await bp.sendAudio(to, audioBuffer);
               return true;
@@ -1937,7 +1937,7 @@ function wireAudioCallbacks(plugin: BaileysPlugin, app: App): void {
         timeout: 30000,
       });
       const result = JSON.parse(stdout.trim());
-      return { text: result.text || stdout.trim() };
+      return { text: result.text || stdout.trim(), language: result.language };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn("[WhatsApp] Voice note transcription failed:", msg);
@@ -1946,7 +1946,7 @@ function wireAudioCallbacks(plugin: BaileysPlugin, app: App): void {
   };
 
   // TTS: synthesize voice replies
-  plugin.onSendVoiceReply = async (text: string, _jid: string) => {
+  plugin.onSendVoiceReply = async (text: string, _jid: string, language?: string) => {
     const cap = app.capabilityRegistry?.get("text-to-audio");
     if (!cap || cap.status !== "available") return null;
 
@@ -1960,7 +1960,9 @@ function wireAudioCallbacks(plugin: BaileysPlugin, app: App): void {
     const outputFile = join(outputDir, `tts-${randomUUID()}.ogg`);
 
     try {
-      await execFileAsync(scriptPath, [spokenText, outputFile], { timeout: 30000 });
+      const args = [spokenText, outputFile];
+      if (language) args.push(language);
+      await execFileAsync(scriptPath, args, { timeout: 30000 });
       const buffer = readFileSync(outputFile);
       try {
         unlinkSync(outputFile);
