@@ -31,6 +31,8 @@ export interface BuildContext {
   messageIndex: number;
   hasPendingEscalations?: boolean;
   activeWorkingAgents?: string[];
+  pendingBriefing?: string[];
+  conversationTodos?: Array<{ text: string; status: string }>;
   activeViewContext?: {
     type: "space" | "automation" | "conversation" | "notebook" | "calendar";
     id: string;
@@ -123,6 +125,25 @@ export class SystemPromptBuilder {
     if (activeAgents.length > 0) {
       dynamicParts.push(
         `[Active Working Agents]\nThe following tasks are currently being worked on by background agents:\n${activeAgents.map((a) => `- ${a}`).join("\n")}\n\nIf the user's message is about these tasks, let them know you're still working on it and results will arrive shortly. Do not try to answer questions about these tasks yourself — wait for the working agent to finish.\n[End Active Working Agents]`,
+      );
+    }
+
+    // Pending briefing: events that occurred since last interaction (restart, job completions)
+    const briefing = context.pendingBriefing ?? [];
+    if (briefing.length > 0) {
+      dynamicParts.push(
+        `[Pending Briefing]\nThe following events occurred since your last interaction:\n${briefing.map((b) => `- ${b}`).join("\n")}\n\nInform the user about these naturally. For interrupted jobs, ask whether to resume or discard.\n[End Pending Briefing]`,
+      );
+    }
+
+    // Conversation Nina's own pending tasks
+    const todos = context.conversationTodos ?? [];
+    if (todos.length > 0) {
+      const lines = todos.map(
+        (t) => `${t.status === "done" ? "\u2713" : "\u2610"} ${t.text} (${t.status})`,
+      );
+      dynamicParts.push(
+        `[Your Pending Tasks]\n${lines.join("\n")}\n[End Pending Tasks]`,
       );
     }
 

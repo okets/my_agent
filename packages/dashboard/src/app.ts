@@ -80,6 +80,8 @@ import {
   addMcpServerFactory,
   setConnectionRegistry,
   setRunningTasksChecker,
+  setPendingBriefingProvider,
+  setConversationTodoProvider,
 } from "./agent/session-manager.js";
 import { createSpaceToolsServer } from "./mcp/space-tools-server.js";
 import { createSkillServer } from "./mcp/skill-server.js";
@@ -1392,6 +1394,56 @@ export class App extends EventEmitter {
           });
         });
         console.log("[App] Running tasks checker wired to automation jobs");
+
+        // Pending briefing provider — reads notification queue, marks delivered after shown
+        setPendingBriefingProvider(() => {
+          const pending = notificationQueue.listPending();
+          if (pending.length === 0) return { lines: [], markDelivered: () => {} };
+
+          const lines = pending.map((n) => {
+            const progress =
+              n.todos_completed != null && n.todos_total != null
+                ? ` ${n.todos_completed}/${n.todos_total} items done.`
+                : "";
+            const incomplete =
+              n.incomplete_items && n.incomplete_items.length > 0
+                ? ` Remaining: ${n.incomplete_items.join(", ")}.`
+                : "";
+            const resumable =
+              n.resumable ? " Resumable — ask the user whether to resume or discard." : "";
+            return `${n.summary}${progress}${incomplete}${resumable}`;
+          });
+
+          const filenames = pending
+            .map((n) => n._filename)
+            .filter((f): f is string => !!f);
+
+          return {
+            lines,
+            markDelivered: () => {
+              for (const filename of filenames) {
+                notificationQueue.markDelivered(filename);
+              }
+            },
+          };
+        });
+        console.log("[App] Pending briefing provider wired to notification queue");
+
+        // Conversation todo provider — reads conversation's todos.json
+        setConversationTodoProvider((conversationId: string) => {
+          const todoPath = join(
+            agentDir,
+            "conversations",
+            conversationId,
+            "todos.json",
+          );
+          const todoFile = readTodoFile(todoPath);
+          return todoFile.items.map((item) => ({
+            text: item.text,
+            status: item.status,
+          }));
+        });
+        console.log("[App] Conversation todo provider wired");
 
         // Heartbeat service — stale job detection + notification delivery
         const heartbeatService = new HeartbeatService({

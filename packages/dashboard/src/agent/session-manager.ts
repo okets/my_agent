@@ -45,6 +45,35 @@ export function setRunningTasksChecker(
   runningTasksChecker = checker;
 }
 
+/** Pending briefing provider — returns formatted briefing lines and marks them delivered */
+let pendingBriefingProvider:
+  | (() => { lines: string[]; markDelivered: () => void })
+  | null = null;
+
+/**
+ * Register a callback to fetch pending briefing items from the notification queue.
+ * Returns formatted lines + a markDelivered callback to move them from pending/ to delivered/.
+ */
+export function setPendingBriefingProvider(
+  provider: () => { lines: string[]; markDelivered: () => void },
+): void {
+  pendingBriefingProvider = provider;
+}
+
+/** Conversation todo provider — returns todo items for a conversation */
+let conversationTodoProvider:
+  | ((conversationId: string) => Array<{ text: string; status: string }>)
+  | null = null;
+
+/**
+ * Register a callback to fetch Conversation Nina's own todo items.
+ */
+export function setConversationTodoProvider(
+  provider: (conversationId: string) => Array<{ text: string; status: string }>,
+): void {
+  conversationTodoProvider = provider;
+}
+
 /** Shared prompt builder — initialized once via initPromptBuilder(), shared across all sessions */
 let sharedPromptBuilder: SystemPromptBuilder | null = null;
 
@@ -415,17 +444,34 @@ export class SessionManager {
       ? runningTasksChecker(this.conversationId)
       : [];
 
+    // Fetch pending briefing (notifications from queue)
+    const briefingResult = pendingBriefingProvider
+      ? pendingBriefingProvider()
+      : null;
+
+    // Fetch conversation todos
+    const conversationTodos = conversationTodoProvider
+      ? conversationTodoProvider(this.conversationId)
+      : [];
+
     const buildContext: BuildContext = {
       channel: this.channel,
       conversationId: this.conversationId,
       messageIndex: this.messageIndex,
       activeWorkingAgents,
+      pendingBriefing: briefingResult?.lines,
+      conversationTodos,
       activeViewContext: this.activeViewContext,
     };
     // Clear after use — only applies to this message
     this.activeViewContext = null;
 
     const systemPrompt = await this.promptBuilder!.build(buildContext);
+
+    // Mark briefing notifications as delivered — they're now in Nina's context
+    if (briefingResult && briefingResult.lines.length > 0) {
+      briefingResult.markDelivered();
+    }
 
     const opts: BrainSessionOptions = {
       model,
