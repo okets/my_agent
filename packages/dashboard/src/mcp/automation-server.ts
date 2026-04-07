@@ -108,11 +108,17 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         .describe(
           "Path to the artifact folder this job creates or modifies (e.g., .my_agent/capabilities/stt-deepgram). When set, the framework writes a paper trail entry to DECISIONS.md at this path after job completion.",
         ),
+      // IMPORTANT: todos is required in the Zod schema (MCP tool contract) but
+      // optional in the TypeScript AutomationManifest interface. This is intentional:
+      // - Zod gates Conversation Nina's tool calls — she must always decompose tasks
+      // - AutomationManifest stays optional because disk-based automations, handlers,
+      //   scheduler, fire_automation, and resume_job all bypass Zod and may have no todos
+      // Do NOT make todos required in AutomationManifest — it would break disk automations.
       todos: z
         .array(z.object({ text: z.string() }))
-        .optional()
+        .min(1)
         .describe(
-          "Task breakdown for the working agent. Each item becomes a mandatory checklist entry the worker must complete. ALWAYS include this for capability work — break the user's request into concrete steps. Without it, the worker only gets generic process items.",
+          "Task breakdown for the working agent. REQUIRED — every task needs at least one todo, even simple ones (e.g., [{text: 'Check the weather in Bangkok'}]). Each item becomes a mandatory checklist item the worker must complete. Break the user's request into concrete steps.",
         ),
       job_type: z
         .enum(["capability_build", "capability_modify", "generic", "research"])
