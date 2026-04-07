@@ -203,7 +203,7 @@ describe("AutomationScheduler", () => {
 
   // ── getNextRuns ─────────────────────────────────────────────────
 
-  it("should project next runs for scheduled automations", () => {
+  it("should project next runs for scheduled automations", async () => {
     manager.create({
       name: "Hourly Auto",
       instructions: "test",
@@ -219,7 +219,7 @@ describe("AutomationScheduler", () => {
       },
     });
 
-    const runs = scheduler.getNextRuns(5);
+    const runs = await scheduler.getNextRuns(5);
     expect(runs.length).toBeGreaterThanOrEqual(2);
     expect(runs[0].nextRun).toBeInstanceOf(Date);
 
@@ -231,7 +231,7 @@ describe("AutomationScheduler", () => {
     }
   });
 
-  it("should skip non-schedule automations in getNextRuns", () => {
+  it("should skip non-schedule automations in getNextRuns", async () => {
     manager.create({
       name: "Manual Auto",
       instructions: "test",
@@ -240,11 +240,11 @@ describe("AutomationScheduler", () => {
       },
     });
 
-    const runs = scheduler.getNextRuns();
+    const runs = await scheduler.getNextRuns();
     expect(runs).toHaveLength(0);
   });
 
-  it("should respect count limit in getNextRuns", () => {
+  it("should respect count limit in getNextRuns", async () => {
     for (let i = 0; i < 5; i++) {
       manager.create({
         name: `Auto ${i}`,
@@ -255,7 +255,7 @@ describe("AutomationScheduler", () => {
       });
     }
 
-    const runs = scheduler.getNextRuns(3);
+    const runs = await scheduler.getNextRuns(3);
     expect(runs.length).toBeLessThanOrEqual(3);
   });
 
