@@ -69,18 +69,38 @@ export async function maybeAugmentWithVisual(
   if (!hasBulletedData) return false;
 
   try {
-    // Skip Haiku analysis — heuristic is sufficient. Go straight to chart generation.
     deps.log(
-      `[VisualAugmentation] Data list detected (${numbers.length} numbers), generating chart`,
+      `[VisualAugmentation] Data list detected (${numbers.length} numbers), evaluating chart-worthiness`,
     );
 
-    // Generate SVG with Haiku (single call — no separate analysis)
+    // Step 1: Ask Haiku if this data is genuinely chart-worthy
+    const analysisResponse = await queryModel(
+      assistantContent,
+      ANALYSIS_PROMPT,
+      "haiku",
+    );
+
+    if (!analysisResponse.startsWith("YES")) {
+      deps.log(
+        `[VisualAugmentation] Haiku says no chart needed: ${analysisResponse.slice(0, 80)}`,
+      );
+      return false;
+    }
+
+    // Extract chart title from "YES: <title>"
+    const chartDescription =
+      analysisResponse.replace(/^YES:\s*/, "").trim() || "data chart";
+
+    deps.log(
+      `[VisualAugmentation] Chart approved: "${chartDescription}", generating SVG`,
+    );
+
+    // Step 2: Generate SVG (only if step 1 approved)
     const svgResponse = await queryModel(
       `Generate a chart for the data in this response:\n\n${assistantContent}`,
       CHART_PROMPT,
       "haiku",
     );
-    const chartDescription = "data chart";
 
     // Extract SVG from response (might have stray text)
     const svgMatch = svgResponse.match(/<svg[\s\S]*<\/svg>/);

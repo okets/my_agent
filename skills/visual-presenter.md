@@ -1,74 +1,65 @@
 ---
 name: visual-presenter
-description: When and how to generate charts and fetch images using create_chart and fetch_image tools.
+description: Proactive visual communication — charts for data, images for visual topics. Structured decision tree replaces prose guidelines.
 level: brain
 tools:
   - create_chart
   - fetch_image
 ---
 
-# Visual Presenter
+# Visual Expression
 
-You have two image tools. **Use them proactively** — don't wait to be asked.
+You have two tools for visual communication. Use them **proactively** — don't wait to be asked. A text-only response for data-rich content is an incomplete response.
 
-## `create_chart` — Data Visualization
-
-Call this when your response contains data that would benefit from a chart:
-
-- **3+ numeric data points** (daily readings, weekly stats) → line or bar chart
-- **Comparisons** (A vs B, before/after) → side-by-side bars
-- **Status/health with a numeric value** → gauge or indicator
-- **A process or flow** → diagram
-
-Generate an SVG, pass it to `create_chart`, embed the returned URL:
+## Decision Tree (check on every response)
 
 ```
-create_chart({ svg: "<svg ...>...</svg>", description: "AQI trend this week" })
-→ { id, url, width, height }
-→ Write in your response: ![AQI trend this week](url)
+Does my response contain data?
+├── 3+ numeric data points (counts, scores, prices, measurements) → MUST call create_chart
+├── Comparison across categories or time periods → MUST call create_chart
+├── Status with numeric values (progress %, ratings) → SHOULD call create_chart
+└── No numeric data
+    ├── Topic has a visual component (place, product, weather) → call fetch_image
+    └── Purely conversational → no visual needed
 ```
 
-If you call `create_chart` but don't include `![...](url)` in your text, the user sees nothing.
+**Why this matters:** If you skip `create_chart`, a Haiku fallback generates a worse chart in a separate message. Your chart is better (Opus quality, inline in your response). Own it.
 
-## `fetch_image` — Image Retrieval
+## create_chart Protocol
 
-Call this when you want to show a web image:
+1. Generate SVG following the rules below
+2. Call `create_chart` with the SVG and a description
+3. Embed the returned URL as `![description](url)` in your response text
+4. If you don't embed `![...](url)`, the user sees nothing
 
-- User asks to see something → web search for image URL → `fetch_image`
-- Briefings → fetch weather maps, news photos
-- Visual explanation needed → find a relevant image
+### SVG Rules
+- Dimensions: `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="350">`
+- Inline `style=""` attributes only — NO `<style>` blocks
+- Font: `sans-serif` only — no custom or web fonts
+- No `<foreignObject>` elements
+- Round corners on background: `rx="12"`
 
-```
-fetch_image({ url: "https://example.com/photo.jpg", description: "Cat in a hat" })
-→ { id, url, width, height }
-→ Write: ![Cat in a hat](url)
-```
+### Color Palette (Tokyo Night)
+| Token | Hex | Use |
+|-------|-----|-----|
+| background | `#1a1b26` | Chart background |
+| panel | `#292e42` | Data area, legend bg |
+| text | `#c0caf5` | Labels, values |
+| muted | `#565f89` | Grid lines, axes |
+| accent | `#7aa2f7` | Primary data series |
+| purple | `#bb9af7` | Secondary series |
+| pink | `#f7768e` | Negative/alert values |
+| green | `#9ece6a` | Positive/success values |
+| yellow | `#e0af68` | Warning/third series |
 
-## SVG Guidelines (for `create_chart`)
+## fetch_image Protocol
 
-- `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="350">`
-- Use inline `style=""` attributes, NOT `<style>` blocks
-- Use system fonts: `sans-serif`, `serif`, `monospace`
-- No `<foreignObject>` or embedded HTML
-- Keep it simple — clean shapes, clear labels, readable text
+1. Call `fetch_image` with the image URL and description
+2. Embed the returned URL as `![description](url)` in your response text
+3. Use for: weather maps, product photos, location images, news photos
+4. Do NOT use for: generic stock photos, decorative images
 
-### Tokyo Night Colors
-
-| Role | Color |
-|------|-------|
-| Background | `#1a1b26` |
-| Panel | `#292e42` |
-| Text | `#c0caf5` |
-| Muted | `#565f89` |
-| Blue | `#7aa2f7` |
-| Purple | `#bb9af7` |
-| Pink | `#f7768e` |
-| Green | `#9ece6a` |
-| Yellow | `#e0af68` |
-
-## Rules
-
-- Images **augment** text. Always include a text explanation alongside.
-- One image per response is usually enough. Max 3.
-- Skip visualization silently if unsure how to visualize.
-- **ALWAYS** call `create_chart` when your response has 3+ chartable data points.
+## Constraints
+- Max 3 images per response
+- Images augment text — always include a text explanation alongside
+- If unsure whether data warrants a chart, err toward generating one

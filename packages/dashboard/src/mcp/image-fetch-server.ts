@@ -228,10 +228,10 @@ export function createImageFetchServer(deps: ImageFetchServerDeps) {
     "Fetch an image from a URL and store it. Downloads the image, validates it, downscales if needed, and stores as PNG. Returns { id, url, width, height }. IMPORTANT: After calling this tool, you MUST include the returned url in your response text as ![description](url). Use this when you want to include a web image in your response.",
     {
       url: z.string().describe("HTTP(S) URL of the image to fetch"),
+      // description is required so every image has meaningful alt text.
       description: z
         .string()
-        .optional()
-        .describe("What this image shows — used for alt text"),
+        .describe("What this image shows — used for alt text and ![description](url)"),
     },
     async (args) =>
       handleFetchImage(deps, { url: args.url, description: args.description }),
