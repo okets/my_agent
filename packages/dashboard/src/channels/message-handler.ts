@@ -64,8 +64,6 @@ interface MessageHandlerDeps {
       userContent: string,
       assistantContent: string,
       options?: {
-        turnNumber?: number;
-        imagesStoredDuringTurn?: number;
         source?: "dashboard" | "channel";
       },
     ): Promise<void>;
@@ -776,8 +774,6 @@ Write for the ear, not the eye:
       // Post-response hooks (task extraction, visual augmentation) — fire-and-forget
       this.deps.postResponseHooks
         ?.run(conversation.id, textContent, assistantContent, {
-          turnNumber: 0,
-          imagesStoredDuringTurn: 0,
           source: "channel",
         })
         .catch(() => {});

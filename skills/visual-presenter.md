@@ -23,7 +23,7 @@ Does my response contain data?
     └── Purely conversational → no visual needed
 ```
 
-**Why this matters:** If you skip `create_chart`, a Haiku fallback generates a worse chart in a separate message. Your chart is better (Opus quality, inline in your response). Own it.
+**Why this matters:** If you skip `create_chart`, the data stays text-only. Your chart makes the response complete.
 
 ## create_chart Protocol
 

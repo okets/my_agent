@@ -737,19 +737,6 @@ export class App extends EventEmitter {
           app.conversationManager
             .getConversationDb()
             .getRecentJobCount(id, withinMs),
-        visualAugmentation: {
-          visualService: app.visualActionService,
-          conversationManager: app.conversationManager,
-          connectionRegistry: connectionRegistry!,
-          log: (msg) => console.log(msg),
-          sendToChannel: async (content: string) => {
-            // Send via the conversation initiator's outbound channel
-            const ci = app.conversationInitiator;
-            if (!ci) return;
-            // Use the same channel send path as the conversation initiator
-            await (ci as any).trySendViaChannel(content);
-          },
-        },
         recentAutomationAlerts,
         injectRecovery: async (conversationId, prompt, options) => {
           const convDb = app.conversationManager.getConversationDb();

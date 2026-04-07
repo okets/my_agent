@@ -658,12 +658,6 @@ export class AppChatService {
     let textLengthAfterLastTool = 0;
     let fullAssistantContent = ""; // tracks across splits (assistantContent resets on split)
 
-    // Track images stored during this turn (for visual augmentation hook)
-    let imagesStoredDuringTurn = 0;
-    const unsubScreenshots = this.app.visualActionService?.onScreenshot(() => {
-      imagesStoredDuringTurn++;
-    });
-
     const conversation = await this.conversationManager.get(convId);
     const modelOverride = options?.model || conversation?.model || undefined;
 
@@ -827,9 +821,6 @@ export class AppChatService {
         this.triggerNaming(convId).catch(() => {});
       }
 
-      // Stop tracking screenshots for this turn
-      if (unsubScreenshots) unsubScreenshots();
-
       // Post-response hooks (if split, include both halves for full context)
       if (deps?.postResponseHooks) {
         deps.postResponseHooks
@@ -838,8 +829,6 @@ export class AppChatService {
             content.trim().toLowerCase(),
             fullAssistantContent || assistantContent,
             {
-              turnNumber,
-              imagesStoredDuringTurn,
               streamMetadata: {
                 toolUseCount,
                 cost,

@@ -112,8 +112,6 @@ export function createChartServer(deps: ChartServerDeps) {
           "SVG markup string (must start with <svg). Use xmlns, explicit width/height, inline styles, sans-serif font, Tokyo Night colors.",
         ),
       // description is required in the Zod schema so every chart has meaningful alt text.
-      // The Haiku fallback hook calls handleCreateChart() directly (not via Zod),
-      // so it must provide its own description — see visual-augmentation.ts.
       description: z
         .string()
         .describe("What this chart shows — used for alt text and ![description](url)"),

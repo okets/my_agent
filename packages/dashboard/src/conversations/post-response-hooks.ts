@@ -13,10 +13,6 @@ import {
   extractTaskFromMessage,
   type AutomationHint,
 } from "../automations/automation-extractor.js";
-import {
-  maybeAugmentWithVisual,
-  type VisualAugmentationDeps,
-} from "../chat/visual-augmentation.js";
 import { runWatchdog, type StreamMetadata } from "./response-watchdog.js";
 
 const WATCHDOG_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes per conversation
@@ -36,8 +32,6 @@ export interface PostResponseHooksDeps {
     automationId: string,
     withinMs: number,
   ) => number;
-  /** Visual augmentation deps (optional — only if VAS + connection registry available) */
-  visualAugmentation?: VisualAugmentationDeps;
   /** Inject a recovery turn into a specific conversation. Returns response text, or null if session busy/unavailable */
   injectRecovery?: (
     conversationId: string,
@@ -64,8 +58,6 @@ export class PostResponseHooks {
     userContent: string,
     assistantContent: string,
     options?: {
-      turnNumber?: number;
-      imagesStoredDuringTurn?: number;
       streamMetadata?: StreamMetadata;
       /** Where the triggering message originated — dashboard messages should not leak to channels */
       source?: "dashboard" | "channel";
@@ -73,7 +65,6 @@ export class PostResponseHooks {
   ): Promise<void> {
     await Promise.all([
       this.detectMissedTasks(conversationId, userContent, assistantContent),
-      this.augmentWithVisual(conversationId, assistantContent, options),
       this.responseWatchdog(
         conversationId,
         userContent,
@@ -82,21 +73,6 @@ export class PostResponseHooks {
         options?.source,
       ),
     ]);
-  }
-
-  private async augmentWithVisual(
-    conversationId: string,
-    assistantContent: string,
-    options?: {
-      turnNumber?: number;
-      imagesStoredDuringTurn?: number;
-      source?: "dashboard" | "channel";
-    },
-  ): Promise<void> {
-    // Haiku visual fallback removed in M9.2-S5.1.
-    // The brain now generates charts proactively via the visual-presenter skill.
-    // If charts disappear, revert this branch.
-    return;
   }
 
   /**
