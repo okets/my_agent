@@ -211,3 +211,7 @@ All framework goals met:
 **M9.2 Delegation Behavior: NOT YET WORKING.**
 
 The brain has all the tools and instructions but doesn't use them. This is a prompt compliance / behavior tuning issue, not a framework bug. The infrastructure is ready — delegation enforcement is the next step.
+
+**M9.2 Worker Infrastructure: FULLY WORKING.**
+
+When automations are fired directly (manual trigger), workers complete successfully with isolated prompts, multi-layer todo assembly, source cross-checking, chart generation, and comprehensive status reports. The entire worker pipeline is proven — the only missing link is the brain triggering it via `create_automation`.
