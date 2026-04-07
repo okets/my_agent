@@ -167,7 +167,7 @@ describe("scanCapabilities", () => {
     expect(servers.test.args).toContain(`${mcpDir}/config.json`);
   });
 
-  it("skips malformed CAPABILITY.md files gracefully", async () => {
+  it("returns malformed CAPABILITY.md as invalid instead of skipping", async () => {
     // Create a directory with a malformed CAPABILITY.md (no name field)
     const malDir = join(capDir, "malformed");
     mkdirSync(malDir, { recursive: true });
@@ -180,8 +180,12 @@ describe("scanCapabilities", () => {
     );
 
     const caps = await scanCapabilities(capDir, envPath);
-    expect(caps).toHaveLength(1);
-    expect(caps[0].name).toBe("valid-cap");
+    expect(caps).toHaveLength(2);
+    const valid = caps.find((c) => c.name === "valid-cap");
+    const invalid = caps.find((c) => c.status === "invalid");
+    expect(valid).toBeDefined();
+    expect(invalid).toBeDefined();
+    expect(invalid!.error).toContain("name");
   });
 
   it("returns empty array for empty directory", async () => {
