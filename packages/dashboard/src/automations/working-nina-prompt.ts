@@ -1,7 +1,5 @@
-import { assembleSystemPrompt } from "@my-agent/core";
 import { readProperties } from "../conversations/properties.js";
 import { resolveTimezone } from "../utils/timezone.js";
-import path from "node:path";
 
 export interface WorkingNinaPromptOptions {
   taskTitle: string;
@@ -105,10 +103,9 @@ export async function buildWorkingNinaPrompt(
   agentDir: string,
   options: WorkingNinaPromptOptions,
 ): Promise<string> {
-  // Get notebook/knowledge context (reuses existing prompt assembly)
-  // assembleSystemPrompt takes brainDir (agentDir/brain), not agentDir
-  const brainDir = path.join(agentDir, "brain");
-  const notebookContext = await assembleSystemPrompt(brainDir);
+  // M9.2-S8: Workers get their own persona + task context only.
+  // Brain identity, delegation protocol, daily logs, notebook tree,
+  // automation hints, and standing orders are brain-only concerns.
 
   // Get temporal context
   const timezone = await resolveTimezone(agentDir);
@@ -147,7 +144,6 @@ export async function buildWorkingNinaPrompt(
     propertiesSection,
     options.calendarContext ? `\n${options.calendarContext}\n` : "",
     options.toolCreationGuide ? TOOL_CREATION_GUIDE : "",
-    notebookContext,
   ];
 
   // Space contexts (tool manifests + maintenance rules for referenced spaces)
