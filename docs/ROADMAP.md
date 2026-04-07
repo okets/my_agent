@@ -829,7 +829,7 @@ Extend M9.1's code-enforced Todo system to all worker job types. Every Working N
 | S1 | Generic & Research Templates | Done | `research` added to job_type union, `generic` + `research` todo templates, `status_report` validator, generic fallback in `assembleJobTodos`. Real LLM smoke tests for both. [Review](../sprints/m9.2-s1-generic-research-templates/review.md) |
 | S2 | S1 Gap Fixes | Planned | `status_report` validator unit tests, consolidate duplicate test files, debrief pipeline includes `needs_review` jobs with warning flag (G4), handler bypass invariant comment (G5), monorepo build order docs. |
 | S3 | Working Nina Self-Check | Planned | Replace prose "Principles" with structured pre-completion self-check referencing `todo_list`. Behavioral smoke test. |
-| S4 | Automation Design Checklist | Planned | 8-field checklist in task-triage skill. Addresses D7 (Conversation Nina leaves `todos` empty). Delegation smoke test. |
+| S4 | Delegation Todo Enforcement | Planned | `todos` required in `create_automation` Zod schema (`.min(1)`). AutomationManifest stays optional (disk/handler paths unaffected). Framework delegation-checklist skill for other 7 fields. 3 smoke tests: simple, complex, retry. [Proposal](../sprints/m9.2-s4-design-checklist/proposal.md) |
 | S5 | Visual System Upgrade | Planned | Skill rewrite as decision tree + smart hook (Haiku pre-check gate filters non-chart-worthy data, prevents dumb charts). Smoke tests for both. |
 | S6 | Integration Verification | Planned | Full E2E with real LLM: generic jobs, research jobs with charts, delegation with populated todos. Test report following M9.1-S8 pattern. |
 
