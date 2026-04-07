@@ -835,7 +835,8 @@ Extend M9.1's code-enforced Todo system to all worker job types. Every Working N
 | S6 | Integration Verification | Paused | Delegation gap discovered: brain never calls `create_automation` — stale `create_task` references in instance skills + `delegation-checklist` in wrong directory. Code-enforced items (templates, validators, charts) all pass. [Gap Report](../sprints/m9.2-s6-integration/delegation-gap-report.md) |
 | S7 | Framework/Instance Split + Audit Fixes | Planned | Move agentic behavior from `.my_agent/` to `skills/`. Fix all audit findings: stuck skill filter flags, stale test assertions, duplicate prompt loading, stale capability-brainstorming copy. [Plan](plans/2026-04-07-m9.2-s7-framework-instance-split.md) |
 | S8 | Worker Prompt Isolation + Skill Filter Safety | Planned | Workers get worker-specific prompt (no brain identity/"do not do work yourself"). Skill filter refactored to runtime filtering (no disk writes, no crash-stuck flags). [Plan](plans/2026-04-07-m9.2-s8-worker-prompt-isolation.md) |
-| S9 | Final Integration Verification | Planned | Full E2E: rerun all failed S6 tests, delegation with correct tool names, worker isolation check, skill filter crash test, zero stale references audit. M9.2 completion gate. [Plan](plans/2026-04-07-m9.2-s9-final-verification.md) |
+| S9 | Skill Filter Wiring | Planned | Wire `filterSkillsByTools()` return value into `assembleSystemPrompt()` via `excludeSkills` parameter. Completes S8 refactor. [Plan](plans/2026-04-07-m9.2-s9-skill-filter-wiring.md) |
+| S10 | Final Integration Verification | Planned | Full E2E: rerun all failed S6 tests, all deferred S7/S8 smoke tests, skill filter wiring verification, delegation, worker isolation, crash safety. M9.2 completion gate. [Plan](plans/2026-04-07-m9.2-s10-final-verification.md) |
 
 **Key decisions:**
 - Working Nina = todo-oriented (code enforcement). Conversation Nina = conversational (no todos).
