@@ -771,7 +771,7 @@ Write for the ear, not the eye:
         },
       });
 
-      // Post-response hooks (task extraction, visual augmentation) — fire-and-forget
+      // Post-response hooks (task extraction, response watchdog) — fire-and-forget
       this.deps.postResponseHooks
         ?.run(conversation.id, textContent, assistantContent, {
           source: "channel",

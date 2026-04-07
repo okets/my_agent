@@ -5,7 +5,6 @@
  * regardless of whether the message came from WebSocket or a channel.
  *
  * - Missed task detector: scans for task-worthy requests
- * - Visual augmentation: attaches screenshots to conversations
  * - Response watchdog: detects garbled/incomplete responses and nudges the brain
  */
 

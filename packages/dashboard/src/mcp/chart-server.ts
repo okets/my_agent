@@ -43,7 +43,7 @@ function ensureSvgDimensions(svg: string): string {
   return svg.replace("<svg", `<svg width="${vbWidth}" height="${vbHeight}"`);
 }
 
-// ── Handler (exported for visual augmentation hook) ─────────────────────────
+// ── Handler ─────────────────────────────────────────────────────────────────
 
 export async function handleCreateChart(
   deps: ChartServerDeps,
