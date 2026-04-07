@@ -70,9 +70,11 @@ But NO `create_automation` tool call was made. No new automation manifest on dis
 
 **Same behavior as S6.** Root cause #1 (Sonnet too capable) confirmed — the brain claims to schedule but doesn't actually call the tool.
 
-### 4b. Complex research delegation
+### 4b. Complex research delegation — "Top 3 Thai restaurants in Chiang Mai"
 
-**Not tested.** Prior conversation (Thai restaurants) shows the brain answered inline with full research (WebSearch + sources + chart), same as S6. The brain has the delegation skills loaded but chooses not to use them.
+**FAIL.** Brain answered inline. Produced detailed comparison with 3 restaurants, ratings, price ranges, chart, 4 sources (TripAdvisor, food guides). High-quality research — but done entirely inline via WebSearch. No `create_automation` called. No new automation on disk.
+
+Brain used Haiku for 3 web searches, then Sonnet composed the response. Total cost: ~$0.31. Research quality is excellent — the framework *can* do great research — but the work stays in the conversation layer instead of delegating to a worker.
 
 ### 4c. Trivial inline response
 
@@ -111,11 +113,20 @@ The remaining 28K worker tokens are SDK overhead (tool definitions, MCP servers,
 
 ### 5c. Worker completes correctly without brain prompt
 
-PASS — Worker completed the generic smoke test:
-- All 4 mandatory todos: done
+**Generic smoke test:** PASS
+- All 4 mandatory todos: done (2 delegator + 2 generic template)
 - `status-report.md`: exists, well-structured, includes actions/results/artifacts/issues
 - Chart generated for deliverable
 - Job status: `completed` (not `needs_review`)
+
+**Research smoke test:** PASS
+- All 7 mandatory todos: done (3 delegator + 4 research template)
+- 3-layer todo assembly confirmed working (delegator items + research template items)
+- Worker researched 3 independent sources, cross-checked data, flagged discrepancies
+- Chart generated (Gantt-style SVG)
+- `status-report.md` includes sources, confidence level, data table
+- Job status: `completed`
+- Worker functioned perfectly WITHOUT brain identity/delegation prompt
 
 ---
 
@@ -156,7 +167,7 @@ PASS — API returns `status: completed, needsReview: false` for completed jobs.
 | Research jobs with inline charts | PASS | PASS | Brain charts inline (prior conversation) |
 | Conversation Nina populating todos | UNTESTED (never delegated) | **FAIL** | Brain doesn't call create_automation |
 | S4 schema enforcement in production | UNTESTED | **UNTESTED** | Can't test — brain doesn't delegate |
-| 3-layer todo assembly from delegation | UNTESTED | **UNTESTED** | Can't test — brain doesn't delegate |
+| 3-layer todo assembly from delegation | UNTESTED | **PASS** (via manual fire) | 3 delegator + 4 research template items, all done |
 | Brain-generated inline charts | PASS | PASS | Confirmed in Thai restaurant response |
 | Dumb charts eliminated | PASS (Haiku removed) | PASS | Haiku fallback removed in S5.1 |
 | Worker prompt isolated from brain | N/A | **PASS** | 96% prompt size reduction, zero brain bleed |
