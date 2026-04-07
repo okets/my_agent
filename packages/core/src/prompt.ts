@@ -33,13 +33,9 @@ const MAX_REFERENCE_TOTAL_CHARS = 32000
 // Directories to exclude from the notebook tree (test artifacts, etc.)
 const NOTEBOOK_TREE_IGNORE = new Set(['.DS_Store', 'Thumbs.db'])
 
-// Skills whose full content should be included in the system prompt (not just commands)
-const SKILL_CONTENT_FILES = ['conversation-role.md', 'notebook.md']
-
-// Always-on skills: sourced from .claude/skills/ but injected into system prompt.
-// SDK skills preload (Options.skills) is not yet implemented in the runtime —
-// we load these ourselves via assembleSystemPrompt() until the SDK adds support.
-const ALWAYS_ON_SKILLS = ['task-triage']
+// Note: SKILL_CONTENT_FILES and ALWAYS_ON_SKILLS removed in M9.2-S7.
+// conversation-role, notebook (memory-tools), task-triage, and operational-rules
+// now load via framework level:brain scan from repo-root skills/ directory.
 
 /**
  * Format scheduled task context for inclusion in system prompt.
@@ -447,24 +443,6 @@ async function hasNotebookReference(agentDir: string): Promise<boolean> {
   }
 }
 
-/**
- * Load full content of specific skill files that should be included in the system prompt.
- * These are skills that provide API documentation or instructions the brain needs always.
- */
-async function loadSkillContent(skillsDirs: string[]): Promise<string[]> {
-  const sections: string[] = []
-
-  for (const dir of skillsDirs) {
-    for (const filename of SKILL_CONTENT_FILES) {
-      const content = await readOptionalFile(path.join(dir, filename))
-      if (content) {
-        sections.push(content.trim())
-      }
-    }
-  }
-
-  return sections
-}
 
 /**
  * Format capability registry entries for inclusion in the system prompt.
@@ -618,26 +596,6 @@ export async function assembleSystemPrompt(
   // Add triggered scheduled task context (from CalendarScheduler)
   if (options.scheduledTaskContext) {
     sections.push(formatScheduledTaskContext(options.scheduledTaskContext))
-  }
-
-  const skillsDirs = [brainDir]
-
-  // Load full content of specific skills (API documentation, etc.)
-  const skillContent = await loadSkillContent(skillsDirs)
-  sections.push(...skillContent)
-
-  // Load always-on skills from SDK skills directory
-  const sdkSkillsDir = path.join(agentDir, '.claude', 'skills')
-  for (const skillName of ALWAYS_ON_SKILLS) {
-    const skillPath = path.join(sdkSkillsDir, skillName, 'SKILL.md')
-    const content = await readOptionalFile(skillPath)
-    if (content) {
-      // Strip YAML frontmatter before injecting into system prompt
-      const body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n*/, '')
-      if (body.trim()) {
-        sections.push(body.trim())
-      }
-    }
   }
 
   // Load brain-level skills from framework skills/ directory

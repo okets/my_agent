@@ -53,7 +53,7 @@ describeIf('Level 3: triage routing decisions (live LLM)', () => {
       system: systemPrompt,
       messages: [{
         role: 'user',
-        content: `Respond with ONLY one word — "DELEGATE" if you would use create_task for this, or "DIRECT" if you would answer directly or use WebSearch/recall.\n\nUser message: "${userMessage}"`,
+        content: `Respond with ONLY one word — "DELEGATE" if you would use create_automation for this, or "DIRECT" if you would answer directly or use WebSearch/recall.\n\nUser message: "${userMessage}"`,
       }],
     })
 
