@@ -831,7 +831,7 @@ Extend M9.1's code-enforced Todo system to all worker job types. Every Working N
 | S3 | Working Nina Self-Check | Planned | Replace prose "Principles" with structured pre-completion self-check referencing `todo_list`. Behavioral smoke test. |
 | S4 | Delegation Todo Enforcement | Planned | `todos` required in `create_automation` Zod schema (`.min(1)`). AutomationManifest stays optional (disk/handler paths unaffected). Framework delegation-checklist skill for other 7 fields. 3 smoke tests: simple, complex, retry. [Proposal](../sprints/m9.2-s4-design-checklist/proposal.md) |
 | S5 | Visual System Upgrade | Planned | Skill rewrite as decision tree + smart hook (Haiku pre-check gate filters non-chart-worthy data, prevents dumb charts) + `description` required on `create_chart`/`fetch_image` for meaningful alt text. Smoke tests for all. |
-| S5.1 | Remove Haiku Fallback | Planned | Experiment: disable Haiku visual fallback, test if brain generates charts proactively after S5 skill rewrite. If 4+/5 data prompts get inline charts → full cleanup (delete visual-augmentation.ts). If not → revert. [Plan](plans/2026-04-07-s5.1-remove-haiku-fallback.md) |
+| S5.1 | Remove Haiku Fallback | Done | Experiment succeeded: brain generates charts proactively after S5 skill rewrite. Full cleanup — visual-augmentation.ts deleted, image counter removed, post-response hooks simplified. 277 lines removed, zero orphaned references. [Plan](plans/2026-04-07-s5.1-remove-haiku-fallback.md) |
 | S6 | Integration Verification | Planned | Full E2E with real LLM: generic jobs, research jobs with charts, delegation with populated todos. Test report following M9.1-S8 pattern. |
 
 **Key decisions:**
