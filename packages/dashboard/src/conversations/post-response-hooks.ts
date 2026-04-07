@@ -93,24 +93,10 @@ export class PostResponseHooks {
       source?: "dashboard" | "channel";
     },
   ): Promise<void> {
-    if (!this.deps.visualAugmentation) return;
-    try {
-      // Strip sendToChannel for dashboard-originated messages to prevent
-      // charts from leaking to WhatsApp (fixes #2)
-      const deps =
-        options?.source === "dashboard"
-          ? { ...this.deps.visualAugmentation, sendToChannel: undefined }
-          : this.deps.visualAugmentation;
-      await maybeAugmentWithVisual(
-        conversationId,
-        assistantContent,
-        options?.imagesStoredDuringTurn ?? 0,
-        options?.turnNumber ?? 0,
-        deps,
-      );
-    } catch (err) {
-      this.deps.logError(err, "[PostResponseHooks] Visual augmentation failed");
-    }
+    // Haiku visual fallback removed in M9.2-S5.1.
+    // The brain now generates charts proactively via the visual-presenter skill.
+    // If charts disappear, revert this branch.
+    return;
   }
 
   /**
