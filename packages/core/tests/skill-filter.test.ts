@@ -4,7 +4,12 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { filterSkillsByTools, cleanupSkillFilters } from '../src/skill-filter.js'
 
-describe('filterSkillsByTools', () => {
+/**
+ * M9.2-S8: Skill filter is now pure — returns disabled skill names
+ * without modifying SKILL.md files on disk. No crash artifacts.
+ */
+
+describe('filterSkillsByTools (runtime-only, no disk writes)', () => {
   const testDir = join(tmpdir(), `skill-filter-test-${Date.now()}`)
   const skillsDir = join(testDir, '.claude', 'skills')
 
@@ -16,7 +21,7 @@ describe('filterSkillsByTools', () => {
     rmSync(testDir, { recursive: true, force: true })
   })
 
-  it('disables skills whose allowed-tools are not in session tools', async () => {
+  it('returns skills whose allowed-tools are not in session tools', async () => {
     mkdirSync(join(skillsDir, 'debugging'), { recursive: true })
     writeFileSync(
       join(skillsDir, 'debugging', 'SKILL.md'),
@@ -26,8 +31,18 @@ describe('filterSkillsByTools', () => {
     const disabled = await filterSkillsByTools(testDir, ['WebSearch', 'WebFetch', 'Skill'])
 
     expect(disabled).toEqual(['debugging'])
-    const content = readFileSync(join(skillsDir, 'debugging', 'SKILL.md'), 'utf-8')
-    expect(content).toContain('disable-model-invocation: true')
+  })
+
+  it('does NOT modify SKILL.md files on disk', async () => {
+    const originalContent = '---\nname: debugging\ndescription: Debug issues\norigin: system\nallowed-tools:\n  - Bash\n  - Read\n  - Grep\n---\n# Debugging'
+    mkdirSync(join(skillsDir, 'debugging'), { recursive: true })
+    writeFileSync(join(skillsDir, 'debugging', 'SKILL.md'), originalContent)
+
+    await filterSkillsByTools(testDir, ['WebSearch', 'WebFetch', 'Skill'])
+
+    const afterContent = readFileSync(join(skillsDir, 'debugging', 'SKILL.md'), 'utf-8')
+    expect(afterContent).toBe(originalContent)
+    expect(afterContent).not.toContain('disable-model-invocation')
   })
 
   it('keeps skills whose allowed-tools are all available', async () => {
@@ -40,8 +55,6 @@ describe('filterSkillsByTools', () => {
     const disabled = await filterSkillsByTools(testDir, ['WebSearch', 'WebFetch', 'Skill'])
 
     expect(disabled).toEqual([])
-    const content = readFileSync(join(skillsDir, 'research', 'SKILL.md'), 'utf-8')
-    expect(content).not.toContain('disable-model-invocation')
   })
 
   it('keeps skills without allowed-tools field (backwards compatible)', async () => {
@@ -69,30 +82,25 @@ describe('filterSkillsByTools', () => {
 
     expect(disabled).toEqual([])
   })
+
+  it('does not leave artifacts on simulated crash (no disk writes)', async () => {
+    mkdirSync(join(skillsDir, 'debugging'), { recursive: true })
+    const originalContent = '---\nname: debugging\ndescription: Debug issues\norigin: system\nallowed-tools:\n  - Bash\n---\n# Debugging'
+    writeFileSync(join(skillsDir, 'debugging', 'SKILL.md'), originalContent)
+
+    // Simulate: filter runs, then "crash" (no cleanup called)
+    await filterSkillsByTools(testDir, ['WebSearch'])
+    // No cleanupSkillFilters call — simulating crash
+
+    // File should be unchanged — no stuck disable-model-invocation flag
+    const content = readFileSync(join(skillsDir, 'debugging', 'SKILL.md'), 'utf-8')
+    expect(content).toBe(originalContent)
+    expect(content).not.toContain('disable-model-invocation')
+  })
 })
 
-describe('cleanupSkillFilters', () => {
-  const testDir = join(tmpdir(), `skill-cleanup-test-${Date.now()}`)
-  const skillsDir = join(testDir, '.claude', 'skills')
-
-  beforeEach(() => {
-    mkdirSync(skillsDir, { recursive: true })
-  })
-
-  afterEach(() => {
-    rmSync(testDir, { recursive: true, force: true })
-  })
-
-  it('removes disable-model-invocation from previously filtered skills', async () => {
-    mkdirSync(join(skillsDir, 'debugging'), { recursive: true })
-    writeFileSync(
-      join(skillsDir, 'debugging', 'SKILL.md'),
-      '---\nname: debugging\ndescription: Debug issues\norigin: system\nallowed-tools:\n  - Bash\ndisable-model-invocation: true\n---\n# Debugging'
-    )
-
-    await cleanupSkillFilters(testDir, ['debugging'])
-
-    const content = readFileSync(join(skillsDir, 'debugging', 'SKILL.md'), 'utf-8')
-    expect(content).not.toContain('disable-model-invocation')
+describe('cleanupSkillFilters (deprecated no-op)', () => {
+  it('is a no-op and does not throw', async () => {
+    await expect(cleanupSkillFilters('/nonexistent', ['foo'])).resolves.toBeUndefined()
   })
 })

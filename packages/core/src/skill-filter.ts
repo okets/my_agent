@@ -1,22 +1,18 @@
 import { existsSync } from 'node:fs'
-import { readFile, writeFile, readdir } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import * as path from 'node:path'
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { parse as parseYaml } from 'yaml'
 
 /**
- * Filter skills based on tool compatibility.
+ * Filter skills based on tool compatibility (runtime-only, no disk writes).
  *
  * Scans .my_agent/.claude/skills/, reads allowed-tools from each skill's
- * YAML frontmatter, and sets disable-model-invocation: true on skills whose
- * required tools aren't in the session's allowedTools list.
+ * YAML frontmatter, and returns the names of skills whose required tools
+ * aren't in the session's allowedTools list.
  *
- * Returns the list of skill names that were disabled.
- *
- * LIMITATION: Writes directly to SKILL.md on disk. If concurrent sessions
- * run with different tool sets, one session's cleanup could re-enable a skill
- * that another session disabled. Safe in current architecture because Working
- * Nina has all tools (never disables anything) and only one Conversation Nina
- * session runs at a time. Revisit if multi-session support is needed.
+ * M9.2-S8: No longer modifies SKILL.md files on disk. Previously wrote
+ * disable-model-invocation: true which could get stuck if sessions crashed.
+ * Now returns a pure list — callers decide how to handle exclusion.
  */
 export async function filterSkillsByTools(
   agentDir: string,
@@ -52,11 +48,6 @@ export async function filterSkillsByTools(
       const missingTools = allowedTools.filter((t) => !toolSet.has(t))
       if (missingTools.length === 0) continue
 
-      // Disable this skill
-      fm['disable-model-invocation'] = true
-      const body = content.slice(fmMatch[0].length)
-      const newContent = `---\n${stringifyYaml(fm).trim()}\n---${body}`
-      await writeFile(skillMdPath, newContent)
       disabled.push(entry)
 
       console.log(
@@ -71,33 +62,12 @@ export async function filterSkillsByTools(
 }
 
 /**
- * Clean up disable-model-invocation flags set by filterSkillsByTools.
- * Call after a session ends to restore skills for future sessions.
+ * @deprecated Removed in M9.2-S8. filterSkillsByTools no longer writes to disk,
+ * so there's nothing to clean up. This function is a no-op for backward compatibility.
  */
 export async function cleanupSkillFilters(
-  agentDir: string,
-  disabledSkills: string[],
+  _agentDir: string,
+  _disabledSkills: string[],
 ): Promise<void> {
-  const skillsDir = path.join(agentDir, '.claude', 'skills')
-
-  for (const entry of disabledSkills) {
-    const skillMdPath = path.join(skillsDir, entry, 'SKILL.md')
-    if (!existsSync(skillMdPath)) continue
-
-    try {
-      const content = await readFile(skillMdPath, 'utf-8')
-      const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
-      if (!fmMatch) continue
-
-      const fm = parseYaml(fmMatch[1])
-      if (!fm['disable-model-invocation']) continue
-
-      delete fm['disable-model-invocation']
-      const body = content.slice(fmMatch[0].length)
-      const newContent = `---\n${stringifyYaml(fm).trim()}\n---${body}`
-      await writeFile(skillMdPath, newContent)
-    } catch {
-      continue
-    }
-  }
+  // No-op: skill filter no longer modifies disk
 }
