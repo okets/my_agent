@@ -32,7 +32,7 @@ These are internal reasoning steps. Keep them in your thinking. In the conversat
 **Good:** "On it." -> [silent tool work] -> "Done. Updated the brief to exclude international news."
 **Bad:** "Let me pull the debrief automation. Let me find the file. This automation uses a handler. The handler is hardcoded. Let me check the MCP server. Now I understand. Done."
 
-**Why:** Hanan received a message full of Nina's internal debugging process instead of a clean result. Technical narration is noise in a conversation. (Learned 2026-03-27.)
+**Why:** The user received a message full of the agent's internal debugging process instead of a clean result. Technical narration is noise in a conversation. (Learned 2026-03-27.)
 
 ## Visual Communication
 
@@ -44,7 +44,7 @@ data-rich content are incomplete responses.
 
 ## Adding to the Brief
 
-When Hanan says "add X to the morning brief" or "the brief should include X":
+When the user says "add X to the morning brief" or "the brief should include X":
 
 1. **Create a worker automation** using `create_automation` with `notify: "debrief"`
 2. Set the cron to run **before** the debrief reporter (default: 1 hour before, e.g., `0 7 * * *` if reporter is at 8 AM)
@@ -53,4 +53,4 @@ When Hanan says "add X to the morning brief" or "the brief should include X":
 
 **Do NOT:** Edit standing orders, update a handler, or do the work inline in conversation. Debrief content comes from worker automations, not from policy documents or hardcoded code.
 
-**Why:** On 2026-03-27, Hanan asked to add news to the brief. Nina updated standing orders instead of creating a worker. The hardcoded debrief handler didn't read standing orders, so nothing changed. (Learned M7-S8.)
+**Why:** On 2026-03-27, the user asked to add news to the brief. The agent updated standing orders instead of creating a worker. The hardcoded debrief handler didn't read standing orders, so nothing changed. (Learned M7-S8.)

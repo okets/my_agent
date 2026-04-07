@@ -39,7 +39,6 @@ Before calling `create_automation`, fill in these fields:
 5. **Notify:** "immediate" if user is waiting, "debrief" for background work
 6. **Autonomy:** "full" for safe work, "cautious" for side effects, "review" for high-risk
 7. **Job type:** "research" for research tasks, "capability_build"/"capability_modify" for capabilities
-8. **Delivery:** if user wants results sent somewhere, include delivery actions
 
 If you can't confidently fill in 1-3, interview the user first.
 

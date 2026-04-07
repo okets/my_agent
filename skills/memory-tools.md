@@ -25,7 +25,7 @@ Save important facts immediately when shared:
 - New contacts, relationships, project context
 - Anything the user would expect you to know next time
 
-Use clear, searchable content: `remember("Hanan is in Chiang Mai as of 2026-03-11")`
+Use clear, searchable content: `remember("User is in Chiang Mai as of 2026-03-11")`
 
 ## When to `daily_log`
 
