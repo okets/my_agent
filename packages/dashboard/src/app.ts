@@ -42,7 +42,6 @@ import {
   migrateToNotebook,
   needsMigration,
   checkSkillsHealth,
-  filterSkillsByTools,
   loadChannelBindings,
   SpaceSyncService,
   CapabilityRegistry,
@@ -1601,15 +1600,9 @@ export class App extends EventEmitter {
       const skillServer = createSkillServer({
         agentDir,
         onSkillCreated: async () => {
-          const conversationTools = [
-            "Read",
-            "Glob",
-            "Grep",
-            "WebSearch",
-            "WebFetch",
-            "Skill",
-          ];
-          await filterSkillsByTools(agentDir, conversationTools);
+          // M9.2-S9: filterSkillsByTools call removed — it's now pure (no side effects).
+          // Skill filtering is handled by the session manager via SystemPromptBuilder.excludeSkills.
+          app.emit("skills:changed");
         },
         onSkillChanged: () => {
           app.emit("skills:changed");

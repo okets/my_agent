@@ -88,4 +88,43 @@ describe('assembleSystemPrompt — framework brain-level skills', () => {
     expect(prompt).not.toContain('Available Commands')
     expect(prompt).not.toContain('/my-agent:')
   })
+
+  it('excludes skills in the excludeSkills set', async () => {
+    writeFileSync(
+      join(frameworkSkillsDir, 'conversation-role.md'),
+      '---\nname: conversation-role\ndescription: test\nlevel: brain\n---\n\n## Your Role: Conversation Agent\nYou are the conversation layer.'
+    )
+    writeFileSync(
+      join(frameworkSkillsDir, 'task-triage.md'),
+      '---\nname: task-triage\ndescription: test\nlevel: brain\n---\n\n## Task Delegation\nMessage routing rules.'
+    )
+
+    const prompt = await assembleSystemPrompt(brainDir, {
+      excludeSkills: new Set(['conversation-role']),
+    })
+    expect(prompt).not.toContain('Conversation Agent')
+    expect(prompt).toContain('Message routing rules')
+  })
+
+  it('loads all skills when excludeSkills is empty', async () => {
+    writeFileSync(
+      join(frameworkSkillsDir, 'conversation-role.md'),
+      '---\nname: conversation-role\ndescription: test\nlevel: brain\n---\n\n## Your Role: Conversation Agent\nYou are the conversation layer.'
+    )
+
+    const prompt = await assembleSystemPrompt(brainDir, {
+      excludeSkills: new Set(),
+    })
+    expect(prompt).toContain('Conversation Agent')
+  })
+
+  it('loads all skills when excludeSkills is undefined', async () => {
+    writeFileSync(
+      join(frameworkSkillsDir, 'conversation-role.md'),
+      '---\nname: conversation-role\ndescription: test\nlevel: brain\n---\n\n## Your Role: Conversation Agent\nYou are the conversation layer.'
+    )
+
+    const prompt = await assembleSystemPrompt(brainDir)
+    expect(prompt).toContain('Conversation Agent')
+  })
 })

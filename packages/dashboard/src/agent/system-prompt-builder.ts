@@ -51,9 +51,16 @@ export class SystemPromptBuilder {
   private config: BuilderConfig;
   private stablePromptCache: string | null = null;
   private sessionStartTime: Date = new Date();
+  private _excludeSkills: Set<string> = new Set();
 
   constructor(config: BuilderConfig) {
     this.config = config;
+  }
+
+  /** Set skills to exclude from prompt assembly (from filterSkillsByTools). Invalidates cache. */
+  set excludeSkills(skills: Set<string>) {
+    this._excludeSkills = skills;
+    this.stablePromptCache = null;
   }
 
   /** Reset session start time (call when a new conversation session begins). */
@@ -202,6 +209,7 @@ export class SystemPromptBuilder {
         {
           calendarContext,
           capabilities: this.config.getCapabilities?.(),
+          excludeSkills: this._excludeSkills.size > 0 ? this._excludeSkills : undefined,
         },
       );
     }

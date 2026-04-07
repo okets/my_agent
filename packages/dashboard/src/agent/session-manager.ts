@@ -332,6 +332,11 @@ export class SessionManager {
       agentDir,
       CONVERSATION_TOOLS,
     );
+
+    // Wire excluded skills into prompt builder so they're omitted from system prompt
+    if (this.disabledSkills.length > 0 && this.promptBuilder) {
+      this.promptBuilder.excludeSkills = new Set(this.disabledSkills);
+    }
   }
 
   async *streamMessage(

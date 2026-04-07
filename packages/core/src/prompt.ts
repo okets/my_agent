@@ -494,6 +494,8 @@ export interface AssemblePromptOptions {
   scheduledTaskContext?: ScheduledTaskContext
   /** Capability registry entries to include in prompt */
   capabilities?: Capability[]
+  /** Skill names to exclude from prompt (from filterSkillsByTools) */
+  excludeSkills?: Set<string>
 }
 
 export async function assembleSystemPrompt(
@@ -605,6 +607,8 @@ export async function assembleSystemPrompt(
     const entries = await readdir(frameworkSkillsDir).catch(() => [] as string[])
     for (const entry of entries) {
       if (!entry.endsWith('.md')) continue
+      const skillName = entry.replace(/\.md$/, '')
+      if (options.excludeSkills?.has(skillName)) continue
       const content = await readOptionalFile(path.join(frameworkSkillsDir, entry))
       if (!content) continue
       // Check for level: brain in frontmatter
