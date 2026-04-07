@@ -12,3 +12,9 @@
 **Decision:** Sequential single-agent, no team.
 **Why:** Single file change + smoke test. No parallelizable work.
 
+## D2: Fix misplaced review commit
+
+**Decision:** Cherry-picked review commit from master to sprint branch, force-pushed master back.
+**Why:** External reviewer agent switched to master during its run. The review artifacts landed on master instead of the sprint branch. Fixed by cherry-picking to sprint branch and resetting master.
+**Impact:** None — both remotes now correct.
+
