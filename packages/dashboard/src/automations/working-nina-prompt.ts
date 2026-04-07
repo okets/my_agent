@@ -127,8 +127,7 @@ export async function buildWorkingNinaPrompt(
     const entries: string[] = [];
     if (props.location?.value)
       entries.push(`location: ${props.location.value}`);
-    if (props.timezone?.value)
-      entries.push(`timezone: ${props.timezone.value}`);
+    // timezone omitted — single source of truth is config.yaml, shown in [Temporal Context]
     if (props.availability?.value)
       entries.push(`availability: ${props.availability.value}`);
     if (entries.length > 0) {

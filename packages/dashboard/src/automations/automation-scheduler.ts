@@ -38,13 +38,19 @@ export class AutomationScheduler {
 
   async start(): Promise<void> {
     this.isRunning = true;
-    this.interval = setInterval(() => {
-      this.checkDue();
-      // Note: checkStaleJobs() replaced by HeartbeatService (M9.1-S3).
-      // Kept as method for backward compat but no longer called on interval.
+    this.interval = setInterval(async () => {
+      try {
+        await this.checkDue();
+      } catch (err) {
+        console.error("[AutomationScheduler] checkDue failed:", err);
+      }
     }, this.config.pollIntervalMs ?? 60_000);
-    // Check immediately
-    await this.checkDue();
+    // Check immediately (errors don't prevent scheduler from running)
+    try {
+      await this.checkDue();
+    } catch (err) {
+      console.error("[AutomationScheduler] Initial checkDue failed:", err);
+    }
     console.log(
       `[AutomationScheduler] Started, polling every ${(this.config.pollIntervalMs ?? 60_000) / 1000}s`,
     );
@@ -80,8 +86,11 @@ export class AutomationScheduler {
       );
       for (const trigger of scheduleTriggers) {
         if (!trigger.cron) continue;
-        if (this.isCronDue(trigger.cron, automation, now, tz)) {
-          // Fire-and-forget: processor handles concurrency
+        const due = this.isCronDue(trigger.cron, automation, now, tz);
+        if (due) {
+          console.log(
+            `[AutomationScheduler] Firing ${automation.id} cron="${trigger.cron}" tz=${tz} now=${now.toISOString()}`,
+          );
           this.config.processor
             .fire(automation, { trigger: "schedule" })
             .catch((err) =>
@@ -106,9 +115,13 @@ export class AutomationScheduler {
     tz: string,
   ): boolean {
     try {
+      // Add 1ms past the floored second to avoid cron-parser prev() boundary:
+      // at the exact tick second, prev() returns the previous tick.
+      // Floor to current second + 1ms avoids advancing past any minute boundary.
+      const nudged = new Date(Math.floor(now.getTime() / 1000) * 1000 + 1);
       const interval = CronExpressionParser.parse(cron, {
         tz,
-        currentDate: now,
+        currentDate: nudged,
       });
       const prev = interval.prev().toDate();
 
@@ -132,8 +145,20 @@ export class AutomationScheduler {
         );
       }
 
-      if (!lastHandlerJob) return true; // Never ran under any ID
-      return prev > new Date(lastHandlerJob.created);
+      if (!lastHandlerJob) {
+        console.log(
+          `[AutomationScheduler] ${automation.id}: no prior job, marking due (prev=${prev.toISOString()})`,
+        );
+        return true;
+      }
+      const lastDate = new Date(lastHandlerJob.created);
+      const isDue = prev > lastDate;
+      if (isDue) {
+        console.log(
+          `[AutomationScheduler] ${automation.id}: due — prev=${prev.toISOString()} last=${lastDate.toISOString()}`,
+        );
+      }
+      return isDue;
     } catch {
       console.warn(
         `[AutomationScheduler] Invalid cron for ${automation.id}: ${cron}`,
@@ -145,9 +170,16 @@ export class AutomationScheduler {
   /**
    * Project future runs for active schedule automations.
    */
-  getNextRuns(
+  async getNextRuns(
     count: number = 10,
-  ): Array<{ automationId: string; name: string; nextRun: Date }> {
+  ): Promise<Array<{ automationId: string; name: string; nextRun: Date }>> {
+    let tz: string;
+    try {
+      tz = await resolveTimezone(this.config.agentDir);
+    } catch {
+      tz = "UTC";
+    }
+
     const automations = this.config.automationManager.list({
       status: "active",
     });
@@ -162,6 +194,7 @@ export class AutomationScheduler {
         if (trigger.type !== "schedule" || !trigger.cron) continue;
         try {
           const interval = CronExpressionParser.parse(trigger.cron, {
+            tz,
             currentDate: new Date(),
           });
           runs.push({

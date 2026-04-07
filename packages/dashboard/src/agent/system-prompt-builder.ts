@@ -17,6 +17,7 @@ import {
   loadProperties,
 } from "@my-agent/core";
 import type { Capability } from "@my-agent/core";
+import { resolveTimezone } from "../utils/timezone.js";
 
 export interface BuilderConfig {
   brainDir: string;
@@ -76,7 +77,7 @@ export class SystemPromptBuilder {
     // current-state.md is included via assembleSystemPrompt → loadNotebookOperations.
     // Temporal context lets Nina reason about freshness ("updated this morning" vs "3 days old").
     const sessionStart = this.sessionStartTime ?? now;
-    const tz = process.env.TZ || "Asia/Jerusalem";
+    const tz = await resolveTimezone(this.config.agentDir);
     const localeOpts: Intl.DateTimeFormatOptions = {
       timeZone: tz,
       dateStyle: "full",

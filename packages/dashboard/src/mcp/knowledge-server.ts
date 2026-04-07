@@ -10,6 +10,9 @@
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { handleManageStagedKnowledge } from "./manage-staged-knowledge.js";
+import { isValidTimezone } from "../utils/timezone.js";
+import { ConfigWriter } from "@my-agent/core";
+import { updateProperty } from "../conversations/properties.js";
 
 export interface KnowledgeServerDeps {
   agentDir: string;
@@ -49,8 +52,59 @@ export function createKnowledgeServer(deps: KnowledgeServerDeps) {
     },
   );
 
+  const configWriter = new ConfigWriter(agentDir);
+
+  const setTimezoneTool = tool(
+    "set_timezone",
+    "Update the configured timezone. Only use AFTER the user explicitly confirms they want to switch. Requires a valid IANA timezone string (e.g. 'Asia/Bangkok', 'Europe/London').",
+    {
+      timezone: z
+        .string()
+        .describe("IANA timezone string (e.g. 'Asia/Bangkok', 'Asia/Jerusalem')"),
+    },
+    async (args) => {
+      if (!isValidTimezone(args.timezone)) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Invalid timezone: "${args.timezone}". Use a valid IANA timezone (e.g. Asia/Bangkok).`,
+            },
+          ],
+        };
+      }
+
+      await configWriter.write((yaml) => {
+        if (!yaml.preferences || typeof yaml.preferences !== "object") {
+          yaml.preferences = {};
+        }
+        (yaml.preferences as Record<string, unknown>).timezone = args.timezone;
+      });
+
+      // Sync status.yaml so the mismatch warning clears
+      await updateProperty(agentDir, "timezone", {
+        value: args.timezone,
+        confidence: "high",
+        source: "user-confirmed via set_timezone",
+      });
+
+      console.log(
+        `[Knowledge] Timezone updated to ${args.timezone} in config.yaml`,
+      );
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Timezone updated to ${args.timezone}. All scheduled automations will use this timezone from the next poll cycle.`,
+          },
+        ],
+      };
+    },
+  );
+
   return createSdkMcpServer({
     name: "knowledge",
-    tools: [manageStagedKnowledgeTool],
+    tools: [manageStagedKnowledgeTool, setTimezoneTool],
   });
 }

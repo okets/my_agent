@@ -40,9 +40,9 @@ export async function registerTimelineRoutes(
 
     // Also include future projections in the combined response
     // If filtering by automationId, filter future runs too
-    let futureRuns = getFutureRuns(app, 24);
+    let futureRuns = await getFutureRuns(app, 24);
     if (automationId) {
-      futureRuns = futureRuns.filter((r) => r.automationId === automationId);
+      futureRuns = futureRuns.filter((r: { automationId: string }) => r.automationId === automationId);
     }
 
     return { pastJobs, futureRuns };
@@ -58,7 +58,7 @@ export async function registerTimelineRoutes(
     }
 
     const hours = request.query.hours ? parseInt(request.query.hours, 10) : 24;
-    const futureRuns = getFutureRuns(app, hours);
+    const futureRuns = await getFutureRuns(app, hours);
 
     return { futureRuns };
   });
@@ -67,20 +67,20 @@ export async function registerTimelineRoutes(
 /**
  * Get projected future runs from the automation scheduler.
  */
-function getFutureRuns(
+async function getFutureRuns(
   app: NonNullable<import("fastify").FastifyInstance["app"]>,
   _hours: number,
-): Array<{
+): Promise<Array<{
   id: string;
   automationId: string;
   automationName: string;
   scheduledFor: string;
   triggerType: string;
   status: string;
-}> {
+}>> {
   if (!app.automationScheduler) return [];
 
-  const runs = app.automationScheduler.getNextRuns(20);
+  const runs = await app.automationScheduler.getNextRuns(20);
   return runs.map((r) => ({
     id: `projected-${r.automationId}-${r.nextRun.toISOString()}`,
     automationId: r.automationId,

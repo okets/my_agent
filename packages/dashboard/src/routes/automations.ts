@@ -325,7 +325,7 @@ export async function registerAutomationRoutes(
       return { runs: [] };
     }
 
-    const runs = app.automationScheduler.getNextRuns(10);
+    const runs = await app.automationScheduler.getNextRuns(10);
     return {
       runs: runs.map((r) => ({
         automationId: r.automationId,

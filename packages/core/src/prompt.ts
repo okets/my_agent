@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { globby } from 'globby'
 import { parse as parseYaml } from 'yaml'
 import type { Capability } from './capabilities/types.js'
+import { loadPreferences } from './config.js'
 
 const DEFAULT_PERSONALITY_PATH = path.resolve(
   import.meta.dirname,
@@ -270,7 +271,7 @@ export async function loadProperties(agentDir: string): Promise<string | null> {
     return null
   }
 
-  let data: Record<string, { value: string; confidence?: string; updated?: string }>
+  let data: Record<string, { value: string; confidence?: string; updated?: string; source?: string }>
   try {
     data = parseYaml(content)
   } catch {
@@ -297,6 +298,24 @@ export async function loadProperties(agentDir: string): Promise<string | null> {
     }
 
     lines.push(`${label}: ${parts[0]} (${parts.slice(1).join(', ')})`)
+  }
+
+  // Check for timezone mismatch: auto-detected (properties) vs configured (config.yaml)
+  if (data.timezone?.value) {
+    const detected = data.timezone.value.split(/\s*\(/)[0].trim()
+    try {
+      const prefs = loadPreferences(agentDir)
+      if (prefs.timezone && detected !== prefs.timezone) {
+        lines.push('')
+        lines.push(
+          `[ACTION REQUIRED] Detected timezone "${detected}" (from ${data.timezone.source ?? 'conversation'}, ` +
+          `${data.timezone.updated ?? 'unknown date'}) differs from your configured timezone "${prefs.timezone}". ` +
+          `Ask the user if they want to switch. Do NOT switch automatically.`
+        )
+      }
+    } catch {
+      // Config unavailable — skip mismatch check
+    }
   }
 
   lines.push('[End Dynamic Status]')
