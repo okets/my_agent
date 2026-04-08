@@ -38,6 +38,7 @@ describe('createDelegationEnforcer', () => {
 
     expect(result).toHaveProperty('systemMessage')
     expect((result as any).systemMessage).toContain('create_automation')
+    expect((result as any).systemMessage).toContain('once: true')
     expect((result as any).hookSpecificOutput.hookEventName).toBe('PreToolUse')
     expect((result as any).hookSpecificOutput.permissionDecision).toBe('deny')
   })
