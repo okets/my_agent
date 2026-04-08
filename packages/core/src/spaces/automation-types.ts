@@ -61,7 +61,7 @@ export interface Automation {
   indexedAt: string
 }
 
-export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'needs_review' | 'interrupted'
+export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'needs_review' | 'interrupted' | 'dismissed'
 
 export interface Job {
   id: string

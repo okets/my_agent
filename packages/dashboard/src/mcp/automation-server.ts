@@ -2,7 +2,7 @@
  * Automation MCP Tools Server
  *
  * Exposes create_automation, fire_automation, list_automations, resume_job,
- * and check_job_status tools for the brain to manage automations during conversation.
+ * check_job_status, and dismiss_job tools for the brain to manage automations during conversation.
  */
 
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
@@ -537,6 +537,73 @@ export function createAutomationServer(deps: AutomationServerDeps) {
     },
   );
 
+  const dismissJobTool = tool(
+    "dismiss_job",
+    "Dismiss a stale, stuck, or unwanted job. Use when a job is in needs_review, interrupted, or failed status and should no longer appear in active views. Keeps the record for audit trail but marks it as dismissed.",
+    {
+      jobId: z.string().describe("The job ID to dismiss"),
+      reason: z
+        .string()
+        .optional()
+        .describe("Why the job is being dismissed (stored in summary)"),
+    },
+    async (args) => {
+      const job = deps.jobService.getJob(args.jobId);
+      if (!job) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Job "${args.jobId}" not found.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      if (job.status === "running" || job.status === "pending") {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Cannot dismiss job "${args.jobId}" — it's currently ${job.status}. Wait for it to finish or let it time out.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      if (job.status === "dismissed") {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Job "${args.jobId}" is already dismissed.`,
+            },
+          ],
+        };
+      }
+
+      const summary = args.reason
+        ? `Dismissed: ${args.reason}`
+        : `Dismissed (was ${job.status})`;
+
+      deps.jobService.updateJob(args.jobId, {
+        status: "dismissed" as Job["status"],
+        summary,
+      });
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Job "${args.jobId}" dismissed.${args.reason ? ` Reason: ${args.reason}` : ""}`,
+          },
+        ],
+      };
+    },
+  );
+
   return createSdkMcpServer({
     name: "automation-tools",
     tools: [
@@ -545,6 +612,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
       listAutomationsTool,
       resumeJobTool,
       checkJobStatusTool,
+      dismissJobTool,
     ],
   });
 }
