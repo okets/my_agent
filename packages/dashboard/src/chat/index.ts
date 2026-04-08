@@ -5,6 +5,7 @@ export {
   toTurn,
 } from "./chat-service.js";
 export { expandSkillCommand } from "./skill-expander.js";
+export { sendSystemMessage } from "./send-system-message.js";
 export type {
   ChatEvent,
   ConnectResult,
@@ -13,4 +14,5 @@ export type {
   ChatMessageOptions,
   ChatServiceDeps,
   StartEffects,
+  SystemMessageOptions,
 } from "./types.js";

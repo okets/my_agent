@@ -69,6 +69,15 @@ export interface ChatMessageOptions {
 }
 
 /**
+ * Options for system-initiated messages (alert, initiate, watchdog recovery).
+ * Unlike ChatMessageOptions, no attachments/audio — just brain invocation.
+ */
+export interface SystemMessageOptions {
+  /** Channel to stamp on the assistant turn (for channel-aware conversations) */
+  channel?: string;
+}
+
+/**
  * Side effects from the "start" event in sendMessage.
  * Adapter uses these to update per-connection state and broadcast.
  */
