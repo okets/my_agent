@@ -550,7 +550,15 @@ export class AutomationExecutor {
             ? path.join(job.run_dir, "todos.json")
             : null;
           if (todoPath) {
-            resumeMcpServers["todo"] = createTodoServer(todoPath);
+            const onProgress = (progress: TodoProgress) => {
+              this.config.onJobProgress?.(job.id, progress)
+            }
+            resumeMcpServers["todo"] = createTodoServer(
+              todoPath,
+              undefined,
+              undefined,
+              onProgress,
+            );
           }
           if (this.config.visualService) {
             resumeMcpServers["chart-tools"] = createChartServer({

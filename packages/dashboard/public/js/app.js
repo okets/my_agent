@@ -1454,7 +1454,7 @@ function chat() {
                 /created and fired \(ID: ([^)]+)\)/,
               );
               if (match) {
-                lastMsg.delegationJobId = match[1];
+                lastMsg.delegationAutomationId = match[1];
               }
             }
           }
@@ -1928,9 +1928,9 @@ function chat() {
       const jobMap = new Map(jobs.map((j) => [j.automationId, j]));
 
       for (const msg of this.messages) {
-        if (!msg.delegationJobId) continue;
+        if (!msg.delegationAutomationId) continue;
 
-        const job = jobMap.get(msg.delegationJobId);
+        const job = jobMap.get(msg.delegationAutomationId);
         if (!job) continue;
 
         // Only show progress for once:true automations
