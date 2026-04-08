@@ -19,6 +19,8 @@ export interface AutomationServerDeps {
   automationManager: AutomationManager;
   processor: AutomationProcessor;
   jobService: AutomationJobService;
+  /** Optional: notify UI of state changes (jobs, automations) */
+  onStateChanged?: () => void;
   /** Optional: executor for direct resume with session ID */
   executor?: {
     resume(
@@ -593,6 +595,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         status: "dismissed" as Job["status"],
         summary,
       });
+      deps.onStateChanged?.();
 
       return {
         content: [
@@ -638,6 +641,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
 
       try {
         deps.automationManager.disable(args.automationId);
+        deps.onStateChanged?.();
         return {
           content: [
             {

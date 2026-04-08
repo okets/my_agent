@@ -15,6 +15,7 @@ const STATUS_COLORS = {
   failed: "bg-red-500/20 text-red-400 border-red-500/30",
   paused: "bg-orange-500/20 text-orange-400 border-orange-500/30",
   deleted: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  dismissed: "bg-gray-500/20 text-gray-400 border-gray-500/30",
 };
 
 /**
@@ -27,6 +28,7 @@ const STATUS_LABELS = {
   failed: "Failed",
   paused: "Paused",
   deleted: "Deleted",
+  dismissed: "Dismissed",
 };
 
 /**
@@ -220,6 +222,7 @@ function getStatusDotClass(status) {
     failed: "bg-red-400",
     paused: "bg-orange-400",
     deleted: "bg-gray-400",
+    dismissed: "bg-gray-400",
   };
   return dotColors[status] || dotColors.pending;
 }

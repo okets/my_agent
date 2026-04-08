@@ -1549,6 +1549,10 @@ export class App extends EventEmitter {
           processor: app.automationProcessor,
           jobService: app.automationJobService,
           executor: app.automationExecutor,
+          onStateChanged: () => {
+            app.statePublisher?.publishJobs();
+            app.statePublisher?.publishAutomations();
+          },
         });
         addMcpServer("automation-tools", automationToolsServer);
 
