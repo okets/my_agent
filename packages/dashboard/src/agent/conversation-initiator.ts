@@ -130,9 +130,12 @@ export class ConversationInitiator {
 
     // Check if this is a channel switch (web→WhatsApp).
     // Conversations without externalParty are web-only; those with externalParty
-    // are already bound to an external channel.
+    // are already bound to an external channel. Compare with resolved ownerJid
+    // (not channel name) since externalParty is a JID like "123@s.whatsapp.net".
+    const { ownerJid } = this.resolveOutboundInfo();
     const isCurrentOnWeb = !current.externalParty;
-    const needsNewConversation = isCurrentOnWeb || current.externalParty !== outboundChannel;
+    const isSameChannel = !isCurrentOnWeb && current.externalParty === ownerJid;
+    const needsNewConversation = !isSameChannel;
 
     if (needsNewConversation) {
       // Channel switch: create new conversation on preferred channel

@@ -289,6 +289,40 @@ describe("ConversationInitiator", () => {
       expect(chatService.calls.length).toBeGreaterThanOrEqual(1);
     });
 
+    it("continues current conversation when same channel (no new conversation)", async () => {
+      // Create conversation with externalParty matching the mock channel's ownerJid
+      const conv = await manager.create({
+        externalParty: "1234567890@s.whatsapp.net",
+      });
+      // Stale web message — will route via channel
+      const oldTime = new Date(Date.now() - 20 * 60 * 1000);
+      await manager.appendTurn(
+        conv.id,
+        makeTurn("user", 1, {
+          channel: "whatsapp",
+          timestamp: oldTime.toISOString(),
+        }),
+      );
+
+      const chatService = createMockChatService("Continued on WhatsApp");
+      const channelManager = createMockChannelManager(true);
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager,
+        getOutboundChannel: () => "whatsapp",
+      });
+
+      const result = await initiator.alert("Task completed.");
+      expect(result).toBe(true);
+      // Should continue in CURRENT conversation (same channel), not create new one
+      expect(chatService.calls).toHaveLength(1);
+      expect(chatService.calls[0].conversationId).toBe(conv.id);
+      // Should forward to WhatsApp
+      expect(channelManager.sent).toHaveLength(1);
+      expect(channelManager.sent[0].content).toBe("Continued on WhatsApp");
+    });
+
     it("returns null web age when only channel messages exist", async () => {
       const conv = await manager.create();
       await manager.appendTurn(
