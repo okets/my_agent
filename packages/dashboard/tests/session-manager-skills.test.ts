@@ -22,6 +22,10 @@ vi.mock("@my-agent/core", () => ({
   loadProperties: vi.fn().mockResolvedValue(null),
   filterSkillsByTools: vi.fn().mockResolvedValue([]),
   cleanupSkillFilters: vi.fn().mockResolvedValue(undefined),
+  createDelegationEnforcer: vi.fn().mockReturnValue({
+    preToolUse: vi.fn().mockResolvedValue({}),
+    resetTurn: vi.fn(),
+  }),
   coreAgents: {},
 }));
 

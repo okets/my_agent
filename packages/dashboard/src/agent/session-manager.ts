@@ -6,7 +6,9 @@ import {
   filterSkillsByTools,
   cleanupSkillFilters,
   coreAgents,
+  createDelegationEnforcer,
 } from "@my-agent/core";
+import type { DelegationEnforcer } from "@my-agent/core";
 import type {
   Query,
   ContentBlock,
@@ -252,6 +254,7 @@ export class SessionManager {
   private agentDir: string | null = null;
   private disabledSkills: string[] = [];
   private pendingNotifications: string[] = [];
+  private delegationEnforcer: DelegationEnforcer = createDelegationEnforcer(2);
 
   constructor(conversationId: string, sdkSessionId?: string | null) {
     this.conversationId = conversationId;
@@ -323,6 +326,13 @@ export class SessionManager {
         },
       ],
     });
+    // Add delegation enforcement — limit WebSearch calls per turn
+    if (!this.hooks.PreToolUse) this.hooks.PreToolUse = [];
+    this.hooks.PreToolUse.push({
+      matcher: "WebSearch",
+      hooks: [this.delegationEnforcer.preToolUse],
+    });
+
     console.log(
       `[SessionManager] Initialized (trust: brain, dir: ${agentDir})`,
     );
@@ -445,6 +455,9 @@ export class SessionManager {
     model: string,
     reasoning: boolean | undefined,
   ): Promise<Query> {
+    // Reset WebSearch budget for each new user message
+    this.delegationEnforcer.resetTurn();
+
     const activeWorkingAgents = runningTasksChecker
       ? runningTasksChecker(this.conversationId)
       : [];
