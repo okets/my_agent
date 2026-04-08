@@ -1450,7 +1450,11 @@ export class App extends EventEmitter {
         });
         const staleJobs = [...staleRunning, ...stalePending];
 
+        let autoResumed = 0;
+        let interrupted = 0;
+
         for (const job of staleJobs) {
+          const automation = app.automationManager.findById(job.automationId);
           const todoFile = job.run_dir
             ? readTodoFile(join(job.run_dir, "todos.json"))
             : { items: [] };
@@ -1462,6 +1466,80 @@ export class App extends EventEmitter {
             .filter((i) => i.status !== "done")
             .map((i) => i.text);
 
+          // Safety predicate: can this job be auto-resumed?
+          // autonomy defaults to "full" when omitted (most ad-hoc jobs omit it)
+          const canAutoResume =
+            !!automation?.manifest.once &&
+            (automation?.manifest.autonomy ?? "full") === "full" &&
+            !!job.sdk_session_id &&
+            job.status === "running";
+
+          if (canAutoResume && automation) {
+            autoResumed++;
+            console.log(
+              `[Recovery] Auto-resuming safe ad-hoc job: ${job.id} (${automation.manifest.name})`,
+            );
+            // DO NOT mark as interrupted first — executor.resume() sets status to "running"
+            // Resume asynchronously — don't block the startup sequence
+            app.automationExecutor
+              .resume(
+                job,
+                "Auto-resumed after server restart. Continue where you left off.",
+                job.sdk_session_id ?? null,
+              )
+              .then((result) => {
+                app.statePublisher?.publishJobs();
+
+                if (result.success && automation.manifest.notify === "immediate") {
+                  notificationQueue.enqueue({
+                    job_id: job.id,
+                    automation_id: job.automationId,
+                    type: "job_completed",
+                    summary: `[${automation.manifest.name}] ${result.summary ?? "Completed after restart recovery."}`,
+                    todos_completed: total,
+                    todos_total: total,
+                    created: new Date().toISOString(),
+                    delivery_attempts: 0,
+                    // source_channel added in T7.4
+                  });
+                }
+              })
+              .catch((err) => {
+                console.error(`[Recovery] Auto-resume failed for ${job.id}:`, err);
+
+                const freshTodo = job.run_dir
+                  ? readTodoFile(join(job.run_dir, "todos.json"))
+                  : { items: [] };
+                const freshCompleted = freshTodo.items.filter(i => i.status === "done").length;
+                const freshTotal = freshTodo.items.length;
+                const freshIncomplete = freshTodo.items.filter(i => i.status !== "done").map(i => i.text);
+
+                // executor.resume() sets status to "failed" internally.
+                // Correct to "interrupted" so the user can manually resume later.
+                app.automationJobService!.updateJob(job.id, {
+                  status: "interrupted",
+                  summary: `Auto-resume failed: ${err instanceof Error ? err.message : "unknown"}. ${freshCompleted}/${freshTotal} items done.`,
+                });
+                notificationQueue.enqueue({
+                  job_id: job.id,
+                  automation_id: job.automationId,
+                  type: "job_interrupted",
+                  summary: `Auto-resume failed for ${automation.manifest.name}. ${freshCompleted}/${freshTotal} items done.`,
+                  todos_completed: freshCompleted,
+                  todos_total: freshTotal,
+                  incomplete_items: freshIncomplete.length > 0 ? freshIncomplete : undefined,
+                  resumable: !!job.sdk_session_id,
+                  created: new Date().toISOString(),
+                  delivery_attempts: 0,
+                  // source_channel added in T7.4
+                });
+                app.statePublisher?.publishJobs();
+              });
+            continue; // Skip the interrupt+notify path
+          }
+
+          // Not safe to auto-resume — mark interrupted and notify (existing behavior)
+          interrupted++;
           app.automationJobService.updateJob(job.id, {
             status: "interrupted",
             summary: `Interrupted by restart. ${completed}/${total} items done.`,
@@ -1478,12 +1556,13 @@ export class App extends EventEmitter {
             resumable: !!job.sdk_session_id,
             created: new Date().toISOString(),
             delivery_attempts: 0,
+            // source_channel added in T7.4
           });
         }
 
-        if (staleJobs.length > 0) {
+        if (autoResumed > 0 || interrupted > 0) {
           console.log(
-            `[Recovery] Marked ${staleJobs.length} interrupted job(s)`,
+            `[Recovery] ${autoResumed} auto-resumed, ${interrupted} interrupted`,
           );
         }
 
