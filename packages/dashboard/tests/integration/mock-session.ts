@@ -46,6 +46,25 @@ class MockSessionManager {
     // No-op for mock
   }
 
+  /** Whether this session is currently streaming a response */
+  isStreaming(): boolean {
+    return false;
+  }
+
+  /**
+   * Inject a synthetic system turn into the session.
+   * Used by sendSystemMessage() for system-initiated brain invocations.
+   */
+  async *injectSystemTurn(
+    _prompt: string,
+  ): AsyncGenerator<{ type: string; text?: string }> {
+    if (this.options.error) {
+      throw new Error(this.options.error);
+    }
+    const responseText = this.options.response ?? "Mock response";
+    yield { type: "text_delta", text: responseText };
+  }
+
   /**
    * Stream a mock response. Yields the same StreamEvent types
    * that the real SessionManager produces via processStream().
