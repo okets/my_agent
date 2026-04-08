@@ -28,7 +28,7 @@
 | **M9: Capability System** | Complete | 8/8 sprints (S1-S3.1, S5-S8), S4 failed/absorbed. Voice E2E working. Paper trail v2 done. |
 | **M9.1: Agentic Flow Overhaul** | **Done** | All 8 sprints complete. Todo system, heartbeat, hooks, restart recovery — validated with real LLM. Voice sprint unblocked. |
 | **M9.2: Worker Todo Coverage** | **Done** | 11 sprints (S1-S10 incl. S5.1). Worker infrastructure fully working. Delegation behavior deferred to M9.3. 1345 tests. |
-| **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3. Three-layer defense: prompts + budget hook + auto-fire UX. S4 not needed. |
+| **M9.3: Delegation Compliance** | **Active** | S1-S3 + S2.5 done. Research delegation 0/3 → 2/3. S3.5 (routing fixes, auto-resume) planned. |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -58,7 +58,7 @@ COMPLETED (M9.1–M9.3)
 ═════════════════════
 M9.1 Agentic Flow Overhaul — todo system, heartbeat, enforcement, restart recovery
 M9.2 Worker Todo Coverage — 11 sprints, worker isolation, skill filter, 1345 tests
-M9.3 Delegation Compliance — 4 sprints, research delegation 0→67%, auto-fire + progress bar
+M9.3 Delegation Compliance — S1-S3 done (delegation works), S3.5 next (routing fixes + auto-resume)
 
 FUTURE (M10–M14) — ~16 sprints to release
 ══════════════════════════════════════════
@@ -868,6 +868,7 @@ Fix Conversation Nina's delegation compliance — she must delegate research/ana
 | S2 | WebSearch Budget Hook | Done | PreToolUse hook limits WebSearch to 2 calls per turn. Blocks with systemMessage directing brain to `create_automation`. Reset per user message. [Review](../sprints/m9.3-s2-websearch-budget-hook/review.md) |
 | S2.5 | Delegation UX | Done | Auto-fire `once:true` manual automations, optimized hook message, inline progress bar (onProgress callback → WebSocket → Alpine). Two bugs found in S3 and fixed (tool result text matching, state change emission). [Review](../sprints/m9.3-s2.5-delegation-ux/review.md) |
 | S3 | E2E Verification | Done | 3/4 compliance (75%, up from 25%). Tests B+C delegated, D direct (all correct). Test A (scheduling) inline but no hallucination. Progress bar verified working. [Review](../sprints/m9.3-s3-verification/review.md) |
+| S3.5 | Routing & Session Fixes | Planned | Fix `resume_job` force-complete event gap. Clear all 3 Claude Code env vars at startup (fixes worker + Playwright crashes). Auto-resume safe ad-hoc jobs on restart (`once:true` + `autonomy:full` + has session). Carry `sourceChannel` through notification queue for non-resumable jobs. E2E crash recovery test. |
 | S4 | Structural Enforcement | Not needed | Target met without it. Research compliance 2/2 (100%). |
 
 **Key decisions:**
