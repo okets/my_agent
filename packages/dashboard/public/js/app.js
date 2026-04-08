@@ -1446,16 +1446,12 @@ function chat() {
               lastMsg.cost = data.cost;
             }
           }
-          // Detect delegation message — tag it for progress bar tracking
+          // Tag the latest assistant message index for delegation progress matching
+          // (progress bar is attached in _syncDelegationProgress when new once:true jobs appear)
           {
             const lastMsg = this.messages[this.messages.length - 1];
             if (lastMsg?.role === "assistant") {
-              const match = lastMsg.content.match(
-                /created and fired \(ID: ([^)]+)\)/,
-              );
-              if (match) {
-                lastMsg.delegationAutomationId = match[1];
-              }
+              lastMsg._doneTimestamp = Date.now();
             }
           }
           // Auto-refresh calendar after agent completes calendar-related response
@@ -1923,19 +1919,38 @@ function chat() {
     },
 
     // Update delegation progress bars when state:jobs arrives
+    // Matches once:true running jobs to the most recent assistant message
     _syncDelegationProgress(jobs) {
       const automations = Alpine.store("automations")?.items || [];
-      const jobMap = new Map(jobs.map((j) => [j.automationId, j]));
 
-      for (const msg of this.messages) {
-        if (!msg.delegationAutomationId) continue;
+      // Find once:true jobs that are running or recently completed
+      const onceJobs = jobs.filter((j) => {
+        const automation = automations.find((a) => a.id === j.automationId);
+        return automation?.once && (j.status === "running" || j.status === "completed");
+      });
 
-        const job = jobMap.get(msg.delegationAutomationId);
-        if (!job) continue;
+      for (const job of onceJobs) {
+        // Find the message already tracking this job
+        let msg = this.messages.find((m) => m.delegationAutomationId === job.automationId);
 
-        // Only show progress for once:true automations
-        const automation = automations.find((a) => a.id === job.automationId);
-        if (!automation?.once) continue;
+        // If no message is tracking this job yet, attach to the most recent assistant message
+        // that was completed around when this job started (within 30s window)
+        if (!msg && job.status === "running") {
+          const jobCreated = new Date(job.created).getTime();
+          for (let i = this.messages.length - 1; i >= 0; i--) {
+            const m = this.messages[i];
+            if (m.role !== "assistant" || m.delegationAutomationId) continue;
+            // Match if the message was completed within 30s before the job was created
+            const msgTime = m._doneTimestamp || 0;
+            if (msgTime && Math.abs(jobCreated - msgTime) < 30000) {
+              m.delegationAutomationId = job.automationId;
+              msg = m;
+              break;
+            }
+          }
+        }
+
+        if (!msg) continue;
 
         const isDone =
           job.status === "completed" ||
@@ -1950,7 +1965,6 @@ function chat() {
             current: null,
             fading: true,
           };
-          // Fade out after 2s
           setTimeout(() => {
             msg.delegationProgress = null;
           }, 2000);

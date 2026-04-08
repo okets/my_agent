@@ -98,13 +98,12 @@ describe("Delegation progress sync — app.js structure", () => {
     expect(appJs).toContain("_syncDelegationProgress");
   });
 
-  it("extracts automation ID from delegation message", () => {
+  it("matches jobs to messages by timing window", () => {
     expect(appJs).toContain("delegationAutomationId");
-    expect(appJs).toContain("created and fired");
+    expect(appJs).toContain("_doneTimestamp");
   });
 
   it("cross-references automations store for once:true check", () => {
-    // Should check automation.once, not hardcode
     expect(appJs).toContain("automation?.once");
   });
 
