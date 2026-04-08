@@ -66,7 +66,7 @@ function formatJobTodoProgress(job: Job): string {
 export function createAutomationServer(deps: AutomationServerDeps) {
   const createAutomationTool = tool(
     "create_automation",
-    "Create a new automation (standing instruction). Use when the user wants recurring work, file watching, or a substantial one-off task. The automation manifest is saved to disk and indexed.",
+    "Delegate work to a working agent. Use for ANY task beyond a single-question WebSearch: research, comparisons, analysis, file creation, multi-step work, scheduled tasks, recurring jobs. The worker handles execution with a tracked paper trail while you manage the conversation. Examples: 'Research best headphones under $300', 'Compare Thai restaurants in Chiang Mai', 'Check memory usage and report back'.",
     {
       name: z.string().describe("Human-readable name"),
       instructions: z
