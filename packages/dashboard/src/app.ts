@@ -831,33 +831,16 @@ export class App extends EventEmitter {
 
     // ── ConversationInitiator (M6.9-S3) ──
     if (hatched && app.transportManager) {
-      const convDb = app.conversationManager.getConversationDb();
       app.conversationInitiator = new ConversationInitiator({
         conversationManager: app.conversationManager,
-        sessionFactory: {
-          async *injectSystemTurn(conversationId, prompt) {
-            const sdkSessionId = convDb.getSdkSessionId(conversationId);
-            const sm = await app.sessionRegistry.getOrCreate(
+        chatService: {
+          async *sendSystemMessage(conversationId, prompt, turnNumber, options) {
+            yield* app.chat.sendSystemMessage(
               conversationId,
-              sdkSessionId,
+              prompt,
+              turnNumber,
+              options,
             );
-            yield* sm.injectSystemTurn(prompt);
-          },
-          async *streamNewConversation(conversationId, prompt) {
-            const sm = await app.sessionRegistry.getOrCreate(conversationId);
-            yield* sm.streamMessage(prompt || "");
-          },
-          isStreaming(conversationId) {
-            const sm = app.sessionRegistry.get(conversationId);
-            return sm?.isStreaming() ?? false;
-          },
-          async queueNotification(conversationId, prompt) {
-            const sdkSessionId = convDb.getSdkSessionId(conversationId);
-            const sm = await app.sessionRegistry.getOrCreate(
-              conversationId,
-              sdkSessionId,
-            );
-            sm.queueNotification(prompt);
           },
         },
         channelManager: {
