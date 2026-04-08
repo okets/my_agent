@@ -591,10 +591,15 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         ? `Dismissed: ${args.reason}`
         : `Dismissed (was ${job.status})`;
 
-      deps.jobService.updateJob(args.jobId, {
-        status: "dismissed" as Job["status"],
-        summary,
-      });
+      try {
+        deps.jobService.updateJob(args.jobId, {
+          status: "dismissed" as Job["status"],
+          summary,
+        });
+      } catch {
+        // Orphaned DB entry (JSONL missing) — delete from DB directly
+        deps.jobService.deleteFromIndex(args.jobId);
+      }
       deps.onStateChanged?.();
 
       return {
@@ -610,7 +615,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
 
   const disableAutomationTool = tool(
     "disable_automation",
-    "Disable a recurring automation. Use when the user says 'stop X', 'pause X', 'turn off X', or 'I don't need X anymore'. The automation stays on disk but won't fire on schedule. Can be re-enabled later.",
+    "Disable a recurring automation. Use when the user says 'stop X', 'pause X', 'turn off X', or 'I don't need X anymore'. The automation stays on disk but won't fire on schedule.",
     {
       automationId: z.string().describe("Automation ID (filename without .md)"),
     },

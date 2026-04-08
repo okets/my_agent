@@ -1088,6 +1088,14 @@ export class ConversationDatabase {
     }));
   }
 
+  /**
+   * Delete a job from the index (DB only). Used for orphaned entries
+   * where the JSONL source of truth is missing.
+   */
+  deleteJobFromIndex(jobId: string): void {
+    this.db.prepare("DELETE FROM jobs WHERE id = ?").run(jobId);
+  }
+
   private rowToJob(row: any): {
     id: string;
     automationId: string;

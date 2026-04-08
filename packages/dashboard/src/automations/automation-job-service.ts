@@ -201,6 +201,13 @@ export class AutomationJobService {
   }
 
   /**
+   * Delete a job from the DB index only. For orphaned entries where JSONL is missing.
+   */
+  deleteFromIndex(jobId: string): void {
+    this.db.deleteJobFromIndex(jobId);
+  }
+
+  /**
    * Get the JSONL file path for an automation.
    */
   getJsonlPath(automationId: string): string {
