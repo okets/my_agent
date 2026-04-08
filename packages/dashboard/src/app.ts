@@ -1474,6 +1474,10 @@ export class App extends EventEmitter {
             !!job.sdk_session_id &&
             job.status === "running";
 
+          console.log(
+            `[Recovery] Job ${job.id}: once=${automation?.manifest.once}, autonomy=${automation?.manifest.autonomy}, session=${!!job.sdk_session_id}, status=${job.status}, canAutoResume=${canAutoResume}`,
+          );
+
           if (canAutoResume && automation) {
             autoResumed++;
             console.log(

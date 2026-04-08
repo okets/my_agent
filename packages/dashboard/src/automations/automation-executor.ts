@@ -323,6 +323,8 @@ export class AutomationExecutor {
           (msg as any).session_id
         ) {
           sdkSessionId = (msg as any).session_id;
+          // Persist immediately so auto-resume works if the server crashes mid-execution
+          this.config.jobService.updateJob(job.id, { sdk_session_id: sdkSessionId ?? undefined });
         }
 
         if (msg.type === "assistant") {
