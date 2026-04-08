@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-08 (M9.2 complete, M9.3 Delegation Compliance next)
+> **Updated:** 2026-04-08 (M9.3 complete, M9.4 Conversation UX/UI active)
 
 ---
 
@@ -28,7 +28,8 @@
 | **M9: Capability System** | Complete | 8/8 sprints (S1-S3.1, S5-S8), S4 failed/absorbed. Voice E2E working. Paper trail v2 done. |
 | **M9.1: Agentic Flow Overhaul** | **Done** | All 8 sprints complete. Todo system, heartbeat, hooks, restart recovery — validated with real LLM. Voice sprint unblocked. |
 | **M9.2: Worker Todo Coverage** | **Done** | 11 sprints (S1-S10 incl. S5.1). Worker infrastructure fully working. Delegation behavior deferred to M9.3. 1345 tests. |
-| **M9.3: Delegation Compliance** | **Active** | S1-S3 + S2.5 done. Research delegation 0/3 → 2/3. S3.5 (routing fixes, auto-resume) planned. |
+| **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
+| **M9.4: Conversation UX/UI** | **Active** | 3 sprints planned. Real-time delivery, channel unification, job progress card. |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -58,7 +59,12 @@ COMPLETED (M9.1–M9.3)
 ═════════════════════
 M9.1 Agentic Flow Overhaul — todo system, heartbeat, enforcement, restart recovery
 M9.2 Worker Todo Coverage — 11 sprints, worker isolation, skill filter, 1345 tests
-M9.3 Delegation Compliance — S1-S3 done (delegation works), S3.5 next (routing fixes + auto-resume)
+M9.3 Delegation Compliance — 4 sprints, 75% compliance, prompt + hook + auto-fire + progress
+
+ACTIVE (M9.4)
+══════════════
+M9.4 Conversation UX/UI — real-time delivery, channel unification, job progress card
+  S1 (notification delivery) ──► S2 (channel unification) ──► S3 (job progress card)
 
 FUTURE (M10–M14) — ~16 sprints to release
 ══════════════════════════════════════════
@@ -855,7 +861,7 @@ Extend M9.1's code-enforced Todo system to all worker job types. Every Working N
 
 ---
 
-### M9.3: Delegation Compliance — ACTIVE
+### M9.3: Delegation Compliance — DONE
 
 Fix Conversation Nina's delegation compliance — she must delegate research/analysis to workers via `create_automation` instead of handling everything inline with WebSearch. Three-layer fix: prompt corrections, code enforcement (budget hook), delegation UX (auto-fire + inline progress).
 
@@ -868,7 +874,7 @@ Fix Conversation Nina's delegation compliance — she must delegate research/ana
 | S2 | WebSearch Budget Hook | Done | PreToolUse hook limits WebSearch to 2 calls per turn. Blocks with systemMessage directing brain to `create_automation`. Reset per user message. [Review](../sprints/m9.3-s2-websearch-budget-hook/review.md) |
 | S2.5 | Delegation UX | Done | Auto-fire `once:true` manual automations, optimized hook message, inline progress bar (onProgress callback → WebSocket → Alpine). Two bugs found in S3 and fixed (tool result text matching, state change emission). [Review](../sprints/m9.3-s2.5-delegation-ux/review.md) |
 | S3 | E2E Verification | Done | 3/4 compliance (75%, up from 25%). Tests B+C delegated, D direct (all correct). Test A (scheduling) inline but no hallucination. Progress bar verified working. [Review](../sprints/m9.3-s3-verification/review.md) |
-| S3.5 | Routing & Session Fixes | Planned | Fix `resume_job` force-complete event gap. Clear all 3 Claude Code env vars at startup (fixes worker + Playwright crashes). Auto-resume safe ad-hoc jobs on restart (`once:true` + `autonomy:full` + has session). Carry `sourceChannel` through notification queue for non-resumable jobs. E2E crash recovery test. |
+| S3.5 | — | Absorbed | Routing issues discovered during S3.5 testing → broadened into M9.4 (Conversation UX/UI). |
 | S4 | Structural Enforcement | Not needed | Target met without it. Research compliance 2/2 (100%). |
 
 **Key decisions:**
@@ -876,9 +882,34 @@ Fix Conversation Nina's delegation compliance — she must delegate research/ana
 - Budget hook uses observed behavior (search count) not prediction (Haiku classifier) — more reliable, zero cost
 - Ad-hoc automations auto-fire at creation — eliminates tool round trip, ~3-5s saved
 - Inline progress bar only for `once:true` jobs — recurring automations stay in side panel
-- S4 is conditional on S3 results
+- S3.5 routing/delivery issues were architectural (alert() bypasses Headless App) — warranted own milestone
+
+**Results:** 75% delegation compliance (up from 25%). Delegation works for research tasks. Routing/delivery issues escalated to M9.4.
 
 **Dependencies:** M9.2 (worker infrastructure, todo system)
+
+---
+
+### M9.4: Conversation UX/UI — ACTIVE
+
+Fix real-time notification delivery, unify all message paths through the Headless App, and replace the broken inline progress bar with a proper job progress card.
+
+**Design spec:** [conversation-ux-ui-design.md](superpowers/specs/2026-04-08-conversation-ux-ui-design.md)
+**Origin:** M9.3-S3.5 testing revealed `alert()` bypasses M6.10 Headless App — responses saved to DB but never broadcast to WebSocket clients. CTO architect review broadened scope from "missing broadcast" to architectural model correction.
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Real-Time Notification Delivery | Planned | Route `alert()`, `initiate()`, and ResponseWatchdog through `app.chat`. Correct channel decision: `getCurrent()` (no threshold) + web recency for channel choice. Deprecate `getActiveConversation()`. Simplify heartbeat. E2E smoke test. |
+| S2 | Channel Message Unification | Planned | Route inbound channel messages (WhatsApp) through `app.chat` for brain interaction. New `app.chat.injectTurn()` for admin inject + scheduler (write-only, no brain). Extend `ChatMessageOptions` with channel metadata + source field. |
+| S3 | Job Progress Card | Planned | Replace inline progress bar with sticky card above compose box. Collapsed (default): current step + done/total. Expanded (click/tap): full step list, 5-row max with scrollbar, ✕ to close. Max 2 cards. StatePublisher includes todo items in snapshot. |
+
+**Key decisions:**
+- The 15-minute threshold is correct in purpose (channel decision) but was wrong in implementation (combined with "which conversation"). Split into `getCurrent()` + `getLastWebMessageAge()`.
+- Message-handler retains channel-specific logic (conversation resolution, outbound delivery, typing, voice). Only brain invocation routes through `app.chat`.
+- `injectTurn()` is a new `app.chat` method for transcript writes without brain invocation (admin, scheduler).
+- Progress card is a standalone widget, not attached to messages. Jobs with many steps scroll within a 5-row container.
+
+**Dependencies:** M6.10 (Headless App), M9.3 (Delegation Compliance — auto-fire + progress infrastructure)
 
 ---
 
