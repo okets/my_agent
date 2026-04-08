@@ -13,8 +13,12 @@ import { App } from "./app.js";
 import { createServer } from "./server.js";
 import { ConnectionRegistry } from "./ws/connection-registry.js";
 
-// Clear CLAUDECODE env var so the Agent SDK can spawn claude subprocesses.
+// Clear all Claude Code session env vars so the Agent SDK can spawn worker subprocesses.
+// Without this, workers crash with "ProcessTransport is not ready for writing" because
+// the SDK detects a parent Claude Code session and refuses to nest.
 delete process.env.CLAUDECODE;
+delete process.env.CLAUDE_CODE_SSE_PORT;
+delete process.env.CLAUDE_CODE_ENTRYPOINT;
 
 process.on("unhandledRejection", (reason) => {
   const msg =
