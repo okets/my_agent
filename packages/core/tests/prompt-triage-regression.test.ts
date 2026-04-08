@@ -78,7 +78,7 @@ describe('Level 1 regression — triage content in system prompt (framework skil
 
   it('does not double-include triage content (no duplication)', async () => {
     const prompt = await assembleSystemPrompt(brainDir)
-    const marker = 'For anything beyond a quick WebSearch, use `create_automation`'
+    const marker = 'For anything beyond a single-question WebSearch, use `create_automation`'
     const firstIdx = prompt.indexOf(marker)
     const secondIdx = prompt.indexOf(marker, firstIdx + 1)
     expect(secondIdx).toBe(-1)
