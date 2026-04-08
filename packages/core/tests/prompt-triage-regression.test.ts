@@ -14,9 +14,9 @@ import { assembleSystemPrompt } from '../src/prompt.js'
 
 // Every triage directive that MUST appear in the assembled prompt
 const TRIAGE_DIRECTIVES = [
-  'For anything beyond a quick WebSearch, use `create_automation`',
-  'WebSearch: single factual question, one search, instant answer',
-  'create_automation: research, comparison, multi-step work',
+  'For anything beyond a single-question WebSearch, use `create_automation`',
+  'You may use WebSearch ONLY for',
+  'You MUST delegate via create_automation for',
   'Include ALL relevant context in the instructions',
   'Internal actions (safe to do freely)',
   'External actions (ask first)',
