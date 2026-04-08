@@ -1235,6 +1235,13 @@ export class App extends EventEmitter {
             projectRoot: join(agentDir, ".."),
           }),
           visualService: app.visualActionService,
+          onJobProgress: (jobId) => {
+            const job = app.automationJobService?.getJob(jobId);
+            if (job) {
+              app.statePublisher?.publishJobs();
+              app.emit("job:progress", job);
+            }
+          },
         });
 
         // Persistent notification queue — heartbeat handles delivery

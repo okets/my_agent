@@ -46,6 +46,7 @@ export interface AppEventMap {
   // Job lifecycle
   "job:created": [job: Job];
   "job:started": [job: Job];
+  "job:progress": [job: Job];
   "job:completed": [job: Job];
   "job:failed": [job: Job];
   "job:needs_review": [job: Job];

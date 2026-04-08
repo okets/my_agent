@@ -308,6 +308,11 @@ export interface JobSnapshot {
   completed?: string;
   summary?: string;
   triggerType?: string;
+  todoProgress?: {
+    done: number
+    total: number
+    current: string | null
+  }
 }
 
 export interface ScreenshotSnapshot {

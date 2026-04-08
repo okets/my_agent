@@ -31,7 +31,7 @@ import { buildWorkingNinaPrompt } from "./working-nina-prompt.js";
 import { extractDeliverable } from "./deliverable-utils.js";
 import { createChartServer } from "../mcp/chart-server.js";
 import { createImageFetchServer } from "../mcp/image-fetch-server.js";
-import { createTodoServer } from "../mcp/todo-server.js";
+import { createTodoServer, type TodoProgress } from "../mcp/todo-server.js";
 import { createEmptyTodoFile, readTodoFile, writeTodoFile } from "./todo-file.js";
 import { assembleJobTodos } from "./todo-templates.js";
 import { runValidation } from "./todo-validators.js";
@@ -59,6 +59,7 @@ export interface AutomationExecutorConfig {
   mcpServers?: Options["mcpServers"];
   hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
   visualService?: import("../visual/visual-action-service.js").VisualActionService;
+  onJobProgress?: (jobId: string, progress: TodoProgress) => void;
 }
 
 export interface ExecutionResult {
@@ -255,10 +256,14 @@ export class AutomationExecutor {
         const resolvedTargetDir = automation.manifest.target_path
           ? path.resolve(this.config.agentDir, "..", automation.manifest.target_path)
           : undefined;
+        const onProgress = (progress: TodoProgress) => {
+          this.config.onJobProgress?.(job.id, progress)
+        }
         workerMcpServers["todo"] = createTodoServer(
           todoPath,
           runValidation,
           resolvedTargetDir,
+          onProgress,
         );
       }
 

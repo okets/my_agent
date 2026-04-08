@@ -18,6 +18,7 @@ import path from "node:path";
 
 export type JobEventName =
   | "job:created"
+  | "job:progress"
   | "job:completed"
   | "job:failed"
   | "job:needs_review"

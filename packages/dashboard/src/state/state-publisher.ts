@@ -12,6 +12,8 @@
 import type { WebSocket } from "@fastify/websocket";
 import { existsSync, readdirSync } from "fs";
 import { join } from "path";
+import path from "path";
+import { readTodoFile } from "../automations/todo-file.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import type {
   CalendarEventSnapshot,
@@ -143,6 +145,7 @@ export class StatePublisher {
     app.on("automation:updated", () => this.publishAutomations());
     app.on("automation:deleted", () => this.publishAutomations());
     app.on("job:created", () => this.publishJobs());
+    app.on("job:progress", () => this.publishJobs());
     app.on("job:completed", () => this.publishJobs());
     app.on("job:failed", () => this.publishJobs());
     app.on("job:needs_review", () => this.publishJobs());
@@ -521,6 +524,19 @@ export class StatePublisher {
     const jobs = this.automationJobService.listJobs({ limit: 50 });
     return jobs.map((j) => {
       const automation = this.automationManager?.findById(j.automationId);
+      const todoProgress: JobSnapshot["todoProgress"] = j.status === 'running' && j.run_dir
+        ? (() => {
+            try {
+              const todoFile = readTodoFile(path.join(j.run_dir, 'todos.json'))
+              if (todoFile.items.length === 0) return undefined
+              const done = todoFile.items.filter(i => i.status === 'done').length
+              const inProgress = todoFile.items.find(i => i.status === 'in_progress')
+              return { done, total: todoFile.items.length, current: inProgress?.text ?? null }
+            } catch {
+              return undefined
+            }
+          })()
+        : undefined
       return {
         id: j.id,
         automationId: j.automationId,
@@ -532,6 +548,7 @@ export class StatePublisher {
         triggerType: (j.context as Record<string, unknown>)?.trigger as
           | string
           | undefined,
+        todoProgress,
       };
     });
   }
