@@ -148,6 +148,9 @@ export function createAutomationServer(deps: AutomationServerDeps) {
           },
         });
 
+        // Notify UI of new automation (updates automations store for progress bar matching)
+        deps.onStateChanged?.();
+
         // Auto-fire one-shot manual automations — no separate fire_automation call needed
         const isOnceManual = args.once &&
           args.trigger.every(t => t.type === 'manual');
