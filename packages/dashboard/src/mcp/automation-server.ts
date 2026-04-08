@@ -373,6 +373,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
           completed: new Date().toISOString(),
           summary: "Force-completed by user (incomplete mandatory items accepted)",
         });
+        deps.onStateChanged?.();
         return {
           content: [
             {
