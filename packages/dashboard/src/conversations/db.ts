@@ -520,27 +520,6 @@ export class ConversationDatabase {
   }
 
   /**
-   * Get the active conversation — status 'current' with a recent user message.
-   * Returns null if no conversation has user activity within the threshold.
-   */
-  getActiveConversation(thresholdMinutes: number): Conversation | null {
-    const cutoff = new Date(
-      Date.now() - thresholdMinutes * 60 * 1000,
-    ).toISOString();
-    const row = this.db
-      .prepare(
-        `SELECT * FROM conversations
-         WHERE status = 'current'
-           AND last_user_message_at IS NOT NULL
-           AND last_user_message_at > ?
-         ORDER BY last_user_message_at DESC
-         LIMIT 1`,
-      )
-      .get(cutoff) as any;
-    return row ? this.rowToConversation(row) : null;
-  }
-
-  /**
    * Convert a database row to a Conversation object
    */
   rowToConversation(row: any): Conversation {
