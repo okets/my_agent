@@ -135,6 +135,12 @@ export class HeartbeatService {
           });
         if (delivered) {
           this.config.notificationQueue.markDelivered(notification._filename!);
+        } else if (notification.source_channel === "dashboard") {
+          // Dashboard-sourced notification — don't initiate on WhatsApp.
+          // Leave in queue for next alert() attempt when user opens web dashboard.
+          console.log(
+            `[Heartbeat] Dashboard-sourced notification for ${notification.job_id} — waiting for web session`,
+          );
         } else {
           // No active conversation — initiate on preferred channel
           await this.config.conversationInitiator.initiate({
