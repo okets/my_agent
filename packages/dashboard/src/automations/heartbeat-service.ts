@@ -18,6 +18,7 @@ export interface HeartbeatConfig {
       prompt: string,
       options?: { sourceChannel?: string },
     ): Promise<boolean>;
+    initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
   } | null;
   staleThresholdMs: number; // default: 5 * 60 * 1000
   tickIntervalMs: number; // default: 30 * 1000
@@ -126,15 +127,17 @@ export class HeartbeatService {
       }
 
       try {
-        const delivered = await this.config.conversationInitiator.alert(
-          this.formatNotification(notification),
-        );
+        const prompt = this.formatNotification(notification);
+        const delivered =
+          await this.config.conversationInitiator.alert(prompt);
         if (delivered) {
           this.config.notificationQueue.markDelivered(notification._filename!);
         } else {
-          this.config.notificationQueue.incrementAttempts(
-            notification._filename!,
-          );
+          // No active conversation — initiate on preferred channel
+          await this.config.conversationInitiator.initiate({
+            firstTurnPrompt: `[SYSTEM: ${prompt}]`,
+          });
+          this.config.notificationQueue.markDelivered(notification._filename!);
         }
       } catch (err) {
         console.error(

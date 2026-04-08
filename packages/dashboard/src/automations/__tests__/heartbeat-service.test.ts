@@ -26,7 +26,7 @@ describe("HeartbeatService", () => {
     updateJob: ReturnType<typeof vi.fn>;
     getJob: ReturnType<typeof vi.fn>;
   };
-  let mockCi: { alert: ReturnType<typeof vi.fn> };
+  let mockCi: { alert: ReturnType<typeof vi.fn>; initiate: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "heartbeat-"));
@@ -38,7 +38,7 @@ describe("HeartbeatService", () => {
       updateJob: vi.fn(),
       getJob: vi.fn(),
     };
-    mockCi = { alert: vi.fn(async () => true) };
+    mockCi = { alert: vi.fn(async () => true), initiate: vi.fn(async () => ({})) };
   });
 
   afterEach(() => {
@@ -58,7 +58,7 @@ describe("HeartbeatService", () => {
   }
 
   it("detects stale job (old last_activity) and marks interrupted", async () => {
-    // Alert returns false so notification stays in pending/ for assertion
+    // Alert returns false — heartbeat should fall back to initiate()
     mockCi.alert.mockResolvedValue(false);
 
     const runDir = path.join(tmpDir, "run-1");
@@ -82,12 +82,9 @@ describe("HeartbeatService", () => {
       status: "interrupted",
     }));
 
-    const pending = queue.listPending();
-    expect(pending).toHaveLength(1);
-    expect(pending[0].type).toBe("job_interrupted");
-    expect(pending[0].todos_completed).toBe(1);
-    expect(pending[0].todos_total).toBe(2);
-    expect(pending[0].incomplete_items).toContain("Step 2");
+    // Notification was enqueued then delivered via initiate() fallback
+    expect(mockCi.initiate).toHaveBeenCalledTimes(1);
+    expect(queue.listPending()).toHaveLength(0);
   });
 
   it("detects never-started job (empty todos, old created)", async () => {
@@ -154,7 +151,7 @@ describe("HeartbeatService", () => {
     expect(delivered).toHaveLength(1);
   });
 
-  it("increments attempts when ci.alert() returns false", async () => {
+  it("falls back to initiate() when ci.alert() returns false", async () => {
     mockCi.alert.mockResolvedValue(false);
 
     queue.enqueue({
@@ -169,9 +166,9 @@ describe("HeartbeatService", () => {
     const hb = createHeartbeat();
     await hb.tick();
 
-    const pending = queue.listPending();
-    expect(pending).toHaveLength(1);
-    expect(pending[0].delivery_attempts).toBe(1);
+    expect(mockCi.initiate).toHaveBeenCalledTimes(1);
+    // Should be delivered after initiate() fallback
+    expect(queue.listPending()).toHaveLength(0);
   });
 
   it("skips jobs without run_dir", async () => {
