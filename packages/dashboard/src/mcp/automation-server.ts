@@ -2,7 +2,8 @@
  * Automation MCP Tools Server
  *
  * Exposes create_automation, fire_automation, list_automations, resume_job,
- * check_job_status, and dismiss_job tools for the brain to manage automations during conversation.
+ * check_job_status, dismiss_job, and disable_automation tools for the brain
+ * to manage automations during conversation.
  */
 
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
@@ -604,6 +605,61 @@ export function createAutomationServer(deps: AutomationServerDeps) {
     },
   );
 
+  const disableAutomationTool = tool(
+    "disable_automation",
+    "Disable a recurring automation. Use when the user says 'stop X', 'pause X', 'turn off X', or 'I don't need X anymore'. The automation stays on disk but won't fire on schedule. Can be re-enabled later.",
+    {
+      automationId: z.string().describe("Automation ID (filename without .md)"),
+    },
+    async (args) => {
+      const automation = deps.automationManager.findById(args.automationId);
+      if (!automation) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Automation "${args.automationId}" not found.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      if (automation.manifest.status === "disabled") {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `"${automation.manifest.name}" is already disabled.`,
+            },
+          ],
+        };
+      }
+
+      try {
+        deps.automationManager.disable(args.automationId);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `"${automation.manifest.name}" disabled. It won't fire on schedule anymore.`,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Cannot disable: ${err instanceof Error ? err.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
   return createSdkMcpServer({
     name: "automation-tools",
     tools: [
@@ -613,6 +669,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
       resumeJobTool,
       checkJobStatusTool,
       dismissJobTool,
+      disableAutomationTool,
     ],
   });
 }
