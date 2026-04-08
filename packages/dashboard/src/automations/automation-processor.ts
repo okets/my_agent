@@ -239,6 +239,7 @@ export class AutomationProcessor {
         resumable: job.status === "needs_review",
         created: new Date().toISOString(),
         delivery_attempts: 0,
+        source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
       });
       this.config.onAlertDelivered?.();
       return;

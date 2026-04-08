@@ -1500,7 +1500,7 @@ export class App extends EventEmitter {
                     todos_total: total,
                     created: new Date().toISOString(),
                     delivery_attempts: 0,
-                    // source_channel added in T7.4
+                    source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
                   });
                 }
               })
@@ -1531,7 +1531,7 @@ export class App extends EventEmitter {
                   resumable: !!job.sdk_session_id,
                   created: new Date().toISOString(),
                   delivery_attempts: 0,
-                  // source_channel added in T7.4
+                  source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
                 });
                 app.statePublisher?.publishJobs();
               });

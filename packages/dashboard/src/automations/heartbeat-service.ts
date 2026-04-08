@@ -101,6 +101,7 @@ export class HeartbeatService {
           resumable: true,
           created: new Date().toISOString(),
           delivery_attempts: 0,
+          source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
         });
 
         console.log(
@@ -129,7 +130,9 @@ export class HeartbeatService {
       try {
         const prompt = this.formatNotification(notification);
         const delivered =
-          await this.config.conversationInitiator.alert(prompt);
+          await this.config.conversationInitiator.alert(prompt, {
+            sourceChannel: notification.source_channel,
+          });
         if (delivered) {
           this.config.notificationQueue.markDelivered(notification._filename!);
         } else {
