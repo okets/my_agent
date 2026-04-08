@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-05 (M9 complete, M9.1 Agentic Flow Overhaul designed)
+> **Updated:** 2026-04-08 (M9.2 complete, M9.3 Delegation Compliance next)
 
 ---
 
@@ -27,6 +27,7 @@
 | **M8: Visual & Desktop Automation** | Complete | 8/8 sprints (S1-S5.1), 884 tests |
 | **M9: Capability System** | Complete | 8/8 sprints (S1-S3.1, S5-S8), S4 failed/absorbed. Voice E2E working. Paper trail v2 done. |
 | **M9.1: Agentic Flow Overhaul** | **Done** | All 8 sprints complete. Todo system, heartbeat, hooks, restart recovery — validated with real LLM. Voice sprint unblocked. |
+| **M9.2: Worker Todo Coverage** | **Done** | 11 sprints (S1-S10 incl. S5.1). Worker infrastructure fully working. Delegation behavior deferred to M9.3. 1345 tests. |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -52,9 +53,14 @@ COMPLETED (M9)
 ══════════════
 M9 Capability System — 8 sprints, Voice E2E, paper trail v2
 
-ACTIVE (M9.1)
-═════════════
+COMPLETED (M9.1–M9.2)
+═════════════════════
 M9.1 Agentic Flow Overhaul — todo system, heartbeat, enforcement, restart recovery
+M9.2 Worker Todo Coverage — 11 sprints, worker isolation, skill filter, 1345 tests
+
+NEXT (M9.3)
+═══════════
+M9.3 Delegation Compliance — prompt fixes, WebSearch budget hook, E2E verification
 
 FUTURE (M10–M14) — ~16 sprints to release
 ══════════════════════════════════════════
@@ -817,7 +823,7 @@ Fix Nina's agentic flow so she follows orders, delegates reliably, and communica
 
 ---
 
-### M9.2: Worker Todo Coverage — IN PROGRESS
+### M9.2: Worker Todo Coverage — COMPLETE
 
 Extend M9.1's code-enforced Todo system to all worker job types. Every Working Nina gets a baseline checklist with validators. Also: smart visual hook that filters dumb charts.
 
@@ -827,22 +833,25 @@ Extend M9.1's code-enforced Todo system to all worker job types. Every Working N
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
 | S1 | Generic & Research Templates | Done | `research` added to job_type union, `generic` + `research` todo templates, `status_report` validator, generic fallback in `assembleJobTodos`. Real LLM smoke tests for both. [Review](../sprints/m9.2-s1-generic-research-templates/review.md) |
-| S2 | S1 Gap Fixes | Planned | `status_report` validator unit tests, consolidate duplicate test files, debrief pipeline includes `needs_review` jobs with warning flag (G4), handler bypass invariant comment (G5), monorepo build order docs. |
-| S3 | Working Nina Self-Check | Planned | Replace prose "Principles" with structured pre-completion self-check referencing `todo_list`. Behavioral smoke test. |
-| S4 | Delegation Todo Enforcement | Planned | `todos` required in `create_automation` Zod schema (`.min(1)`). AutomationManifest stays optional (disk/handler paths unaffected). Framework delegation-checklist skill for other 7 fields. 3 smoke tests: simple, complex, retry. [Proposal](../sprints/m9.2-s4-design-checklist/proposal.md) |
-| S5 | Visual System Upgrade | Planned | Skill rewrite as decision tree + smart hook (Haiku pre-check gate filters non-chart-worthy data, prevents dumb charts) + `description` required on `create_chart`/`fetch_image` for meaningful alt text. Smoke tests for all. |
-| S5.1 | Remove Haiku Fallback | Done | Experiment succeeded: brain generates charts proactively after S5 skill rewrite. Full cleanup — visual-augmentation.ts deleted, image counter removed, post-response hooks simplified. 277 lines removed, zero orphaned references. [Plan](plans/2026-04-07-s5.1-remove-haiku-fallback.md) |
-| S6 | Integration Verification | Paused | Delegation gap discovered: brain never calls `create_automation` — stale `create_task` references in instance skills + `delegation-checklist` in wrong directory. Code-enforced items (templates, validators, charts) all pass. [Gap Report](../sprints/m9.2-s6-integration/delegation-gap-report.md) |
-| S7 | Framework/Instance Split + Audit Fixes | Planned | Move agentic behavior from `.my_agent/` to `skills/`. Fix all audit findings: stuck skill filter flags, stale test assertions, duplicate prompt loading, stale capability-brainstorming copy. [Plan](plans/2026-04-07-m9.2-s7-framework-instance-split.md) |
-| S8 | Worker Prompt Isolation + Skill Filter Safety | Planned | Workers get worker-specific prompt (no brain identity/"do not do work yourself"). Skill filter refactored to runtime filtering (no disk writes, no crash-stuck flags). [Plan](plans/2026-04-07-m9.2-s8-worker-prompt-isolation.md) |
-| S9 | Skill Filter Wiring | Planned | Wire `filterSkillsByTools()` return value into `assembleSystemPrompt()` via `excludeSkills` parameter. Completes S8 refactor. [Plan](plans/2026-04-07-m9.2-s9-skill-filter-wiring.md) |
-| S10 | Final Integration Verification | Planned | Full E2E: rerun all failed S6 tests, all deferred S7/S8 smoke tests, skill filter wiring verification, delegation, worker isolation, crash safety. M9.2 completion gate. [Plan](plans/2026-04-07-m9.2-s10-final-verification.md) |
+| S2 | S1 Gap Fixes | Done | `status_report` validator unit tests, consolidate duplicate test files, debrief pipeline includes `needs_review` jobs with warning flag (G4), handler bypass invariant comment (G5), monorepo build order docs. [Review](../sprints/m9.2-s2-gap-fixes/review.md) |
+| S3 | Working Nina Self-Check | Done | Replace prose "Principles" with structured pre-completion self-check referencing `todo_list`. Behavioral smoke test. [Review](../sprints/m9.2-s3-self-check/review.md) |
+| S4 | Delegation Todo Enforcement | Done | `todos` required in `create_automation` Zod schema (`.min(1)`). AutomationManifest stays optional (disk/handler paths unaffected). Framework delegation-checklist skill for other 7 fields. 3 smoke tests: simple, complex, retry. [Review](../sprints/m9.2-s4-delegation-enforcement/review.md) |
+| S5 | Visual System Upgrade | Done | Skill rewrite as decision tree + smart hook (Haiku pre-check gate filters non-chart-worthy data, prevents dumb charts) + `description` required on `create_chart`/`fetch_image` for meaningful alt text. Smoke tests for all. [Review](../sprints/m9.2-s5-visual-upgrade/review.md) |
+| S5.1 | Remove Haiku Fallback | Done | Experiment succeeded: brain generates charts proactively after S5 skill rewrite. Full cleanup — visual-augmentation.ts deleted, image counter removed, post-response hooks simplified. 277 lines removed, zero orphaned references. [Review](../sprints/m9.2-s5.1-remove-haiku-fallback/review.md) |
+| S6 | Integration Verification | Done | Delegation gap discovered: brain never calls `create_automation` — stale `create_task` references in instance skills + `delegation-checklist` in wrong directory. Code-enforced items (templates, validators, charts) all pass. Delegation behavior deferred to M9.3. [Gap Report](../sprints/m9.2-s6-integration/delegation-gap-report.md) |
+| S7 | Framework/Instance Split + Audit Fixes | Done | Move agentic behavior from `.my_agent/` to `skills/`. Fix all audit findings: stuck skill filter flags, stale test assertions, duplicate prompt loading, stale capability-brainstorming copy. [Review](../sprints/m9.2-s7-framework-instance-split/review.md) |
+| S8 | Worker Prompt Isolation + Skill Filter Safety | Done | Workers get worker-specific prompt (no brain identity/"do not do work yourself"). Skill filter refactored to runtime filtering (no disk writes, no crash-stuck flags). [Review](../sprints/m9.2-s8-worker-prompt-isolation/review.md) |
+| S9 | Skill Filter Wiring | Done | Wire `filterSkillsByTools()` return value into `assembleSystemPrompt()` via `excludeSkills` parameter. Completes S8 refactor. [Review](../sprints/m9.2-s9-skill-filter-wiring/review.md) |
+| S10 | Final Integration Verification | Done | Full E2E: rerun all failed S6 tests, all deferred S7/S8 smoke tests, skill filter wiring verification, delegation, worker isolation, crash safety. M9.2 completion gate. [Test Report](../sprints/m9.2-s10-final-verification/test-report.md) |
 
 **Key decisions:**
 - Working Nina = todo-oriented (code enforcement). Conversation Nina = conversational (no todos).
 - Visual hook upgraded from dumb heuristic to Haiku-evaluated pre-check (two-step flow)
 - `research` is a first-class job type with its own template (sources, cross-check, chart)
 - All smoke tests use M9.1's proven disk-write pattern (not REST creation)
+- Delegation behavior gap (brain ignores `create_automation`) identified in S6, deferred to M9.3
+
+**Results:** 1345 tests (264 core + 1081 dashboard), 0 failures. Worker infrastructure fully working (96% prompt reduction, 3-layer todo assembly, isolated execution). Delegation compliance is the remaining gap — addressed in M9.3.
 
 **Dependencies:** M9.1 (todo infrastructure complete)
 
