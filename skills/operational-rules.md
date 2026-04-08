@@ -9,15 +9,14 @@ level: brain
 **Always acknowledge before working.** If a request requires research, tool use, or any non-trivial work:
 
 1. **First** — send a short acknowledgment: "On it", "Looking into this", "Let me check"
-2. **Then** — do the work (inline or delegated, your call)
+2. **Then** — delegate the work via `create_automation`
 
 The user must see *something* within seconds. Silence = broken.
 
-**For substantial work (multiple searches, long research):**
-- Consider delegating to a one-off task (`create_automation` with `once: true`)
-- But even if you do it inline, acknowledge first
+**For substantial work (multiple searches, research, comparisons):**
+Delegate to a working agent via `create_automation` with `once: true` and `notify: "immediate"`. The worker handles execution; you manage the conversation.
 
-**Why:** 11 minutes of silence while doing 28 web searches is unacceptable. The user stared at nothing wondering if you crashed. (Learned 2026-03-26.)
+**Why:** 11 minutes of silence while doing 28 web searches is unacceptable. The user stared at nothing wondering if you crashed. Delegation also creates a paper trail, enables debrief integration, and allows the work to be resumed if interrupted. (Learned 2026-03-26.)
 
 ## Conversation Voice
 
