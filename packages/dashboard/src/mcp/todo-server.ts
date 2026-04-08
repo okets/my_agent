@@ -20,11 +20,18 @@ export type ValidatorFn = (
   targetDir?: string,
 ) => ValidationResult;
 
+export interface TodoProgress {
+  done: number
+  total: number
+  current: string | null
+}
+
 /** Bare tool handlers — testable without MCP server */
 export function createTodoTools(
   todoPath: string,
   validatorFn?: ValidatorFn,
   targetDir?: string,
+  onProgress?: (progress: TodoProgress) => void,
 ) {
   function touch(file: TodoFile): TodoFile {
     file.last_activity = new Date().toISOString();
@@ -37,6 +44,17 @@ export function createTodoTools(
       .filter((n) => !isNaN(n));
     const next = existingIds.length > 0 ? Math.max(...existingIds) + 1 : 1;
     return `t${next}`;
+  }
+
+  function emitProgress(file: TodoFile) {
+    if (!onProgress) return
+    const done = file.items.filter(i => i.status === 'done').length
+    const inProgress = file.items.find(i => i.status === 'in_progress')
+    onProgress({
+      done,
+      total: file.items.length,
+      current: inProgress?.text ?? null,
+    })
   }
 
   return {
@@ -142,6 +160,7 @@ export function createTodoTools(
       if (args.notes !== undefined) item.notes = args.notes;
       touch(file);
       writeTodoFile(todoPath, file);
+      if (args.status) emitProgress(file);
 
       return {
         content: [
@@ -191,8 +210,9 @@ export function createTodoServer(
   todoPath: string,
   validatorFn?: ValidatorFn,
   targetDir?: string,
+  onProgress?: (progress: TodoProgress) => void,
 ) {
-  const tools = createTodoTools(todoPath, validatorFn, targetDir);
+  const tools = createTodoTools(todoPath, validatorFn, targetDir, onProgress);
 
   return createSdkMcpServer({
     name: "todo",
