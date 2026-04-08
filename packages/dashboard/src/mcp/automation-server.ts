@@ -148,6 +148,30 @@ export function createAutomationServer(deps: AutomationServerDeps) {
           },
         });
 
+        // Auto-fire one-shot manual automations — no separate fire_automation call needed
+        const isOnceManual = args.once &&
+          args.trigger.every(t => t.type === 'manual');
+
+        if (isOnceManual) {
+          deps.processor
+            .fire(automation, { sourceChannel: "dashboard" })
+            .catch((err) =>
+              console.error(
+                `[automation-server] auto-fire failed for ${automation.id}:`,
+                err,
+              ),
+            );
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Automation "${automation.manifest.name}" created and fired (ID: ${automation.id}). A working agent is executing it now.`,
+              },
+            ],
+          };
+        }
+
         return {
           content: [
             {
