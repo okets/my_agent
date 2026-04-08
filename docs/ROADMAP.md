@@ -28,6 +28,7 @@
 | **M9: Capability System** | Complete | 8/8 sprints (S1-S3.1, S5-S8), S4 failed/absorbed. Voice E2E working. Paper trail v2 done. |
 | **M9.1: Agentic Flow Overhaul** | **Done** | All 8 sprints complete. Todo system, heartbeat, hooks, restart recovery — validated with real LLM. Voice sprint unblocked. |
 | **M9.2: Worker Todo Coverage** | **Done** | 11 sprints (S1-S10 incl. S5.1). Worker infrastructure fully working. Delegation behavior deferred to M9.3. 1345 tests. |
+| **M9.3: Delegation Compliance** | **Active** | Fix brain delegation: prompt corrections (S1 done), budget hook (S2 done), delegation UX (S2.5), E2E verification (S3), structural enforcement (S4 conditional) |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -58,9 +59,9 @@ COMPLETED (M9.1–M9.2)
 M9.1 Agentic Flow Overhaul — todo system, heartbeat, enforcement, restart recovery
 M9.2 Worker Todo Coverage — 11 sprints, worker isolation, skill filter, 1345 tests
 
-NEXT (M9.3)
-═══════════
-M9.3 Delegation Compliance — prompt fixes, WebSearch budget hook, E2E verification
+ACTIVE (M9.3)
+═════════════
+M9.3 Delegation Compliance — prompt fixes (done), budget hook (done), delegation UX, E2E verification
 
 FUTURE (M10–M14) — ~16 sprints to release
 ══════════════════════════════════════════
@@ -854,6 +855,32 @@ Extend M9.1's code-enforced Todo system to all worker job types. Every Working N
 **Results:** 1345 tests (264 core + 1081 dashboard), 0 failures. Worker infrastructure fully working (96% prompt reduction, 3-layer todo assembly, isolated execution). Delegation compliance is the remaining gap — addressed in M9.3.
 
 **Dependencies:** M9.1 (todo infrastructure complete)
+
+---
+
+### M9.3: Delegation Compliance — ACTIVE
+
+Fix Conversation Nina's delegation compliance — she must delegate research/analysis to workers via `create_automation` instead of handling everything inline with WebSearch. Three-layer fix: prompt corrections, code enforcement (budget hook), delegation UX (auto-fire + inline progress).
+
+**Implementation plan:** [2026-04-07-m9.3-delegation-compliance.md](plans/2026-04-07-m9.3-delegation-compliance.md)
+**Issue report:** [delegation-compliance.md](issues/2026-04-07-delegation-compliance.md)
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Prompt Corrections | Done | Remove "your call" contradiction from operational-rules.md, add delegation motivation to conversation-role.md, exhaustive WebSearch scope rules in task-triage.md, reframe `create_automation` tool description. [Review](../sprints/m9.3-s1-prompt-corrections/review.md) |
+| S2 | WebSearch Budget Hook | Done | PreToolUse hook limits WebSearch to 2 calls per turn. Blocks with systemMessage directing brain to `create_automation`. Reset per user message. [Review](../sprints/m9.3-s2-websearch-budget-hook/review.md) |
+| S2.5 | Delegation UX | Planned | Auto-fire `once:true` manual automations (eliminate fire_automation round trip). Optimize hook message (add `once:true`, pre-acknowledge instruction). Inline progress bar for ad-hoc jobs in chat UI — todo callback → WebSocket → live progress with current task text. |
+| S3 | E2E Verification | Planned | Rerun M9.2-S10 failed smoke tests (A: scheduled task, B: restaurant research, C: headphone research, D: direct control). Target: 3/3 delegate + 1/1 direct. |
+| S4 | Structural Enforcement (conditional) | Planned | Replace WebSearch with constrained `quick_lookup` wrapper if S3 < 80%. Nuclear option — only if S1+S2+S2.5 aren't enough. |
+
+**Key decisions:**
+- Primary root cause: `operational-rules.md` said "your call" contradicting other skills — fixed in S1
+- Budget hook uses observed behavior (search count) not prediction (Haiku classifier) — more reliable, zero cost
+- Ad-hoc automations auto-fire at creation — eliminates tool round trip, ~3-5s saved
+- Inline progress bar only for `once:true` jobs — recurring automations stay in side panel
+- S4 is conditional on S3 results
+
+**Dependencies:** M9.2 (worker infrastructure, todo system)
 
 ---
 
