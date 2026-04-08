@@ -1446,6 +1446,18 @@ function chat() {
               lastMsg.cost = data.cost;
             }
           }
+          // Detect delegation message — tag it for progress bar tracking
+          {
+            const lastMsg = this.messages[this.messages.length - 1];
+            if (lastMsg?.role === "assistant") {
+              const match = lastMsg.content.match(
+                /created and fired \(ID: ([^)]+)\)/,
+              );
+              if (match) {
+                lastMsg.delegationJobId = match[1];
+              }
+            }
+          }
           // Auto-refresh calendar after agent completes calendar-related response
           if (this._isCalendarConversation && this.calendar) {
             console.log("[App] Calendar conversation done, refreshing events");
@@ -1894,15 +1906,62 @@ function chat() {
           break;
 
         case "state:automations":
-        case "state:jobs":
         case "capabilities":
         case "model_changed":
         case "state:screenshot":
           // Handled by ws-client.js → Alpine store
           break;
 
+        case "state:jobs":
+          // Handled by ws-client.js → Alpine store, then sync progress bars
+          this.$nextTick(() => this._syncDelegationProgress(data.jobs || []));
+          break;
+
         default:
           console.warn("[App] Unknown message type:", data.type);
+      }
+    },
+
+    // Update delegation progress bars when state:jobs arrives
+    _syncDelegationProgress(jobs) {
+      const automations = Alpine.store("automations")?.items || [];
+      const jobMap = new Map(jobs.map((j) => [j.automationId, j]));
+
+      for (const msg of this.messages) {
+        if (!msg.delegationJobId) continue;
+
+        const job = jobMap.get(msg.delegationJobId);
+        if (!job) continue;
+
+        // Only show progress for once:true automations
+        const automation = automations.find((a) => a.id === job.automationId);
+        if (!automation?.once) continue;
+
+        const isDone =
+          job.status === "completed" ||
+          (job.todoProgress &&
+            job.todoProgress.done >= job.todoProgress.total &&
+            job.todoProgress.total > 0);
+
+        if (isDone && !msg.delegationProgress?.fading) {
+          msg.delegationProgress = {
+            done: job.todoProgress?.total ?? 1,
+            total: job.todoProgress?.total ?? 1,
+            current: null,
+            fading: true,
+          };
+          // Fade out after 2s
+          setTimeout(() => {
+            msg.delegationProgress = null;
+          }, 2000);
+        } else if (!isDone && job.todoProgress) {
+          msg.delegationProgress = {
+            done: job.todoProgress.done,
+            total: job.todoProgress.total,
+            current: job.todoProgress.current,
+            fading: false,
+          };
+        }
       }
     },
 

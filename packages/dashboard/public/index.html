@@ -5648,6 +5648,20 @@
                       <div x-html="msg.controlsHtml" class="mt-2"></div>
                     </template>
 
+                    <!-- Delegation progress bar (once:true auto-fire jobs) -->
+                    <template x-if="msg.delegationProgress">
+                      <div class="mt-2" :style="msg.delegationProgress.fading ? 'opacity:0;transition:opacity 0.6s ease' : 'opacity:1;transition:opacity 0.3s ease'">
+                        <div style="background:#292e42;border-radius:9999px;height:4px;width:100%">
+                          <div style="background:#7aa2f7;border-radius:9999px;height:100%;transition:width 0.3s ease"
+                               :style="'width:' + (msg.delegationProgress.total > 0 ? Math.round(msg.delegationProgress.done / msg.delegationProgress.total * 100) : 0) + '%'">
+                          </div>
+                        </div>
+                        <div class="mt-1 text-xs truncate" style="color:#565f89"
+                             x-text="msg.delegationProgress.fading ? 'Done' : (msg.delegationProgress.done + '/' + msg.delegationProgress.total + (msg.delegationProgress.current ? ' \u2014 ' + msg.delegationProgress.current : ''))">
+                        </div>
+                      </div>
+                    </template>
+
                     <!-- Audio player (shown when TTS response available) -->
                     <template x-if="msg.audioUrl">
                       <div class="mt-2">
@@ -8727,6 +8741,20 @@
                     <!-- Controls (buttons, cards) -->
                     <template x-if="msg.controlsHtml">
                       <div x-html="msg.controlsHtml" class="mt-2"></div>
+                    </template>
+
+                    <!-- Delegation progress bar (once:true auto-fire jobs) -->
+                    <template x-if="msg.delegationProgress">
+                      <div class="mt-2" :style="msg.delegationProgress.fading ? 'opacity:0;transition:opacity 0.6s ease' : 'opacity:1;transition:opacity 0.3s ease'">
+                        <div style="background:#292e42;border-radius:9999px;height:4px;width:100%">
+                          <div style="background:#7aa2f7;border-radius:9999px;height:100%;transition:width 0.3s ease"
+                               :style="'width:' + (msg.delegationProgress.total > 0 ? Math.round(msg.delegationProgress.done / msg.delegationProgress.total * 100) : 0) + '%'">
+                          </div>
+                        </div>
+                        <div class="mt-1 text-xs truncate" style="color:#565f89"
+                             x-text="msg.delegationProgress.fading ? 'Done' : (msg.delegationProgress.done + '/' + msg.delegationProgress.total + (msg.delegationProgress.current ? ' \u2014 ' + msg.delegationProgress.current : ''))">
+                        </div>
+                      </div>
                     </template>
 
                     <!-- Audio player (shown when TTS response available) -->
