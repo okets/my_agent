@@ -289,6 +289,10 @@ export class AutomationScheduler {
     }
   }
 
+  // NOTE: This bypasses the persistent notification queue and calls ci.alert()/ci.initiate()
+  // directly without sourceChannel. Scheduled jobs are not dashboard-originated, so this is
+  // acceptable. If dashboard-sourced scheduled jobs are ever supported, this needs routing
+  // through the persistent queue. See M9.3-S3.5 plan Task 7.4 Path 4.
   private async notifyFailure(
     automationId: string,
     jobId: string,
