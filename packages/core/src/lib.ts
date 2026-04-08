@@ -35,8 +35,9 @@ export {
   createBashBlocker,
   createPathRestrictor,
   createStopReminder,
+  createDelegationEnforcer,
 } from './hooks/index.js'
-export type { TrustLevel, HookFactoryOptions } from './hooks/index.js'
+export type { TrustLevel, HookFactoryOptions, DelegationEnforcer } from './hooks/index.js'
 
 export {
   loadConfig,

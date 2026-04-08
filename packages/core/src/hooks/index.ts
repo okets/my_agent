@@ -17,3 +17,5 @@ export {
   createStopReminder,
 } from './safety.js'
 export type { TrustLevel, HookFactoryOptions } from './types.js'
+export { createDelegationEnforcer } from './delegation.js'
+export type { DelegationEnforcer } from './delegation.js'
