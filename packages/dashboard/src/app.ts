@@ -738,54 +738,25 @@ export class App extends EventEmitter {
             .getRecentJobCount(id, withinMs),
         recentAutomationAlerts,
         injectRecovery: async (conversationId, prompt, options) => {
-          const convDb = app.conversationManager.getConversationDb();
-          const sdkSessionId = convDb.getSdkSessionId(conversationId);
-          const sm = await app.sessionRegistry.getOrCreate(
-            conversationId,
-            sdkSessionId,
-          );
-          if (sm.isStreaming()) {
-            console.log(
-              `[ResponseWatchdog] Session busy for ${conversationId}, skipping recovery`,
-            );
-            return null;
-          }
-
           let response = "";
-          for await (const event of sm.injectSystemTurn(prompt)) {
+          for await (const event of app.chat.sendSystemMessage(
+            conversationId,
+            prompt,
+            ((await app.conversationManager.get(conversationId))?.turnCount ?? 0) + 1,
+          )) {
             if (event.type === "text_delta" && event.text) {
               response += event.text;
             }
           }
 
-          if (response) {
-            const conv = await app.conversationManager.get(conversationId);
-            await app.conversationManager.appendTurn(conversationId, {
-              type: "turn",
-              role: "assistant",
-              content: response,
-              timestamp: new Date().toISOString(),
-              turnNumber: (conv?.turnCount ?? 0) + 1,
-            });
-            // Broadcast to WebSocket clients
-            connectionRegistry?.broadcastToConversation?.(conversationId, {
-              type: "conversation_updated",
-              conversationId,
-              turn: {
-                role: "assistant" as const,
-                content: response,
-                timestamp: new Date().toISOString(),
-                turnNumber: (conv?.turnCount ?? 0) + 1,
-              },
-            });
-            // Send via outbound channel if available — but not for dashboard-originated messages (#2)
-            if (options?.source !== "dashboard") {
-              const ci = app.conversationInitiator;
-              if (ci) {
-                await (ci as any).trySendViaChannel(response);
-              }
+          // Send via outbound channel if available — but not for dashboard-originated messages
+          if (response && options?.source !== "dashboard") {
+            const ci = app.conversationInitiator;
+            if (ci) {
+              await (ci as any).trySendViaChannel(response);
             }
           }
+
           console.log(
             `[ResponseWatchdog] Recovery for ${conversationId}: ${response.length} chars`,
           );
@@ -831,33 +802,16 @@ export class App extends EventEmitter {
 
     // ── ConversationInitiator (M6.9-S3) ──
     if (hatched && app.transportManager) {
-      const convDb = app.conversationManager.getConversationDb();
       app.conversationInitiator = new ConversationInitiator({
         conversationManager: app.conversationManager,
-        sessionFactory: {
-          async *injectSystemTurn(conversationId, prompt) {
-            const sdkSessionId = convDb.getSdkSessionId(conversationId);
-            const sm = await app.sessionRegistry.getOrCreate(
+        chatService: {
+          async *sendSystemMessage(conversationId, prompt, turnNumber, options) {
+            yield* app.chat.sendSystemMessage(
               conversationId,
-              sdkSessionId,
+              prompt,
+              turnNumber,
+              options,
             );
-            yield* sm.injectSystemTurn(prompt);
-          },
-          async *streamNewConversation(conversationId, prompt) {
-            const sm = await app.sessionRegistry.getOrCreate(conversationId);
-            yield* sm.streamMessage(prompt || "");
-          },
-          isStreaming(conversationId) {
-            const sm = app.sessionRegistry.get(conversationId);
-            return sm?.isStreaming() ?? false;
-          },
-          async queueNotification(conversationId, prompt) {
-            const sdkSessionId = convDb.getSdkSessionId(conversationId);
-            const sm = await app.sessionRegistry.getOrCreate(
-              conversationId,
-              sdkSessionId,
-            );
-            sm.queueNotification(prompt);
           },
         },
         channelManager: {
@@ -1280,12 +1234,11 @@ export class App extends EventEmitter {
           },
           onAlertDelivered: () => {
             // Set timestamp for collision suppression with conversation watchdog.
-            // Uses the active conversation ID since that's what ci.alert() targets.
-            const active = app.conversationManager
+            const current = app.conversationManager
               .getConversationDb()
-              .getActiveConversation?.(15);
-            if (active?.id && recentAutomationAlerts) {
-              recentAutomationAlerts.set(active.id, Date.now());
+              .getCurrent();
+            if (current?.id && recentAutomationAlerts) {
+              recentAutomationAlerts.set(current.id, Date.now());
             }
           },
         });
@@ -1669,14 +1622,9 @@ export class App extends EventEmitter {
         watchTriggerService.on("mount_failure", async ({ path, attempts }) => {
           if (app.conversationInitiator) {
             const prompt = `A filesystem watch on "${path}" has failed after ${attempts} retry attempts. The mount may be down.\n\nYou are the conversation layer — let the user know about this infrastructure issue briefly. Don't be dramatic, just inform them so they can check if needed.`;
-            const alerted = await app.conversationInitiator.alert(prompt, {
+            await app.conversationInitiator.alert(prompt, {
               sourceChannel: "dashboard",
             });
-            if (!alerted) {
-              await app.conversationInitiator.initiate({
-                firstTurnPrompt: `[SYSTEM: ${prompt}]`,
-              });
-            }
           }
         });
 

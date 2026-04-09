@@ -111,64 +111,23 @@ export class HeartbeatService {
     }
   }
 
-  private static readonly MAX_DELIVERY_ATTEMPTS = 20;
-
   private async deliverPendingNotifications(): Promise<void> {
     if (!this.config.conversationInitiator) return;
 
     const pending = this.config.notificationQueue.listPending();
     for (const notification of pending) {
-      // Stop retrying after max attempts — system prompt briefing is the safety net
-      // Dashboard-sourced notifications use a higher threshold (60 attempts = ~30 min)
-      const maxAttempts = notification.source_channel === "dashboard"
-        ? 60
-        : HeartbeatService.MAX_DELIVERY_ATTEMPTS;
-      if (notification.delivery_attempts >= maxAttempts) {
-        if (notification.source_channel === "dashboard") {
-          // Dashboard escalation — 30 min without web session, fall back to preferred channel
-          console.log(
-            `[Heartbeat] Escalating dashboard notification after ${maxAttempts} attempts: ${notification.job_id}`,
-          );
-        } else {
-          console.warn(
-            `[Heartbeat] Notification for ${notification.job_id} exceeded ${maxAttempts} attempts, moving to delivered/`,
-          );
-        }
-        // For dashboard escalation, initiate on preferred channel as last resort
-        if (notification.source_channel === "dashboard") {
-          try {
-            const prompt = this.formatNotification(notification);
-            await this.config.conversationInitiator.initiate({
-              firstTurnPrompt: `[SYSTEM: ${prompt}]`,
-            });
-          } catch {
-            // Best-effort escalation
-          }
-        }
-        this.config.notificationQueue.markDelivered(notification._filename!);
-        continue;
-      }
-
       try {
         const prompt = this.formatNotification(notification);
         const delivered =
           await this.config.conversationInitiator.alert(prompt, {
             sourceChannel: notification.source_channel,
           });
+
         if (delivered) {
           this.config.notificationQueue.markDelivered(notification._filename!);
-        } else if (notification.source_channel === "dashboard") {
-          // Dashboard-sourced notification — don't initiate on WhatsApp.
-          // Increment attempts and wait for user to open web dashboard.
-          // Escalation happens in the maxAttempts check above after 60 attempts.
-          this.config.notificationQueue.incrementAttempts(
-            notification._filename!,
-          );
-          console.log(
-            `[Heartbeat] Dashboard-sourced notification for ${notification.job_id} — waiting for web session (attempt ${notification.delivery_attempts})`,
-          );
         } else {
-          // No active conversation — initiate on preferred channel
+          // No current conversation at all (fresh install edge case).
+          // Fall back to initiate().
           await this.config.conversationInitiator.initiate({
             firstTurnPrompt: `[SYSTEM: ${prompt}]`,
           });

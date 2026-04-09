@@ -320,7 +320,17 @@ async injectTurn(conversationId: string, turn: Turn): Promise<void>
 - `routes/admin.ts` inject-message endpoint
 - `scheduler/event-handler.ts` calendar event logging
 
-### 8.5 Risks Identified (External Audit)
+### 8.5 S1 Corrections (Architect Review)
+
+Carried from S1 review — address early in S2 since the affected files are already in scope.
+
+| Item | File | Fix |
+|------|------|-----|
+| `(ci as any).trySendViaChannel()` cast in ResponseWatchdog | `app.ts:756` | Add public `forwardToChannel(content: string)` on ConversationInitiator. Remove `as any` cast. |
+| No test for ResponseWatchdog `injectRecovery` callback | tests/ | Add test verifying callback calls `app.chat.sendSystemMessage()` and returns response. |
+| Channel-switch test assertion is weak | `conversation-initiator.test.ts:~289` | Assert that `chatService.calls[0].conversationId` differs from original conversation ID (proves new conversation was created). |
+
+### 8.6 Risks Identified (S2 External Audit)
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|

@@ -4,35 +4,24 @@
  * "Working agent does the work, Conversation agent presents it."
  *
  * Two primitives:
- * - alert(): Inject a system prompt into the active conversation
+ * - alert(): Inject a system prompt into the current conversation
  * - initiate(): Start a new conversation on the preferred outbound channel
  */
 
 import type { ConversationManager } from "../conversations/manager.js";
 import type { Conversation } from "../conversations/types.js";
+import type { ChatEvent, SystemMessageOptions } from "../chat/types.js";
 
 /**
- * Adapts per-conversation SessionManager instances to a factory interface.
- * ConversationInitiator doesn't own sessions — it asks the factory for them.
+ * Minimal chat service interface for system-initiated brain invocation.
  */
-export interface SessionFactory {
-  /** Inject a synthetic system turn into an existing conversation's brain session */
-  injectSystemTurn(
+export interface ChatServiceLike {
+  sendSystemMessage(
     conversationId: string,
     prompt: string,
-  ): AsyncGenerator<{ type: string; text?: string }>;
-
-  /** Start a brain session for a new conversation (agent speaks first) */
-  streamNewConversation(
-    conversationId: string,
-    prompt?: string,
-  ): AsyncGenerator<{ type: string; text?: string }>;
-
-  /** Check if a conversation's session is currently streaming a response */
-  isStreaming(conversationId: string): boolean;
-
-  /** Queue a notification for delivery on the session's next turn */
-  queueNotification(conversationId: string, prompt: string): Promise<void>;
+    turnNumber: number,
+    options?: SystemMessageOptions,
+  ): AsyncGenerator<ChatEvent>;
 }
 
 /**
@@ -58,7 +47,7 @@ export interface TransportManagerLike {
 
 export interface ConversationInitiatorOptions {
   conversationManager: ConversationManager;
-  sessionFactory: SessionFactory;
+  chatService: ChatServiceLike;
   channelManager: TransportManagerLike;
   getOutboundChannel: () => string;
   activityThresholdMinutes?: number;
@@ -68,14 +57,14 @@ const DEFAULT_THRESHOLD_MINUTES = 15;
 
 export class ConversationInitiator {
   private conversationManager: ConversationManager;
-  private sessionFactory: SessionFactory;
+  private chatService: ChatServiceLike;
   private channelManager: TransportManagerLike;
   private getOutboundChannel: () => string;
   private thresholdMinutes: number;
 
   constructor(options: ConversationInitiatorOptions) {
     this.conversationManager = options.conversationManager;
-    this.sessionFactory = options.sessionFactory;
+    this.chatService = options.chatService;
     this.channelManager = options.channelManager;
     this.getOutboundChannel = options.getOutboundChannel;
     this.thresholdMinutes =
@@ -83,94 +72,89 @@ export class ConversationInitiator {
   }
 
   /**
-   * Inject a system prompt into the active conversation.
-   * Returns true if an active conversation was found and alerted.
-   * Returns false (no-op) if no active conversation exists.
+   * Deliver a system notification to the current conversation.
    *
-   * The synthetic turn is NOT appended to the transcript —
-   * only the brain's response is appended as an assistant turn.
+   * Always finds the current conversation (there's always one, unless fresh install).
+   * Uses web recency to decide delivery channel:
+   * - Last web message < threshold: deliver via web (app.chat broadcasts to WS clients)
+   * - Last web message > threshold: deliver via preferred channel (WhatsApp)
    *
-   * @param options.sourceChannel - Where the triggering action originated.
-   *   When `'dashboard'`, channel inference is skipped and the response is
-   *   NOT forwarded to any external channel (prevents WhatsApp bleed).
-   *   When undefined, falls back to inferring from recent conversation turns.
+   * Channel switches (web→WhatsApp) trigger a new conversation per the asymmetric rule.
+   *
+   * Returns true if delivered, false only if no current conversation exists.
    */
   async alert(
     prompt: string,
     options?: { sourceChannel?: string },
   ): Promise<boolean> {
-    const active = await this.conversationManager.getActiveConversation(
-      this.thresholdMinutes,
-    );
-
-    if (!active) {
+    const current = await this.conversationManager.getCurrent();
+    if (!current) {
       console.warn(
-        "[ConversationInitiator] alert() called but no active conversation found",
+        "[ConversationInitiator] alert() — no current conversation exists",
       );
       return false;
     }
 
-    // If the session is busy streaming, queue the notification for next-turn delivery
-    // instead of falling back to initiate() (which creates a new conversation)
-    if (this.sessionFactory.isStreaming(active.id)) {
-      console.log(
-        "[ConversationInitiator] Session busy, queuing notification for next turn",
-      );
-      await this.sessionFactory.queueNotification(active.id, prompt);
+    // Channel decision: is the user on the web?
+    const webAge = await this.getLastWebMessageAge(current.id);
+    const useWeb = webAge !== null && webAge < this.thresholdMinutes;
+
+    // Dashboard-sourced actions always stay on web — never route to WhatsApp
+    const isDashboardSourced = options?.sourceChannel === "dashboard";
+
+    if (useWeb || isDashboardSourced) {
+      // Deliver via app.chat — broadcasts to all WS clients automatically
+      for await (const event of this.chatService.sendSystemMessage(
+        current.id,
+        prompt,
+        (current.turnCount ?? 0) + 1,
+      )) {
+        // consume events (turn saving + broadcasting handled by sendSystemMessage)
+      }
       return true;
     }
 
-    // Collect brain response from synthetic turn
-    let response = "";
-    for await (const event of this.sessionFactory.injectSystemTurn(
-      active.id,
-      prompt,
-    )) {
-      if (event.type === "text" || event.type === "text_delta") {
-        if (event.text) response += event.text;
+    // User not on web — deliver via preferred channel
+    const outboundChannel = this.getOutboundChannel();
+    if (!outboundChannel || outboundChannel === "web") {
+      // Web-only user, but they haven't messaged recently. Still deliver via web.
+      for await (const event of this.chatService.sendSystemMessage(
+        current.id,
+        prompt,
+        (current.turnCount ?? 0) + 1,
+      )) {
+        // consume events
       }
+      return true;
     }
 
-    if (response) {
-      // Determine outbound channel from the conversation's own turns.
-      // alert() injects into an EXISTING conversation — the response stays
-      // in that conversation's channel. If the conversation is browser-only
-      // (no channel in user turns), there is no external channel to send to.
-      // Never fall back to getOutboundChannel() — that's for initiate() only.
-      let outboundChannel: string | undefined;
+    // Check if this is a channel switch (web→WhatsApp).
+    // Conversations without externalParty are web-only; those with externalParty
+    // are already bound to an external channel. Compare with resolved ownerJid
+    // (not channel name) since externalParty is a JID like "123@s.whatsapp.net".
+    const { ownerJid } = this.resolveOutboundInfo();
+    const isCurrentOnWeb = !current.externalParty;
+    const isSameChannel = !isCurrentOnWeb && current.externalParty === ownerJid;
+    const needsNewConversation = !isSameChannel;
 
-      if (options?.sourceChannel === "dashboard") {
-        // Dashboard-originated action — explicitly no external channel
-        outboundChannel = undefined;
-      } else {
-        // Infer from recent turns: search enough turns back to find the inbound
-        // channel, even if assistant turns have accumulated since the last user message
-        const CHANNEL_SEARCH_DEPTH = 20;
-        const recentTurns = await this.conversationManager.getRecentTurns(
-          active.id,
-          CHANNEL_SEARCH_DEPTH,
-        );
-        const lastChannelTurn = recentTurns
-          .filter((t) => t.channel && t.role === "user")
-          .at(-1);
-        outboundChannel = lastChannelTurn?.channel ?? undefined;
+    if (needsNewConversation) {
+      // Channel switch: create new conversation on preferred channel
+      await this.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+    } else {
+      // Same channel: continue current conversation via app.chat
+      let response = "";
+      for await (const event of this.chatService.sendSystemMessage(
+        current.id,
+        prompt,
+        (current.turnCount ?? 0) + 1,
+        { channel: outboundChannel },
+      )) {
+        if (event.type === "text_delta" && event.text) {
+          response += event.text;
+        }
       }
-
-      // Only append the brain's response — NOT the synthetic system turn
-      await this.conversationManager.appendTurn(active.id, {
-        type: "turn",
-        role: "assistant",
-        content: response,
-        timestamp: new Date().toISOString(),
-        turnNumber: (active.turnCount ?? 0) + 1,
-        channel: outboundChannel,
-      });
-
-      // Forward to external channel only if the conversation has one.
-      // Browser-only conversations (outboundChannel === undefined) stay browser-only.
-      if (outboundChannel) {
-        await this.trySendViaChannel(response, outboundChannel);
-      }
+      // Forward to external channel
+      await this.trySendViaChannel(response, outboundChannel);
     }
 
     return true;
@@ -191,40 +175,35 @@ export class ConversationInitiator {
       externalParty: ownerJid ?? undefined,
     });
 
-    // Stream first turn from brain — agent speaks first
+    // Brain speaks first via app.chat — broadcasts to WS clients
     const prompt =
       options?.firstTurnPrompt ||
       "[SYSTEM: You are reaching out to the user proactively. You are the conversation layer — explain briefly why you're messaging them. If you don't have a specific reason, let them know you're available.]";
+
     let response = "";
-    for await (const event of this.sessionFactory.streamNewConversation(
+    for await (const event of this.chatService.sendSystemMessage(
       conv.id,
       prompt,
+      1,
+      { channel: resolvedChannelId ?? undefined },
     )) {
-      if (event.type === "text" || event.type === "text_delta") {
-        if (event.text) response += event.text;
+      if (event.type === "text_delta" && event.text) {
+        response += event.text;
       }
     }
 
-    if (response) {
-      await this.conversationManager.appendTurn(conv.id, {
-        type: "turn",
-        role: "assistant",
-        content: response,
-        timestamp: new Date().toISOString(),
-        turnNumber: 1,
-        channel: resolvedChannelId ?? undefined,
-      });
-
+    // Forward to external channel if applicable
+    if (response && resolvedChannelId) {
       await this.trySendViaChannel(response);
     }
 
     return conv;
   }
 
+  // === Private helpers (unchanged from original) ===
+
   /**
    * Resolve the outbound channel's transport ID and owner JID.
-   * Used to set externalParty and channel on agent-initiated conversations
-   * so that incoming replies can be matched back.
    */
   private resolveOutboundInfo(): {
     ownerJid: string | null;
@@ -255,9 +234,6 @@ export class ConversationInitiator {
   /**
    * Try to send a message via the preferred outbound channel.
    * Silently falls back to web (no send) if channel is unavailable.
-   *
-   * @param channelOverride - If provided, use this channel instead of the global preference.
-   *   Used by alert() to send via the active conversation's channel.
    */
   private async trySendViaChannel(
     content: string,
@@ -267,12 +243,7 @@ export class ConversationInitiator {
     if (channelId === "web" || !channelId) return;
 
     try {
-      // Check if channel is connected
-      // channelId from preferences is a type like "whatsapp", but actual channel
-      // IDs are instance names like "ninas_dedicated_whatsapp". Match by plugin type
-      // first, fall back to exact ID match.
       const channels = this.channelManager.getTransportInfos();
-      // Map preference names to plugin names (e.g. "whatsapp" → "baileys")
       const PLUGIN_MAP: Record<string, string> = { whatsapp: "baileys" };
       const pluginName = PLUGIN_MAP[channelId] || channelId;
       const channel = channels.find(
@@ -285,7 +256,6 @@ export class ConversationInitiator {
         return;
       }
 
-      // Get owner JID for outbound messaging
       const resolvedId = channel.id;
       const config = this.channelManager.getTransportConfig(resolvedId);
       const ownerJid = config?.ownerJid;
@@ -303,5 +273,34 @@ export class ConversationInitiator {
         err,
       );
     }
+  }
+
+  /**
+   * Get the age (in minutes) of the most recent user message on the web channel.
+   * Returns null if no web user messages exist in the conversation.
+   *
+   * Web messages are identified by having no `channel` field or `channel === 'web'`.
+   */
+  private async getLastWebMessageAge(
+    conversationId: string,
+  ): Promise<number | null> {
+    const SEARCH_DEPTH = 50;
+    const recentTurns = await this.conversationManager.getRecentTurns(
+      conversationId,
+      SEARCH_DEPTH,
+    );
+
+    // Find the most recent user turn from web (no channel = web, or channel === 'web')
+    const lastWebUserTurn = recentTurns
+      .filter(
+        (t) =>
+          t.role === "user" && (!t.channel || t.channel === "web"),
+      )
+      .at(-1); // getRecentTurns returns oldest-first, so last = most recent
+
+    if (!lastWebUserTurn) return null;
+
+    const ageMs = Date.now() - new Date(lastWebUserTurn.timestamp).getTime();
+    return ageMs / (60 * 1000);
   }
 }

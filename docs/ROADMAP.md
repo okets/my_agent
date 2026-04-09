@@ -899,7 +899,7 @@ Fix real-time notification delivery, unify all message paths through the Headles
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | Real-Time Notification Delivery | Planned | Route `alert()`, `initiate()`, and ResponseWatchdog through `app.chat`. Correct channel decision: `getCurrent()` (no threshold) + web recency for channel choice. Deprecate `getActiveConversation()`. Simplify heartbeat. E2E smoke test. |
+| S1 | Real-Time Notification Delivery | Done | Route `alert()`, `initiate()`, and ResponseWatchdog through `app.chat`. Correct channel decision: `getCurrent()` (no threshold) + web recency for channel choice. Deprecate `getActiveConversation()`. Simplify heartbeat. E2E smoke test. [Plan](../sprints/m9.4-s1-notification-delivery/plan.md) |
 | S2 | Channel Message Unification | Planned | Route inbound channel messages (WhatsApp) through `app.chat` for brain interaction. New `app.chat.injectTurn()` for admin inject + scheduler (write-only, no brain). Extend `ChatMessageOptions` with channel metadata + source field. |
 | S3 | Job Progress Card | Planned | Replace inline progress bar with sticky card above compose box. Collapsed (default): current step + done/total. Expanded (click/tap): full step list, 5-row max with scrollbar, ✕ to close. Max 2 cards. StatePublisher includes todo items in snapshot. |
 

@@ -28,7 +28,9 @@ import type {
   ConversationSwitchResult,
   LoadMoreResult,
   StartEffects,
+  SystemMessageOptions,
 } from "./types.js";
+import { sendSystemMessage } from "./send-system-message.js";
 
 const TURNS_PER_PAGE = 50;
 const MAX_MESSAGE_LENGTH = 10000;
@@ -847,6 +849,26 @@ export class AppChatService {
       logError(err, "Error in streamMessage");
       yield { type: "error" as const, message };
     }
+  }
+
+  /**
+   * Inject a system prompt into an existing conversation's brain session.
+   * Streams the response and saves the assistant turn.
+   * Does NOT save a user turn — the system prompt is ephemeral.
+   */
+  async *sendSystemMessage(
+    conversationId: string,
+    prompt: string,
+    turnNumber: number,
+    options?: SystemMessageOptions,
+  ): AsyncGenerator<ChatEvent> {
+    yield* sendSystemMessage(
+      this.app,
+      conversationId,
+      prompt,
+      turnNumber,
+      options,
+    );
   }
 
   // ─── Private helpers ───────────────────────────────────────────────

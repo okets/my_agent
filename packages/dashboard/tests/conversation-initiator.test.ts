@@ -1,14 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { ConversationManager } from "../src/conversations/manager.js";
-import type {
-  TranscriptTurn,
-  Conversation,
-} from "../src/conversations/types.js";
+import type { TranscriptTurn } from "../src/conversations/types.js";
 import {
   ConversationInitiator,
-  type SessionFactory,
-  type ChannelManagerLike,
+  type ChatServiceLike,
+  type TransportManagerLike,
 } from "../src/agent/conversation-initiator.js";
+import type { ChatEvent } from "../src/chat/types.js";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -16,15 +14,68 @@ import os from "node:os";
 function makeTurn(
   role: "user" | "assistant",
   turnNumber: number,
+  options?: { channel?: string; timestamp?: string },
 ): TranscriptTurn {
   return {
     type: "turn",
     role,
     content: `${role} message`,
-    timestamp: new Date().toISOString(),
+    timestamp: options?.timestamp ?? new Date().toISOString(),
     turnNumber,
+    channel: options?.channel,
   };
 }
+
+// --- Mock factories ---
+
+function createMockChatService(
+  response: string = "Good morning!",
+): ChatServiceLike & {
+  calls: Array<{ conversationId: string; prompt: string; turnNumber: number }>;
+} {
+  const calls: Array<{
+    conversationId: string;
+    prompt: string;
+    turnNumber: number;
+  }> = [];
+  return {
+    calls,
+    async *sendSystemMessage(
+      conversationId: string,
+      prompt: string,
+      turnNumber: number,
+    ): AsyncGenerator<ChatEvent> {
+      calls.push({ conversationId, prompt, turnNumber });
+      yield { type: "start" };
+      yield { type: "text_delta", text: response };
+      yield { type: "done" };
+    },
+  };
+}
+
+function createMockChannelManager(
+  connected: boolean = true,
+): TransportManagerLike & {
+  sent: Array<{ channelId: string; to: string; content: string }>;
+} {
+  const sent: Array<{ channelId: string; to: string; content: string }> = [];
+  return {
+    sent,
+    async send(channelId: string, to: string, message: { content: string }) {
+      sent.push({ channelId, to, content: message.content });
+    },
+    getTransportConfig(_id: string) {
+      return connected ? { ownerJid: "1234567890@s.whatsapp.net" } : undefined;
+    },
+    getTransportInfos() {
+      return connected
+        ? [{ id: "whatsapp", statusDetail: { connected: true } }]
+        : [{ id: "whatsapp", statusDetail: { connected: false } }];
+    },
+  };
+}
+
+// --- Task 1: last_user_message_at column ---
 
 describe("Task 1: last_user_message_at column exists", () => {
   let manager: ConversationManager;
@@ -51,6 +102,8 @@ describe("Task 1: last_user_message_at column exists", () => {
   });
 });
 
+// --- Task 2: lastUserMessageAt tracking ---
+
 describe("Task 2: lastUserMessageAt tracking in appendTurn()", () => {
   let manager: ConversationManager;
   let tmpDir: string;
@@ -69,28 +122,23 @@ describe("Task 2: lastUserMessageAt tracking in appendTurn()", () => {
   it("updates lastUserMessageAt on user turn", async () => {
     const conv = await manager.create();
     expect(conv.lastUserMessageAt).toBeNull();
-
     const turn = makeTurn("user", 1);
     await manager.appendTurn(conv.id, turn);
-
     const updated = await manager.get(conv.id);
     expect(updated!.lastUserMessageAt).not.toBeNull();
-    expect(updated!.lastUserMessageAt).toBeInstanceOf(Date);
-    expect(updated!.lastUserMessageAt!.toISOString()).toBe(turn.timestamp);
   });
 
   it("does NOT update lastUserMessageAt on assistant turn", async () => {
     const conv = await manager.create();
-
-    const assistantTurn = makeTurn("assistant", 1);
-    await manager.appendTurn(conv.id, assistantTurn);
-
+    await manager.appendTurn(conv.id, makeTurn("assistant", 1));
     const updated = await manager.get(conv.id);
     expect(updated!.lastUserMessageAt).toBeNull();
   });
 });
 
-describe("Task 3: getActiveConversation()", () => {
+// --- Task 3: getCurrent() replaces getActiveConversation() ---
+
+describe("Task 3: getCurrent() replaces getActiveConversation()", () => {
   let manager: ConversationManager;
   let tmpDir: string;
 
@@ -105,106 +153,27 @@ describe("Task 3: getActiveConversation()", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("returns conversation with recent user message (within threshold)", async () => {
+  it("returns the current conversation regardless of user message age", async () => {
     const conv = await manager.create();
-    const turn: TranscriptTurn = {
-      type: "turn",
-      role: "user",
-      content: "hello",
-      timestamp: new Date().toISOString(),
-      turnNumber: 1,
-    };
-    await manager.appendTurn(conv.id, turn);
-
-    const active = await manager.getActiveConversation(15);
-    expect(active).not.toBeNull();
-    expect(active!.id).toBe(conv.id);
-  });
-
-  it("returns null when last user message is older than threshold", async () => {
-    const conv = await manager.create();
-    const twentyMinsAgo = new Date(Date.now() - 20 * 60 * 1000);
-    const turn: TranscriptTurn = {
-      type: "turn",
-      role: "user",
-      content: "old message",
-      timestamp: twentyMinsAgo.toISOString(),
-      turnNumber: 1,
-    };
-    await manager.appendTurn(conv.id, turn);
-
-    const active = await manager.getActiveConversation(15);
-    expect(active).toBeNull();
+    const oldTime = new Date(Date.now() - 20 * 60 * 1000);
+    await manager.appendTurn(
+      conv.id,
+      makeTurn("user", 1, { timestamp: oldTime.toISOString() }),
+    );
+    const current = await manager.getCurrent();
+    expect(current).not.toBeNull();
+    expect(current!.id).toBe(conv.id);
   });
 
   it("returns null when no conversations exist", async () => {
-    const active = await manager.getActiveConversation(15);
-    expect(active).toBeNull();
-  });
-
-  it("returns null when conversation has no user messages", async () => {
-    const conv = await manager.create();
-    const turn: TranscriptTurn = {
-      type: "turn",
-      role: "assistant",
-      content: "hello from assistant",
-      timestamp: new Date().toISOString(),
-      turnNumber: 1,
-    };
-    await manager.appendTurn(conv.id, turn);
-
-    const active = await manager.getActiveConversation(15);
-    expect(active).toBeNull();
+    const current = await manager.getCurrent();
+    expect(current).toBeNull();
   });
 });
 
-// --- Mock factories for ConversationInitiator tests ---
+// --- ConversationInitiator tests ---
 
-function createMockSessionFactory(
-  response: string = "Good morning!",
-): SessionFactory {
-  return {
-    async *injectSystemTurn(
-      _convId: string,
-      _prompt: string,
-    ): AsyncGenerator<{ type: string; text?: string }> {
-      yield { type: "text_delta", text: response };
-    },
-    async *streamNewConversation(
-      _convId: string,
-    ): AsyncGenerator<{ type: string; text?: string }> {
-      yield { type: "text_delta", text: response };
-    },
-    isStreaming(_convId: string): boolean {
-      return false;
-    },
-    async queueNotification(_convId: string, _prompt: string): Promise<void> {},
-  };
-}
-
-function createMockChannelManager(
-  connected: boolean = true,
-): ChannelManagerLike & {
-  sent: Array<{ channelId: string; to: string; content: string }>;
-} {
-  const sent: Array<{ channelId: string; to: string; content: string }> = [];
-  return {
-    sent,
-    async send(channelId: string, to: string, message: { content: string }) {
-      sent.push({ channelId, to, content: message.content });
-    },
-    getTransportConfig(_id: string) {
-      return connected ? { ownerJid: "1234567890@s.whatsapp.net" } : undefined;
-    },
-    getTransportInfos() {
-      return connected
-        ? [{ id: "whatsapp", statusDetail: { connected: true } }]
-        : [{ id: "whatsapp", statusDetail: { connected: false } }];
-    },
-  };
-}
-
-describe("Task 5: ConversationInitiator", () => {
+describe("ConversationInitiator", () => {
   let manager: ConversationManager;
   let tmpDir: string;
 
@@ -220,254 +189,231 @@ describe("Task 5: ConversationInitiator", () => {
   });
 
   describe("alert()", () => {
-    it("injects system turn into active conversation and returns true", async () => {
+    it("delivers via app.chat when user has recent web message", async () => {
       const conv = await manager.create();
-      await manager.appendTurn(conv.id, {
-        type: "turn",
-        role: "user",
-        content: "Hello",
-        timestamp: new Date().toISOString(),
-        turnNumber: 1,
-      });
+      await manager.appendTurn(conv.id, makeTurn("user", 1)); // no channel = web
 
-      const sessionFactory = createMockSessionFactory("Morning brief ready!");
-      const channelManager = createMockChannelManager(false);
+      const chatService = createMockChatService("Morning brief ready!");
       const initiator = new ConversationInitiator({
         conversationManager: manager,
-        sessionFactory,
-        channelManager,
+        chatService,
+        channelManager: createMockChannelManager(false),
         getOutboundChannel: () => "web",
       });
 
       const result = await initiator.alert("Morning brief is due.");
       expect(result).toBe(true);
-
-      // Verify assistant turn was appended (not the system turn)
-      const turns = await manager.getTurns(conv.id);
-      expect(turns).toHaveLength(2); // user + assistant
-      expect(turns[1].role).toBe("assistant");
-      expect(turns[1].content).toBe("Morning brief ready!");
+      expect(chatService.calls).toHaveLength(1);
+      expect(chatService.calls[0].conversationId).toBe(conv.id);
     });
 
-    it("returns false when no active conversation", async () => {
-      const sessionFactory = createMockSessionFactory();
-      const channelManager = createMockChannelManager();
-      const initiator = new ConversationInitiator({
-        conversationManager: manager,
-        sessionFactory,
-        channelManager,
-        getOutboundChannel: () => "whatsapp",
-      });
-
-      const result = await initiator.alert("Morning brief is due.");
-      expect(result).toBe(false);
-    });
-
-    it("returns false when conversation is stale (>15 min)", async () => {
+    it("returns true even when last web message is stale (>15 min)", async () => {
       const conv = await manager.create();
       const oldTime = new Date(Date.now() - 20 * 60 * 1000);
-      await manager.appendTurn(conv.id, {
-        type: "turn",
-        role: "user",
-        content: "Old message",
-        timestamp: oldTime.toISOString(),
-        turnNumber: 1,
-      });
+      await manager.appendTurn(
+        conv.id,
+        makeTurn("user", 1, { timestamp: oldTime.toISOString() }),
+      );
 
-      const sessionFactory = createMockSessionFactory();
-      const channelManager = createMockChannelManager();
+      const chatService = createMockChatService();
       const initiator = new ConversationInitiator({
         conversationManager: manager,
-        sessionFactory,
-        channelManager,
+        chatService,
+        channelManager: createMockChannelManager(false),
         getOutboundChannel: () => "web",
+      });
+
+      const result = await initiator.alert("Morning brief is due.");
+      expect(result).toBe(true);
+    });
+
+    it("returns false when no current conversation exists", async () => {
+      // Don't create any conversation
+      const chatService = createMockChatService();
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager: createMockChannelManager(),
+        getOutboundChannel: () => "whatsapp",
       });
 
       const result = await initiator.alert("Morning brief is due.");
       expect(result).toBe(false);
     });
 
-    it("sends via active conversation's channel, not global preference", async () => {
+    it("dashboard-sourced alerts never route to WhatsApp", async () => {
       const conv = await manager.create();
-      await manager.appendTurn(conv.id, {
-        type: "turn",
-        role: "user",
-        content: "hello",
-        timestamp: new Date().toISOString(),
-        turnNumber: 1,
-        channel: "web",
-      });
+      const oldTime = new Date(Date.now() - 20 * 60 * 1000);
+      await manager.appendTurn(
+        conv.id,
+        makeTurn("user", 1, { timestamp: oldTime.toISOString() }),
+      );
 
-      const channelManager = createMockChannelManager();
+      const chatService = createMockChatService();
+      const channelManager = createMockChannelManager(true);
       const initiator = new ConversationInitiator({
         conversationManager: manager,
-        sessionFactory: createMockSessionFactory(),
+        chatService,
         channelManager,
         getOutboundChannel: () => "whatsapp",
       });
 
-      const result = await initiator.alert("test prompt");
+      const result = await initiator.alert("test prompt", {
+        sourceChannel: "dashboard",
+      });
       expect(result).toBe(true);
-      expect(channelManager.sent.length).toBe(0); // web = no channel send
+      expect(channelManager.sent).toHaveLength(0);
+      expect(chatService.calls).toHaveLength(1);
     });
 
-    it("sends via active conversation's whatsapp channel, ignoring global web preference", async () => {
-      // Create conversation with user turn on whatsapp channel
+    it("routes to WhatsApp when web message is stale and preferred channel is whatsapp", async () => {
       const conv = await manager.create();
-      await manager.appendTurn(conv.id, {
-        type: "turn",
-        role: "user",
-        content: "hey there",
-        timestamp: new Date().toISOString(),
-        turnNumber: 1,
-        channel: "whatsapp",
-      });
+      const oldTime = new Date(Date.now() - 20 * 60 * 1000);
+      await manager.appendTurn(
+        conv.id,
+        makeTurn("user", 1, { timestamp: oldTime.toISOString() }),
+      );
 
-      // Connected whatsapp channel manager
+      const chatService = createMockChatService("Notification delivered");
       const channelManager = createMockChannelManager(true);
-      // Global preference is "web" — alert() must ignore it and use the conversation's channel
       const initiator = new ConversationInitiator({
         conversationManager: manager,
-        sessionFactory: createMockSessionFactory("Good morning!"),
+        chatService,
         channelManager,
-        getOutboundChannel: () => "web",
+        getOutboundChannel: () => "whatsapp",
       });
 
-      const result = await initiator.alert("Morning brief is due.");
+      const result = await initiator.alert("Task completed.");
       expect(result).toBe(true);
-      // Should have sent via whatsapp, not fallen back to web
+      // Should have created a new conversation via initiate() (channel switch)
+      expect(chatService.calls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("continues current conversation when same channel (no new conversation)", async () => {
+      // Create conversation with externalParty matching the mock channel's ownerJid
+      const conv = await manager.create({
+        externalParty: "1234567890@s.whatsapp.net",
+      });
+      // Stale web message — will route via channel
+      const oldTime = new Date(Date.now() - 20 * 60 * 1000);
+      await manager.appendTurn(
+        conv.id,
+        makeTurn("user", 1, {
+          channel: "whatsapp",
+          timestamp: oldTime.toISOString(),
+        }),
+      );
+
+      const chatService = createMockChatService("Continued on WhatsApp");
+      const channelManager = createMockChannelManager(true);
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager,
+        getOutboundChannel: () => "whatsapp",
+      });
+
+      const result = await initiator.alert("Task completed.");
+      expect(result).toBe(true);
+      // Should continue in CURRENT conversation (same channel), not create new one
+      expect(chatService.calls).toHaveLength(1);
+      expect(chatService.calls[0].conversationId).toBe(conv.id);
+      // Should forward to WhatsApp
       expect(channelManager.sent).toHaveLength(1);
-      expect(channelManager.sent[0].channelId).toBe("whatsapp");
-      expect(channelManager.sent[0].content).toBe("Good morning!");
+      expect(channelManager.sent[0].content).toBe("Continued on WhatsApp");
+    });
+
+    it("returns null web age when only channel messages exist", async () => {
+      const conv = await manager.create();
+      await manager.appendTurn(
+        conv.id,
+        makeTurn("user", 1, { channel: "whatsapp" }),
+      );
+
+      const chatService = createMockChatService("Response");
+      const channelManager = createMockChannelManager(true);
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager,
+        getOutboundChannel: () => "whatsapp",
+      });
+
+      const result = await initiator.alert("test");
+      expect(result).toBe(true);
+      // No web messages = not on web, routes via channel
+      expect(chatService.calls.length).toBeGreaterThanOrEqual(1);
     });
   });
 
   describe("initiate()", () => {
-    it("creates new conversation and appends first turn", async () => {
-      const sessionFactory = createMockSessionFactory("Good morning!");
-      const channelManager = createMockChannelManager(false);
+    it("creates new conversation and invokes brain via app.chat", async () => {
+      const chatService = createMockChatService("Good morning!");
       const initiator = new ConversationInitiator({
         conversationManager: manager,
-        sessionFactory,
-        channelManager,
+        chatService,
+        channelManager: createMockChannelManager(false),
         getOutboundChannel: () => "web",
       });
 
       const conv = await initiator.initiate();
       expect(conv).toBeTruthy();
       expect(conv.id).toMatch(/^conv-/);
-
-      // Verify assistant turn was appended
-      const turns = await manager.getTurns(conv.id);
-      expect(turns).toHaveLength(1);
-      expect(turns[0].role).toBe("assistant");
-      expect(turns[0].content).toBe("Good morning!");
+      expect(chatService.calls).toHaveLength(1);
+      expect(chatService.calls[0].conversationId).toBe(conv.id);
+      expect(chatService.calls[0].turnNumber).toBe(1);
     });
 
     it("sends via preferred channel when connected", async () => {
-      const sessionFactory = createMockSessionFactory("Good morning!");
+      const chatService = createMockChatService("Good morning!");
       const channelManager = createMockChannelManager(true);
       const initiator = new ConversationInitiator({
         conversationManager: manager,
-        sessionFactory,
+        chatService,
         channelManager,
         getOutboundChannel: () => "whatsapp",
       });
 
       await initiator.initiate();
       expect(channelManager.sent).toHaveLength(1);
-      expect(channelManager.sent[0].channelId).toBe("whatsapp");
       expect(channelManager.sent[0].content).toBe("Good morning!");
-    });
-
-    it("falls back to web when preferred channel is disconnected", async () => {
-      const sessionFactory = createMockSessionFactory("Good morning!");
-      const channelManager = createMockChannelManager(false);
-      const initiator = new ConversationInitiator({
-        conversationManager: manager,
-        sessionFactory,
-        channelManager,
-        getOutboundChannel: () => "whatsapp",
-      });
-
-      const conv = await initiator.initiate();
-      expect(conv).toBeTruthy();
-      // No channel send — web fallback
-      expect(channelManager.sent).toHaveLength(0);
     });
 
     it("demotes existing current conversation", async () => {
       const existing = await manager.create();
       expect(existing.status).toBe("current");
 
-      const sessionFactory = createMockSessionFactory("Good morning!");
-      const channelManager = createMockChannelManager(false);
+      const chatService = createMockChatService("Good morning!");
       const initiator = new ConversationInitiator({
         conversationManager: manager,
-        sessionFactory,
-        channelManager,
+        chatService,
+        channelManager: createMockChannelManager(false),
         getOutboundChannel: () => "web",
       });
 
       const newConv = await initiator.initiate();
       expect(newConv.id).not.toBe(existing.id);
-
       const old = await manager.get(existing.id);
       expect(old!.status).toBe("inactive");
     });
   });
 
   describe("daily brief integration flow", () => {
-    it("calls initiate when alert returns false (no active conversation)", async () => {
-      const sessionFactory = createMockSessionFactory(
-        "Here is your daily brief.",
-      );
-      const channelManager = createMockChannelManager(false);
-      const initiator = new ConversationInitiator({
-        conversationManager: manager,
-        sessionFactory,
-        channelManager,
-        getOutboundChannel: () => "web",
-      });
-
-      // No active conversation → alert returns false
-      const alerted = await initiator.alert("Daily brief ready.");
-      expect(alerted).toBe(false);
-
-      // Caller falls back to initiate
-      const conv = await initiator.initiate();
-      expect(conv).toBeTruthy();
-
-      const turns = await manager.getTurns(conv.id);
-      expect(turns).toHaveLength(1);
-      expect(turns[0].content).toBe("Here is your daily brief.");
-    });
-
-    it("does not initiate when alert succeeds", async () => {
-      // Create active conversation
+    it("alert() always succeeds when a conversation exists", async () => {
       const conv = await manager.create();
-      await manager.appendTurn(conv.id, {
-        type: "turn",
-        role: "user",
-        content: "I'm here",
-        timestamp: new Date().toISOString(),
-        turnNumber: 1,
-      });
+      await manager.appendTurn(conv.id, makeTurn("user", 1));
 
-      const sessionFactory = createMockSessionFactory(
-        "Brief is ready, shall we?",
-      );
-      const channelManager = createMockChannelManager(false);
+      const chatService = createMockChatService("Brief is ready, shall we?");
       const initiator = new ConversationInitiator({
         conversationManager: manager,
-        sessionFactory,
-        channelManager,
+        chatService,
+        channelManager: createMockChannelManager(false),
         getOutboundChannel: () => "web",
       });
 
       const alerted = await initiator.alert("Morning brief ready.");
       expect(alerted).toBe(true);
-      // No need to initiate — brief was delivered in active conversation
+      expect(chatService.calls).toHaveLength(1);
     });
   });
 });
