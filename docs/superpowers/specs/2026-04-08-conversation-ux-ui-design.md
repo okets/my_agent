@@ -263,7 +263,7 @@ This test uses the headless App directly (no browser, no HTTP). It proves the ev
 
 ### 8.1 Scope
 
-Route inbound channel messages (WhatsApp) through `app.chat` for the brain-interaction portion. Unify admin inject and scheduler event-handler with proper App event emission.
+Route inbound channel messages (WhatsApp) through `app.chat` for the brain-interaction portion. Unify STT into `sendMessage()` as the single transcription path. Add `injectTurn()` for admin inject and scheduler event-handler. Apply S1 corrections.
 
 ### 8.2 Architecture Decision
 
@@ -320,7 +320,71 @@ async injectTurn(conversationId: string, turn: Turn): Promise<void>
 - `routes/admin.ts` inject-message endpoint
 - `scheduler/event-handler.ts` calendar event logging
 
-### 8.5 S1 Corrections (Architect Review)
+### 8.5 STT Unification (Option A)
+
+**Decision:** STT is an application concern, not a transport concern. Transports pass raw audio; `sendMessage()` handles all transcription.
+
+#### Current State: Two STT Paths
+
+| Path | Where STT runs | Prefix | Voice hint | File |
+|------|----------------|--------|------------|------|
+| WhatsApp | Transport plugin (`plugin.ts:511-546`) via `onAudioMessage` callback | `[Voice note]` | None — message-handler adds its own hint | `plugins/channel-whatsapp/src/plugin.ts` |
+| Dashboard | Chat service (`chat-service.ts:581-610`) via `transcribeAudio()` | `[Voice message]` | `VOICE_MODE_HINT` injected into content blocks | `packages/dashboard/src/chat/chat-service.ts` |
+
+Both call the same Deepgram `transcribe.sh` script, produce the same `{text, language}` output, but with different prefixes, different hint injection, and different wiring.
+
+#### Target State: One STT Path
+
+```
+Audio arrives (any source)
+  → sendMessage() receives attachment with inputMedium: "audio"
+  → sendMessage() calls transcribeAudio()
+  → Unified prefix: "[Voice message] {text}"
+  → VOICE_MODE_HINT injected into content blocks
+  → Brain responds (voice-optimized)
+  → TTS runs on response (existing paths, unchanged)
+  → Output: audioUrl (dashboard) or Buffer (WhatsApp via message-handler)
+```
+
+#### Changes Required
+
+**WhatsApp plugin (`plugins/channel-whatsapp/src/plugin.ts`):**
+- Remove STT logic from voice note handling (lines 511-546)
+- Keep audio download — pass raw audio buffer as attachment in `IncomingMessage`
+- Keep `isVoiceNote: true` flag (used for TTS response decision)
+- New field: `audioBuffer: Buffer` on `IncomingMessage` (or save to temp file and pass path)
+
+**Message-handler (`packages/dashboard/src/channels/message-handler.ts`):**
+- When calling `app.chat.sendMessage()`, pass audio as attachment with `inputMedium: "audio"`
+- Receives streamed response (already planned for S2 brain unification)
+- TTS response path unchanged — reads `isVoiceNote` from original message, calls `sendAudioViaTransport()`
+
+**Chat service (`packages/dashboard/src/chat/chat-service.ts`):**
+- Already handles STT for dashboard — no change to transcription logic
+- Unify prefix to `[Voice message]` for both sources
+- `VOICE_MODE_HINT` already injected — works for both
+
+**App.ts callback wiring:**
+- Remove `onAudioMessage` callback wiring (lines 1945-1970) — no longer needed
+- Keep `onSendVoiceReply` callback wiring (TTS response side unchanged)
+
+**IncomingMessage type:**
+- Add `audioAttachment?: { buffer: Buffer; mimeType: string }` field
+- Or: transport saves temp file, passes path via existing attachment mechanism
+
+#### Gap Analysis
+
+| Gap | Risk | Mitigation |
+|-----|------|------------|
+| WhatsApp plugin currently pre-transcribes before message reaches dashboard | None — removing this, that's the point |
+| `[Voice note]` vs `[Voice message]` prefix change | Low — brain doesn't parse prefix literally, uses VOICE_MODE_HINT for behavior | Unify to `[Voice message]` for both |
+| Audio buffer passed across package boundary (plugin → dashboard) | Low — already happens for TTS response (dashboard → plugin) | Use same temp file pattern: plugin saves OGG, passes path |
+| `detectedLanguage` currently set by transport, needed for TTS response | Medium — must flow through `sendMessage()` | `sendMessage()` returns `detectedLanguage` from STT result; message-handler reads it for TTS |
+| Plugin's `onAudioMessage` callback removed — plugin must still signal "this is audio" | Low | `isVoiceNote: true` + audio attachment on `IncomingMessage` replaces callback |
+| Message-handler voice hint injection removed (duplicated VOICE_MODE_HINT) | Low | `sendMessage()` handles hint; message-handler no longer needs to |
+| Tests: existing WhatsApp voice note tests expect pre-transcribed text | Medium | Update tests to expect raw audio in → transcribed text out |
+
+### 8.6 S1 Corrections (Architect Review)
 
 Carried from S1 review — address early in S2 since the affected files are already in scope.
 
@@ -330,7 +394,7 @@ Carried from S1 review — address early in S2 since the affected files are alre
 | No test for ResponseWatchdog `injectRecovery` callback | tests/ | Add test verifying callback calls `app.chat.sendSystemMessage()` and returns response. |
 | Channel-switch test assertion is weak | `conversation-initiator.test.ts:~289` | Assert that `chatService.calls[0].conversationId` differs from original conversation ID (proves new conversation was created). |
 
-### 8.6 Risks Identified (S2 External Audit)
+### 8.7 Risks Identified (S2 External Audit)
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
@@ -343,7 +407,7 @@ Carried from S1 review — address early in S2 since the affected files are alre
 | Session `setChannel()` not called | Medium | `sendMessage()` calls it when `channel` option present |
 | Conversation auto-naming fires on channel convs that already have titles | Low | Skip naming when conversation already has a title from `senderName`/`groupName` |
 
-### 8.6 S2 Validation
+### 8.8 S2 Validation
 
 | Test | What it validates |
 |------|-------------------|
@@ -353,6 +417,30 @@ Carried from S1 review — address early in S2 since the affected files are alre
 | Voice note round-trip: WhatsApp in → brain → TTS → WhatsApp out | Voice not regressed |
 | Concurrent channel + web messages on same conversation | No turn number collision |
 | `source: "channel"` reaches post-response hooks | Watchdog behaves correctly for channel messages |
+| WhatsApp voice note arrives as raw audio, STT runs in `sendMessage()` | STT unification |
+| Dashboard voice input still transcribes correctly | No regression |
+| `detectedLanguage` flows from STT through to TTS response | Language round-trip |
+| `VOICE_MODE_HINT` injected for both WhatsApp and dashboard audio | Unified hint |
+| ResponseWatchdog calls `app.chat.sendSystemMessage()` | S1 correction |
+| Channel-switch test asserts new conversation ID | S1 correction |
+
+### 8.9 S2 Verification
+
+Post-implementation checks before the sprint is considered done.
+
+| Step | Type | What |
+|------|------|------|
+| 1. All existing tests pass | Automated | `npm test` — no regressions from channel unification or STT move |
+| 2. New unit tests pass | Automated | All tests from 8.8 green |
+| 3. Headless App integration test | Automated | Channel message through `app.chat` → turn saved with `channel` field → App event emitted |
+| 4. `injectTurn()` integration test | Automated | Write-only turn → event emitted → no brain invocation |
+| 5. STT integration test | Automated | Audio attachment + `inputMedium: "audio"` → `sendMessage()` transcribes → `[Voice message]` prefix + `VOICE_MODE_HINT` in content |
+| 6. Build clean | Automated | `npx tsc` in core + dashboard — no type errors |
+| 7. HITL: Dashboard voice round-trip | Manual | Record voice message on dashboard → verify transcription → verify TTS audio response plays |
+| 8. HITL: WhatsApp voice round-trip | Manual | Send voice note on WhatsApp → verify transcription (appears in dashboard transcript) → verify voice note reply on WhatsApp |
+| 9. HITL: Text message on both channels | Manual | Send text on dashboard + WhatsApp → verify both route through `app.chat` → turns have correct `channel` field in DB |
+
+Steps 7-9 are human-in-the-loop. The sprint is not done until all 9 pass.
 
 ---
 
