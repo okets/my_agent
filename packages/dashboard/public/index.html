@@ -5892,7 +5892,7 @@
                       <span class="text-xs leading-5 shrink-0" :class="statusClass(item.status)"
                             x-text="statusIcon(item.status)"></span>
                       <span class="text-xs leading-5 truncate"
-                            :class="item.status === 'in_progress' ? 'text-blue-400' : (item.status === 'done' ? 'text-green-400/60' : 'text-gray-500')"
+                            :class="item.status === 'in_progress' ? 'text-blue-400' : (item.status === 'done' ? 'text-green-400/60' : (item.status === 'blocked' ? 'text-orange-400/60' : 'text-gray-500'))"
                             x-text="item.text"></span>
                     </div>
                   </template>
@@ -8871,7 +8871,7 @@
                         <span class="text-xs leading-5 shrink-0" :class="statusClass(item.status)"
                               x-text="statusIcon(item.status)"></span>
                         <span class="text-xs leading-5 truncate"
-                              :class="item.status === 'in_progress' ? 'text-blue-400' : (item.status === 'done' ? 'text-green-400/60' : 'text-gray-500')"
+                              :class="item.status === 'in_progress' ? 'text-blue-400' : (item.status === 'done' ? 'text-green-400/60' : (item.status === 'blocked' ? 'text-orange-400/60' : 'text-gray-500'))"
                               x-text="item.text"></span>
                       </div>
                     </template>
