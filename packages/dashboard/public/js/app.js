@@ -3690,12 +3690,19 @@ function chat() {
      */
     buildAttachmentPreviews(attachments) {
       if (!attachments || attachments.length === 0) return null;
-      return attachments.map((att) => ({
-        type: att.mimeType.startsWith("image/") ? "image" : "text",
-        name: att.filename,
-        url: `/attachments/${att.localPath}`,
-        size: att.size,
-      }));
+      return attachments.map((att) => {
+        const type = att.mimeType.startsWith("image/")
+          ? "image"
+          : att.mimeType.startsWith("audio/")
+            ? "audio"
+            : "text";
+        return {
+          type,
+          name: att.filename,
+          url: `/attachments/${att.localPath}`,
+          size: att.size,
+        };
+      });
     },
 
     // ─────────────────────────────────────────────────────────────────

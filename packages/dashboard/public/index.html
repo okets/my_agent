@@ -5763,8 +5763,17 @@
                                 @click="lightboxImage = att.url || att.preview"
                               />
                             </template>
+                            <!-- Audio attachment (player) -->
+                            <template x-if="att.type === 'audio'">
+                              <audio
+                                controls
+                                preload="metadata"
+                                :src="att.url"
+                                class="max-w-[240px] h-8"
+                              ></audio>
+                            </template>
                             <!-- Text file attachment (chip) -->
-                            <template x-if="att.type !== 'image'">
+                            <template x-if="att.type !== 'image' && att.type !== 'audio'">
                               <div
                                 class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-tokyo-card/50 text-xs text-tokyo-muted"
                               >
