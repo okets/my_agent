@@ -1652,7 +1652,12 @@ function chat() {
                   break;
                 }
                 // Plain text message already displayed from this tab
-                if (isSameContent) {
+                // Also check turnNumber to avoid suppressing legitimate repeat messages.
+                // Local optimistic messages have no turnNumber — match those.
+                // Channel messages have turnNumber — only dedup on exact match.
+                const localHasNoTurn = !msg.turnNumber;
+                const sameTurn = msg.turnNumber === data.turn.turnNumber;
+                if (isSameContent && (localHasNoTurn || sameTurn)) {
                   foundLocal = true;
                   break;
                 }
