@@ -44,6 +44,17 @@ export class ConnectionRegistry {
   }
 
   /**
+   * Switch all connected clients to a conversation.
+   * Used when a channel message creates a new conversation — clients need
+   * to be subscribed before streaming events are broadcast.
+   */
+  switchAllToConversation(newConversationId: string): void {
+    for (const info of this.sockets.values()) {
+      info.conversationId = newConversationId;
+    }
+  }
+
+  /**
    * Get the number of viewers for a conversation
    *
    * Used to determine if abbreviation should be queued when last viewer leaves.

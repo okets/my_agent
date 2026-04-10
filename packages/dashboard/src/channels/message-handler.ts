@@ -450,12 +450,7 @@ export class ChannelMessageHandler {
       await this.deps.app!.conversations.makeCurrent(conversation.id);
     }
 
-    // Track whether this is a new conversation — WS clients won't be
-    // subscribed yet, so streaming events must use broadcastToAll.
-    let isNewConversation = false;
-
     if (!conversation) {
-      isNewConversation = true;
       // Create new conversation for this channel + party
       const title = first.senderName ?? first.groupName ?? undefined;
       conversation = await this.deps.app!.conversations.create({
@@ -463,8 +458,11 @@ export class ChannelMessageHandler {
         title,
       });
 
-      // Broadcast new conversation to WS clients (triggers auto-switch via status: "current")
-      console.log(`[ChannelMessageHandler] Broadcasting conversation_created: ${conversation.id} (status: ${conversation.status})`);
+      // Subscribe all WS clients to the new conversation BEFORE streaming
+      // starts, so broadcastToConversation reaches them.
+      this.deps.connectionRegistry.switchAllToConversation(conversation.id);
+
+      // Broadcast new conversation to WS clients (triggers UI switch via status: "current")
       this.deps.connectionRegistry.broadcastToAll({
         type: "conversation_created",
         conversation: {
@@ -564,49 +562,51 @@ export class ChannelMessageHandler {
           inputMedium: first.isVoiceNote && first.audioAttachment ? "audio" : undefined,
         },
       )) {
-        // For new conversations, WS clients aren't subscribed yet —
-        // use broadcastToAll so the dashboard receives streaming events.
-        const broadcast = (msg: any) => {
-          if (isNewConversation) {
-            this.deps.connectionRegistry.broadcastToAll(msg);
-          } else {
-            this.deps.connectionRegistry.broadcastToConversation(conversation.id, msg);
-          }
-        };
-
         switch (event.type) {
           case "start": {
             // Forward user turn to WS clients so dashboard shows the message
             const effects = (event as any)._effects;
             if (effects?.userTurn) {
-              broadcast({
-                type: "conversation_updated",
-                conversationId: conversation.id,
-                turn: effects.userTurn,
-              });
+              this.deps.connectionRegistry.broadcastToConversation(
+                conversation.id, {
+                  type: "conversation_updated",
+                  conversationId: conversation.id,
+                  turn: effects.userTurn,
+                },
+              );
             }
-            broadcast({ type: "start" });
+            this.deps.connectionRegistry.broadcastToConversation(
+              conversation.id, { type: "start" },
+            );
             break;
           }
           case "text_delta":
             if (firstToken) { responseTimer.cancel(); firstToken = false; }
             currentText += event.text;
-            broadcast({ type: "text_delta", content: event.text });
+            this.deps.connectionRegistry.broadcastToConversation(
+              conversation.id, { type: "text_delta", content: event.text },
+            );
             break;
           case "turn_advanced":
-            broadcast({ type: "done" });
+            this.deps.connectionRegistry.broadcastToConversation(
+              conversation.id, { type: "done" },
+            );
             if (currentText.trim()) {
               await this.deps.sendViaTransport(channelId, replyTo, { content: currentText });
             }
             currentText = "";
             isFirstMessage = false;
-            broadcast({ type: "start" });
+            this.deps.connectionRegistry.broadcastToConversation(
+              conversation.id, { type: "start" },
+            );
             break;
           case "done":
             if ("detectedLanguage" in event && event.detectedLanguage) {
               detectedLanguage = event.detectedLanguage;
             }
-            broadcast({ type: "done" });
+            this.deps.connectionRegistry.broadcastToConversation(
+              conversation.id, { type: "done" },
+            );
             break;
         }
       }
