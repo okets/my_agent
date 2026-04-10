@@ -51,6 +51,16 @@ class MockSessionManager {
     return false;
   }
 
+  /** Called by ChatService when channel metadata is present */
+  setChannel(_channel: string): void {
+    // No-op for mock
+  }
+
+  /** Called by ChatService when view context is present */
+  setViewContext(_type: string, _id: string, _title: string): void {
+    // No-op for mock
+  }
+
   /**
    * Inject a synthetic system turn into the session.
    * Used by sendSystemMessage() for system-initiated brain invocations.
