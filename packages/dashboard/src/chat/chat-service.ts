@@ -883,6 +883,34 @@ export class AppChatService {
     );
   }
 
+  /**
+   * Write a turn directly to the transcript without invoking the brain.
+   * Emits conversation:updated event (triggers StatePublisher).
+   *
+   * Used for: admin inject-message, scheduler event logging.
+   */
+  async injectTurn(
+    conversationId: string,
+    turn: {
+      role: "user" | "assistant";
+      content: string;
+      turnNumber: number;
+      channel?: string;
+    },
+  ): Promise<void> {
+    const transcriptTurn: TranscriptTurn = {
+      type: "turn",
+      role: turn.role,
+      content: turn.content,
+      timestamp: new Date().toISOString(),
+      turnNumber: turn.turnNumber,
+      channel: turn.channel,
+    };
+
+    await this.conversationManager.appendTurn(conversationId, transcriptTurn);
+    this.app.emit("conversation:updated", conversationId);
+  }
+
   // ─── Private helpers ───────────────────────────────────────────────
 
   /**
