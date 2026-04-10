@@ -14,7 +14,7 @@ import path from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { AppHarness } from "./app-harness.js";
 import { ChannelMessageHandler } from "../../src/channels/message-handler.js";
-import { SessionRegistry } from "../../src/agent/session-registry.js";
+import { installMockSession } from "./mock-session.js";
 import type { ChannelBinding, IncomingMessage } from "@my-agent/core";
 
 // -------------------------------------------------------------------
@@ -71,13 +71,11 @@ describe("Channel Message Flow (integration)", () => {
     const handler = new ChannelMessageHandler(
       {
         conversationManager: harness.conversationManager,
-        sessionRegistry: new SessionRegistry(),
         connectionRegistry: harness.connectionRegistry,
         sendViaTransport: async () => {},
         sendTypingIndicator: async () => {},
         agentDir: harness.agentDir,
-        statePublisher: harness.statePublisher,
-        postResponseHooks: null,
+        app: { conversations: harness.conversations, chat: harness.chat } as any,
       },
       TEST_BINDINGS,
     );
@@ -90,13 +88,11 @@ describe("Channel Message Flow (integration)", () => {
     const handler = new ChannelMessageHandler(
       {
         conversationManager: harness.conversationManager,
-        sessionRegistry: new SessionRegistry(),
         connectionRegistry: harness.connectionRegistry,
         sendViaTransport: async () => {},
         sendTypingIndicator: async () => {},
         agentDir: harness.agentDir,
-        statePublisher: harness.statePublisher,
-        postResponseHooks: null,
+        app: { conversations: harness.conversations, chat: harness.chat } as any,
       },
       TEST_BINDINGS,
     );

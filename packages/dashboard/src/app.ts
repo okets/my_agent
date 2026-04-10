@@ -638,13 +638,12 @@ export class App extends EventEmitter {
         return plugin;
       });
 
-      // ChannelMessageHandler needs connectionRegistry + sessionRegistry.
-      // sessionRegistry is App-owned. connectionRegistry comes from adapter.
+      // ChannelMessageHandler needs connectionRegistry for WS broadcasts.
+      // Brain interaction is delegated to app.chat.sendMessage().
       if (connectionRegistry) {
         app.channelMessageHandler = new ChannelMessageHandler(
           {
             conversationManager: app.conversationManager,
-            sessionRegistry: app.sessionRegistry,
             connectionRegistry,
             sendViaTransport: (transportId, to, message) =>
               app.transportManager!.send(transportId, to, message),
@@ -670,9 +669,6 @@ export class App extends EventEmitter {
             },
             agentDir,
             app,
-            get postResponseHooks() {
-              return app.postResponseHooks;
-            },
           },
           config.channels,
         );

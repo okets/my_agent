@@ -26,8 +26,6 @@ import { MessageRouter, normalizeIdentity } from "../routing/message-router.js";
 
 interface MessageHandlerDeps {
   conversationManager: ConversationManager;
-  /** @deprecated — no longer used; sessions managed by app.chat.sendMessage() */
-  sessionRegistry?: unknown;
   connectionRegistry: ConnectionRegistry;
   sendViaTransport: (
     transportId: string,
@@ -45,8 +43,6 @@ interface MessageHandlerDeps {
   agentDir: string;
   /** App instance for event-emitting mutations */
   app: import("../app.js").App;
-  /** @deprecated — no longer used; post-response hooks handled by app.chat.sendMessage() */
-  postResponseHooks?: unknown;
 }
 
 export class ChannelMessageHandler {
