@@ -314,6 +314,7 @@ export interface JobSnapshot {
     done: number
     total: number
     current: string | null
+    items: Array<{ id: string; text: string; status: import("@my-agent/core").TodoStatus }>
   }
 }
 
