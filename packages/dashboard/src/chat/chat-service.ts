@@ -655,6 +655,7 @@ export class AppChatService {
     };
 
     // Emit App events for user turn + new conversation (broadcast to all WS clients)
+    this.app.emit("chat:start", convId);
     this.app.emit("chat:user_turn", convId, userTurn);
     if (conversationCreated) {
       this.app.emit("chat:conversation_created", convId, conversationCreated);
