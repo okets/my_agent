@@ -478,6 +478,10 @@ export class AppChatService {
       storedSid,
     );
 
+    if (options?.channel?.channelId) {
+      sessionManager.setChannel(options.channel.channelId);
+    }
+
     // ── View context (generic) ────────────────────────────────────
     if (options?.context) {
       const ctx = options.context;
@@ -623,6 +627,8 @@ export class AppChatService {
       timestamp: userTimestamp,
       turnNumber,
       attachments: savedAttachments.length > 0 ? savedAttachments : undefined,
+      channel: options?.channel?.channelId,
+      sender: options?.channel?.sender,
     };
 
     await this.conversationManager.appendTurn(convId, userTurn);
@@ -715,6 +721,7 @@ export class AppChatService {
                 timestamp: new Date().toISOString(),
                 turnNumber,
                 thinkingText: thinkingText || undefined,
+                channel: options?.channel?.channelId,
               };
               await this.conversationManager.appendTurn(convId, splitTurn);
 
@@ -771,6 +778,7 @@ export class AppChatService {
               cost: event.cost,
               usage: event.usage,
               audioUrl,
+              detectedLanguage,
             };
             break;
           }
@@ -793,6 +801,7 @@ export class AppChatService {
           thinkingText: thinkingText || undefined,
           usage,
           cost,
+          channel: options?.channel?.channelId,
         };
 
         await this.conversationManager.appendTurn(convId, assistantTurn);
@@ -820,7 +829,10 @@ export class AppChatService {
 
       // Trigger naming at turn 5 (use original turn number, not split-advanced)
       if (originalTurnNumber === 5) {
-        this.triggerNaming(convId).catch(() => {});
+        const conv = await this.conversationManager.get(convId);
+        if (!conv?.title || !options?.channel) {
+          this.triggerNaming(convId).catch(() => {});
+        }
       }
 
       // Post-response hooks (if split, include both halves for full context)
@@ -836,7 +848,7 @@ export class AppChatService {
                 cost,
                 textLengthAfterLastTool,
               },
-              source: "dashboard",
+              source: options?.source ?? "dashboard",
             },
           )
           .catch(() => {});

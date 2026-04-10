@@ -22,6 +22,7 @@ export type ChatEvent =
       cost?: number;
       usage?: { input: number; output: number };
       audioUrl?: string;
+      detectedLanguage?: string;
     }
   | { type: "error"; message: string }
   | { type: "turn_advanced"; turnNumber: number };
@@ -66,6 +67,19 @@ export interface ChatMessageOptions {
     spaceName?: string;
     conversationId?: string;
   } | null;
+  /** Channel metadata for messages originating from external channels (WhatsApp, etc.) */
+  channel?: {
+    transportId: string;
+    channelId: string;
+    sender: string;
+    replyTo?: string;
+    senderName?: string;
+    groupId?: string;
+    isVoiceNote?: boolean;
+    detectedLanguage?: string;
+  };
+  /** Where this message originated — affects post-response hooks and channel routing */
+  source?: "dashboard" | "channel";
 }
 
 /**
