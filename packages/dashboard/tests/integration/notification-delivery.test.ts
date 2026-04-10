@@ -98,4 +98,17 @@ describe("E2E: Notification delivery via app.chat", () => {
     // Should yield no events when session is busy
     expect(events).toHaveLength(0);
   });
+
+  it("injectRecovery routes through sendSystemMessage", async () => {
+    const conv = await harness.conversations.create();
+    let response = "";
+    for await (const event of harness.chat.sendSystemMessage(
+      conv.id, "Recovery: user seems confused", 2,
+    )) {
+      if (event.type === "text_delta" && event.text) response += event.text;
+    }
+    expect(response.length).toBeGreaterThan(0);
+    const turns = await harness.conversationManager.getTurns(conv.id);
+    expect(turns.some((t) => t.role === "assistant")).toBe(true);
+  });
 });

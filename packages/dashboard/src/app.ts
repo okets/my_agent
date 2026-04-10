@@ -753,7 +753,7 @@ export class App extends EventEmitter {
           if (response && options?.source !== "dashboard") {
             const ci = app.conversationInitiator;
             if (ci) {
-              await (ci as any).trySendViaChannel(response);
+              await ci.forwardToChannel(response);
             }
           }
 

@@ -285,8 +285,11 @@ describe("ConversationInitiator", () => {
 
       const result = await initiator.alert("Task completed.");
       expect(result).toBe(true);
-      // Should have created a new conversation via initiate() (channel switch)
-      expect(chatService.calls.length).toBeGreaterThanOrEqual(1);
+      // Channel switch creates a NEW conversation via initiate()
+      const allConversations = await manager.list({});
+      expect(allConversations.length).toBe(2);
+      const lastCall = chatService.calls[chatService.calls.length - 1];
+      expect(lastCall.conversationId).not.toBe(conv.id);
     });
 
     it("continues current conversation when same channel (no new conversation)", async () => {

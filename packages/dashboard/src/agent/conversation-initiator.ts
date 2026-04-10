@@ -154,7 +154,7 @@ export class ConversationInitiator {
         }
       }
       // Forward to external channel
-      await this.trySendViaChannel(response, outboundChannel);
+      await this.forwardToChannel(response, outboundChannel);
     }
 
     return true;
@@ -194,7 +194,7 @@ export class ConversationInitiator {
 
     // Forward to external channel if applicable
     if (response && resolvedChannelId) {
-      await this.trySendViaChannel(response);
+      await this.forwardToChannel(response);
     }
 
     return conv;
@@ -235,7 +235,7 @@ export class ConversationInitiator {
    * Try to send a message via the preferred outbound channel.
    * Silently falls back to web (no send) if channel is unavailable.
    */
-  private async trySendViaChannel(
+  async forwardToChannel(
     content: string,
     channelOverride?: string,
   ): Promise<void> {
