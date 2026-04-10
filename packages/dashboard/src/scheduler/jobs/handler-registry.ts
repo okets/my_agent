@@ -271,31 +271,9 @@ registerHandler("debrief-prep", getHandler("debrief-context")!);
 // ─── Handler: debrief-reporter ───────────────────────────────────────────
 // Assembles the daily brief by:
 // 1. Running debrief-context to refresh current-state.md
-// 2. Collecting completed worker results (notify=debrief jobs)
-// 3. Summarizing worker reports into a concise digest via model call
-// 4. Writing full reports to disk for follow-up queries
-// M7-S8: New handler for composable debrief pipeline.
-
-const REPORTER_SYSTEM_PROMPT = `You produce a concise daily brief digest from worker reports and notebook context.
-
-STRICT RULES:
-1. Output ONLY the digest — no preamble, no explanation
-2. Summarize each worker's findings in 1–3 bullet points
-3. Lead with what matters most to the user RIGHT NOW (health/safety, schedule, weather)
-4. Keep the full digest under 2000 characters
-5. Use plain language, not report headings
-6. If a worker report contains actionable info (air quality warning, schedule conflict), highlight it
-7. End with a one-line note: "Ask me for details on any of these."`;
-
-const REPORTER_USER_TEMPLATE = `Summarize the latest reports into a concise brief for the user.
-
-Notebook context:
-{notebookContext}
-
-Worker reports:
-{workerReports}
-
-Write a short digest (under 2000 chars). Group by relevance, not by worker name.`;
+// 2. Collecting worker deliverables from disk (no LLM re-digest)
+// 3. Writing full report + digest to disk
+// M9.4-S4: Converted from LLM digest to pure assembly.
 
 registerHandler("debrief-reporter", async ({ agentDir, db }) => {
   const notebookDir = join(agentDir, "notebook");
@@ -306,94 +284,88 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
     await contextHandler({ agentDir, jobId: `context-${Date.now()}` });
   }
 
-  // Step 2: Read the refreshed current-state.md (notebook context)
+  // Step 2: Collect worker deliverables (no LLM re-digest)
+  const workerSections: string[] = [];
+  if (db) {
+    const since = new Date(Date.now() - 86400000).toISOString();
+    console.log(`[debrief-reporter] Collecting worker results since: ${since}`);
+    const pendingJobs = db.getDebriefPendingJobs(since);
+    console.log(`[debrief-reporter] Found ${pendingJobs.length} worker reports`);
+
+    for (const job of pendingJobs) {
+      const prefix = job.needsReview ? "\u26a0\ufe0f INCOMPLETE \u2014 " : "";
+      let content = "";
+
+      // Priority: deliverable.md → status-report.md → summary
+      if (job.deliverablePath && existsSync(job.deliverablePath)) {
+        try {
+          content = await readFile(job.deliverablePath, "utf-8");
+          // Strip YAML frontmatter if present
+          const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+          if (fmMatch) content = content.slice(fmMatch[0].length).trim();
+        } catch {
+          // Fall through
+        }
+      }
+      if (!content && job.runDir) {
+        const reportPath = join(job.runDir, "status-report.md");
+        if (existsSync(reportPath)) {
+          try {
+            content = await readFile(reportPath, "utf-8");
+            const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
+            if (fmMatch) content = content.slice(fmMatch[0].length).trim();
+          } catch {
+            // Fall back to summary
+          }
+        }
+      }
+      if (!content) {
+        content = job.summary ?? "No output available.";
+      }
+
+      workerSections.push(`## ${prefix}${job.automationName}\n\n${content}`);
+    }
+  }
+
+  // Step 3: If no workers ran, skip debrief entirely
+  if (workerSections.length === 0) {
+    await appendToDailyLog(notebookDir, "- Debrief reporter: no workers to report");
+    return {
+      success: true,
+      work: "No background work to report.",
+      deliverable: "No background work to report.",
+    };
+  }
+
+  // Step 4: Write full report and digest to disk
+  const opsDir = join(notebookDir, "operations");
+  if (!existsSync(opsDir)) {
+    await mkdir(opsDir, { recursive: true });
+  }
+
+  // Read current-state.md for context in full report
   const currentStatePath = join(notebookDir, "operations", "current-state.md");
   let notebookContext = "";
   if (existsSync(currentStatePath)) {
     notebookContext = await readFile(currentStatePath, "utf-8");
   }
 
-  // Step 3: Collect worker results since last debrief reporter run
-  const workerSections: string[] = [];
-  const fullReports: Array<{ name: string; content: string }> = [];
-  if (db) {
-    const since = new Date(Date.now() - 86400000).toISOString();
-
-    console.log(`[debrief-reporter] Collecting worker results since: ${since}`);
-    const pendingJobs = db.getDebriefPendingJobs(since);
-    console.log(
-      `[debrief-reporter] Found ${pendingJobs.length} worker reports`,
-    );
-
-    for (const job of pendingJobs) {
-      const prefix = job.needsReview ? "\u26a0\ufe0f INCOMPLETE \u2014 " : "";
-      let content = job.summary ?? "No output available.";
-
-      // Prefer full deliverable → status-report.md → summary
-      if (job.deliverablePath && existsSync(job.deliverablePath)) {
-        try {
-          content = await readFile(job.deliverablePath, "utf-8");
-        } catch {
-          // Fall through to status-report.md
-        }
-      }
-      if (content === (job.summary ?? "No output available.") && job.runDir) {
-        const reportPath = join(job.runDir, "status-report.md");
-        if (existsSync(reportPath)) {
-          try {
-            content = await readFile(reportPath, "utf-8");
-          } catch {
-            // Fall back to summary
-          }
-        }
-      }
-
-      workerSections.push(`## ${prefix}${job.automationName}\n\n${content}`);
-      fullReports.push({ name: `${prefix}${job.automationName}`, content });
-    }
-  }
-
-  // Step 4: Write full reports to disk (for follow-up queries via MCP tool)
-  const opsDir = join(notebookDir, "operations");
-  if (!existsSync(opsDir)) {
-    await mkdir(opsDir, { recursive: true });
-  }
-
   const fullBrief = [
     notebookContext,
-    workerSections.length > 0
-      ? "---\n\n# Worker Reports\n\n" + workerSections.join("\n\n---\n\n")
-      : "",
+    "---\n\n# Worker Reports\n\n" + workerSections.join("\n\n---\n\n"),
   ]
     .filter(Boolean)
     .join("\n\n");
 
   await writeFile(join(opsDir, "debrief-full.md"), fullBrief, "utf-8");
 
-  // Step 5: Produce a concise digest via model call
-  let digest: string;
-  if (workerSections.length === 0 && !notebookContext) {
-    digest = "No debrief content available. Workers may not have run yet.";
-  } else {
-    const preferences = loadPreferences(agentDir);
-    const model = (preferences.debrief?.model as ModelAlias) ?? "haiku";
-    const userPrompt = REPORTER_USER_TEMPLATE.replace(
-      "{notebookContext}",
-      notebookContext || "(none)",
-    ).replace(
-      "{workerReports}",
-      workerSections.join("\n\n---\n\n") || "(none)",
-    );
-
-    digest = await queryModel(userPrompt, REPORTER_SYSTEM_PROMPT, model);
-  }
-
-  // Write the digest (this is what gets delivered)
+  // Digest IS the worker sections (no LLM summarization)
+  const digest = workerSections.join("\n\n---\n\n");
   await writeFile(join(opsDir, "debrief-digest.md"), digest, "utf-8");
 
   await appendToDailyLog(
     notebookDir,
-    `- Debrief reporter: digest ${digest.length} chars, full ${fullBrief.length} chars (${workerSections.length} workers)`,
+    `- Debrief reporter: assembled ${workerSections.length} worker reports (${digest.length} chars digest, no LLM)`,
   );
 
   return { success: true, work: digest, deliverable: digest };

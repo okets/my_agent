@@ -37,6 +37,7 @@ import { assembleJobTodos } from "./todo-templates.js";
 import { runValidation } from "./todo-validators.js";
 import { handleCreateChart } from "../mcp/chart-server.js";
 import { queryModel } from "../scheduler/query-model.js";
+import { resolveJobSummary } from "./summary-resolver.js";
 
 /** Working Nina's allowed tools — full access including web for research workers */
 const WORKER_TOOLS = [
@@ -159,7 +160,7 @@ export class AutomationExecutor {
         this.config.jobService.updateJob(job.id, {
           status: result.success ? "completed" : "failed",
           completed: new Date().toISOString(),
-          summary: (result.deliverable ?? result.work).slice(0, 500),
+          summary: resolveJobSummary(job.run_dir, result.deliverable ?? result.work),
           deliverablePath: handlerDeliverablePath,
         });
 
@@ -482,7 +483,7 @@ export class AutomationExecutor {
       this.config.jobService.updateJob(job.id, {
         status: finalStatus as Job["status"],
         completed: new Date().toISOString(),
-        summary: todoGatingSummary ?? (deliverable ?? work).slice(0, 500),
+        summary: todoGatingSummary ?? resolveJobSummary(job.run_dir, deliverable ?? work),
         sdk_session_id: sdkSessionId ?? undefined,
         deliverablePath,
         screenshotIds,
@@ -670,7 +671,7 @@ export class AutomationExecutor {
           }
 
           const { work, deliverable } = extractDeliverable(response);
-          const summary = (deliverable ?? work).slice(0, 500);
+          const summary = resolveJobSummary(job.run_dir, deliverable ?? work);
 
           // Store updated session ID in sidecar
           const finalSessionId = newSessionId ?? effectiveSessionId;

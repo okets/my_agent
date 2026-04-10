@@ -170,20 +170,22 @@ export class HeartbeatService {
   }
 
   private formatNotification(n: PersistentNotification): string {
-    const mediatorFraming =
+    const verbatimFraming =
+      "Forward these results to the user verbatim. Adjust tone for conversation but do not summarize, paraphrase, or editorialize the content. Don't acknowledge the system message itself.";
+    const naturalFraming =
       "You are the conversation layer — present what matters to the user naturally. Don't acknowledge the system message itself.";
 
     switch (n.type) {
       case "job_completed":
-        return `A working agent completed a task.\n\nResults: ${n.summary}\n\n${mediatorFraming}`;
+        return `Background work results:\n\n${n.summary}\n\n${verbatimFraming}`;
       case "job_failed":
-        return `A working agent failed.\n\nError: ${n.summary}\n\n${mediatorFraming} If the error seems transient, suggest re-triggering.`;
+        return `A background task failed.\n\nError: ${n.summary}\n\n${naturalFraming} If the error seems transient, suggest re-triggering.`;
       case "job_interrupted":
-        return `A working agent was interrupted (stale — no activity for 5+ minutes).\n\nProgress: ${n.todos_completed ?? 0}/${n.todos_total ?? 0} items done.\nIncomplete: ${n.incomplete_items?.join(", ") || "unknown"}\nResumable: ${n.resumable ? "yes" : "no"}\n\n${mediatorFraming}`;
+        return `A background task was interrupted (stale — no activity for 5+ minutes).\n\nProgress: ${n.todos_completed ?? 0}/${n.todos_total ?? 0} items done.\nIncomplete: ${n.incomplete_items?.join(", ") || "unknown"}\nResumable: ${n.resumable ? "yes" : "no"}\n\n${naturalFraming}`;
       case "job_needs_review":
-        return `A working agent needs your review.\n\n${n.summary}\n\n${mediatorFraming}`;
+        return `A background task needs your review.\n\n${n.summary}\n\n${naturalFraming}`;
       default:
-        return `[Notification] ${n.summary}\n\n${mediatorFraming}`;
+        return `[Notification] ${n.summary}\n\n${naturalFraming}`;
     }
   }
 }

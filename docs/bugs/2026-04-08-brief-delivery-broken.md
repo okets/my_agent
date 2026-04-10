@@ -2,6 +2,8 @@
 title: "Morning brief delivery broken — truncated, paraphrased, context-contaminated"
 priority: high
 created: 2026-04-08
+status: fixed
+fixed_in: M9.4-S4
 ---
 
 # Bug: Morning brief is truncated, re-paraphrased, and contaminated by conversation context
