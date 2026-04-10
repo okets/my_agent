@@ -6,14 +6,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 /**
- * M9.3-S3.5: Source channel routing tests
+ * Heartbeat source_channel routing tests
  *
- * Verifies the heartbeat delivery logic respects source_channel:
- * - Dashboard-sourced notifications wait for web session (no WhatsApp bleed)
- * - Escalation after 60 attempts (~30 min)
- * - Undefined source_channel falls through to initiate() immediately
- * - Backward compat: missing source_channel treated as undefined
- * - Any source_channel + successful alert() → delivered normally
+ * Post-S1 simplified model:
+ * - alert() returns true → delivered (regardless of source)
+ * - alert() returns false → fallback to initiate() (regardless of source)
+ * - source_channel passed through to alert() for channel routing decisions
  */
 
 function makeNotification(
@@ -40,7 +38,7 @@ describe("Heartbeat source_channel routing", () => {
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "source-channel-test-"));
     queue = new PersistentNotificationQueue(tempDir);
-    alertFn = vi.fn().mockResolvedValue(false); // default: no active web conversation
+    alertFn = vi.fn().mockResolvedValue(false); // default: no current conversation
     initiateFn = vi.fn().mockResolvedValue({});
 
     heartbeat = new HeartbeatService({
@@ -59,33 +57,33 @@ describe("Heartbeat source_channel routing", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("dashboard-sourced + alert fails → stays in queue, no initiate()", async () => {
+  it("dashboard-sourced + alert fails → falls back to initiate()", async () => {
     queue.enqueue(makeNotification({ source_channel: "dashboard" }));
 
-    // Trigger delivery manually
     await (heartbeat as any).deliverPendingNotifications();
 
-    // alert was called
+    // alert was called with sourceChannel
     expect(alertFn).toHaveBeenCalledTimes(1);
-    // initiate was NOT called (no WhatsApp bleed)
-    expect(initiateFn).not.toHaveBeenCalled();
-    // Notification still pending (not delivered)
-    expect(queue.listPending()).toHaveLength(1);
-    // Delivery attempts incremented
-    expect(queue.listPending()[0].delivery_attempts).toBe(1);
+    expect(alertFn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ sourceChannel: "dashboard" }),
+    );
+    // S1 simplified model: alert fails → initiate as fallback
+    expect(initiateFn).toHaveBeenCalledTimes(1);
+    // Notification delivered via fallback
+    expect(queue.listPending()).toHaveLength(0);
   });
 
-  it("dashboard-sourced after 60 attempts → escalates to initiate()", async () => {
-    queue.enqueue(
-      makeNotification({ source_channel: "dashboard", delivery_attempts: 60 }),
-    );
+  it("alert passes sourceChannel through to conversationInitiator", async () => {
+    alertFn.mockResolvedValue(true);
+    queue.enqueue(makeNotification({ source_channel: "dashboard" }));
 
     await (heartbeat as any).deliverPendingNotifications();
 
-    // Should escalate — initiate() called
-    expect(initiateFn).toHaveBeenCalledTimes(1);
-    // Notification delivered (moved from pending)
-    expect(queue.listPending()).toHaveLength(0);
+    expect(alertFn).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ sourceChannel: "dashboard" }),
+    );
   });
 
   it("undefined source_channel + alert fails → initiate() immediately", async () => {
@@ -111,7 +109,7 @@ describe("Heartbeat source_channel routing", () => {
   });
 
   it("any source_channel + alert succeeds → delivered normally", async () => {
-    alertFn.mockResolvedValue(true); // active web conversation
+    alertFn.mockResolvedValue(true); // current conversation exists
     queue.enqueue(makeNotification({ source_channel: "dashboard" }));
 
     await (heartbeat as any).deliverPendingNotifications();

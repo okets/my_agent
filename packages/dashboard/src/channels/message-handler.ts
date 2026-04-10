@@ -333,7 +333,7 @@ export class ChannelMessageHandler {
 
       // Unpin current conversation if it exists
       if (existingConversation) {
-        await this.deps.app!.conversations.unpin(existingConversation.id);
+        await this.deps.app.conversations.unpin(existingConversation.id);
 
         // Broadcast unpin to dashboard
         this.deps.connectionRegistry.broadcastToAll({
@@ -344,7 +344,7 @@ export class ChannelMessageHandler {
 
       // Create new pinned conversation (inherits model)
       const title = first.senderName ?? first.groupName ?? undefined;
-      const newConversation = await this.deps.app!.conversations.create({
+      const newConversation = await this.deps.app.conversations.create({
         externalParty,
         title,
         model: currentModel,
@@ -447,13 +447,13 @@ export class ChannelMessageHandler {
 
     // Existing channel conversation receiving a message becomes current
     if (conversation && conversation.status !== "current") {
-      await this.deps.app!.conversations.makeCurrent(conversation.id);
+      await this.deps.app.conversations.makeCurrent(conversation.id);
     }
 
     if (!conversation) {
       // Create new conversation for this channel + party
       const title = first.senderName ?? first.groupName ?? undefined;
-      conversation = await this.deps.app!.conversations.create({
+      conversation = await this.deps.app.conversations.create({
         externalParty,
         title,
       });

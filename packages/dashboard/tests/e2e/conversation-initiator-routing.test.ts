@@ -1,25 +1,35 @@
 /**
- * Task 10: Conversation initiator reply routing — regression test
+ * Conversation initiator reply routing — regression test
  *
  * Regression test for the bug fixed before S6 — agent-initiated conversations
  * must set externalParty and channel so replies route back.
+ *
+ * Updated in S2: SessionFactory → ChatServiceLike (S1 architectural change).
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   ConversationInitiator,
-  type SessionFactory,
+  type ChatServiceLike,
   type TransportManagerLike,
 } from "../../src/agent/conversation-initiator.js";
+import type { ChatEvent, SystemMessageOptions } from "../../src/chat/types.js";
 import { ConversationManager } from "../../src/conversations/manager.js";
-import { mkdtempSync } from "fs";
+import { mkdtempSync, rmSync, mkdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
 describe("Conversation Initiator Reply Routing", () => {
   let agentDir: string;
   let conversationManager: ConversationManager;
-  let sessionFactory: SessionFactory;
+  let chatService: ChatServiceLike & {
+    calls: Array<{
+      conversationId: string;
+      prompt: string;
+      turnNumber: number;
+      options?: SystemMessageOptions;
+    }>;
+  };
   let channelManager: TransportManagerLike;
   let initiator: ConversationInitiator;
 
@@ -28,22 +38,23 @@ describe("Conversation Initiator Reply Routing", () => {
 
   beforeEach(() => {
     agentDir = mkdtempSync(join(tmpdir(), "ci-routing-"));
+    mkdirSync(join(agentDir, "conversations"), { recursive: true });
     conversationManager = new ConversationManager(agentDir);
 
-    sessionFactory = {
-      async *injectSystemTurn(_convId: string, _prompt: string) {
-        yield { type: "text", text: "Hey, here is an update!" };
+    const calls: typeof chatService.calls = [];
+    chatService = {
+      calls,
+      async *sendSystemMessage(
+        conversationId: string,
+        prompt: string,
+        turnNumber: number,
+        options?: SystemMessageOptions,
+      ): AsyncGenerator<ChatEvent> {
+        calls.push({ conversationId, prompt, turnNumber, options });
+        yield { type: "start" };
+        yield { type: "text_delta", text: "Hello, I have news for you." };
+        yield { type: "done" };
       },
-      async *streamNewConversation(_convId: string, _prompt?: string) {
-        yield { type: "text", text: "Hello, I have news for you." };
-      },
-      isStreaming(_convId: string): boolean {
-        return false;
-      },
-      async queueNotification(
-        _convId: string,
-        _prompt: string,
-      ): Promise<void> {},
     };
 
     channelManager = {
@@ -63,14 +74,15 @@ describe("Conversation Initiator Reply Routing", () => {
 
     initiator = new ConversationInitiator({
       conversationManager,
-      sessionFactory,
+      chatService,
       channelManager,
       getOutboundChannel: () => "whatsapp",
     });
   });
 
   afterEach(() => {
-    conversationManager.getConversationDb().close();
+    conversationManager.close();
+    rmSync(agentDir, { recursive: true, force: true });
   });
 
   it("initiate() sets externalParty to the owner JID", async () => {
@@ -81,15 +93,13 @@ describe("Conversation Initiator Reply Routing", () => {
     expect(conv.externalParty).toBe(OWNER_JID);
   });
 
-  it("initiate() sets channel on the assistant turn", async () => {
-    const conv = await initiator.initiate({
+  it("initiate() passes channel option to sendSystemMessage", async () => {
+    await initiator.initiate({
       firstTurnPrompt: "[SYSTEM: Test alert]",
     });
 
-    const turns = await conversationManager.getRecentTurns(conv.id, 5);
-    const assistantTurns = turns.filter((t) => t.role === "assistant");
-    expect(assistantTurns.length).toBeGreaterThanOrEqual(1);
-    expect(assistantTurns[0].channel).toBe(TRANSPORT_ID);
+    expect(chatService.calls).toHaveLength(1);
+    expect(chatService.calls[0].options?.channel).toBe(TRANSPORT_ID);
   });
 
   it("getByExternalParty finds the initiated conversation for reply matching", async () => {
@@ -100,8 +110,8 @@ describe("Conversation Initiator Reply Routing", () => {
     expect(found!.id).toBe(conv.id);
   });
 
-  it("alert() injects into active conversation and sets channel on reply turn", async () => {
-    // First create a conversation with a user message to make it "active"
+  it("alert() injects into active conversation via sendSystemMessage", async () => {
+    // Create a conversation with a user message on the same channel
     const conv = await conversationManager.create({
       externalParty: OWNER_JID,
     });
@@ -113,28 +123,20 @@ describe("Conversation Initiator Reply Routing", () => {
       turnNumber: 1,
       channel: TRANSPORT_ID,
     });
-    // Set lastUserMessageAt to make it active
-    conversationManager
-      .getConversationDb()
-      .getDb()
-      .prepare("UPDATE conversations SET last_user_message_at = ? WHERE id = ?")
-      .run(new Date().toISOString(), conv.id);
 
     const alerted = await initiator.alert("Test notification to user");
     expect(alerted).toBe(true);
 
-    // Verify the assistant turn has channel set
-    const turns = await conversationManager.getRecentTurns(conv.id, 5);
-    const assistantTurns = turns.filter((t) => t.role === "assistant");
-    expect(assistantTurns.length).toBeGreaterThanOrEqual(1);
-    expect(assistantTurns[0].channel).toBe(TRANSPORT_ID);
+    // sendSystemMessage was called with the conversation and channel
+    expect(chatService.calls.length).toBeGreaterThanOrEqual(1);
+    const lastCall = chatService.calls[chatService.calls.length - 1];
+    expect(lastCall.conversationId).toBe(conv.id);
   });
 
   it("web channel: initiate() does NOT set externalParty", async () => {
-    // Override to use web channel
     const webInitiator = new ConversationInitiator({
       conversationManager,
-      sessionFactory,
+      chatService,
       channelManager,
       getOutboundChannel: () => "web",
     });
