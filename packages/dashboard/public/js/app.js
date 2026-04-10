@@ -1579,13 +1579,13 @@ function chat() {
                 data.conversation.id;
             }
 
-            // Load turns for channel-originated conversations (the WS
-            // adapter needs to know which conversation to stream to)
-            if (shouldLoadTurns && this.wsConnected) {
-              this.ws.send({
-                type: "switch_conversation",
-                conversationId: data.conversation.id,
-              });
+            // For channel-originated conversations, DON'T send switch_conversation
+            // — it would load empty turns (user turn isn't saved yet).
+            // Instead, clear the turns and let streaming events build the UI:
+            // conversation_updated (user turn) → start → text_delta → done.
+            if (shouldLoadTurns) {
+              this.turns = [];
+              this.isStreaming = false;
             }
 
             // If there's a pending event prompt, send it now
