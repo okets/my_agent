@@ -370,6 +370,7 @@ export class App extends EventEmitter {
   automationScheduler: AutomationScheduler | null = null;
   automationSyncService: AutomationSyncService | null = null;
   watchTriggerService: WatchTriggerService | null = null;
+  notificationQueue: PersistentNotificationQueue | null = null;
 
   // Health
   healthMonitor: HealthMonitor | null = null;
@@ -1199,6 +1200,7 @@ export class App extends EventEmitter {
         const notificationQueue = new PersistentNotificationQueue(
           join(agentDir, "notifications"),
         );
+        app.notificationQueue = notificationQueue;
 
         app.automationProcessor = new AutomationProcessor({
           automationManager: app.automationManager,

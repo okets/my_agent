@@ -264,11 +264,30 @@ export async function registerAutomationRoutes(
           return reply.code(503).send({ error: "Job service not initialized" });
         }
 
+        const job = jobService.getJob(request.params.id);
+        if (!job) {
+          return reply.code(404).send({ error: "Job not found" });
+        }
+
         jobService.updateJob(request.params.id, {
           status: "failed",
           completed: new Date().toISOString(),
           summary: "Stopped by user",
         });
+
+        // Notify the brain so it can tell the user naturally
+        if (app.notificationQueue) {
+          const automation = app.automationManager?.findById(job.automationId);
+          const name = automation?.manifest.name ?? job.automationId;
+          app.notificationQueue.enqueue({
+            job_id: job.id,
+            automation_id: job.automationId,
+            type: "job_failed",
+            summary: `[${name}] Stopped by user.`,
+            created: new Date().toISOString(),
+            delivery_attempts: 0,
+          });
+        }
 
         return { ok: true, message: "Job stopped" };
       } catch (err) {
