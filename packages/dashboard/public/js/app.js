@@ -1446,14 +1446,6 @@ function chat() {
               lastMsg.cost = data.cost;
             }
           }
-          // Tag the latest assistant message index for delegation progress matching
-          // (progress bar is attached in _syncDelegationProgress when new once:true jobs appear)
-          {
-            const lastMsg = this.messages[this.messages.length - 1];
-            if (lastMsg?.role === "assistant") {
-              lastMsg._doneTimestamp = Date.now();
-            }
-          }
           // Auto-refresh calendar after agent completes calendar-related response
           if (this._isCalendarConversation && this.calendar) {
             console.log("[App] Calendar conversation done, refreshing events");
@@ -1926,73 +1918,11 @@ function chat() {
           break;
 
         case "state:jobs":
-          // Handled by ws-client.js → Alpine store, then sync progress bars
-          this.$nextTick(() => this._syncDelegationProgress(data.jobs || []));
+          // Handled by ws-client.js → Alpine store
           break;
 
         default:
           console.warn("[App] Unknown message type:", data.type);
-      }
-    },
-
-    // Update delegation progress bars when state:jobs arrives
-    // Matches once:true running jobs to the most recent assistant message
-    _syncDelegationProgress(jobs) {
-      const automations = Alpine.store("automations")?.items || [];
-
-      // Find once:true jobs that are running or recently completed
-      const onceJobs = jobs.filter((j) => {
-        const automation = automations.find((a) => a.id === j.automationId);
-        return automation?.once && (j.status === "running" || j.status === "completed");
-      });
-
-      for (const job of onceJobs) {
-        // Find the message already tracking this job
-        let msg = this.messages.find((m) => m.delegationAutomationId === job.automationId);
-
-        // If no message is tracking this job yet, attach to the most recent assistant message
-        // that was completed around when this job started (within 30s window)
-        if (!msg && job.status === "running") {
-          const jobCreated = new Date(job.created).getTime();
-          for (let i = this.messages.length - 1; i >= 0; i--) {
-            const m = this.messages[i];
-            if (m.role !== "assistant" || m.delegationAutomationId) continue;
-            // Match if the message was completed within 30s before the job was created
-            const msgTime = m._doneTimestamp || 0;
-            if (msgTime && Math.abs(jobCreated - msgTime) < 30000) {
-              m.delegationAutomationId = job.automationId;
-              msg = m;
-              break;
-            }
-          }
-        }
-
-        if (!msg) continue;
-
-        const isDone =
-          job.status === "completed" ||
-          (job.todoProgress &&
-            job.todoProgress.done >= job.todoProgress.total &&
-            job.todoProgress.total > 0);
-
-        if (isDone && !msg.delegationProgress?.fading) {
-          msg.delegationProgress = {
-            done: job.todoProgress?.total ?? 1,
-            total: job.todoProgress?.total ?? 1,
-            current: null,
-            fading: true,
-          };
-          setTimeout(() => {
-            msg.delegationProgress = null;
-          }, 2000);
-        } else if (!isDone && job.todoProgress) {
-          msg.delegationProgress = {
-            done: job.todoProgress.done,
-            total: job.todoProgress.total,
-            current: job.todoProgress.current,
-            fading: false,
-          };
-        }
       }
     },
 
