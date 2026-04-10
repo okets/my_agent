@@ -5648,20 +5648,6 @@
                       <div x-html="msg.controlsHtml" class="mt-2"></div>
                     </template>
 
-                    <!-- Delegation progress bar (once:true auto-fire jobs) -->
-                    <template x-if="msg.delegationProgress">
-                      <div class="mt-2" :style="msg.delegationProgress.fading ? 'opacity:0;transition:opacity 0.6s ease' : 'opacity:1;transition:opacity 0.3s ease'">
-                        <div style="background:#292e42;border-radius:9999px;height:4px;width:100%">
-                          <div style="background:#7aa2f7;border-radius:9999px;height:100%;transition:width 0.3s ease"
-                               :style="'width:' + (msg.delegationProgress.total > 0 ? Math.round(msg.delegationProgress.done / msg.delegationProgress.total * 100) : 0) + '%'">
-                          </div>
-                        </div>
-                        <div class="mt-1 text-xs truncate" style="color:#565f89"
-                             x-text="msg.delegationProgress.fading ? 'Done' : (msg.delegationProgress.done + '/' + msg.delegationProgress.total + (msg.delegationProgress.current ? ' \u2014 ' + msg.delegationProgress.current : ''))">
-                        </div>
-                      </div>
-                    </template>
-
                     <!-- Audio player (shown when TTS response available) -->
                     <template x-if="msg.audioUrl">
                       <div class="mt-2">
@@ -5868,6 +5854,54 @@
             </div>
           </template>
         </main>
+
+        <!-- Job progress cards (sticky above compose) -->
+        <div x-data="progressCard()" class="shrink-0 px-3 flex flex-col gap-1.5"
+             x-show="cards.length > 0">
+          <template x-for="job in cards" :key="job.id">
+            <div class="glass-strong rounded-lg overflow-hidden transition-opacity duration-500"
+                 :style="isFading(job.id) ? 'opacity:0' : 'opacity:1'"
+                 style="border: 1px solid rgba(255,255,255,0.08)">
+
+              <!-- Collapsed view: shows current step text + done/total counter -->
+              <div x-show="!isExpanded(job.id)"
+                   @click="toggle(job.id)"
+                   class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none">
+                <span class="text-blue-400 text-xs">●</span>
+                <span class="text-xs text-tokyo-text truncate flex-1"
+                      x-text="isDone(job.id) ? 'Done' : (currentStepText(job) || job.automationName || 'Job')"></span>
+                <span class="text-xs text-gray-500 shrink-0"
+                      x-text="isDone(job.id) ? '✓' : (job.todoProgress?.done + '/' + job.todoProgress?.total)"></span>
+              </div>
+
+              <!-- Expanded view: header with job name + step list -->
+              <div x-show="isExpanded(job.id)" x-cloak>
+                <!-- Header -->
+                <div class="flex items-center gap-2 px-3 py-2">
+                  <span class="text-blue-400 text-xs">●</span>
+                  <span class="text-xs text-tokyo-text truncate flex-1 cursor-pointer select-none"
+                        @click="toggle(job.id)"
+                        x-text="job.automationName || 'Job'"></span>
+                  <button @click.stop="dismiss(job.id)"
+                          class="text-gray-500 hover:text-gray-300 text-xs leading-none p-0.5">✕</button>
+                </div>
+                <!-- Step list (max 4 visible, scrolls) -->
+                <div class="max-h-[6.5rem] overflow-y-auto px-3 pb-2" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent">
+                  <template x-for="item in job.todoProgress?.items || []" :key="item.id">
+                    <div class="flex items-start gap-2 py-0.5">
+                      <span class="text-xs leading-5 shrink-0" :class="statusClass(item.status)"
+                            x-text="statusIcon(item.status)"></span>
+                      <span class="text-xs leading-5 truncate"
+                            :class="item.status === 'in_progress' ? 'text-blue-400' : (item.status === 'done' ? 'text-green-400/60' : (item.status === 'blocked' ? 'text-orange-400/60' : 'text-gray-500'))"
+                            x-text="item.text"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+            </div>
+          </template>
+        </div>
 
         <!-- Compose area -->
         <footer class="shrink-0 p-3">
@@ -8752,20 +8786,6 @@
                       <div x-html="msg.controlsHtml" class="mt-2"></div>
                     </template>
 
-                    <!-- Delegation progress bar (once:true auto-fire jobs) -->
-                    <template x-if="msg.delegationProgress">
-                      <div class="mt-2" :style="msg.delegationProgress.fading ? 'opacity:0;transition:opacity 0.6s ease' : 'opacity:1;transition:opacity 0.3s ease'">
-                        <div style="background:#292e42;border-radius:9999px;height:4px;width:100%">
-                          <div style="background:#7aa2f7;border-radius:9999px;height:100%;transition:width 0.3s ease"
-                               :style="'width:' + (msg.delegationProgress.total > 0 ? Math.round(msg.delegationProgress.done / msg.delegationProgress.total * 100) : 0) + '%'">
-                          </div>
-                        </div>
-                        <div class="mt-1 text-xs truncate" style="color:#565f89"
-                             x-text="msg.delegationProgress.fading ? 'Done' : (msg.delegationProgress.done + '/' + msg.delegationProgress.total + (msg.delegationProgress.current ? ' \u2014 ' + msg.delegationProgress.current : ''))">
-                        </div>
-                      </div>
-                    </template>
-
                     <!-- Audio player (shown when TTS response available) -->
                     <template x-if="msg.audioUrl">
                       <div class="mt-2">
@@ -8813,6 +8833,54 @@
               </template>
             </div>
           </div><!-- end sub-header + messages wrapper -->
+
+          <!-- Job progress cards (sticky above compose — mobile) -->
+          <div x-data="progressCard()" class="shrink-0 px-3 pb-1 flex flex-col gap-1.5"
+               x-show="cards.length > 0">
+            <template x-for="job in cards" :key="job.id">
+              <div class="glass-strong rounded-lg overflow-hidden transition-opacity duration-500"
+                   :style="isFading(job.id) ? 'opacity:0' : 'opacity:1'"
+                   style="border: 1px solid rgba(255,255,255,0.08)">
+
+                <!-- Collapsed view: shows current step text + done/total counter -->
+                <div x-show="!isExpanded(job.id)"
+                     @click="toggle(job.id)"
+                     class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none">
+                  <span class="text-blue-400 text-xs">●</span>
+                  <span class="text-xs text-tokyo-text truncate flex-1"
+                        x-text="isDone(job.id) ? 'Done' : (currentStepText(job) || job.automationName || 'Job')"></span>
+                  <span class="text-xs text-gray-500 shrink-0"
+                        x-text="isDone(job.id) ? '✓' : (job.todoProgress?.done + '/' + job.todoProgress?.total)"></span>
+                </div>
+
+                <!-- Expanded view: header with job name + step list -->
+                <div x-show="isExpanded(job.id)" x-cloak>
+                  <!-- Header -->
+                  <div class="flex items-center gap-2 px-3 py-2">
+                    <span class="text-blue-400 text-xs">●</span>
+                    <span class="text-xs text-tokyo-text truncate flex-1 cursor-pointer select-none"
+                          @click="toggle(job.id)"
+                          x-text="job.automationName || 'Job'"></span>
+                    <button @click.stop="dismiss(job.id)"
+                            class="text-gray-500 hover:text-gray-300 text-xs leading-none p-0.5">✕</button>
+                  </div>
+                  <!-- Step list (max 4 visible, scrolls) -->
+                  <div class="max-h-[6.5rem] overflow-y-auto px-3 pb-2" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent">
+                    <template x-for="item in job.todoProgress?.items || []" :key="item.id">
+                      <div class="flex items-start gap-2 py-0.5">
+                        <span class="text-xs leading-5 shrink-0" :class="statusClass(item.status)"
+                              x-text="statusIcon(item.status)"></span>
+                        <span class="text-xs leading-5 truncate"
+                              :class="item.status === 'in_progress' ? 'text-blue-400' : (item.status === 'done' ? 'text-green-400/60' : (item.status === 'blocked' ? 'text-orange-400/60' : 'text-gray-500'))"
+                              x-text="item.text"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+              </div>
+            </template>
+          </div>
 
           <!-- Compose bar (ALWAYS visible — shared between peek and expanded) -->
           <div class="chat-compose-bar shrink-0 p-3 border-t border-white/5"
@@ -9018,6 +9086,7 @@
 
     <!-- App logic (must load before Alpine processes x-data) -->
     <script src="js/stores.js?v=__BUILD_VERSION__"></script>
+    <script src="js/progress-card.js?v=__BUILD_VERSION__"></script>
     <script src="js/mobile.js?v=__BUILD_VERSION__"></script>
     <script src="js/ws-client.js?v=__BUILD_VERSION__"></script>
     <script src="js/chat-controls.js?v=__BUILD_VERSION__"></script>

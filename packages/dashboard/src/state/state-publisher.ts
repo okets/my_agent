@@ -532,7 +532,12 @@ export class StatePublisher {
               if (todoFile.items.length === 0) return undefined
               const done = todoFile.items.filter(i => i.status === 'done').length
               const inProgress = todoFile.items.find(i => i.status === 'in_progress')
-              return { done, total: todoFile.items.length, current: inProgress?.text ?? null }
+              return {
+                done,
+                total: todoFile.items.length,
+                current: inProgress?.text ?? null,
+                items: todoFile.items.map(i => ({ id: i.id, text: i.text, status: i.status })),
+              }
             } catch {
               return undefined
             }
