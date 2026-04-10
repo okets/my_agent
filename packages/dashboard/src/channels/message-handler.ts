@@ -609,7 +609,7 @@ export class ChannelMessageHandler {
     this.deps.connectionRegistry.broadcastToAll({
       type: "conversation_ready",
       conversationId: conversation.id,
-    } as any);
+    });
   }
 
   /**

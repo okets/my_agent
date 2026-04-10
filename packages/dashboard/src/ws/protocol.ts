@@ -168,6 +168,7 @@ export type ServerMessage =
       ownerName: string | null;
     }
   | { type: "conversation_unpinned"; conversationId: string }
+  | { type: "conversation_ready"; conversationId: string }
   | {
       type: "conversation_model_changed";
       conversationId: string;
