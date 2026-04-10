@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { chromium, type Browser, type Page } from "playwright";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || "http://localhost:4321";
@@ -124,6 +124,7 @@ describe.skipIf(!dashboardAvailable)(
 
     afterAll(async () => {
       await browser?.close();
+      rmSync(SCREENSHOT_DIR, { recursive: true, force: true });
     });
 
     beforeEach(async () => {
