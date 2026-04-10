@@ -1,3 +1,5 @@
+import type { TodoStatus } from "@my-agent/core";
+
 // Attachment type for file uploads
 export interface Attachment {
   filename: string;
@@ -314,7 +316,7 @@ export interface JobSnapshot {
     done: number
     total: number
     current: string | null
-    items: Array<{ id: string; text: string; status: import("@my-agent/core").TodoStatus }>
+    items: Array<{ id: string; text: string; status: TodoStatus }>
   }
 }
 
