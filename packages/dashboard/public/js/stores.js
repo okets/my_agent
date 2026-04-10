@@ -37,9 +37,34 @@ document.addEventListener("alpine:init", () => {
   Alpine.store("jobs", {
     items: [],
     loading: true,
+    dismissed: [],  // job IDs the user closed with ✕
+
     update(jobs) {
       this.items = jobs;
       this.loading = false;
+    },
+
+    /**
+     * Running jobs with todoProgress, sorted newest first, max 2.
+     * Excludes dismissed cards.
+     */
+    get activeCards() {
+      return this.items
+        .filter(j => j.status === "running" && j.todoProgress && j.todoProgress.items?.length > 0 && !this.dismissed.includes(j.id))
+        .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+        .slice(0, 2);
+    },
+
+    /**
+     * Recently completed jobs (for fade-out), max 2.
+     * Cleared from this list after 2s timeout in the component.
+     */
+    completedCards: [],
+
+    dismiss(jobId) {
+      if (!this.dismissed.includes(jobId)) {
+        this.dismissed.push(jobId);
+      }
     },
   });
 
