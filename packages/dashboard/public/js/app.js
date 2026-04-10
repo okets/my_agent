@@ -1621,7 +1621,7 @@ function chat() {
           if (data.conversationId === this.currentConversationId) {
             // Check if this is a user turn from this tab — update content/attachments
             if (data.turn.role === "user") {
-              // Find the matching message — by attachments or by voice message placeholder
+              // Check if we already have this user message locally
               let foundLocal = false;
               for (let i = this.messages.length - 1; i >= 0; i--) {
                 const msg = this.messages[i];
@@ -1634,6 +1634,7 @@ function chat() {
                       att.preview.startsWith("blob:")),
                 );
                 const isVoicePlaceholder = msg.content === "[Voice message]";
+                const isSameContent = msg.content === data.turn.content;
 
                 if (hasLocalAttachments || isVoicePlaceholder) {
                   // Update attachment URLs if present
@@ -1647,6 +1648,11 @@ function chat() {
                     msg.content = data.turn.content;
                     msg.renderedContent = this.renderMarkdown(data.turn.content);
                   }
+                  foundLocal = true;
+                  break;
+                }
+                // Plain text message already displayed from this tab
+                if (isSameContent) {
                   foundLocal = true;
                   break;
                 }
