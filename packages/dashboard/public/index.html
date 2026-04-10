@@ -5896,6 +5896,22 @@
                     </div>
                   </template>
                 </div>
+                <!-- Stop button -->
+                <div class="px-3 pb-2 flex justify-end" @click.stop>
+                  <template x-if="!isConfirming(job.id)">
+                    <button @click="requestStop(job.id)"
+                            class="text-[10px] px-2 py-0.5 rounded text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors">Stop</button>
+                  </template>
+                  <template x-if="isConfirming(job.id)">
+                    <div class="flex items-center gap-2">
+                      <span class="text-[10px] text-gray-400">Stop this job?</span>
+                      <button @click="confirmStop(job.id)"
+                              class="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">Yes</button>
+                      <button @click="cancelStop(job.id)"
+                              class="text-[10px] px-2 py-0.5 rounded text-gray-400 hover:text-gray-300 hover:bg-white/5 transition-colors">No</button>
+                    </div>
+                  </template>
+                </div>
               </div>
 
             </div>
@@ -8871,6 +8887,22 @@
                         <span class="text-xs leading-5 truncate"
                               :class="item.status === 'in_progress' ? 'text-blue-400' : (item.status === 'done' ? 'text-green-400/60' : (item.status === 'blocked' ? 'text-orange-400/60' : 'text-gray-500'))"
                               x-text="item.text"></span>
+                      </div>
+                    </template>
+                  </div>
+                  <!-- Stop button -->
+                  <div class="px-3 pb-2 flex justify-end" @click.stop>
+                    <template x-if="!isConfirming(job.id)">
+                      <button @click="requestStop(job.id)"
+                              class="text-[10px] px-2 py-0.5 rounded text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors">Stop</button>
+                    </template>
+                    <template x-if="isConfirming(job.id)">
+                      <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-gray-400">Stop this job?</span>
+                        <button @click="confirmStop(job.id)"
+                                class="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">Yes</button>
+                        <button @click="cancelStop(job.id)"
+                                class="text-[10px] px-2 py-0.5 rounded text-gray-400 hover:text-gray-300 hover:bg-white/5 transition-colors">No</button>
                       </div>
                     </template>
                   </div>

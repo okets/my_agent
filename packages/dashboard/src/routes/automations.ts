@@ -249,6 +249,36 @@ export async function registerAutomationRoutes(
     },
   );
 
+  // POST /api/jobs/:id/stop — stop a running job
+  fastify.post<{ Params: { id: string } }>(
+    "/api/jobs/:id/stop",
+    async (request, reply) => {
+      const app = fastify.app;
+      if (!app?.automationManager) {
+        return reply.code(503).send({ error: "Automations not initialized" });
+      }
+
+      try {
+        const jobService = app.automationJobService;
+        if (!jobService) {
+          return reply.code(503).send({ error: "Job service not initialized" });
+        }
+
+        jobService.updateJob(request.params.id, {
+          status: "failed",
+          completed: new Date().toISOString(),
+          summary: "Stopped by user",
+        });
+
+        return { ok: true, message: "Job stopped" };
+      } catch (err) {
+        return reply.code(400).send({
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+      }
+    },
+  );
+
   // PATCH /api/automations/:id — update automation manifest fields
   fastify.patch<{
     Params: { id: string };

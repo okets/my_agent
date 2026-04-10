@@ -8,7 +8,8 @@
 function progressCard() {
   return {
     expanded: {},     // { [jobId]: boolean }
-    fading: {},       // { [jobId]: true } — cards in 2s fade-out
+    fading: {},       // { [jobId]: "done" | "fading" }
+    confirming: {},   // { [jobId]: true } — stop confirmation pending
 
     get cards() {
       const store = Alpine.store("jobs");
@@ -26,6 +27,28 @@ function progressCard() {
     dismiss(jobId) {
       Alpine.store("jobs").dismiss(jobId);
       delete this.expanded[jobId];
+      delete this.confirming[jobId];
+    },
+
+    isConfirming(jobId) {
+      return this.confirming[jobId] || false;
+    },
+
+    requestStop(jobId) {
+      this.confirming[jobId] = true;
+    },
+
+    cancelStop(jobId) {
+      delete this.confirming[jobId];
+    },
+
+    async confirmStop(jobId) {
+      delete this.confirming[jobId];
+      try {
+        await fetch(`/api/jobs/${jobId}/stop`, { method: "POST" });
+      } catch (e) {
+        console.error("[progress-card] stop failed:", e);
+      }
     },
 
     isFading(jobId) {
