@@ -543,23 +543,44 @@ export class ChannelMessageHandler {
         },
       )) {
         switch (event.type) {
+          case "start":
+            // Broadcast start to WS clients so dashboard shows the conversation
+            this.deps.connectionRegistry.broadcastToConversation(
+              conversation.id, { type: "start" },
+            );
+            break;
           case "text_delta":
             if (firstToken) { responseTimer.cancel(); firstToken = false; }
             currentText += event.text;
+            // Stream to WS clients so dashboard shows live typing
+            this.deps.connectionRegistry.broadcastToConversation(
+              conversation.id, { type: "text_delta", content: event.text },
+            );
             break;
           case "turn_advanced":
             // Split: send ack immediately via channel
+            this.deps.connectionRegistry.broadcastToConversation(
+              conversation.id, { type: "done" },
+            );
             if (currentText.trim()) {
               await this.deps.sendViaTransport(channelId, replyTo, { content: currentText });
             }
             currentText = "";
             isFirstMessage = false;
+            // Signal new message to WS
+            this.deps.connectionRegistry.broadcastToConversation(
+              conversation.id, { type: "start" },
+            );
             break;
           case "done":
             // Capture detectedLanguage from STT (for TTS response)
             if ("detectedLanguage" in event && event.detectedLanguage) {
               detectedLanguage = event.detectedLanguage;
             }
+            // Broadcast done to WS clients
+            this.deps.connectionRegistry.broadcastToConversation(
+              conversation.id, { type: "done" },
+            );
             break;
         }
       }
