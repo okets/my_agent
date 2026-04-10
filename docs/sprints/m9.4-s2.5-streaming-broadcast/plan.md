@@ -2,15 +2,24 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move streaming event broadcasts (text_delta, done, etc.) from the WS adapter into the App layer so all callers of `sendMessage()` — dashboard, channels, alert() — automatically broadcast to all connected WebSocket clients. Remove the `conversation_ready` workaround.
+**Goal:** Move streaming event broadcasts (text_delta, done, etc.) from the WS adapter into the App layer so all callers of `sendMessage()` — dashboard, channels, alert() — automatically broadcast to all connected WebSocket clients. Remove the `conversation_ready` workaround. Sweep all remaining state mutations that bypass App events into the same pattern.
 
-**Root cause:** M6.10 established the principle "every App mutation emits events, adapters subscribe." Streaming events were the one exception — they're yielded by the `sendMessage()` generator but only the WS chat-handler sends them to the originating client. When the channel message-handler calls `sendMessage()`, nobody broadcasts to WS clients.
+**Root cause:** M6.10 established the principle "every App mutation emits events, adapters subscribe." Streaming events were the one exception — they're yielded by the `sendMessage()` generator but only the WS chat-handler sends them to the originating client. When the channel message-handler calls `sendMessage()`, nobody broadcasts to WS clients. An audit also found 6 other state mutation paths that bypass App events (direct DB writes + direct WS broadcasts).
 
-**The fix:** `ChatService.sendMessage()` emits `chat:*` App events as it yields generator events. A new subscriber in `index.ts` (the WS adapter layer) listens to these events and broadcasts via `connectionRegistry.broadcastToConversation()`. The chat-handler stops sending streaming events directly and receives them through the broadcast like any other client.
+**The fix:** `ChatService.sendMessage()` and `sendSystemMessage()` emit `chat:*` App events as they yield generator events. A new subscriber in `index.ts` (the WS adapter layer) listens to these events and broadcasts via `connectionRegistry.broadcastToConversation()`. The chat-handler stops sending streaming events directly and receives them through the broadcast like any other client. All remaining bypass paths (unpin, setModel, abbreviation rename, job:started, external messages) are routed through App event wrappers.
 
 **Design spec:** [conversation-ux-ui-design.md](../../superpowers/specs/2026-04-08-conversation-ux-ui-design.md) — S2.5 addendum
 
-**Also fixes:** 6 broken tests in `conversation-initiator-routing.test.ts` and `source-channel.test.ts` (S1-induced mock mismatches)
+**Also fixes:**
+- 6 broken tests in `conversation-initiator-routing.test.ts` and `source-channel.test.ts` (S1-induced mock mismatches)
+- `sendSystemMessage()` not emitting streaming events (alert/heartbeat invisible to dashboard)
+- `conversation_created` double-broadcast from message-handler + App event
+- `conversationManager.unpin()` called directly in message-handler (bypasses App events)
+- `setModel()` in message-handler bypasses App events
+- `AbbreviationQueue` rename uses bespoke callback instead of App events
+- `job:started` event never emitted despite being defined in AppEventMap
+- `ExternalMessageStore` writes directly to DB with no events
+- Split-path (tool use after text) missing `chat:start` for message 2
 
 ---
 
@@ -18,10 +27,16 @@
 
 | Action | File | Responsibility |
 |--------|------|----------------|
-| Modify | `packages/dashboard/src/chat/chat-service.ts` | Emit `chat:*` App events alongside generator yields |
+| Modify | `packages/dashboard/src/chat/chat-service.ts` | Emit `chat:*` App events alongside generator yields (incl. split-path) |
+| Modify | `packages/dashboard/src/chat/send-system-message.ts` | Emit `chat:start` and `chat:text_delta` App events |
+| Modify | `packages/dashboard/src/app-events.ts` | Add `chat:user_turn`, `chat:conversation_created`, `external_message:created` |
 | Modify | `packages/dashboard/src/index.ts` | Subscribe to `chat:*` events, broadcast via connectionRegistry |
-| Modify | `packages/dashboard/src/ws/chat-handler.ts` | Remove direct `send()` for streaming events; keep control events (conversation_created, user turn broadcast) |
-| Modify | `packages/dashboard/src/channels/message-handler.ts` | Remove `conversation_ready` broadcast |
+| Modify | `packages/dashboard/src/ws/chat-handler.ts` | Remove direct `send()` for streaming events; keep control events |
+| Modify | `packages/dashboard/src/channels/message-handler.ts` | Remove `conversation_ready` + duplicate broadcasts; route unpin/setModel through App |
+| Modify | `packages/dashboard/src/channels/external-store.ts` | Emit `external_message:created` App event |
+| Modify | `packages/dashboard/src/app.ts` | Add `setModel()` to AppConversationService; wire external store event |
+| Modify | `packages/dashboard/src/conversations/abbreviation.ts` | Emit `conversation:updated` App event instead of bespoke callback |
+| Modify | `packages/dashboard/src/automations/automation-processor.ts` | Emit `job:started` via onJobEvent callback |
 | Modify | `packages/dashboard/src/ws/protocol.ts` | Remove `conversation_ready` type |
 | Modify | `packages/dashboard/public/js/app.js` | Remove `conversation_ready` handler |
 | Modify | `packages/dashboard/tests/e2e/conversation-initiator-routing.test.ts` | Fix mock: SessionFactory → ChatServiceLike |
@@ -94,7 +109,30 @@ if (conversationCreated) {
 }
 ```
 
-- [ ] **Step 7: Type check**
+- [ ] **Step 7: Emit streaming events from `sendSystemMessage()`**
+
+`send-system-message.ts` is a separate code path used by `alert()` and heartbeat delivery. It currently only emits `chat:done` (line 89). Without the other events, alert responses are invisible to dashboard WS clients.
+
+In `send-system-message.ts`, add emits:
+
+```typescript
+// After yield { type: "start" as const } (line 52):
+app.emit("chat:start", conversationId);
+
+// After yield { type: "text_delta", text: event.text } (line 60):
+app.emit("chat:text_delta", conversationId, event.text);
+```
+
+- [ ] **Step 8: Emit `chat:start` for message 2 in split-path**
+
+When the assistant sends text then uses a tool, `sendMessage()` yields `done` to close message 1, then continues streaming message 2. The second segment has no `chat:start`. In `chat-service.ts`, after the split `yield { type: "done" }` (around line 714), add:
+
+```typescript
+// Signal start of message 2 (post-tool-use continuation)
+this.app.emit("chat:start", convId);
+```
+
+- [ ] **Step 9: Type check**
 
 ```bash
 cd packages/dashboard && npx tsc --noEmit
@@ -296,7 +334,16 @@ In `ws/protocol.ts`, remove:
 
 In `public/js/app.js`, remove the `case "conversation_ready"` block (lines 1589-1603).
 
-- [ ] **Step 4: Handle new channel conversations**
+- [ ] **Step 4: Remove duplicate `conversation_created` broadcasts from message-handler**
+
+Now that `chat:conversation_created` App event broadcasts to all WS clients (Task 2), the message-handler's direct `broadcastToAll({ type: "conversation_created", ... })` calls create duplicates. Remove them:
+
+- `/new` handler (around line 359): remove `broadcastToAll({ type: "conversation_created", ... })`
+- Normal message path (around line 462): remove `broadcastToAll({ type: "conversation_created", ... })`
+
+Both conversations are created via `app.conversations.create()` which emits `conversation:created` → StatePublisher already handles the conversation list update. The `chat:conversation_created` event handles the detailed broadcast.
+
+- [ ] **Step 5: Handle new channel conversations**
 
 When a channel message creates a new conversation (channel switch), the `chat:conversation_created` App event broadcasts it. The frontend's existing `conversation_created` handler should handle this — verify it switches to the new conversation and subscribes.
 
@@ -313,7 +360,7 @@ case "conversation_created":
   break;
 ```
 
-- [ ] **Step 5: Type check + test**
+- [ ] **Step 6: Type check + test**
 
 ```bash
 cd packages/dashboard && npx tsc --noEmit
@@ -401,7 +448,130 @@ Commit: `"fix(tests): update mocks for S1 ChatServiceLike + heartbeat simplifica
 
 ---
 
-## Task 6: Verification
+## Task 6: App Event Consistency Sweep
+
+**Files:**
+- Modify: `packages/dashboard/src/channels/message-handler.ts`
+- Modify: `packages/dashboard/src/app.ts`
+- Modify: `packages/dashboard/src/app-events.ts`
+- Modify: `packages/dashboard/src/conversations/abbreviation.ts`
+- Modify: `packages/dashboard/src/automations/automation-processor.ts`
+- Modify: `packages/dashboard/src/channels/external-store.ts`
+
+Audit found 5 state mutation paths that bypass App events — direct DB writes + direct WS broadcasts. Fix all of them.
+
+- [ ] **Step 1: Route `unpin()` through App in message-handler**
+
+In `message-handler.ts`, two locations (lines 302 and 318) call `conversationManager.unpin()` directly and broadcast `conversation_unpinned` manually. Replace with:
+
+```typescript
+// BEFORE (line 302):
+await this.deps.conversationManager.unpin(existingConversation.id);
+this.deps.connectionRegistry.broadcastToAll({
+  type: "conversation_unpinned",
+  conversationId: existingConversation.id,
+});
+
+// AFTER:
+await this.deps.app.conversations.unpin(existingConversation.id);
+```
+
+Same change at line 318. `AppConversationService.unpin()` already emits `conversation:updated` → StatePublisher refreshes the conversation list. The separate `conversation_unpinned` broadcast type may still be needed for the frontend — check if `app.js` handles it. If so, emit it as an App event or keep as a direct broadcast from the App wrapper.
+
+- [ ] **Step 2: Route `setModel()` through App in message-handler**
+
+In `message-handler.ts` (line 422), the `/model` command calls `conversationManager.setModel()` directly. Replace:
+
+```typescript
+// BEFORE:
+await this.deps.conversationManager.setModel(existingConversation.id, newModelId);
+
+// AFTER:
+await this.deps.app.chat.setModel(existingConversation.id, newModelId);
+```
+
+Also: `AppChatService.setModel()` (chat-service.ts line 331) doesn't emit `conversation:updated`. Add:
+
+```typescript
+async setModel(conversationId: string, model: string): Promise<void> {
+  // ...existing validation...
+  await this.conversationManager.setModel(conversationId, model);
+  this.app.emit("conversation:updated", conversationId);
+}
+```
+
+- [ ] **Step 3: Replace AbbreviationQueue bespoke callback with App event**
+
+In `abbreviation.ts` (line 245), after renaming a conversation, it calls `this.onRenamed?.(conversationId, result.title)` which is wired to `connectionRegistry.broadcastToAll` in chat-handler.ts (line 49). This is a parallel notification system.
+
+Replace with App event emission. The AbbreviationQueue needs an App reference:
+
+```typescript
+// In abbreviation.ts constructor, add app parameter
+constructor(private manager: ConversationManager, private app: App) {}
+
+// Replace onRenamed callback (line 245) with:
+this.app.emit("conversation:updated", conversationId);
+```
+
+Then remove the `onRenamed` callback wiring in `chat-handler.ts` (lines 47-55). The `conversation_renamed` WS message type is still useful for the frontend (it carries the new title) — emit it from the `conversation:updated` subscriber in StatePublisher, or keep the dedicated broadcast but source it from the App event.
+
+**Note:** Evaluate whether the `onRenamed` callback is also used elsewhere before removing. If `AbbreviationQueue` is only instantiated once, safe to remove.
+
+- [ ] **Step 4: Emit `job:started` from AutomationProcessor**
+
+In `automation-processor.ts`, `executeAndDeliver()` creates a job (line 87, emits `job:created`) then executes. But the status transition to `"running"` happens inside the executor without emitting `job:started`. Similarly, `resume()` (line 141) sets status to `"running"` but doesn't emit.
+
+Add after `updateJob` calls:
+
+```typescript
+// In executeAndDeliver(), after createJob (line 88):
+this.config.onJobEvent?.("job:created", job);
+// The job starts running immediately — emit job:started too:
+const startedJob = this.config.jobService.updateJob(job.id, { status: "running" });
+this.config.onJobEvent?.("job:started", startedJob);
+
+// In resume(), after updateJob (line 141):
+this.config.jobService.updateJob(job.id, { status: "running" });
+this.config.onJobEvent?.("job:started", { ...job, status: "running" });
+```
+
+Note: `job:started` is already defined in `AppEventMap` (line 48) and subscribed in `StatePublisher` — this just makes it actually fire.
+
+- [ ] **Step 5: Add `external_message:created` event for ExternalMessageStore**
+
+In `app-events.ts`, add:
+
+```typescript
+// External messages (stored for S3 trust tier)
+"external_message:created": [message: { id: string; channelId: string; from: string; content: string }];
+```
+
+In `message-handler.ts`, after `this.externalStore.storeMessage(...)` (line 629-637), emit:
+
+```typescript
+this.deps.app.emit("external_message:created", {
+  id: msg.id,
+  channelId,
+  from: msg.from,
+  content: msg.content,
+});
+```
+
+This has no subscriber yet (no dashboard UI for external messages), but establishes the pattern for when the S3 trust tier UI arrives. No broadcast wiring needed — just the event emission.
+
+- [ ] **Step 6: Type check + test**
+
+```bash
+cd packages/dashboard && npx tsc --noEmit
+npx vitest run tests/
+```
+
+Commit: `"refactor: route all state mutations through App events"`
+
+---
+
+## Task 7: Verification
 
 - [ ] **Step 1: Full test suite**
 
@@ -431,19 +601,27 @@ journalctl --user -u nina-dashboard.service --since "1 min ago" --no-pager
 2. Send a message
 3. Verify: response streams token-by-token (text_delta events)
 4. Open a second tab — verify it also sees the streaming
+5. Verify: no duplicate `conversation_created` messages in WS devtools
 
 - [ ] **Step 5: HITL — Channel message streams to dashboard**
 
 1. Send a WhatsApp message to Nina
 2. Watch the dashboard — verify: user message appears, then response streams in real-time (not a full reload after completion)
 3. Verify: WhatsApp receives the reply
+4. Verify: no duplicate conversation entries in sidebar
 
 - [ ] **Step 6: HITL — alert() streams to dashboard**
 
 1. Trigger a delegation (ask Nina to research something)
 2. Wait for the worker to complete
-3. Verify: the heartbeat alert response streams into the dashboard in real-time
+3. Verify: the heartbeat alert response streams into the dashboard in real-time (text_delta tokens visible, not just a done refresh)
 
-- [ ] **Step 7: Record results + commit**
+- [ ] **Step 7: HITL — Job progress card shows "running" state**
+
+1. Fire an automation from the dashboard
+2. Verify: job card shows "running" status (not jumping from "pending" to "completed")
+3. This confirms `job:started` event is now emitting
+
+- [ ] **Step 8: Record results + commit**
 
 Commit: `"docs: M9.4-S2.5 verification complete"`
