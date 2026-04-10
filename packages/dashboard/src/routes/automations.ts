@@ -269,6 +269,11 @@ export async function registerAutomationRoutes(
           return reply.code(404).send({ error: "Job not found" });
         }
 
+        // Only stop if still running — race with natural completion
+        if (job.status !== "running") {
+          return { ok: true, message: "Job already finished" };
+        }
+
         jobService.updateJob(request.params.id, {
           status: "failed",
           completed: new Date().toISOString(),
