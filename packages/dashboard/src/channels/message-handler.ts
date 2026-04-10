@@ -450,7 +450,12 @@ export class ChannelMessageHandler {
       await this.deps.app!.conversations.makeCurrent(conversation.id);
     }
 
+    // Track whether this is a new conversation — WS clients won't be
+    // subscribed yet, so streaming events must use broadcastToAll.
+    let isNewConversation = false;
+
     if (!conversation) {
+      isNewConversation = true;
       // Create new conversation for this channel + party
       const title = first.senderName ?? first.groupName ?? undefined;
       conversation = await this.deps.app!.conversations.create({
@@ -559,57 +564,49 @@ export class ChannelMessageHandler {
           inputMedium: first.isVoiceNote && first.audioAttachment ? "audio" : undefined,
         },
       )) {
+        // For new conversations, WS clients aren't subscribed yet —
+        // use broadcastToAll so the dashboard receives streaming events.
+        const broadcast = (msg: any) => {
+          if (isNewConversation) {
+            this.deps.connectionRegistry.broadcastToAll(msg);
+          } else {
+            this.deps.connectionRegistry.broadcastToConversation(conversation.id, msg);
+          }
+        };
+
         switch (event.type) {
           case "start": {
             // Forward user turn to WS clients so dashboard shows the message
             const effects = (event as any)._effects;
             if (effects?.userTurn) {
-              this.deps.connectionRegistry.broadcastToConversation(
-                conversation.id, {
-                  type: "conversation_updated",
-                  conversationId: conversation.id,
-                  turn: effects.userTurn,
-                },
-              );
+              broadcast({
+                type: "conversation_updated",
+                conversationId: conversation.id,
+                turn: effects.userTurn,
+              });
             }
-            // Broadcast start to WS clients so dashboard shows streaming
-            this.deps.connectionRegistry.broadcastToConversation(
-              conversation.id, { type: "start" },
-            );
+            broadcast({ type: "start" });
             break;
           }
           case "text_delta":
             if (firstToken) { responseTimer.cancel(); firstToken = false; }
             currentText += event.text;
-            // Stream to WS clients so dashboard shows live typing
-            this.deps.connectionRegistry.broadcastToConversation(
-              conversation.id, { type: "text_delta", content: event.text },
-            );
+            broadcast({ type: "text_delta", content: event.text });
             break;
           case "turn_advanced":
-            // Split: send ack immediately via channel
-            this.deps.connectionRegistry.broadcastToConversation(
-              conversation.id, { type: "done" },
-            );
+            broadcast({ type: "done" });
             if (currentText.trim()) {
               await this.deps.sendViaTransport(channelId, replyTo, { content: currentText });
             }
             currentText = "";
             isFirstMessage = false;
-            // Signal new message to WS
-            this.deps.connectionRegistry.broadcastToConversation(
-              conversation.id, { type: "start" },
-            );
+            broadcast({ type: "start" });
             break;
           case "done":
-            // Capture detectedLanguage from STT (for TTS response)
             if ("detectedLanguage" in event && event.detectedLanguage) {
               detectedLanguage = event.detectedLanguage;
             }
-            // Broadcast done to WS clients
-            this.deps.connectionRegistry.broadcastToConversation(
-              conversation.id, { type: "done" },
-            );
+            broadcast({ type: "done" });
             break;
         }
       }
