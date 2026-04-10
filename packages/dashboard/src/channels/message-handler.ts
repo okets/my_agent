@@ -298,6 +298,7 @@ export class ChannelMessageHandler {
       if (currentConv && currentConv.id !== existingConversation.id) {
         // Current conversation is different from the found channel conversation
         // — user switched to web, now incoming channel message = channel switch
+        console.log(`[ChannelMessageHandler] Channel switch detected: current=${currentConv.id} found=${existingConversation.id} — forcing new conversation`);
         await this.deps.conversationManager.unpin(existingConversation.id);
         this.deps.connectionRegistry.broadcastToAll({
           type: "conversation_unpinned",
@@ -457,7 +458,8 @@ export class ChannelMessageHandler {
         title,
       });
 
-      // Broadcast new conversation to WS clients
+      // Broadcast new conversation to WS clients (triggers auto-switch via status: "current")
+      console.log(`[ChannelMessageHandler] Broadcasting conversation_created: ${conversation.id} (status: ${conversation.status})`);
       this.deps.connectionRegistry.broadcastToAll({
         type: "conversation_created",
         conversation: {

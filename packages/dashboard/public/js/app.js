@@ -1566,6 +1566,8 @@ function chat() {
             this.currentConversationId === null ||
             data.conversation.status === "current"
           ) {
+            const shouldLoadTurns =
+              data.conversation.id !== this.currentConversationId;
             this.currentConversationId = data.conversation.id;
             this._pendingNewConversation = false;
 
@@ -1575,6 +1577,15 @@ function chat() {
             if (Alpine.store("conversations")) {
               Alpine.store("conversations").serverCurrentId =
                 data.conversation.id;
+            }
+
+            // Load turns for channel-originated conversations (the WS
+            // adapter needs to know which conversation to stream to)
+            if (shouldLoadTurns && this.wsConnected) {
+              this.ws.send({
+                type: "switch_conversation",
+                conversationId: data.conversation.id,
+              });
             }
 
             // If there's a pending event prompt, send it now
