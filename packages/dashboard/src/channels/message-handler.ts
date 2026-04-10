@@ -458,11 +458,7 @@ export class ChannelMessageHandler {
         title,
       });
 
-      // Subscribe all WS clients to the new conversation BEFORE streaming
-      // starts, so broadcastToConversation reaches them.
-      this.deps.connectionRegistry.switchAllToConversation(conversation.id);
-
-      // Broadcast new conversation to WS clients (triggers UI switch via status: "current")
+      // Broadcast new conversation to WS clients
       this.deps.connectionRegistry.broadcastToAll({
         type: "conversation_created",
         conversation: {
@@ -563,50 +559,21 @@ export class ChannelMessageHandler {
         },
       )) {
         switch (event.type) {
-          case "start": {
-            // Forward user turn to WS clients so dashboard shows the message
-            const effects = (event as any)._effects;
-            if (effects?.userTurn) {
-              this.deps.connectionRegistry.broadcastToConversation(
-                conversation.id, {
-                  type: "conversation_updated",
-                  conversationId: conversation.id,
-                  turn: effects.userTurn,
-                },
-              );
-            }
-            this.deps.connectionRegistry.broadcastToConversation(
-              conversation.id, { type: "start" },
-            );
-            break;
-          }
           case "text_delta":
             if (firstToken) { responseTimer.cancel(); firstToken = false; }
             currentText += event.text;
-            this.deps.connectionRegistry.broadcastToConversation(
-              conversation.id, { type: "text_delta", content: event.text },
-            );
             break;
           case "turn_advanced":
-            this.deps.connectionRegistry.broadcastToConversation(
-              conversation.id, { type: "done" },
-            );
             if (currentText.trim()) {
               await this.deps.sendViaTransport(channelId, replyTo, { content: currentText });
             }
             currentText = "";
             isFirstMessage = false;
-            this.deps.connectionRegistry.broadcastToConversation(
-              conversation.id, { type: "start" },
-            );
             break;
           case "done":
             if ("detectedLanguage" in event && event.detectedLanguage) {
               detectedLanguage = event.detectedLanguage;
             }
-            this.deps.connectionRegistry.broadcastToConversation(
-              conversation.id, { type: "done" },
-            );
             break;
         }
       }
@@ -635,6 +602,14 @@ export class ChannelMessageHandler {
         await this.deps.sendViaTransport(channelId, replyTo, { content: currentText });
       }
     }
+
+    // ── Notify dashboard that the channel conversation is ready ──────
+    // All turns are saved. Tell WS clients to switch and load the full conversation.
+    // This avoids race conditions from trying to stream events before clients subscribe.
+    this.deps.connectionRegistry.broadcastToAll({
+      type: "conversation_ready",
+      conversationId: conversation.id,
+    } as any);
   }
 
   /**

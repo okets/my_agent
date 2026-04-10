@@ -1563,11 +1563,8 @@ function chat() {
           // 3. Server says it's current (channel-originated, e.g. WhatsApp /new)
           if (
             this._pendingNewConversation ||
-            this.currentConversationId === null ||
-            data.conversation.status === "current"
+            this.currentConversationId === null
           ) {
-            const shouldLoadTurns =
-              data.conversation.id !== this.currentConversationId;
             this.currentConversationId = data.conversation.id;
             this._pendingNewConversation = false;
 
@@ -1579,21 +1576,33 @@ function chat() {
                 data.conversation.id;
             }
 
-            // For channel-originated conversations, DON'T send switch_conversation
-            // — it would load empty turns (user turn isn't saved yet).
-            // Instead, clear the turns and let streaming events build the UI:
-            // conversation_updated (user turn) → start → text_delta → done.
-            if (shouldLoadTurns) {
-              this.turns = [];
-              this.isStreaming = false;
-            }
-
             // If there's a pending event prompt, send it now
             if (this._pendingEventPrompt) {
               this.inputText = this._pendingEventPrompt;
               this._pendingEventPrompt = null;
               this.$nextTick(() => this.sendMessage());
             }
+          }
+          break;
+        }
+
+        case "conversation_ready": {
+          // Channel message processing complete — all turns saved.
+          // Switch to the conversation and load full turn history.
+          if (
+            data.conversationId &&
+            data.conversationId !== this.currentConversationId &&
+            this.wsConnected
+          ) {
+            this.currentConversationId = data.conversationId;
+            if (Alpine.store("conversations")) {
+              Alpine.store("conversations").serverCurrentId =
+                data.conversationId;
+            }
+            this.ws.send({
+              type: "switch_conversation",
+              conversationId: data.conversationId,
+            });
           }
           break;
         }
