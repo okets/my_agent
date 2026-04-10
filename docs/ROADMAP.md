@@ -1142,6 +1142,7 @@ Requirements that must be complete before public release. All tracked in milesto
 | **Dashboard authentication** | Planned | M13-S1    | Session-based auth for web UI. Currently Tailscale-only. |
 | **Backup & Restore**        | Planned | M13-S2    | Full/partial backup + restore with index rebuild. CLI commands. |
 | **Update mechanism**         | Planned | M13-S3    | Version tracking, migrations, rollback via backup. |
+| **Update Baileys to stable**  | Planned | M13       | Currently on 7.0.0-rc.9 (pre-release). `fetchProps` throws non-fatal 400 on every connect — known incomplete feature in RC. Update when stable 7.x ships. |
 | **Security audit**           | Planned | M14-S1    | Review hooks, guardrails, trust tiers, transport auth, Computer Use safety. |
 | **Documentation**            | Planned | M14-S2    | User-facing README, setup guide, hatching walkthrough, transport SDK guide. |
 
