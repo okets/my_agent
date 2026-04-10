@@ -142,6 +142,7 @@ export function toTurn(turn: TranscriptTurn): Turn {
     usage: turn.usage,
     cost: turn.cost,
     attachments: turn.attachments,
+    audioUrl: turn.audioUrl,
     channel: turn.channel,
   };
 }
@@ -817,6 +818,7 @@ export class AppChatService {
           usage,
           cost,
           channel: options?.channel?.channelId,
+          audioUrl: finalAudioUrl || undefined,
         };
 
         await this.conversationManager.appendTurn(convId, assistantTurn);

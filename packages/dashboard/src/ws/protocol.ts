@@ -65,6 +65,8 @@ export interface Turn {
   usage?: { input: number; output: number };
   cost?: number;
   attachments?: AttachmentMeta[];
+  /** TTS audio URL for voice responses */
+  audioUrl?: string;
   /** Channel the message came from (undefined = web) */
   channel?: string;
 }

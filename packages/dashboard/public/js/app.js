@@ -1530,6 +1530,7 @@ function chat() {
               attachmentPreviews: this.buildAttachmentPreviews(
                 turn.attachments,
               ),
+              audioUrl: turn.audioUrl || null,
               channel: turn.channel || null,
               channelIcon: this.getChannelBadgeIcon(turn.channel),
               channelName: this.getChannelBadgeName(turn.channel),
@@ -1708,6 +1709,7 @@ function chat() {
               attachmentPreviews: this.buildAttachmentPreviews(
                 turn.attachments,
               ),
+              audioUrl: turn.audioUrl || null,
               channel: turn.channel || null,
               channelIcon: this.getChannelBadgeIcon(turn.channel),
               channelName: this.getChannelBadgeName(turn.channel),
