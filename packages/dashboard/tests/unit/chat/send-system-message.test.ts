@@ -95,12 +95,16 @@ describe("sendSystemMessage()", () => {
     expect(getStoredSdkSessionId()).toBe("sdk-456");
   });
 
-  it("emits chat:done App event", async () => {
+  it("emits chat:start, chat:text_delta, and chat:done App events", async () => {
     const { app, emittedEvents } = createMockApp();
     await collectEvents(sendSystemMessage(app, "conv-1", "prompt", 1));
-    expect(emittedEvents).toHaveLength(1);
-    expect(emittedEvents[0].event).toBe("chat:done");
+    expect(emittedEvents).toHaveLength(3);
+    expect(emittedEvents[0].event).toBe("chat:start");
     expect(emittedEvents[0].args[0]).toBe("conv-1");
+    expect(emittedEvents[1].event).toBe("chat:text_delta");
+    expect(emittedEvents[1].args[0]).toBe("conv-1");
+    expect(emittedEvents[2].event).toBe("chat:done");
+    expect(emittedEvents[2].args[0]).toBe("conv-1");
   });
 
   it("skips when session is busy streaming", async () => {
