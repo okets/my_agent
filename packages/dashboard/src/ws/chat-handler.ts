@@ -46,6 +46,9 @@ export async function registerChatWebSocket(
       );
       if (!fastify.abbreviationQueue.onRenamed) {
         fastify.abbreviationQueue.onRenamed = (conversationId, title) => {
+          // Emit App event (triggers StatePublisher conversation list refresh)
+          app.emit("conversation:updated", conversationId);
+          // Also send targeted rename message for instant sidebar update
           connectionRegistry.broadcastToAll({
             type: "conversation_renamed",
             conversationId,

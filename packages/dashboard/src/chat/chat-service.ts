@@ -329,6 +329,7 @@ export class AppChatService {
     }
 
     await this.conversationManager.setModel(conversationId, model);
+    this.app.emit("conversation:updated", conversationId);
   }
 
   /**

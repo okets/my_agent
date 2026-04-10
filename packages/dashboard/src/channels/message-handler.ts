@@ -299,11 +299,7 @@ export class ChannelMessageHandler {
         // Current conversation is different from the found channel conversation
         // — user switched to web, now incoming channel message = channel switch
         console.log(`[ChannelMessageHandler] Channel switch detected: current=${currentConv.id} found=${existingConversation.id} — forcing new conversation`);
-        await this.deps.conversationManager.unpin(existingConversation.id);
-        this.deps.connectionRegistry.broadcastToAll({
-          type: "conversation_unpinned",
-          conversationId: existingConversation.id,
-        });
+        await this.deps.app.conversations.unpin(existingConversation.id);
         forceNewConversation = true;
       } else {
         // Case 1: same conversation is current, check last turn's channel
@@ -315,11 +311,7 @@ export class ChannelMessageHandler {
           const lastTurnChannel = recentTurns[0].channel ?? "web";
           if (lastTurnChannel !== channelId) {
             // Last turn was on a different channel — force new conversation
-            await this.deps.conversationManager.unpin(existingConversation.id);
-            this.deps.connectionRegistry.broadcastToAll({
-              type: "conversation_unpinned",
-              conversationId: existingConversation.id,
-            });
+            await this.deps.app.conversations.unpin(existingConversation.id);
             forceNewConversation = true;
           }
         }
@@ -404,8 +396,8 @@ export class ChannelMessageHandler {
         return;
       }
 
-      // Update conversation model
-      await this.deps.conversationManager.setModel(
+      // Update conversation model (through App — emits conversation:updated)
+      await this.deps.app.chat.setModel(
         existingConversation.id,
         newModelId,
       );
@@ -601,6 +593,13 @@ export class ChannelMessageHandler {
         displayName: msg.senderName ?? msg.groupName,
         content: msg.content,
         timestamp: msg.timestamp.toISOString(),
+      });
+
+      this.deps.app.emit("external_message:created", {
+        id: msg.id,
+        channelId,
+        from: msg.from,
+        content: msg.content,
       });
     }
   }
