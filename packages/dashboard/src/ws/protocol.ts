@@ -65,6 +65,8 @@ export interface Turn {
   usage?: { input: number; output: number };
   cost?: number;
   attachments?: AttachmentMeta[];
+  /** TTS audio URL for voice responses */
+  audioUrl?: string;
   /** Channel the message came from (undefined = web) */
   channel?: string;
 }
@@ -168,7 +170,6 @@ export type ServerMessage =
       ownerName: string | null;
     }
   | { type: "conversation_unpinned"; conversationId: string }
-  | { type: "conversation_ready"; conversationId: string }
   | {
       type: "conversation_model_changed";
       conversationId: string;

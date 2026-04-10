@@ -1530,6 +1530,7 @@ function chat() {
               attachmentPreviews: this.buildAttachmentPreviews(
                 turn.attachments,
               ),
+              audioUrl: turn.audioUrl || null,
               channel: turn.channel || null,
               channelIcon: this.getChannelBadgeIcon(turn.channel),
               channelName: this.getChannelBadgeName(turn.channel),
@@ -1586,22 +1587,7 @@ function chat() {
           break;
         }
 
-        case "conversation_ready": {
-          // Channel message processing complete — all turns saved.
-          // Switch to (or reload) the conversation to show full turn history.
-          if (data.conversationId && this.wsConnected) {
-            this.currentConversationId = data.conversationId;
-            if (Alpine.store("conversations")) {
-              Alpine.store("conversations").serverCurrentId =
-                data.conversationId;
-            }
-            this.ws.send({
-              type: "switch_conversation",
-              conversationId: data.conversationId,
-            });
-          }
-          break;
-        }
+        // conversation_ready removed — channel messages now stream via App events
 
         case "conversation_updated": {
           // Update sidebar timestamp for the conversation
@@ -1723,6 +1709,7 @@ function chat() {
               attachmentPreviews: this.buildAttachmentPreviews(
                 turn.attachments,
               ),
+              audioUrl: turn.audioUrl || null,
               channel: turn.channel || null,
               channelIcon: this.getChannelBadgeIcon(turn.channel),
               channelName: this.getChannelBadgeName(turn.channel),
@@ -3705,12 +3692,19 @@ function chat() {
      */
     buildAttachmentPreviews(attachments) {
       if (!attachments || attachments.length === 0) return null;
-      return attachments.map((att) => ({
-        type: att.mimeType.startsWith("image/") ? "image" : "text",
-        name: att.filename,
-        url: `/attachments/${att.localPath}`,
-        size: att.size,
-      }));
+      return attachments.map((att) => {
+        const type = att.mimeType.startsWith("image/")
+          ? "image"
+          : att.mimeType.startsWith("audio/")
+            ? "audio"
+            : "text";
+        return {
+          type,
+          name: att.filename,
+          url: `/attachments/${att.localPath}`,
+          size: att.size,
+        };
+      });
     },
 
     // ─────────────────────────────────────────────────────────────────

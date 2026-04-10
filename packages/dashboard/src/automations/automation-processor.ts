@@ -18,6 +18,7 @@ import path from "node:path";
 
 export type JobEventName =
   | "job:created"
+  | "job:started"
   | "job:progress"
   | "job:completed"
   | "job:failed"
@@ -87,6 +88,12 @@ export class AutomationProcessor {
     const job = this.config.jobService.createJob(automation.id, triggerContext);
     this.config.onJobEvent?.("job:created", job);
 
+    // 1.5. Mark as running
+    const startedJob = this.config.jobService.updateJob(job.id, {
+      status: "running",
+    });
+    this.config.onJobEvent?.("job:started", startedJob);
+
     // 2. Execute
     const result = await this.config.executor.run(
       automation,
@@ -138,7 +145,10 @@ export class AutomationProcessor {
     userResponse: string,
   ): Promise<void> {
     // Update job status to running
-    this.config.jobService.updateJob(job.id, { status: "running" });
+    const startedJob = this.config.jobService.updateJob(job.id, {
+      status: "running",
+    });
+    this.config.onJobEvent?.("job:started", startedJob);
 
     // Execute with user response in context
     const triggerContext = {

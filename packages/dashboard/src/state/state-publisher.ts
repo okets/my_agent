@@ -145,6 +145,7 @@ export class StatePublisher {
     app.on("automation:updated", () => this.publishAutomations());
     app.on("automation:deleted", () => this.publishAutomations());
     app.on("job:created", () => this.publishJobs());
+    app.on("job:started", () => this.publishJobs());
     app.on("job:progress", () => this.publishJobs());
     app.on("job:completed", () => this.publishJobs());
     app.on("job:failed", () => this.publishJobs());

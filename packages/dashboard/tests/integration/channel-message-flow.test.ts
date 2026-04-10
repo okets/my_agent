@@ -75,7 +75,7 @@ describe("Channel Message Flow (integration)", () => {
         sendViaTransport: async () => {},
         sendTypingIndicator: async () => {},
         agentDir: harness.agentDir,
-        app: { conversations: harness.conversations, chat: harness.chat } as any,
+        app: { conversations: harness.conversations, chat: harness.chat, emit: () => {} } as any,
       },
       TEST_BINDINGS,
     );
@@ -92,7 +92,7 @@ describe("Channel Message Flow (integration)", () => {
         sendViaTransport: async () => {},
         sendTypingIndicator: async () => {},
         agentDir: harness.agentDir,
-        app: { conversations: harness.conversations, chat: harness.chat } as any,
+        app: { conversations: harness.conversations, chat: harness.chat, emit: () => {} } as any,
       },
       TEST_BINDINGS,
     );

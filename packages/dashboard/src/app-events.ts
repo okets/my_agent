@@ -10,7 +10,8 @@ import type { AnyNotification } from "@my-agent/core";
 import type { TransportStatus } from "@my-agent/core";
 import type { SpaceSyncPayload } from "@my-agent/core";
 import type { Capability } from "@my-agent/core";
-import type { Conversation } from "./conversations/types.js";
+import type { Conversation, TranscriptTurn } from "./conversations/types.js";
+import type { ConversationMeta } from "./ws/protocol.js";
 
 export interface AppEventMap {
   // Conversation mutations
@@ -66,9 +67,25 @@ export interface AppEventMap {
     conversationId: string,
     cost?: number,
     usage?: { input: number; output: number },
+    audioUrl?: string,
   ];
   "chat:error": [conversationId: string, message: string];
   "chat:start": [conversationId: string];
+  "chat:user_turn": [conversationId: string, turn: TranscriptTurn];
+  "chat:conversation_created": [
+    conversationId: string,
+    conversation: ConversationMeta,
+  ];
+
+  // External messages (stored for S3 trust tier)
+  "external_message:created": [
+    message: {
+      id: string;
+      channelId: string;
+      from: string;
+      content: string;
+    },
+  ];
 }
 
 export type AppEvent = keyof AppEventMap;

@@ -96,6 +96,9 @@ export interface TranscriptTurn {
   /** Sender identifier (phone number, email, etc.) */
   sender?: string;
 
+  /** TTS audio URL for voice responses (persisted for reload) */
+  audioUrl?: string;
+
   /** Attached files (images, text files) */
   attachments?: Array<{
     id: string;

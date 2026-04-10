@@ -299,11 +299,7 @@ export class ChannelMessageHandler {
         // Current conversation is different from the found channel conversation
         // — user switched to web, now incoming channel message = channel switch
         console.log(`[ChannelMessageHandler] Channel switch detected: current=${currentConv.id} found=${existingConversation.id} — forcing new conversation`);
-        await this.deps.conversationManager.unpin(existingConversation.id);
-        this.deps.connectionRegistry.broadcastToAll({
-          type: "conversation_unpinned",
-          conversationId: existingConversation.id,
-        });
+        await this.deps.app.conversations.unpin(existingConversation.id);
         forceNewConversation = true;
       } else {
         // Case 1: same conversation is current, check last turn's channel
@@ -315,11 +311,7 @@ export class ChannelMessageHandler {
           const lastTurnChannel = recentTurns[0].channel ?? "web";
           if (lastTurnChannel !== channelId) {
             // Last turn was on a different channel — force new conversation
-            await this.deps.conversationManager.unpin(existingConversation.id);
-            this.deps.connectionRegistry.broadcastToAll({
-              type: "conversation_unpinned",
-              conversationId: existingConversation.id,
-            });
+            await this.deps.app.conversations.unpin(existingConversation.id);
             forceNewConversation = true;
           }
         }
@@ -355,22 +347,8 @@ export class ChannelMessageHandler {
         content: "Starting fresh! How can I help?",
       });
 
-      // Broadcast new conversation to dashboard
-      this.deps.connectionRegistry.broadcastToAll({
-        type: "conversation_created",
-        conversation: {
-          id: newConversation.id,
-          title: newConversation.title,
-          topics: newConversation.topics,
-          created: newConversation.created.toISOString(),
-          updated: newConversation.updated.toISOString(),
-          turnCount: newConversation.turnCount,
-          model: newConversation.model,
-          externalParty: newConversation.externalParty,
-          isPinned: newConversation.isPinned,
-          status: newConversation.status,
-        },
-      });
+      // app.conversations.create() emits conversation:created → StatePublisher
+      // refreshes the conversation list for all WS clients.
 
       return; // Don't process as normal message
     }
@@ -418,8 +396,8 @@ export class ChannelMessageHandler {
         return;
       }
 
-      // Update conversation model
-      await this.deps.conversationManager.setModel(
+      // Update conversation model (through App — emits conversation:updated)
+      await this.deps.app.chat.setModel(
         existingConversation.id,
         newModelId,
       );
@@ -458,22 +436,8 @@ export class ChannelMessageHandler {
         title,
       });
 
-      // Broadcast new conversation to WS clients
-      this.deps.connectionRegistry.broadcastToAll({
-        type: "conversation_created",
-        conversation: {
-          id: conversation.id,
-          title: conversation.title,
-          topics: conversation.topics,
-          created: conversation.created.toISOString(),
-          updated: conversation.updated.toISOString(),
-          turnCount: conversation.turnCount,
-          model: conversation.model,
-          externalParty: conversation.externalParty,
-          isPinned: conversation.isPinned,
-          status: conversation.status,
-        },
-      });
+      // app.conversations.create() emits conversation:created → StatePublisher.
+      // sendMessage() below emits chat:conversation_created → broadcastToAll.
     }
 
     // Combine message contents (if debounced, join with newlines)
@@ -603,13 +567,9 @@ export class ChannelMessageHandler {
       }
     }
 
-    // ── Notify dashboard that the channel conversation is ready ──────
-    // All turns are saved. Tell WS clients to switch and load the full conversation.
-    // This avoids race conditions from trying to stream events before clients subscribe.
-    this.deps.connectionRegistry.broadcastToAll({
-      type: "conversation_ready",
-      conversationId: conversation.id,
-    });
+    // Channel conversations are now streamed via App events (chat:text_delta, etc.)
+    // No conversation_ready needed — dashboard clients receive streaming events
+    // through broadcastToConversation() and conversation_created via broadcastToAll().
   }
 
   /**
@@ -633,6 +593,13 @@ export class ChannelMessageHandler {
         displayName: msg.senderName ?? msg.groupName,
         content: msg.content,
         timestamp: msg.timestamp.toISOString(),
+      });
+
+      this.deps.app.emit("external_message:created", {
+        id: msg.id,
+        channelId,
+        from: msg.from,
+        content: msg.content,
       });
     }
   }

@@ -142,6 +142,7 @@ export function toTurn(turn: TranscriptTurn): Turn {
     usage: turn.usage,
     cost: turn.cost,
     attachments: turn.attachments,
+    audioUrl: turn.audioUrl,
     channel: turn.channel,
   };
 }
@@ -329,6 +330,7 @@ export class AppChatService {
     }
 
     await this.conversationManager.setModel(conversationId, model);
+    this.app.emit("conversation:updated", conversationId);
   }
 
   /**
@@ -653,11 +655,19 @@ export class AppChatService {
       },
     };
 
+    // Emit App events for user turn + new conversation (broadcast to all WS clients)
+    this.app.emit("chat:start", convId);
+    this.app.emit("chat:user_turn", convId, userTurn);
+    if (conversationCreated) {
+      this.app.emit("chat:conversation_created", convId, conversationCreated);
+    }
+
     // ── Stream response ─────────────────────────────────────────
     let assistantContent = "";
     let thinkingText = "";
     let usage: { input: number; output: number } | undefined;
     let cost: number | undefined;
+    let finalAudioUrl: string | undefined;
     let hasSplit = false;
     const originalTurnNumber = turnNumber;
 
@@ -693,13 +703,16 @@ export class AppChatService {
             fullAssistantContent += event.text;
             textLengthAfterLastTool += event.text.length;
             yield { type: "text_delta" as const, text: event.text };
+            this.app.emit("chat:text_delta", convId, event.text);
             break;
           case "thinking_delta":
             thinkingText += event.text;
             yield { type: "thinking_delta" as const, text: event.text };
+            this.app.emit("chat:thinking_delta", convId, event.text);
             break;
           case "thinking_end":
             yield { type: "thinking_end" as const };
+            this.app.emit("chat:thinking_end", convId);
             break;
           case "tool_use_start": {
             toolUseCount++;
@@ -755,6 +768,8 @@ export class AppChatService {
               };
               yield { type: "turn_advanced" as const, turnNumber };
               yield { type: "start" as const };
+              // Signal start of message 2 (post-tool-use continuation)
+              this.app.emit("chat:start", convId);
             }
             break;
           }
@@ -773,6 +788,7 @@ export class AppChatService {
                 )) ?? undefined;
             }
 
+            finalAudioUrl = audioUrl;
             yield {
               type: "done" as const,
               cost: event.cost,
@@ -802,6 +818,7 @@ export class AppChatService {
           usage,
           cost,
           channel: options?.channel?.channelId,
+          audioUrl: finalAudioUrl || undefined,
         };
 
         await this.conversationManager.appendTurn(convId, assistantTurn);
@@ -855,11 +872,12 @@ export class AppChatService {
       }
 
       // Emit App event for structural live updates
-      this.app.emit("chat:done", convId, cost, usage);
+      this.app.emit("chat:done", convId, cost, usage, finalAudioUrl);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       logError(err, "Error in streamMessage");
       yield { type: "error" as const, message };
+      this.app.emit("chat:error", convId, message);
     }
   }
 
