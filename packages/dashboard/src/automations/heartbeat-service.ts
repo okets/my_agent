@@ -177,6 +177,7 @@ export class HeartbeatService {
 
     switch (n.type) {
       case "job_completed":
+        console.log(`[Heartbeat] Delivering job_completed with VERBATIM framing (${n.summary.length} chars)`);
         return `Background work results:\n\n${n.summary}\n\n${verbatimFraming}`;
       case "job_failed":
         return `A background task failed.\n\nError: ${n.summary}\n\n${naturalFraming} If the error seems transient, suggest re-triggering.`;

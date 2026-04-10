@@ -27,14 +27,24 @@ export function resolveJobSummary(
   runDir: string | undefined | null,
   fallbackWork: string,
 ): string {
-  if (!runDir) return truncate(fallbackWork);
+  if (!runDir) {
+    console.log(`[summary-resolver] No runDir — using fallback (${fallbackWork.length} chars)`);
+    return truncate(fallbackWork);
+  }
 
   const deliverable = readAndStrip(path.join(runDir, "deliverable.md"));
-  if (deliverable) return truncate(deliverable);
+  if (deliverable) {
+    console.log(`[summary-resolver] Resolved from deliverable.md (${deliverable.length} chars)`);
+    return truncate(deliverable);
+  }
 
   const statusReport = readAndStrip(path.join(runDir, "status-report.md"));
-  if (statusReport) return truncate(statusReport);
+  if (statusReport) {
+    console.log(`[summary-resolver] Resolved from status-report.md (${statusReport.length} chars)`);
+    return truncate(statusReport);
+  }
 
+  console.log(`[summary-resolver] No disk artifacts — using fallback (${fallbackWork.length} chars)`);
   return truncate(fallbackWork);
 }
 
