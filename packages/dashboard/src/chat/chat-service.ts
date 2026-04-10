@@ -664,6 +664,7 @@ export class AppChatService {
     let thinkingText = "";
     let usage: { input: number; output: number } | undefined;
     let cost: number | undefined;
+    let finalAudioUrl: string | undefined;
     let hasSplit = false;
     const originalTurnNumber = turnNumber;
 
@@ -784,6 +785,7 @@ export class AppChatService {
                 )) ?? undefined;
             }
 
+            finalAudioUrl = audioUrl;
             yield {
               type: "done" as const,
               cost: event.cost,
@@ -866,7 +868,7 @@ export class AppChatService {
       }
 
       // Emit App event for structural live updates
-      this.app.emit("chat:done", convId, cost, usage);
+      this.app.emit("chat:done", convId, cost, usage, finalAudioUrl);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       logError(err, "Error in streamMessage");

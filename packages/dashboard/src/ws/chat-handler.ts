@@ -527,40 +527,14 @@ export async function registerChatWebSocket(
           currentTurnNumber,
           { reasoning, model, attachments, context, inputMedium },
         )) {
+          // Handle start: subscribe socket to conversation so broadcasts reach it
           if (event.type === "start" && event._effects) {
             const effects = event._effects as StartEffects;
             currentConversationId = effects.conversationId;
-            if (effects.conversationCreated) {
-              connectionRegistry.switchConversation(
-                socket,
-                effects.conversationId,
-              );
-              send({
-                type: "conversation_created",
-                conversation: effects.conversationCreated,
-              });
-              connectionRegistry.broadcastToAll(
-                {
-                  type: "conversation_created",
-                  conversation: effects.conversationCreated,
-                },
-                socket,
-              );
-            }
-            const userTurnUpdate = {
-              type: "conversation_updated" as const,
-              conversationId: effects.conversationId,
-              turn: effects.userTurn,
-            };
-            // Send to other tabs
-            connectionRegistry.broadcastToConversation(
-              effects.conversationId,
-              userTurnUpdate,
+            connectionRegistry.switchConversation(
               socket,
+              effects.conversationId,
             );
-            // Also send back to sender — needed for voice transcript updates
-            // (client sent "[Voice message]", server has the transcribed text)
-            send(userTurnUpdate);
           }
 
           // Handle turn advancement from message split (internal bookkeeping)
@@ -569,12 +543,15 @@ export async function registerChatWebSocket(
             continue;
           }
 
-          const serverMsg = chatEventToServerMessage(event);
-          if (serverMsg.type === "text_delta" && firstToken) {
+          // Track first token for response timer cancellation
+          if (event.type === "text_delta" && firstToken) {
             responseTimer.cancel();
             firstToken = false;
           }
-          send(serverMsg);
+
+          // Streaming events (text_delta, thinking_delta, thinking_end, done,
+          // error, start) are broadcast to all conversation viewers by the
+          // App event listeners in index.ts. No direct send() needed.
         }
       } catch (err) {
         responseTimer.cancel();

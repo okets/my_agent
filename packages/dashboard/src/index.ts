@@ -148,11 +148,12 @@ async function main() {
     });
   });
 
-  app.on("chat:done", (conversationId, cost, usage) => {
+  app.on("chat:done", (conversationId, cost, usage, audioUrl) => {
     connectionRegistry.broadcastToConversation(conversationId, {
       type: "done",
       cost,
       usage,
+      audioUrl,
     });
   });
 

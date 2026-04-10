@@ -67,6 +67,7 @@ export interface AppEventMap {
     conversationId: string,
     cost?: number,
     usage?: { input: number; output: number },
+    audioUrl?: string,
   ];
   "chat:error": [conversationId: string, message: string];
   "chat:start": [conversationId: string];
