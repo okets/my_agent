@@ -323,11 +323,8 @@ describe.skipIf(!dashboardAvailable)(
       const nowExpanded = await expandedView.isVisible();
       expect(nowExpanded).toBe(true);
 
-      // Click header title to collapse
-      await expandedView
-        .locator("span.cursor-pointer")
-        .first()
-        .click();
+      // Click anywhere on the card to collapse
+      await desktopCard.locator(".glass-strong").first().click();
       await page.waitForTimeout(150);
       const backCollapsed = await collapsedRow.isVisible();
       const backExpanded = await expandedView.isVisible();

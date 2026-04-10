@@ -5859,14 +5859,14 @@
         <div x-data="progressCard()" class="shrink-0 px-3 flex flex-col gap-1.5"
              x-show="cards.length > 0">
           <template x-for="job in cards" :key="job.id">
-            <div class="glass-strong rounded-lg overflow-hidden transition-opacity duration-500"
+            <div class="glass-strong rounded-lg overflow-hidden transition-opacity duration-500 cursor-pointer select-none"
+                 @click="toggle(job.id)"
                  :style="isFading(job.id) ? 'opacity:0' : 'opacity:1'"
                  style="border: 1px solid rgba(255,255,255,0.08)">
 
               <!-- Collapsed view: shows current step text + done/total counter -->
               <div x-show="!isExpanded(job.id)"
-                   @click="toggle(job.id)"
-                   class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none">
+                   class="flex items-center gap-2 px-3 py-2">
                 <span class="text-blue-400 text-xs">●</span>
                 <span class="text-xs text-tokyo-text truncate flex-1"
                       x-text="isDone(job.id) ? 'Done' : (currentStepText(job) || job.automationName || 'Job')"></span>
@@ -5879,8 +5879,7 @@
                 <!-- Header -->
                 <div class="flex items-center gap-2 px-3 py-2">
                   <span class="text-blue-400 text-xs">●</span>
-                  <span class="text-xs text-tokyo-text truncate flex-1 cursor-pointer select-none"
-                        @click="toggle(job.id)"
+                  <span class="text-xs text-tokyo-text truncate flex-1"
                         x-text="job.automationName || 'Job'"></span>
                   <button @click.stop="dismiss(job.id)"
                           class="text-gray-500 hover:text-gray-300 text-xs leading-none p-0.5">✕</button>
@@ -8838,14 +8837,14 @@
           <div x-data="progressCard()" class="shrink-0 px-3 pb-1 flex flex-col gap-1.5"
                x-show="cards.length > 0">
             <template x-for="job in cards" :key="job.id">
-              <div class="glass-strong rounded-lg overflow-hidden transition-opacity duration-500"
+              <div class="glass-strong rounded-lg overflow-hidden transition-opacity duration-500 cursor-pointer select-none"
+                   @click="toggle(job.id)"
                    :style="isFading(job.id) ? 'opacity:0' : 'opacity:1'"
                    style="border: 1px solid rgba(255,255,255,0.08)">
 
                 <!-- Collapsed view: shows current step text + done/total counter -->
                 <div x-show="!isExpanded(job.id)"
-                     @click="toggle(job.id)"
-                     class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none">
+                     class="flex items-center gap-2 px-3 py-2">
                   <span class="text-blue-400 text-xs">●</span>
                   <span class="text-xs text-tokyo-text truncate flex-1"
                         x-text="isDone(job.id) ? 'Done' : (currentStepText(job) || job.automationName || 'Job')"></span>
@@ -8858,8 +8857,7 @@
                   <!-- Header -->
                   <div class="flex items-center gap-2 px-3 py-2">
                     <span class="text-blue-400 text-xs">●</span>
-                    <span class="text-xs text-tokyo-text truncate flex-1 cursor-pointer select-none"
-                          @click="toggle(job.id)"
+                    <span class="text-xs text-tokyo-text truncate flex-1"
                           x-text="job.automationName || 'Job'"></span>
                     <button @click.stop="dismiss(job.id)"
                             class="text-gray-500 hover:text-gray-300 text-xs leading-none p-0.5">✕</button>
