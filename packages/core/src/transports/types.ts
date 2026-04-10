@@ -102,6 +102,8 @@ export interface IncomingMessage {
   isVoiceNote?: boolean
   /** Language detected by STT (e.g. "he", "en") — only set for transcribed voice notes */
   detectedLanguage?: string
+  /** Raw audio attachment for voice notes — transports pass raw audio, app layer transcribes */
+  audioAttachment?: { buffer: Buffer; mimeType: string }
   /** Reply context */
   replyTo?: {
     messageId: string
