@@ -560,12 +560,24 @@ export class ChannelMessageHandler {
         },
       )) {
         switch (event.type) {
-          case "start":
-            // Broadcast start to WS clients so dashboard shows the conversation
+          case "start": {
+            // Forward user turn to WS clients so dashboard shows the message
+            const effects = (event as any)._effects;
+            if (effects?.userTurn) {
+              this.deps.connectionRegistry.broadcastToConversation(
+                conversation.id, {
+                  type: "conversation_updated",
+                  conversationId: conversation.id,
+                  turn: effects.userTurn,
+                },
+              );
+            }
+            // Broadcast start to WS clients so dashboard shows streaming
             this.deps.connectionRegistry.broadcastToConversation(
               conversation.id, { type: "start" },
             );
             break;
+          }
           case "text_delta":
             if (firstToken) { responseTimer.cancel(); firstToken = false; }
             currentText += event.text;
