@@ -653,6 +653,12 @@ export class AppChatService {
       },
     };
 
+    // Emit App events for user turn + new conversation (broadcast to all WS clients)
+    this.app.emit("chat:user_turn", convId, userTurn);
+    if (conversationCreated) {
+      this.app.emit("chat:conversation_created", convId, conversationCreated);
+    }
+
     // ── Stream response ─────────────────────────────────────────
     let assistantContent = "";
     let thinkingText = "";
@@ -693,13 +699,16 @@ export class AppChatService {
             fullAssistantContent += event.text;
             textLengthAfterLastTool += event.text.length;
             yield { type: "text_delta" as const, text: event.text };
+            this.app.emit("chat:text_delta", convId, event.text);
             break;
           case "thinking_delta":
             thinkingText += event.text;
             yield { type: "thinking_delta" as const, text: event.text };
+            this.app.emit("chat:thinking_delta", convId, event.text);
             break;
           case "thinking_end":
             yield { type: "thinking_end" as const };
+            this.app.emit("chat:thinking_end", convId);
             break;
           case "tool_use_start": {
             toolUseCount++;
@@ -755,6 +764,8 @@ export class AppChatService {
               };
               yield { type: "turn_advanced" as const, turnNumber };
               yield { type: "start" as const };
+              // Signal start of message 2 (post-tool-use continuation)
+              this.app.emit("chat:start", convId);
             }
             break;
           }
@@ -860,6 +871,7 @@ export class AppChatService {
       const message = err instanceof Error ? err.message : "Unknown error";
       logError(err, "Error in streamMessage");
       yield { type: "error" as const, message };
+      this.app.emit("chat:error", convId, message);
     }
   }
 

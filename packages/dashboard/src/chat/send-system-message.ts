@@ -50,6 +50,7 @@ export async function* sendSystemMessage(
   }
 
   yield { type: "start" as const };
+  app.emit("chat:start", conversationId);
 
   let assistantContent = "";
 
@@ -58,6 +59,7 @@ export async function* sendSystemMessage(
       if (event.type === "text_delta" && event.text) {
         assistantContent += event.text;
         yield { type: "text_delta" as const, text: event.text };
+        app.emit("chat:text_delta", conversationId, event.text);
       }
     }
 
