@@ -286,29 +286,44 @@ export class ChannelMessageHandler {
       await this.deps.conversationManager.getByExternalParty(externalParty);
 
     // Check for channel-switch new conversation trigger.
-    // Rule: if the most recent turn's channel differs from the incoming
-    // message's channel, start a new conversation. Both user and assistant
-    // turns carry the channel they were sent on, tracking where the
-    // conversation is happening.
+    // Two cases force a new conversation:
+    // 1. The found conversation's last turn was on a different channel
+    // 2. The user is currently on web (current conv != found conv) — switching to WhatsApp
     let forceNewConversation = false;
     if (existingConversation) {
-      const recentTurns = await this.deps.conversationManager.getRecentTurns(
-        existingConversation.id,
-        1,
-      );
-      if (recentTurns.length > 0) {
-        const lastTurnChannel = recentTurns[0].channel ?? "web";
-        if (lastTurnChannel !== channelId) {
-          // Last turn was on a different channel — force new conversation
-          await this.deps.conversationManager.unpin(existingConversation.id);
-          this.deps.connectionRegistry.broadcastToAll({
-            type: "conversation_unpinned",
-            conversationId: existingConversation.id,
-          });
-          forceNewConversation = true;
+      // Case 2: user is on web, incoming message is from channel
+      // The found externalParty conversation is from a previous session;
+      // the user has since started a web conversation. This is a channel switch.
+      const currentConv = await this.deps.conversationManager.getCurrent();
+      if (currentConv && currentConv.id !== existingConversation.id) {
+        // Current conversation is different from the found channel conversation
+        // — user switched to web, now incoming channel message = channel switch
+        await this.deps.conversationManager.unpin(existingConversation.id);
+        this.deps.connectionRegistry.broadcastToAll({
+          type: "conversation_unpinned",
+          conversationId: existingConversation.id,
+        });
+        forceNewConversation = true;
+      } else {
+        // Case 1: same conversation is current, check last turn's channel
+        const recentTurns = await this.deps.conversationManager.getRecentTurns(
+          existingConversation.id,
+          1,
+        );
+        if (recentTurns.length > 0) {
+          const lastTurnChannel = recentTurns[0].channel ?? "web";
+          if (lastTurnChannel !== channelId) {
+            // Last turn was on a different channel — force new conversation
+            await this.deps.conversationManager.unpin(existingConversation.id);
+            this.deps.connectionRegistry.broadcastToAll({
+              type: "conversation_unpinned",
+              conversationId: existingConversation.id,
+            });
+            forceNewConversation = true;
+          }
         }
+        // If conversation has no turns yet, continue using it
       }
-      // If conversation has no turns yet, continue using it
     }
 
     // ── Slash command: /new ───────────────────────────────────────────
