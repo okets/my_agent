@@ -1588,12 +1588,8 @@ function chat() {
 
         case "conversation_ready": {
           // Channel message processing complete — all turns saved.
-          // Switch to the conversation and load full turn history.
-          if (
-            data.conversationId &&
-            data.conversationId !== this.currentConversationId &&
-            this.wsConnected
-          ) {
+          // Switch to (or reload) the conversation to show full turn history.
+          if (data.conversationId && this.wsConnected) {
             this.currentConversationId = data.conversationId;
             if (Alpine.store("conversations")) {
               Alpine.store("conversations").serverCurrentId =
