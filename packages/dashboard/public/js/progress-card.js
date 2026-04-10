@@ -44,6 +44,9 @@ function progressCard() {
 
     async confirmStop(jobId) {
       delete this.confirming[jobId];
+      // Optimistic: dismiss card immediately so user sees instant feedback
+      Alpine.store("jobs").dismiss(jobId);
+      delete this.expanded[jobId];
       try {
         await fetch(`/api/jobs/${jobId}/stop`, { method: "POST" });
       } catch (e) {
