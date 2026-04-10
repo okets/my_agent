@@ -118,6 +118,72 @@ async function main() {
     });
   });
 
+  // ── Adapter: Chat streaming events → WS broadcasts ──
+  // Streams chat events to all WS clients viewing the conversation.
+  // This makes streaming work regardless of who called sendMessage()
+  // (dashboard, channel handler, alert, etc.)
+  app.on("chat:start", (conversationId) => {
+    connectionRegistry.broadcastToConversation(conversationId, {
+      type: "start",
+    });
+  });
+
+  app.on("chat:text_delta", (conversationId, text) => {
+    connectionRegistry.broadcastToConversation(conversationId, {
+      type: "text_delta",
+      content: text,
+    });
+  });
+
+  app.on("chat:thinking_delta", (conversationId, text) => {
+    connectionRegistry.broadcastToConversation(conversationId, {
+      type: "thinking_delta",
+      content: text,
+    });
+  });
+
+  app.on("chat:thinking_end", (conversationId) => {
+    connectionRegistry.broadcastToConversation(conversationId, {
+      type: "thinking_end",
+    });
+  });
+
+  app.on("chat:done", (conversationId, cost, usage) => {
+    connectionRegistry.broadcastToConversation(conversationId, {
+      type: "done",
+      cost,
+      usage,
+    });
+  });
+
+  app.on("chat:error", (conversationId, message) => {
+    connectionRegistry.broadcastToConversation(conversationId, {
+      type: "error",
+      message,
+    });
+  });
+
+  app.on("chat:user_turn", (conversationId, turn) => {
+    connectionRegistry.broadcastToConversation(conversationId, {
+      type: "conversation_updated",
+      conversationId,
+      turn: {
+        role: turn.role,
+        content: turn.content,
+        timestamp: turn.timestamp,
+        turnNumber: turn.turnNumber,
+        channel: turn.channel,
+      },
+    });
+  });
+
+  app.on("chat:conversation_created", (_conversationId, conversation) => {
+    connectionRegistry.broadcastToAll({
+      type: "conversation_created",
+      conversation,
+    });
+  });
+
   // ── Start server ──
   try {
     await server.listen({ port, host: "0.0.0.0" });
