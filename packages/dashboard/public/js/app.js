@@ -1617,6 +1617,7 @@ function chat() {
             // Check if this is a user turn from this tab — update content/attachments
             if (data.turn.role === "user") {
               // Find the matching message — by attachments or by voice message placeholder
+              let foundLocal = false;
               for (let i = this.messages.length - 1; i >= 0; i--) {
                 const msg = this.messages[i];
                 if (msg.role !== "user") continue;
@@ -1641,11 +1642,13 @@ function chat() {
                     msg.content = data.turn.content;
                     msg.renderedContent = this.renderMarkdown(data.turn.content);
                   }
+                  foundLocal = true;
                   break;
                 }
               }
-              // Don't add duplicate message for user turns from same tab
-              break;
+              if (foundLocal) break;
+              // No matching local message — this is a channel-originated user turn.
+              // Fall through to add it as a new message.
             }
 
             // Skip assistant turns we already received via streaming
