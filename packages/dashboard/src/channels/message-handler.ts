@@ -17,30 +17,17 @@ import type {
 } from "@my-agent/core";
 import { loadModels, ConfigWriter } from "@my-agent/core";
 import type { ConversationManager } from "../conversations/index.js";
-import { SessionRegistry } from "../agent/session-registry.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
-import type { TranscriptTurn } from "../conversations/types.js";
 import { ExternalMessageStore } from "./external-store.js";
-import {
-  AttachmentService,
-  type AttachmentMeta,
-} from "../conversations/attachments.js";
 import { ResponseTimer } from "./response-timer.js";
 import { AuthorizationGate } from "../routing/authorization-gate.js";
 import { TokenManager } from "../routing/token-manager.js";
 import { MessageRouter, normalizeIdentity } from "../routing/message-router.js";
 
-/** Content block types for Agent SDK (images + text) */
-type ContentBlock =
-  | { type: "text"; text: string }
-  | {
-      type: "image";
-      source: { type: "base64"; media_type: string; data: string };
-    };
-
 interface MessageHandlerDeps {
   conversationManager: ConversationManager;
-  sessionRegistry: SessionRegistry;
+  /** @deprecated — no longer used; sessions managed by app.chat.sendMessage() */
+  sessionRegistry?: unknown;
   connectionRegistry: ConnectionRegistry;
   sendViaTransport: (
     transportId: string,
@@ -58,22 +45,13 @@ interface MessageHandlerDeps {
   agentDir: string;
   /** App instance for event-emitting mutations */
   app: import("../app.js").App;
-  postResponseHooks?: {
-    run(
-      conversationId: string,
-      userContent: string,
-      assistantContent: string,
-      options?: {
-        source?: "dashboard" | "channel";
-      },
-    ): Promise<void>;
-  } | null;
+  /** @deprecated — no longer used; post-response hooks handled by app.chat.sendMessage() */
+  postResponseHooks?: unknown;
 }
 
 export class ChannelMessageHandler {
   private deps: MessageHandlerDeps;
   private externalStore: ExternalMessageStore;
-  private attachmentService: AttachmentService;
   private gate: AuthorizationGate;
   private router: MessageRouter;
   private tokenManager: TokenManager;
@@ -84,7 +62,6 @@ export class ChannelMessageHandler {
     this.externalStore = new ExternalMessageStore(
       deps.conversationManager.getDb(),
     );
-    this.attachmentService = new AttachmentService(deps.agentDir);
     this.configWriter = new ConfigWriter(deps.agentDir);
 
     // Initialize routing components with persistent token manager
@@ -497,114 +474,40 @@ export class ChannelMessageHandler {
     }
 
     const textContent = contextPrefix + combinedContent;
-    let turnNumber = conversation.turnCount + 1;
-    const userTimestamp = new Date().toISOString();
+    const turnNumber = conversation.turnCount + 1;
 
-    // Process attachments and build ContentBlocks
-    const savedAttachments: AttachmentMeta[] = [];
-    const contentBlocks: ContentBlock[] = [];
+    // ── Build ChatMessageOptions ─────────────────────────────────────
+    // Convert channel attachments to ChatMessageOptions format
+    const chatAttachments: Array<{ filename: string; base64Data: string; mimeType: string }> = [];
 
+    // Audio attachment from voice notes (STT happens in sendMessage)
+    if (first.isVoiceNote && first.audioAttachment) {
+      chatAttachments.push({
+        filename: `voice-note-${Date.now()}.ogg`,
+        base64Data: first.audioAttachment.buffer.toString("base64"),
+        mimeType: first.audioAttachment.mimeType,
+      });
+    }
+
+    // Image/file attachments
     if (first.attachments?.length) {
       for (const att of first.attachments) {
-        try {
-          const base64 = att.data.toString("base64");
-          const saved = await this.attachmentService.save(
-            conversation.id,
-            att.filename,
-            att.mimeType,
-            base64,
-          );
-          savedAttachments.push(saved.meta);
-
-          // Build ContentBlock directly from buffer (no re-read)
-          if (this.attachmentService.isImage(att.mimeType)) {
-            contentBlocks.push({
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: att.mimeType,
-                data: base64,
-              },
-            });
-          }
-        } catch (err) {
-          console.error(
-            `[ChannelMessageHandler] Failed to save attachment ${att.filename}:`,
-            err,
-          );
-        }
+        chatAttachments.push({
+          filename: att.filename,
+          base64Data: att.data.toString("base64"),
+          mimeType: att.mimeType,
+        });
       }
     }
 
-    // Add text content if present
-    if (textContent) {
-      contentBlocks.push({ type: "text", text: textContent });
-    }
-
-    // Inject voice mode hint for voice notes so brain writes for speech
-    if (first.isVoiceNote && textContent) {
-      const voiceHint = `[VOICE MODE: The user sent a voice message. Your response will be spoken aloud via TTS.
-
-Write for the ear, not the eye:
-- Natural conversational sentences — no bullet points, numbered lists, or tables
-- No emojis — they don't translate to speech
-- No markdown formatting — bold, italic, and headers are invisible in audio
-- Keep it concise — spoken responses should be shorter than written ones
-- Use punctuation expressively — commas for pauses, em-dashes for emphasis, question marks for rising tone
-- No URLs — if you need to share a link, say "I'll send you the link" and follow up in text
-- Don't mention that this is a voice message or that you're in voice mode]`;
-      if (contentBlocks.length > 0) {
-        contentBlocks.unshift({ type: "text", text: voiceHint });
-      } else {
-        contentBlocks.push({ type: "text", text: voiceHint + "\n\n" + textContent });
-      }
-    }
-
-    // Use ContentBlocks if we have attachments or voice hint, otherwise plain string
-    const messageContent: string | ContentBlock[] =
-      contentBlocks.length > 0 && (savedAttachments.length > 0 || first.isVoiceNote)
-        ? contentBlocks
-        : textContent;
-
-    // Save user turn (with attachment metadata)
-    const userTurn: TranscriptTurn = {
-      type: "turn",
-      role: "user",
-      content: textContent,
-      timestamp: userTimestamp,
-      turnNumber,
-      channel: channelId,
-      sender: first.from,
-      ...(savedAttachments.length > 0 && { attachments: savedAttachments }),
-    };
-
-    await this.deps.conversationManager.appendTurn(conversation.id, userTurn);
-
-    // Broadcast user turn to WS clients viewing this conversation
-    this.deps.connectionRegistry.broadcastToConversation(conversation.id, {
-      type: "conversation_updated",
-      conversationId: conversation.id,
-      turn: {
-        role: "user",
-        content: textContent,
-        timestamp: userTimestamp,
-        turnNumber,
-        ...(savedAttachments.length > 0 && { attachments: savedAttachments }),
-      },
-    });
-
-    // Send typing indicator on WhatsApp while brain processes
+    // Send typing indicator
     await this.deps.sendTypingIndicator(channelId, replyTo);
 
-    // Start response timer: refreshes typing indicator + sends interim messages
+    // Start response timer
     const responseTimer = new ResponseTimer({
       sendTyping: () => this.deps.sendTypingIndicator(channelId, replyTo),
       sendInterim: async (message) => {
-        // Send as real WhatsApp message (ephemeral, not saved to transcript)
-        await this.deps.sendViaTransport(channelId, replyTo, {
-          content: message,
-        });
-        // Also broadcast to web dashboard
+        await this.deps.sendViaTransport(channelId, replyTo, { content: message });
         this.deps.connectionRegistry.broadcastToConversation(conversation.id, {
           type: "interim_status",
           message,
@@ -613,170 +516,81 @@ Write for the ear, not the eye:
     });
     responseTimer.start();
 
-    // Get or create session for this conversation
-    const sessionManager = await this.deps.sessionRegistry.getOrCreate(
-      conversation.id,
-    );
-    sessionManager.setChannel(channelId);
+    // ── Delegate to app.chat for brain interaction ────────────────────
+    // sendMessage() handles: user turn saving, STT transcription, session management,
+    // brain streaming, assistant turn saving, WS broadcasting, post-response hooks.
 
-    // Stream brain response — split on first tool use so the ack
-    // is delivered immediately and the user doesn't wait in silence.
-    let assistantContent = "";
+    let currentText = "";
     let firstToken = true;
-    let hasSplit = false;
+    let isFirstMessage = true;
+    let detectedLanguage: string | undefined;
+
     try {
-      for await (const event of sessionManager.streamMessage(messageContent)) {
-        if (event.type === "text_delta") {
-          if (firstToken) {
-            responseTimer.cancel();
-            firstToken = false;
-          }
-          assistantContent += event.text;
-          // Broadcast streaming to WS clients
-          this.deps.connectionRegistry.broadcastToConversation(
-            conversation.id,
-            {
-              type: "text_delta",
-              content: event.text,
-            },
-          );
-        }
-
-        // Split on first tool use: send ack portion immediately
-        if (
-          event.type === "tool_use_start" &&
-          !hasSplit &&
-          assistantContent.trim().length > 0
-        ) {
-          hasSplit = true;
-
-          // Save and send message 1 (the ack)
-          const ackTurn: TranscriptTurn = {
-            type: "turn",
-            role: "assistant",
-            content: assistantContent,
-            timestamp: new Date().toISOString(),
-            turnNumber,
-            channel: channelId,
-          };
-          await this.deps.conversationManager.appendTurn(
-            conversation.id,
-            ackTurn,
-          );
-
-          const replyTo = first.groupId ?? first.from;
-          await this.deps.sendViaTransport(channelId, replyTo, {
-            content: assistantContent,
-          });
-
-          // Broadcast completed message 1 to web UI
-          this.deps.connectionRegistry.broadcastToConversation(
-            conversation.id,
-            { type: "done" },
-          );
-          this.deps.connectionRegistry.broadcastToConversation(
-            conversation.id,
-            {
-              type: "conversation_updated",
-              conversationId: conversation.id,
-              turn: {
-                role: "assistant",
-                content: assistantContent,
-                timestamp: ackTurn.timestamp,
-                turnNumber,
-              },
-            },
-          );
-
-          // Advance to message 2
-          turnNumber++;
-          assistantContent = "";
-
-          // Signal new message to web UI
-          this.deps.connectionRegistry.broadcastToConversation(
-            conversation.id,
-            { type: "start" },
-          );
-        }
-
-        // On subsequent tool uses after the split, discard intermediate
-        // thinking text so only the final text segment is sent to the channel.
-        if (event.type === "tool_use_start" && hasSplit) {
-          assistantContent = "";
+      for await (const event of this.deps.app.chat.sendMessage(
+        conversation.id,
+        textContent,
+        turnNumber,
+        {
+          channel: {
+            transportId: channelId,
+            channelId,
+            sender: first.from,
+            replyTo: first.replyTo?.text,
+            senderName: first.senderName,
+            groupId: first.groupId,
+            isVoiceNote: first.isVoiceNote,
+            detectedLanguage: first.detectedLanguage,
+          },
+          source: "channel",
+          attachments: chatAttachments.length > 0 ? chatAttachments : undefined,
+          inputMedium: first.isVoiceNote && first.audioAttachment ? "audio" : undefined,
+        },
+      )) {
+        switch (event.type) {
+          case "text_delta":
+            if (firstToken) { responseTimer.cancel(); firstToken = false; }
+            currentText += event.text;
+            break;
+          case "turn_advanced":
+            // Split: send ack immediately via channel
+            if (currentText.trim()) {
+              await this.deps.sendViaTransport(channelId, replyTo, { content: currentText });
+            }
+            currentText = "";
+            isFirstMessage = false;
+            break;
+          case "done":
+            // Capture detectedLanguage from STT (for TTS response)
+            if ("detectedLanguage" in event && event.detectedLanguage) {
+              detectedLanguage = event.detectedLanguage;
+            }
+            break;
         }
       }
     } catch (err) {
       responseTimer.cancel();
-      console.error(
-        `Brain error for channel message in ${conversation.id}:`,
-        err,
-      );
-      assistantContent = "I encountered an error processing your message.";
+      console.error(`Brain error for channel message in ${conversation.id}:`, err);
+      currentText = "I encountered an error processing your message.";
     } finally {
       responseTimer.cancel();
     }
 
-    // Save and send message 2 (or the only message if no split occurred).
-    // Skip if split produced an empty message 2.
-    if (assistantContent.trim() || !hasSplit) {
-      const assistantTurn: TranscriptTurn = {
-        type: "turn",
-        role: "assistant",
-        content: assistantContent,
-        timestamp: new Date().toISOString(),
-        turnNumber,
-        channel: channelId,
-      };
-
-      await this.deps.conversationManager.appendTurn(
-        conversation.id,
-        assistantTurn,
-      );
-
-      // Send response back via channel (use group JID for groups, sender JID for DMs)
-      const replyTo = first.groupId ?? first.from;
-
-      // Voice reply: if original was a voice note, try to send audio
+    // ── Send final response via channel ──────────────────────────────
+    if (currentText.trim() || isFirstMessage) {
       let sentAsAudio = false;
       if (first.isVoiceNote && this.deps.sendAudioViaTransport) {
         try {
           sentAsAudio = await this.deps.sendAudioViaTransport(
-            channelId,
-            replyTo,
-            assistantContent,
-            first.detectedLanguage,
+            channelId, replyTo, currentText,
+            detectedLanguage ?? first.detectedLanguage,
           );
         } catch (err) {
-          console.warn(
-            "[ChannelMessageHandler] Voice reply failed, falling back to text:",
-            err,
-          );
+          console.warn("[ChannelMessageHandler] Voice reply failed, falling back to text:", err);
         }
       }
       if (!sentAsAudio) {
-        await this.deps.sendViaTransport(channelId, replyTo, {
-          content: assistantContent,
-        });
+        await this.deps.sendViaTransport(channelId, replyTo, { content: currentText });
       }
-
-      // Broadcast assistant turn to WS clients
-      this.deps.connectionRegistry.broadcastToConversation(conversation.id, {
-        type: "conversation_updated",
-        conversationId: conversation.id,
-        turn: {
-          role: "assistant",
-          content: assistantContent,
-          timestamp: assistantTurn.timestamp,
-          turnNumber,
-        },
-      });
-
-      // Post-response hooks (task extraction, response watchdog) — fire-and-forget
-      this.deps.postResponseHooks
-        ?.run(conversation.id, textContent, assistantContent, {
-          source: "channel",
-        })
-        .catch(() => {});
     }
   }
 
