@@ -386,15 +386,25 @@ export async function registerAdminRoutes(
       return reply.code(404).send({ error: "Conversation not found" });
     }
 
-    // Append turn to transcript
+    // Inject turn via app.chat for proper event emission
     const turnNumber = conversation.turnCount + 1;
-    await conversationManager.appendTurn(conversationId, {
-      type: "turn",
-      role: role as "user" | "assistant",
-      content,
-      timestamp: new Date().toISOString(),
-      turnNumber,
-    });
+    const app = fastify.app;
+    if (app?.chat) {
+      await app.chat.injectTurn(conversationId, {
+        role: role as "user" | "assistant",
+        content,
+        turnNumber,
+      });
+    } else {
+      // Fallback for cases without app
+      await conversationManager.appendTurn(conversationId, {
+        type: "turn",
+        role: role as "user" | "assistant",
+        content,
+        timestamp: new Date().toISOString(),
+        turnNumber,
+      });
+    }
 
     fastify.log.info(
       `[Admin] Injected ${role} message into conversation ${conversationId}`,

@@ -20,6 +20,14 @@ interface EventHandlerConfig {
   agentDir: string;
   /** Database for SDK session persistence (M6.5-S2) */
   db: ConversationDatabase;
+  /** App instance — when available, uses injectTurn() for proper event emission */
+  app?: {
+    chat: {
+      injectTurn(conversationId: string, turn: {
+        role: "user" | "assistant"; content: string; turnNumber: number; channel?: string;
+      }): Promise<void>;
+    };
+  };
 }
 
 /**
@@ -70,21 +78,27 @@ export async function spawnEventQuery(
     if (event.description) description += `\n${event.description}`;
     if (event.action) description += `\nAction: ${event.action}`;
 
-    await conversationManager.appendTurn(conversationId, {
-      type: "turn",
-      role: "user",
-      content: description,
-      timestamp,
-      turnNumber,
-    });
-
-    await conversationManager.appendTurn(conversationId, {
-      type: "turn",
-      role: "assistant",
-      content: "Event logged. Scheduled work is handled by automations.",
-      timestamp: new Date().toISOString(),
-      turnNumber,
-    });
+    const chat = config.app?.chat;
+    if (chat) {
+      await chat.injectTurn(conversationId, {
+        role: "user", content: description, turnNumber, channel: SCHEDULER_CHANNEL,
+      });
+      await chat.injectTurn(conversationId, {
+        role: "assistant",
+        content: "Event logged. Scheduled work is handled by automations.",
+        turnNumber: turnNumber + 1, channel: SCHEDULER_CHANNEL,
+      });
+    } else {
+      // Fallback for cases without app
+      await conversationManager.appendTurn(conversationId, {
+        type: "turn", role: "user", content: description, timestamp, turnNumber,
+      });
+      await conversationManager.appendTurn(conversationId, {
+        type: "turn", role: "assistant",
+        content: "Event logged. Scheduled work is handled by automations.",
+        timestamp: new Date().toISOString(), turnNumber: turnNumber + 1,
+      });
+    }
   } catch (err) {
     console.warn(`[EventHandler] Failed to record turn:`, err);
   }

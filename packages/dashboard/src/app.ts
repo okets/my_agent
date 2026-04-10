@@ -774,6 +774,7 @@ export class App extends EventEmitter {
             conversationManager: app.conversationManager,
             agentDir,
             db: app.conversationManager.getConversationDb(),
+            app,
           });
 
           app.calendarScheduler = new CalendarScheduler(caldavClient, {
