@@ -1948,26 +1948,8 @@ export class App extends EventEmitter {
 const execFileAsync = promisify(execFile);
 
 function wireAudioCallbacks(plugin: BaileysPlugin, app: App): void {
-  // STT: transcribe incoming voice notes
-  plugin.onAudioMessage = async (audioPath: string, _jid: string) => {
-    const cap = app.capabilityRegistry?.get("audio-to-text");
-    if (!cap || cap.status !== "available") {
-      return { error: "no transcription capability configured" };
-    }
-
-    const scriptPath = join(cap.path, "scripts", "transcribe.sh");
-    try {
-      const { stdout } = await execFileAsync(scriptPath, [audioPath], {
-        timeout: 30000,
-      });
-      const result = JSON.parse(stdout.trim());
-      return { text: result.text || stdout.trim(), language: result.language };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn("[WhatsApp] Voice note transcription failed:", msg);
-      return { error: `transcription failed: ${msg}` };
-    }
-  };
+  // STT removed — transcription now happens in sendMessage() via capability
+  // onAudioMessage callback no longer needed
 
   // TTS: synthesize voice replies
   plugin.onSendVoiceReply = async (text: string, _jid: string, language?: string) => {

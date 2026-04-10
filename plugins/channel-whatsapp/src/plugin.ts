@@ -8,10 +8,8 @@ import makeWASocket, {
   type BaileysEventMap,
 } from "@whiskeysockets/baileys";
 import { pino } from "pino";
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, basename } from "node:path";
-import { tmpdir } from "node:os";
-import { randomUUID } from "node:crypto";
 import type {
   TransportPlugin,
   TransportConfig,
@@ -34,12 +32,6 @@ type MessageHandler = (msg: IncomingMessage) => void;
 type ErrorHandler = (err: Error) => void;
 type StatusHandler = (status: TransportStatus) => void;
 type QrHandler = (qr: string) => void;
-
-/** Callback for transcribing incoming voice notes */
-export type OnAudioMessageCallback = (
-  audioPath: string,
-  jid: string,
-) => Promise<{ text?: string; language?: string; error?: string }>;
 
 /** Callback for synthesizing outgoing voice replies */
 export type OnSendVoiceReplyCallback = (
@@ -192,8 +184,6 @@ export class BaileysPlugin implements TransportPlugin {
   // Promise that resolves when the socket is ready for pairing code request
   private socketReady: { resolve: () => void; promise: Promise<void> } | null = null;
 
-  /** Callback for transcribing incoming voice notes (wired by dashboard) */
-  onAudioMessage: OnAudioMessageCallback | null = null;
   /** Callback for synthesizing voice replies (wired by dashboard) */
   onSendVoiceReply: OnSendVoiceReplyCallback | null = null;
 
@@ -505,48 +495,14 @@ export class BaileysPlugin implements TransportPlugin {
           // ── Voice note handling ────────────────────────────────────
           const audioMessage = msg.message?.audioMessage;
           if (audioMessage) {
-            let content: string;
-            let detectedLanguage: string | undefined;
-
-            if (this.onAudioMessage) {
-              try {
-                // Download audio to temp file
-                const buffer = (await downloadMediaMessage(
-                  msg,
-                  "buffer",
-                  {},
-                )) as Buffer;
-                const tempPath = join(
-                  tmpdir(),
-                  `wa-voice-${randomUUID()}.ogg`,
-                );
-                writeFileSync(tempPath, buffer);
-
-                // Transcribe via callback
-                const result = await this.onAudioMessage(tempPath, remoteJid);
-                if (result.text) {
-                  content = `[Voice note] ${result.text}`;
-                  detectedLanguage = result.language;
-                } else {
-                  content = `[Voice note received — ${result.error || "transcription failed"}]`;
-                }
-
-                // Clean up temp file (best-effort)
-                try {
-                  const { unlink } = await import("node:fs/promises");
-                  await unlink(tempPath);
-                } catch {}
-              } catch (err) {
-                console.warn(
-                  "[WhatsApp] Failed to process voice note:",
-                  err,
-                );
-                content =
-                  "[Voice note received — failed to download audio]";
-              }
-            } else {
-              content =
-                "[Voice note received — no transcription capability configured]";
+            // Download audio buffer — STT happens in the application layer
+            let audioBuffer: Buffer | undefined;
+            try {
+              audioBuffer = (await downloadMediaMessage(
+                msg, "buffer", {},
+              )) as Buffer;
+            } catch (err) {
+              console.warn("[WhatsApp] Failed to download voice note:", err);
             }
 
             const timestamp = msg.messageTimestamp
@@ -558,18 +514,22 @@ export class BaileysPlugin implements TransportPlugin {
               from: isGroup
                 ? (msg.key.participant ?? remoteJid)
                 : remoteJid,
-              content,
+              content: audioBuffer
+                ? "[Voice note — audio attached, pending transcription]"
+                : "[Voice note — failed to download audio]",
               timestamp,
               channelId: this.config!.id,
               isVoiceNote: true,
-              ...(detectedLanguage && { detectedLanguage }),
+              ...(audioBuffer && {
+                audioAttachment: { buffer: audioBuffer, mimeType: "audio/ogg" },
+              }),
               ...(isGroup && { groupId: remoteJid }),
               ...(msg.pushName && { senderName: msg.pushName }),
             };
 
             // Cache for reaction context
             if (msg.key.id) {
-              this.cacheMessage(msg.key.id, content, false);
+              this.cacheMessage(msg.key.id, incoming.content, false);
             }
 
             this._status = {
@@ -582,7 +542,6 @@ export class BaileysPlugin implements TransportPlugin {
               handler(incoming);
             }
 
-            // Mark as read on dedicated channels
             if (this.config?.role === "dedicated" && this.sock && msg.key) {
               this.sock.readMessages([msg.key]).catch(() => {});
             }

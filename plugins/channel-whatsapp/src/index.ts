@@ -7,6 +7,5 @@ export {
 } from "./plugin.js";
 export type {
   ParsedImage,
-  OnAudioMessageCallback,
   OnSendVoiceReplyCallback,
 } from "./plugin.js";
