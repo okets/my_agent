@@ -444,16 +444,44 @@ Steps 7-9 are human-in-the-loop. The sprint is not done until all 9 pass.
 
 ---
 
-## 9. S3 Design: Job Progress Card
+## 9. S2.5 Design: Streaming Broadcast
 
 ### 9.1 Problem
+
+S2 introduced `conversation_ready` — a full-conversation-reload workaround because channel messages don't stream to WS clients. This violates M6.10's principle: "every App mutation emits events, adapters subscribe." Streaming events were the one exception — they stay in the WS adapter instead of flowing through the App.
+
+### 9.2 Fix
+
+Move streaming broadcasts from `chat-handler.ts` into the App event layer:
+
+1. **`ChatService.sendMessage()` emits `chat:*` App events** as it yields generator events. The types already exist in `app-events.ts` (lines 61-71) but only `chat:done` was emitted.
+
+2. **WS adapter subscribes** to `chat:*` events in `index.ts` and broadcasts via `connectionRegistry.broadcastToConversation()`. Same pattern as StatePublisher.
+
+3. **Chat-handler stops sending streaming events directly.** It still handles conversation subscription (`switchConversation`) and response timer management, but `text_delta`/`done`/etc. flow through the App broadcast.
+
+4. **`conversation_ready` removed.** Channel messages now stream to all WS clients viewing the conversation — same as dashboard messages.
+
+### 9.3 Also Fixes
+
+6 broken tests from S1 mock mismatches (`conversation-initiator-routing.test.ts` × 5, `source-channel.test.ts` × 1).
+
+### 9.4 Sprint Plan
+
+[plan.md](../../sprints/m9.4-s2.5-streaming-broadcast/plan.md)
+
+---
+
+## 10. S3 Design: Job Progress Card
+
+### 10.1 Problem
 
 The current progress bar:
 1. Doesn't progress (updates only on `todo_update` status changes, not reliably)
 2. Is attached to the first assistant message — Nina sends more messages, the bar scrolls away
 3. Flickers when `current` text changes; text disappears between updates
 
-### 9.2 Solution: Sticky Progress Card
+### 10.2 Solution: Sticky Progress Card
 
 Replace the inline progress bar with a sticky card at the bottom of the chat area, above the compose box. One card per running job, max two stacked.
 
@@ -476,7 +504,7 @@ Replace the inline progress bar with a sticky card at the bottom of the chat are
 └──────────────────────────────────────┘
 ```
 
-### 9.3 Interaction
+### 10.3 Interaction
 
 | Action | Result |
 |--------|--------|
@@ -485,7 +513,7 @@ Replace the inline progress bar with a sticky card at the bottom of the chat are
 | Click ✕ button | Close card (job continues, card dismissed) |
 | Job completes | Card shows "Done", fades out after 2 seconds |
 
-### 9.4 Step Styling
+### 10.4 Step Styling
 
 | Status | Icon | Style |
 |--------|------|-------|
@@ -496,11 +524,11 @@ Replace the inline progress bar with a sticky card at the bottom of the chat are
 
 Card background: `glass-strong` (matches design language). Border: `rgba(255,255,255,0.08)`.
 
-### 9.5 Expanded Mode Scrolling
+### 10.5 Expanded Mode Scrolling
 
 The expanded card shows a maximum of 5 rows (1 header + 4 visible steps). If more steps exist, the step list scrolls with a thin scrollbar. This prevents the card from covering the entire chat area for jobs with many steps.
 
-### 9.6 Headless App Contract
+### 10.6 Headless App Contract
 
 **Current `todoProgress` shape (insufficient):**
 ```typescript
@@ -519,14 +547,14 @@ todoProgress?: {
 
 StatePublisher already reads `todos.json` from disk for each broadcast. The change is including `items` (text + status only, no notes/validation metadata) in the snapshot.
 
-### 9.7 Frontend Changes
+### 10.7 Frontend Changes
 
 - **Remove:** `msg.delegationProgress` on messages, `_syncDelegationProgress()` matching logic, inline progress bar template (both desktop and mobile)
 - **Add:** Alpine component for progress cards, positioned fixed above compose box
 - **Data source:** `state:jobs` WebSocket message (already carries job snapshots — just needs `items` added)
 - **Max cards:** 2 stacked. If more jobs exist, show most recent 2.
 
-### 9.8 S3 Validation
+### 10.8 S3 Validation
 
 | Test | What it validates |
 |------|-------------------|
@@ -543,17 +571,19 @@ StatePublisher already reads `todos.json` from disk for each broadcast. The chan
 
 ---
 
-## 10. Sprint Summary
+## 11. Sprint Summary
 
 | Sprint | Scope | Key Deliverable |
 |--------|-------|-----------------|
 | **S1** | Notification delivery via `app.chat` | `alert()` broadcasts to WebSocket, correct channel decision |
-| **S2** | Channel messages via `app.chat` + `injectTurn()` | Unified brain path, channel metadata preserved |
+| **S2** | Channel messages via `app.chat` + `injectTurn()` + STT unification | Unified brain path, channel metadata, single STT path |
+| **S2.5** | Streaming broadcast via App events | All callers of `sendMessage()` stream to WS clients, `conversation_ready` removed |
 | **S3** | Job progress card (replaces inline bar) | Sticky card, step list, collapsed/expanded, scrollable |
+| **S4** | Brief delivery pipeline fix | Verbatim debrief delivery, mandatory deliverable todo |
 
 ---
 
-## 11. References
+## 12. References
 
 - [conversation-system.md](../design/conversation-system.md) — Canonical conversation lifecycle design
 - [conversation-initiation-design.md](2026-03-13-conversation-initiation-design.md) — Original M6.9-S3 spec (alert/initiate)
