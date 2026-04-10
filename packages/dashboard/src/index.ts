@@ -174,6 +174,7 @@ async function main() {
         timestamp: turn.timestamp,
         turnNumber: turn.turnNumber,
         channel: turn.channel,
+        attachments: turn.attachments,
       },
     });
   });
