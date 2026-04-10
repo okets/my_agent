@@ -1586,22 +1586,7 @@ function chat() {
           break;
         }
 
-        case "conversation_ready": {
-          // Channel message processing complete — all turns saved.
-          // Switch to (or reload) the conversation to show full turn history.
-          if (data.conversationId && this.wsConnected) {
-            this.currentConversationId = data.conversationId;
-            if (Alpine.store("conversations")) {
-              Alpine.store("conversations").serverCurrentId =
-                data.conversationId;
-            }
-            this.ws.send({
-              type: "switch_conversation",
-              conversationId: data.conversationId,
-            });
-          }
-          break;
-        }
+        // conversation_ready removed — channel messages now stream via App events
 
         case "conversation_updated": {
           // Update sidebar timestamp for the conversation
