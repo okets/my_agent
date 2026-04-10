@@ -294,6 +294,7 @@ export async function registerAutomationRoutes(
             summary: `[${name}] Stopped by user.`,
             created: new Date().toISOString(),
             delivery_attempts: 0,
+            source_channel: "dashboard",
           });
         }
 
