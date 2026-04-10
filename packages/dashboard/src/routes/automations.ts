@@ -280,6 +280,9 @@ export async function registerAutomationRoutes(
           summary: "Stopped by user",
         });
 
+        // Abort the running executor loop so it stops consuming SDK tokens
+        app.automationExecutor?.abortJob(request.params.id);
+
         // Notify the brain so it can tell the user naturally
         if (app.notificationQueue) {
           const automation = app.automationManager?.findById(job.automationId);

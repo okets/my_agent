@@ -45,12 +45,16 @@ function progressCard() {
     async confirmStop(jobId) {
       delete this.confirming[jobId];
       // Optimistic: dismiss card immediately so user sees instant feedback
-      Alpine.store("jobs").dismiss(jobId);
+      const store = Alpine.store("jobs");
+      store.dismiss(jobId);
       delete this.expanded[jobId];
       try {
-        await fetch(`/api/jobs/${jobId}/stop`, { method: "POST" });
+        const res = await fetch(`/api/jobs/${jobId}/stop`, { method: "POST" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
       } catch (e) {
-        console.error("[progress-card] stop failed:", e);
+        console.error("[progress-card] stop failed, restoring card:", e);
+        // Un-dismiss so card reappears
+        store.dismissed = store.dismissed.filter(id => id !== jobId);
       }
     },
 

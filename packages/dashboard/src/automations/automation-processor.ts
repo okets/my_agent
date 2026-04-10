@@ -126,8 +126,10 @@ export class AutomationProcessor {
       this.config.onJobEvent?.(eventName, updatedJob);
     }
 
-    // 4. Notify based on manifest.notify
-    await this.handleNotification(automation, job.id, result);
+    // 4. Notify based on manifest.notify (skip if user-stopped — stop route handles notification)
+    if (result.error !== "Stopped by user") {
+      await this.handleNotification(automation, job.id, result);
+    }
 
     // 5. If once: true, disable automation after success
     if (automation.manifest.once && result.success) {

@@ -71,9 +71,23 @@ export interface ExecutionResult {
 
 export class AutomationExecutor {
   private config: AutomationExecutorConfig;
+  private abortControllers = new Map<string, AbortController>();
 
   constructor(config: AutomationExecutorConfig) {
     this.config = config;
+  }
+
+  /**
+   * Abort a running job. The for-await loop checks the signal each iteration
+   * and breaks early, marking the job as failed.
+   */
+  abortJob(jobId: string): boolean {
+    const controller = this.abortControllers.get(jobId);
+    if (controller) {
+      controller.abort();
+      return true;
+    }
+    return false;
   }
 
   /** Merge per-job Stop hook into static config hooks */
@@ -314,8 +328,14 @@ export class AutomationExecutor {
       // 6. Iterate and collect response (follows TaskExecutor.iterateBrainQuery pattern)
       let response = "";
       let sdkSessionId: string | null = null;
+      const abortController = new AbortController();
+      this.abortControllers.set(job.id, abortController);
 
       for await (const msg of query) {
+        if (abortController.signal.aborted) {
+          console.log(`[AutomationExecutor] Job ${job.id} aborted by user`);
+          break;
+        }
         // Capture session ID from SDK init message
         if (
           msg.type === "system" &&
@@ -337,6 +357,14 @@ export class AutomationExecutor {
             }
           }
         }
+      }
+
+      this.abortControllers.delete(job.id);
+
+      // If aborted by user, return early — stop route handles status + notification
+      if (abortController.signal.aborted) {
+        if (unsubscribe) unsubscribe();
+        return { success: false, work: response, deliverable: null, error: "Stopped by user" };
       }
 
       // 7. Extract deliverable
@@ -591,8 +619,15 @@ export class AutomationExecutor {
           // Iterate and collect response
           let response = "";
           let newSessionId: string | null = null;
+          const resumeAbort = new AbortController();
+          this.abortControllers.set(job.id, resumeAbort);
 
           for await (const msg of query) {
+            if (resumeAbort.signal.aborted) {
+              console.log(`[AutomationExecutor] Job ${job.id} aborted by user (resume path)`);
+              break;
+            }
+
             if (
               msg.type === "system" &&
               (msg as any).subtype === "init" &&
@@ -611,6 +646,12 @@ export class AutomationExecutor {
                 }
               }
             }
+          }
+
+          this.abortControllers.delete(job.id);
+
+          if (resumeAbort.signal.aborted) {
+            return { success: false, status: "failed", error: "Stopped by user" };
           }
 
           // Detect silent fresh session — SDK doesn't throw on failed resume
