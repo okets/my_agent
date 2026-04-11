@@ -110,11 +110,13 @@ const VALIDATORS: Record<string, ValidatorFn> = {
         message: "deliverable.md not found — write your deliverable before marking this done",
       };
     }
-    const content = fs.readFileSync(delPath, "utf-8").trim();
-    if (content.length < 50) {
+    const { body: rawBody } = readFrontmatter<Record<string, unknown>>(delPath);
+    const body = rawBody.trim();
+    if (body.length < 50) {
       return {
         pass: false,
-        message: "deliverable.md is too short (< 50 chars). Include meaningful deliverable content.",
+        message:
+          "deliverable.md body is too short (< 50 chars after frontmatter). Include a substantive summary of your work — key findings, outcomes, and recommendations.",
       };
     }
     return { pass: true };

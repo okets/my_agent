@@ -14,6 +14,7 @@ import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import type { ConversationDatabase } from "../../conversations/db.js";
 import { queryModel, type ModelAlias } from "../query-model.js";
 import { loadPreferences } from "@my-agent/core";
+import { stripFrontmatter } from "../../automations/summary-resolver.js";
 
 // Import job-specific prompts and logic
 import {
@@ -299,10 +300,7 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
       // Priority: deliverable.md → status-report.md → summary
       if (job.deliverablePath && existsSync(job.deliverablePath)) {
         try {
-          content = await readFile(job.deliverablePath, "utf-8");
-          // Strip YAML frontmatter if present
-          const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
-          if (fmMatch) content = content.slice(fmMatch[0].length).trim();
+          content = stripFrontmatter(await readFile(job.deliverablePath, "utf-8"));
         } catch {
           // Fall through
         }
@@ -311,9 +309,7 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
         const reportPath = join(job.runDir, "status-report.md");
         if (existsSync(reportPath)) {
           try {
-            content = await readFile(reportPath, "utf-8");
-            const fmMatch = content.match(/^---\n[\s\S]*?\n---\n?/);
-            if (fmMatch) content = content.slice(fmMatch[0].length).trim();
+            content = stripFrontmatter(await readFile(reportPath, "utf-8"));
           } catch {
             // Fall back to summary
           }

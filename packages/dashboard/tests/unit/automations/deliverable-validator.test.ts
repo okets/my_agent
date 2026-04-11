@@ -45,4 +45,15 @@ describe("deliverable_written validator", () => {
     const result = runValidation("deliverable_written", tmpDir);
     expect(result.pass).toBe(true);
   });
+
+  it("fails when frontmatter is long but body is trivial", () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "deliverable.md"),
+      "---\nchange_type: configure\ntest_result: pass\nsummary: Updated the configuration settings for the deployment\nstatus: complete\n---\nDone.",
+    );
+    const result = runValidation("deliverable_written", tmpDir);
+    expect(result.pass).toBe(false);
+    expect(result.message).toMatch(/too short/);
+  });
 });

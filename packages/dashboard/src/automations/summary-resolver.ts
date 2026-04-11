@@ -9,12 +9,17 @@ const CONDENSE_SYSTEM_PROMPT =
   "every finding, number, name, date, and actionable item must be preserved. " +
   "Shorten prose, remove filler, use bullets, but keep all substance.";
 
+/** Strip YAML frontmatter from markdown content, returning body text only. */
+export function stripFrontmatter(content: string): string {
+  return content.replace(FRONTMATTER_RE, "").trim();
+}
+
 function readAndStrip(filePath: string): string | null {
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
     if (!raw.trim()) return null;
-    const stripped = raw.replace(FRONTMATTER_RE, "");
-    if (!stripped.trim()) return null;
+    const stripped = stripFrontmatter(raw);
+    if (!stripped) return null;
     return stripped;
   } catch {
     return null;
@@ -50,11 +55,17 @@ function resolve(
   return { text: fallbackWork, source: "fallback" };
 }
 
+const DB_DISPLAY_LIMIT = 2000;
+const DB_TRUNCATION_NOTICE = "\n\n[Full results in job workspace]";
+
 export function resolveJobSummary(
   runDir: string | undefined | null,
   fallbackWork: string,
+  maxLength = DB_DISPLAY_LIMIT,
 ): string {
-  return resolve(runDir, fallbackWork).text;
+  const { text } = resolve(runDir, fallbackWork);
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + DB_TRUNCATION_NOTICE;
 }
 
 export async function resolveJobSummaryAsync(

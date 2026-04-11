@@ -74,13 +74,22 @@ describe("resolveJobSummary", () => {
     expect(result).toBe("Status content.");
   });
 
-  it("returns full content for large deliverables (no sync truncation)", () => {
+  it("truncates at 2000 chars for DB display (default maxLength)", () => {
     const dir = makeTmpDir();
-    const longContent = "A".repeat(15000);
+    const longContent = "A".repeat(5000);
     fs.writeFileSync(path.join(dir, "deliverable.md"), longContent);
     const result = resolveJobSummary(dir, "fallback work");
-    expect(result).toBe(longContent);
-    expect(result.length).toBe(15000);
+    expect(result).toContain("A".repeat(100));
+    expect(result).toContain("[Full results in job workspace]");
+    expect(result.length).toBeLessThanOrEqual(2000 + 40);
+  });
+
+  it("respects custom maxLength parameter", () => {
+    const dir = makeTmpDir();
+    const longContent = "A".repeat(5000);
+    fs.writeFileSync(path.join(dir, "deliverable.md"), longContent);
+    const result = resolveJobSummary(dir, "fallback work", 500);
+    expect(result.length).toBeLessThanOrEqual(500 + 40);
   });
 });
 

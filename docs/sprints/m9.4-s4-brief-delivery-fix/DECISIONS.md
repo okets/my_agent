@@ -10,6 +10,8 @@ Decided to provide both `resolveJobSummary()` (sync) and `resolveJobSummaryAsync
 
 Both `summary-resolver.ts` and the new debrief-reporter assembler strip YAML frontmatter. This is intentional duplication — the resolver handles per-job summaries stored in DB, while the assembler handles the debrief digest delivered to the user. Both need clean content without metadata headers.
 
-## D3: 4000-char truncation limit (up from 500)
+## D3: 10,000-char async threshold + 2,000-char DB display limit
 
-The plan specified 4000 chars. This is 8x the old limit. The rationale: deliverables are typically 500-2000 chars, so 4000 provides headroom without allowing unbounded content. The Haiku fallback handles cases where raw stream output exceeds 4000 chars.
+The async resolver (notification delivery) uses a 10,000-char threshold before triggering Haiku condense. The plan specified 4,000 but this was raised because Haiku condense preserves all information (unlike hard truncation). A higher threshold means fewer Haiku calls for moderately-sized deliverables while still catching unbounded raw streams.
+
+The sync resolver (DB path) uses a separate 2,000-char display limit since its consumers are UI job cards and state broadcasts where unbounded content would bloat WebSocket payloads and break layouts.
