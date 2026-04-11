@@ -74,14 +74,13 @@ describe("resolveJobSummary", () => {
     expect(result).toBe("Status content.");
   });
 
-  it("truncates at 4000 chars with notice", () => {
+  it("returns full content for large deliverables (no sync truncation)", () => {
     const dir = makeTmpDir();
-    const longContent = "A".repeat(5000);
+    const longContent = "A".repeat(15000);
     fs.writeFileSync(path.join(dir, "deliverable.md"), longContent);
     const result = resolveJobSummary(dir, "fallback work");
-    expect(result.length).toBeLessThanOrEqual(4000 + 60); // 4000 + truncation notice
-    expect(result).toContain("A".repeat(100));
-    expect(result.endsWith("\n\n[Truncated — full content available in job artifacts]")).toBe(true);
+    expect(result).toBe(longContent);
+    expect(result.length).toBe(15000);
   });
 });
 
@@ -101,7 +100,7 @@ describe("resolveJobSummaryAsync", () => {
     tmpDirs.length = 0;
   });
 
-  it("returns disk artifact when available (does not call Haiku)", async () => {
+  it("returns disk artifact under 10K without calling Haiku", async () => {
     const dir = makeTmpDir();
     fs.writeFileSync(path.join(dir, "deliverable.md"), "Disk artifact content.");
     const mockQuery = async () => "should not be called";
@@ -109,23 +108,47 @@ describe("resolveJobSummaryAsync", () => {
     expect(result).toBe("Disk artifact content.");
   });
 
-  it("calls Haiku when no artifacts and fallback > 4000 chars", async () => {
+  it("calls Haiku to condense content over 10K chars", async () => {
     const dir = makeTmpDir();
-    const longFallback = "B".repeat(5000);
+    const longContent = "B".repeat(12000);
+    fs.writeFileSync(path.join(dir, "deliverable.md"), longContent);
     const mockQuery = async (_prompt: string, _sys: string, _model: "haiku") =>
-      "Haiku summary result";
-    const result = await resolveJobSummaryAsync(dir, longFallback, mockQuery);
-    expect(result).toBe("Haiku summary result");
+      "Condensed by Haiku";
+    const result = await resolveJobSummaryAsync(dir, "fallback", mockQuery);
+    expect(result).toBe("Condensed by Haiku");
   });
 
-  it("falls back to truncation when Haiku fails", async () => {
+  it("calls Haiku to condense long fallback when no disk artifacts", async () => {
     const dir = makeTmpDir();
-    const longFallback = "C".repeat(5000);
+    const longFallback = "C".repeat(12000);
+    const mockQuery = async (_prompt: string, _sys: string, _model: "haiku") =>
+      "Condensed fallback";
+    const result = await resolveJobSummaryAsync(dir, longFallback, mockQuery);
+    expect(result).toBe("Condensed fallback");
+  });
+
+  it("returns raw content when Haiku fails (no truncation)", async () => {
+    const dir = makeTmpDir();
+    const longFallback = "D".repeat(12000);
     const mockQuery = async () => {
       throw new Error("Haiku unavailable");
     };
     const result = await resolveJobSummaryAsync(dir, longFallback, mockQuery);
-    expect(result).toContain("C".repeat(100));
-    expect(result.endsWith("\n\n[Truncated — full content available in job artifacts]")).toBe(true);
+    expect(result).toBe(longFallback);
+    expect(result.length).toBe(12000);
+  });
+
+  it("skips Haiku when content is under 10K", async () => {
+    const dir = makeTmpDir();
+    const content = "E".repeat(9000);
+    fs.writeFileSync(path.join(dir, "deliverable.md"), content);
+    let haikuCalled = false;
+    const mockQuery = async (_prompt: string, _sys: string, _model: "haiku") => {
+      haikuCalled = true;
+      return "should not happen";
+    };
+    const result = await resolveJobSummaryAsync(dir, "fallback", mockQuery);
+    expect(result).toBe(content);
+    expect(haikuCalled).toBe(false);
   });
 });
