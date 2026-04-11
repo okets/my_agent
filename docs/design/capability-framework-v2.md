@@ -223,6 +223,7 @@ This three-tier pattern applies to all capability types. For `script` capabiliti
 | `desktop_scroll` | `{x, y, direction, amount?}` | Screenshot after action | Scroll at position |
 | `desktop_info` | `{query}` | JSON (windows/display/capabilities) | Query display and window state |
 | `desktop_wait` | `{seconds}` | Screenshot after action | Pause for UI settling |
+| `desktop_focus_window` | `{windowId}` | Screenshot after action | Bring window to foreground by ID |
 
 **Every action tool must return a screenshot in its response.** This eliminates a round trip — the brain never has to separately ask "what happened?"
 
