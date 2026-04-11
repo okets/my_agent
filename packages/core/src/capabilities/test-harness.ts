@@ -9,6 +9,8 @@ import { execFile } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { Capability, CapabilityTestResult } from './types.js'
 
 const execFileAsync = promisify(execFile)
@@ -28,6 +30,17 @@ export async function testCapability(
     return { status: 'error', latencyMs: 0, message: `Capability is ${capability.status}` }
   }
 
+  // MCP interface: use generic MCP test path
+  if (capability.interface === 'mcp') {
+    try {
+      return await testMcpCapability(capability)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return { status: 'error', latencyMs: 0, message }
+    }
+  }
+
+  // Script interface: dispatch to well-known type test contracts
   const type = capability.provides
   if (!type) {
     return { status: 'error', latencyMs: 0, message: 'No well-known type — cannot test' }
@@ -43,6 +56,66 @@ export async function testCapability(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return { status: 'error', latencyMs: 0, message }
+  }
+}
+
+/**
+ * Test an MCP capability by spawning its server, connecting a client,
+ * and verifying that at least one tool is registered.
+ */
+async function testMcpCapability(capability: Capability): Promise<CapabilityTestResult> {
+  if (!capability.entrypoint) {
+    return { status: 'error', latencyMs: 0, message: 'MCP capability missing entrypoint' }
+  }
+
+  // Run detect.sh if present (environment pre-check)
+  const detectScript = join(capability.path, 'scripts', 'detect.sh')
+  if (existsSync(detectScript)) {
+    try {
+      await execFileAsync('bash', [detectScript], {
+        timeout: 10_000,
+        cwd: capability.path,
+      })
+    } catch {
+      return { status: 'error', latencyMs: 0, message: 'environment check failed (detect.sh)' }
+    }
+  }
+
+  const parts = capability.entrypoint.split(/\s+/)
+  const command = parts[0]
+  const args = parts.slice(1)
+
+  const transport = new StdioClientTransport({
+    command,
+    args,
+    cwd: capability.path,
+    env: { ...process.env },
+  })
+
+  const client = new Client({ name: 'capability-test', version: '1.0.0' })
+  const start = performance.now()
+
+  try {
+    await client.connect(transport)
+
+    const { tools } = await client.listTools()
+    const latencyMs = Math.round(performance.now() - start)
+
+    if (!tools || tools.length === 0) {
+      return { status: 'error', latencyMs, message: 'MCP server registered no tools' }
+    }
+
+    return { status: 'ok', latencyMs }
+  } catch (err) {
+    const latencyMs = Math.round(performance.now() - start)
+    const message = err instanceof Error ? err.message : String(err)
+    return { status: 'error', latencyMs, message }
+  } finally {
+    try {
+      await client.close()
+    } catch {
+      // ignore cleanup errors
+    }
   }
 }
 
