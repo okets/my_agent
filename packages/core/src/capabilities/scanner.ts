@@ -7,6 +7,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { basename, dirname, join } from 'node:path'
 import { readFrontmatter } from '../metadata/frontmatter.js'
 import { getEnvValue } from '../env.js'
@@ -40,6 +41,18 @@ function hasEnvVar(envPath: string, key: string): boolean {
   if (process.env[key]) return true
   const fileValue = getEnvValue(envPath, key)
   return fileValue !== null && fileValue !== ''
+}
+
+/**
+ * Check if a system CLI tool is available via `which`.
+ */
+function hasSystemTool(tool: string): boolean {
+  try {
+    execFileSync('which', [tool], { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -116,21 +129,37 @@ export async function scanCapabilities(
       const requiredEnv = data.requires?.env ?? []
       const missingVars = requiredEnv.filter((key) => !hasEnvVar(envPath, key))
 
+      // Probe required system tools
+      const requiredSystem = data.requires?.system ?? []
+      const missingTools = requiredSystem.filter((tool) => !hasSystemTool(tool))
+
+      // Combine missing env and system requirements
+      const allMissing = [...missingVars, ...missingTools]
+
+      // Read .enabled file
+      const enabledPath = join(capDir, '.enabled')
+      const enabled = existsSync(enabledPath)
+
       const capability: Capability = {
         name: data.name,
         provides: data.provides,
         interface: data.interface,
         path: capDir,
-        status: missingVars.length === 0 ? 'available' : 'unavailable',
+        status: allMissing.length === 0 ? 'available' : 'unavailable',
         health: 'untested',
-        enabled: true, // default — Task 2 adds .enabled file reading
+        enabled,
       }
 
-      if (missingVars.length > 0) {
-        capability.unavailableReason = `missing ${missingVars.join(', ')}`
+      if (allMissing.length > 0) {
+        capability.unavailableReason = `missing ${allMissing.join(', ')}`
       }
 
-      // For MCP capabilities, load and expand .mcp.json
+      // Read entrypoint for MCP capabilities
+      if (data.entrypoint) {
+        capability.entrypoint = data.entrypoint
+      }
+
+      // For MCP capabilities, load and expand .mcp.json (if no entrypoint — coexistence)
       if (data.interface === 'mcp') {
         const mcpConfig = loadMcpConfig(capDir, envPath, requiredEnv)
         if (mcpConfig) {
