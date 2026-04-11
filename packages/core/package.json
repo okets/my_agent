@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.74",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/luxon": "^3.7.1",
     "better-sqlite3": "^12.6.2",
     "chokidar": "^5.0.0",

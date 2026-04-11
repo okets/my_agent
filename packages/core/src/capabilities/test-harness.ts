@@ -89,7 +89,7 @@ async function testMcpCapability(capability: Capability): Promise<CapabilityTest
     command,
     args,
     cwd: capability.path,
-    env: { ...process.env },
+    env: { ...process.env } as Record<string, string>,
   })
 
   const client = new Client({ name: 'capability-test', version: '1.0.0' })

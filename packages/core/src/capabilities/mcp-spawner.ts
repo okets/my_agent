@@ -43,7 +43,7 @@ export class McpCapabilitySpawner extends EventEmitter {
       command,
       args,
       cwd: capability.path,
-      env: { ...process.env },
+      env: { ...process.env } as Record<string, string>,
     })
 
     const client = new Client({ name: `capability-${capability.name}`, version: '1.0.0' })
