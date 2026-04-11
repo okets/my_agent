@@ -29,7 +29,7 @@
 | **M9.1: Agentic Flow Overhaul** | **Done** | All 8 sprints complete. Todo system, heartbeat, hooks, restart recovery — validated with real LLM. Voice sprint unblocked. |
 | **M9.2: Worker Todo Coverage** | **Done** | 11 sprints (S1-S10 incl. S5.1). Worker infrastructure fully working. Delegation behavior deferred to M9.3. 1345 tests. |
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
-| **M9.4: Conversation UX/UI** | **Active** | 4 sprints planned. Real-time delivery, channel unification, job progress card, brief delivery fix. |
+| **M9.4: Conversation UX/UI** | **Done** | 5 sprints (S1-S4 incl. S2.5). Real-time delivery, channel unification, streaming broadcast, job progress card, brief delivery fix. |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -61,10 +61,9 @@ M9.1 Agentic Flow Overhaul — todo system, heartbeat, enforcement, restart reco
 M9.2 Worker Todo Coverage — 11 sprints, worker isolation, skill filter, 1345 tests
 M9.3 Delegation Compliance — 4 sprints, 75% compliance, prompt + hook + auto-fire + progress
 
-ACTIVE (M9.4)
-══════════════
-M9.4 Conversation UX/UI — real-time delivery, channel unification, job progress card, brief fix
-  S1 (notification delivery) ──► S2 (channel unification) ──► S3 (job progress card) ──► S4 (brief delivery fix)
+DONE (M9.4)
+═══════════
+M9.4 Conversation UX/UI — 5 sprints, real-time delivery, channel unification, streaming, progress card, brief fix
 
 FUTURE (M10–M14) — ~16 sprints to release
 ══════════════════════════════════════════
@@ -890,7 +889,7 @@ Fix Conversation Nina's delegation compliance — she must delegate research/ana
 
 ---
 
-### M9.4: Conversation UX/UI — ACTIVE
+### M9.4: Conversation UX/UI — DONE
 
 Fix real-time notification delivery, unify all message paths through the Headless App, and replace the broken inline progress bar with a proper job progress card.
 
@@ -903,7 +902,7 @@ Fix real-time notification delivery, unify all message paths through the Headles
 | S2 | Channel Message Unification | Done | Route inbound channel messages (WhatsApp) through `app.chat` for brain interaction. New `app.chat.injectTurn()` for admin inject + scheduler (write-only, no brain). Extend `ChatMessageOptions` with channel metadata + source field. STT unified: transports pass raw audio, `sendMessage()` transcribes. [Plan](../sprints/m9.4-s2-channel-unification/plan.md) · [Review](../sprints/m9.4-s2-channel-unification/review.md) |
 | S2.5 | Streaming Broadcast | Done | All streaming events (text_delta, done, thinking, error) flow through App events → WS broadcast. All callers auto-broadcast. Removed `conversation_ready`. Swept 6 bypassed mutation paths (unpin, setModel, abbreviation rename, job:started, external messages) through App events. Audio players on incoming voice notes + persisted TTS audioUrl on outgoing. [Plan](../sprints/m9.4-s2.5-streaming-broadcast/plan.md) · [Review](../sprints/m9.4-s2.5-streaming-broadcast/review.md) |
 | S3 | Job Progress Card | Done | Replace inline progress bar with sticky card above compose box. Collapsed (default): current step + done/total. Expanded (click/tap): full step list, 5-row max with scrollbar, ✕ to close. Max 2 cards. StatePublisher includes todo items in snapshot. [Plan](../sprints/m9.4-s3-job-progress-card/plan.md) · [Review](../sprints/m9.4-s3-job-progress-card/review.md) |
-| S4 | Brief Delivery Pipeline Fix | Planned | Remove `.slice(0, 500)` truncation, read worker artifacts from disk instead of raw stream, mandatory deliverable todo with validator, Haiku fallback for missing artifacts, verbatim framing in both delivery paths, debrief-reporter becomes assembler (no Haiku re-digest). [Plan](../sprints/m9.4-s4-brief-delivery-fix/plan.md) · [Bug](../bugs/2026-04-08-brief-delivery-broken.md) |
+| S4 | Brief Delivery Pipeline Fix | Done | Remove `.slice(0, 500)` truncation, read worker artifacts from disk instead of raw stream, mandatory deliverable todo with validator, Haiku fallback for missing artifacts, verbatim framing in both delivery paths, debrief-reporter becomes assembler (no Haiku re-digest). [Plan](../sprints/m9.4-s4-brief-delivery-fix/plan.md) · [Review](../sprints/m9.4-s4-brief-delivery-fix/architect-review.md) · [Bug](../bugs/2026-04-08-brief-delivery-broken.md) |
 
 **Key decisions:**
 - The 15-minute threshold is correct in purpose (channel decision) but was wrong in implementation (combined with "which conversation"). Split into `getCurrent()` + `getLastWebMessageAge()`.
@@ -911,6 +910,8 @@ Fix real-time notification delivery, unify all message paths through the Headles
 - `injectTurn()` is a new `app.chat` method for transcript writes without brain invocation (admin, scheduler).
 - Progress card is a standalone widget, not attached to messages. Jobs with many steps scroll within a 5-row container.
 - Brief delivery: workers summarize their own work (one summarization), reporter assembles (no LLM), Conversation Nina presents. Three-layer fallback: disk artifact → short stream as-is → Haiku summarize. No truncation at any level.
+
+**Results:** All message paths route through Headless App. Notifications delivered in real-time. WhatsApp messages unified through `app.chat`. Streaming events broadcast via App events. Job progress cards replace inline progress bar. Brief delivery fixed — workers summarize, reporter assembles, no truncation.
 
 **Dependencies:** M6.10 (Headless App), M9.3 (Delegation Compliance — auto-fire + progress infrastructure)
 
