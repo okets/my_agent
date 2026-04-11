@@ -107,18 +107,8 @@ import { HeartbeatService } from "./automations/heartbeat-service.js";
 import { readTodoFile } from "./automations/todo-file.js";
 import { PersistentNotificationQueue } from "./notifications/persistent-queue.js";
 import { VisualActionService } from "./visual/visual-action-service.js";
-import { detectDesktopEnvironment } from "./desktop/desktop-capability-detector.js";
-import { X11Backend } from "./desktop/x11-backend.js";
-import { createDesktopServer } from "./mcp/desktop-server.js";
-import { createDesktopActionServer } from "./mcp/desktop-action-server.js";
-import {
-  createDesktopRateLimiter,
-  createDesktopAuditLogger,
-} from "./hooks/desktop-hooks.js";
-import type { DesktopEnvironment, DesktopBackend } from "@my-agent/core";
 import { McpCapabilitySpawner } from "@my-agent/core";
 import { PlaywrightScreenshotBridge } from "./playwright/playwright-screenshot-bridge.js";
-// Desktop action tools registered via desktop-action-server.ts (direct MCP, like Playwright)
 
 // ─── Service Namespaces ──────────────────────────────────────────────────────
 // Thin wrappers that delegate reads and emit App events on mutations.
@@ -382,11 +372,6 @@ export class App extends EventEmitter {
   // Capabilities (M9-S1)
   capabilityRegistry: CapabilityRegistry | null = null;
 
-  // Desktop control (M8-S2)
-  desktopEnv: DesktopEnvironment | null = null;
-  desktopBackend: DesktopBackend | null = null;
-  desktopRateLimiter: ReturnType<typeof createDesktopRateLimiter> | null = null;
-  desktopAuditLogger: ReturnType<typeof createDesktopAuditLogger> | null = null;
   playwrightBridge: PlaywrightScreenshotBridge | null = null;
 
   private constructor(agentDir: string, isHatched: boolean) {
@@ -1692,72 +1677,9 @@ export class App extends EventEmitter {
           ),
         }))
 
-        console.log(`[Desktop] Registry-based desktop-x11 wired (${desktopCap.entrypoint})`)
-
-        // Detect environment for status logging (no backend instance needed in framework)
-        const { detectDesktopEnvironment } = await import('./desktop/desktop-capability-detector.js')
-        const desktopEnv = detectDesktopEnvironment()
-        app.desktopEnv = desktopEnv
-
-        if (desktopEnv.hasDisplay) {
-          console.log(
-            `[Desktop] ${desktopEnv.displayServer} detected, capabilities managed by desktop-x11 capability`,
-          )
-        }
+        console.log(`[Desktop] desktop-x11 capability wired via registry`)
       } else {
-        // Fallback: legacy hardcoded path (will be removed after verification)
-        const { detectDesktopEnvironment } = await import('./desktop/desktop-capability-detector.js')
-        const desktopEnv = detectDesktopEnvironment()
-        app.desktopEnv = desktopEnv
-
-        let backend: DesktopBackend | null = null
-        if (desktopEnv.backend === 'x11') {
-          const { X11Backend } = await import('./desktop/x11-backend.js')
-          backend = new X11Backend({
-            hasXdotool: desktopEnv.tools.xdotool,
-            hasMaim: desktopEnv.tools.maim,
-            hasWmctrl: desktopEnv.tools.wmctrl,
-          })
-          app.desktopBackend = backend
-        }
-
-        app.desktopRateLimiter = createDesktopRateLimiter({ maxPerMinute: 30 })
-        app.desktopAuditLogger = createDesktopAuditLogger((entry) => {
-          console.log(
-            `[Desktop] audit: ${entry.tool} at ${entry.timestamp}${entry.instruction ? ` — ${entry.instruction.slice(0, 80)}` : ''}`,
-          )
-        })
-
-        const enabledFlagPath = join(agentDir, '.desktop-enabled')
-        const desktopServer = createDesktopServer({
-          backend,
-          visualService: app.visualActionService,
-          rateLimiter: app.desktopRateLimiter ?? undefined,
-          auditLogger: app.desktopAuditLogger ?? undefined,
-          isEnabled: () => existsSync(enabledFlagPath),
-        })
-        addMcpServer('desktop-tools', desktopServer)
-
-        if (backend) {
-          const desktopBackend = backend
-          const desktopVas = app.visualActionService
-          const isDesktopEnabled = () => existsSync(enabledFlagPath)
-          addMcpServerFactory('desktop-actions', () =>
-            createDesktopActionServer({
-              backend: desktopBackend,
-              vas: desktopVas,
-              isEnabled: isDesktopEnabled,
-            }),
-          )
-        }
-
-        if (desktopEnv.hasDisplay) {
-          console.log(
-            `[Desktop] Legacy path: ${desktopEnv.displayServer} detected, backend: ${desktopEnv.backend ?? 'none'}`,
-          )
-        } else {
-          console.log('[Desktop] No display detected — desktop tools will return helpful errors')
-        }
+        console.log('[Desktop] No desktop-control capability installed — desktop tools unavailable')
       }
     }
 
