@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-08 (M9.3 complete, M9.4 Conversation UX/UI active)
+> **Updated:** 2026-04-11 (M9.4 done, M9.5 Capability Framework v2 planned)
 
 ---
 
@@ -30,10 +30,11 @@
 | **M9.2: Worker Todo Coverage** | **Done** | 11 sprints (S1-S10 incl. S5.1). Worker infrastructure fully working. Delegation behavior deferred to M9.3. 1345 tests. |
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **Done** | 5 sprints (S1-S4 incl. S2.5). Real-time delivery, channel unification, streaming broadcast, job progress card, brief delivery fix. |
+| **M9.5: Capability Framework v2** | Planned | 4 sprints (MCP interface, settings UI, desktop extraction, agent verification) |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
-| **M13: Platform Hardening**  | Planned | 5 sprints (auth, backup/restore, update, macOS backend, Wayland backend) |
+| **M13: Platform Hardening**  | Planned | 3 sprints (auth, backup/restore, update) — S4/S5 absorbed by M9.5 |
 | **M14: Release**             | Planned | 2 sprints (security audit, documentation + launch) |
 
 ---
@@ -65,10 +66,14 @@ DONE (M9.4)
 ═══════════
 M9.4 Conversation UX/UI — 5 sprints, real-time delivery, channel unification, streaming, progress card, brief fix
 
-FUTURE (M10–M14) — ~16 sprints to release
+NEXT (M9.5)
+═══════════
+M9.5 Capability Framework v2 — MCP interface, settings toggles, desktop extraction, agent verification
+
+FUTURE (M10–M14) — ~14 sprints to release
 ══════════════════════════════════════════
 M10 Channel SDK ──► M11 External Comms ──► M12 iOS ──► M13 Hardening ──► M14 Release
-  (4 sprints)          (2 sprints)           (3 sprints)   (5 sprints)       (2 sprints)
+  (4 sprints)          (2 sprints)           (3 sprints)   (3 sprints)       (2 sprints)
 ```
 
 ---
@@ -917,6 +922,33 @@ Fix real-time notification delivery, unify all message paths through the Headles
 
 ---
 
+### M9.5: Capability Framework v2 — PLANNED
+
+Extend the capability framework to support MCP-based capabilities alongside script-based ones. Extract desktop control from hardwired framework code into a pluggable capability. Add unified settings UI for capability toggles.
+
+**Design spec:** [capability-framework-v2.md](design/capability-framework-v2.md)
+**Origin:** Desktop control (M8) is hardwired into the dashboard. Voice (M9) is pluggable. This milestone makes both follow the same capability pattern, proving the framework handles diverse socket shapes.
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Framework Extension | Planned | Extend registry for `mcp` interface: `entrypoint`, `requires.system`, `.enabled` toggle, three-tier tool contract types. Extend scanner for system tool probing. Extend test harness for MCP capabilities (spawn, connect, validate tools, functional screenshot test). Smoke-test MCP capability validates the harness. |
+| S2 | Settings UI | Planned | Capabilities section in settings. All well-known types rendered (installed/disabled/not-installed states). Toggle on/off. Health indicators. Disabled hint: "Ask {agent_name} to add {type}". New `GET /api/settings/capabilities` and `POST /api/settings/capabilities/:type/toggle` endpoints. Browser-tested. |
+| S3 | Desktop Extraction | Planned | Move all platform code from `dashboard/src/desktop/` to `.my_agent/capabilities/desktop-x11/`. Wire `app.ts` to use registry instead of hardcoded init. Delete desktop-specific framework code (detector, X11 backend, MCP servers, routes). Generalize rate limiting and audit hooks for any MCP capability. Desktop works as before, driven through registry. |
+| S4 | Template & Agent Verification | Planned | Write `skills/capability-templates/desktop-control.md` template with three-tier tool contract. Build reset script for clean-state testing. Delete desktop capability → ask agent to build it from scratch → test harness must pass → tools must work. Iterate until agent reliably single-shots it. |
+
+**Key decisions:**
+- Two socket shapes: `script` (framework calls, stateless) and `mcp` (brain calls, stateful). Determined by who invokes the capability.
+- Capabilities are pure abilities only — not transport, not channel. Email/calendar stay as plugins/transports.
+- `computer-use-service.ts` (Claude beta API) dropped — not MCP-based.
+- Three-tier tool contracts: required (must pass), optional (validated if present), custom (ignored by harness).
+- Platform code is never in framework. macOS/Wayland = different capability folders, same socket.
+
+**Absorbs:** M13-S4 (macOS backend) and M13-S5 (Wayland backend) — each platform becomes an agent-built capability against the `desktop-control` template.
+
+**Dependencies:** M9 (capability system), M8 (desktop automation)
+
+---
+
 ### M10: Channel SDK + Transports — PLANNED
 
 Mature the transport plugin interface into a proper SDK. Prove it with email (MS365) and Discord — two very different transport types (async polling vs. real-time websocket). If the SDK handles both cleanly, it handles anything.
@@ -997,8 +1029,8 @@ Infrastructure that makes the agent safe, recoverable, updatable, and cross-plat
 | S1 | Dashboard Authentication | Planned | Session-based auth for web UI. Login flow, session tokens, secure cookies. Multi-user foundation (owner + guests). |
 | S2 | Backup & Restore | Planned | Full/partial backup (`.my_agent/` + DBs + config). Restore with index rebuild. CLI commands. Automated pre-update backup. |
 | S3 | Update Mechanism | Planned | Version tracking, `my-agent update`, schema migrations, breaking change detection, rollback via backup. Includes framework skill updates: detect newer versions in `packages/core/skills/`, prompt user to update `.my_agent/.claude/skills/` copies (respect user customizations). |
-| S4 | Desktop Control — macOS | Planned | MacBackend implementation (nut-js + screencapture + AppleScript), macOS environment detection, hatching flow updates. Deferred from M8 — blocked on hardware availability. |
-| S5 | Desktop Control — Wayland | Planned | WaylandBackend (ydotool + kdotool + PipeWire screen capture), KWin D-Bus integration. Deferred from M8 — needed when KDE drops X11 (Plasma 6.8, October 2026). Backend abstraction from M8-S2 makes this a swap, not a rewrite. |
+| ~~S4~~ | ~~Desktop Control — macOS~~ | Absorbed | → M9.5 Capability Framework v2 (macOS becomes an agent-built capability against `desktop-control` template) |
+| ~~S5~~ | ~~Desktop Control — Wayland~~ | Absorbed | → M9.5 Capability Framework v2 (Wayland becomes an agent-built capability against `desktop-control` template) |
 | ~~S6~~ | ~~Self-Service MCP Integration~~ | Absorbed | → M9 Capability System (capabilities supersede MCP-specific approach) |
 
 **Key design questions (resolve during spec):**
