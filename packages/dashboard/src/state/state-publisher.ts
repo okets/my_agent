@@ -283,6 +283,7 @@ export class StatePublisher {
         health: c.health,
         lastTestLatencyMs: c.lastTestLatencyMs,
         degradedReason: c.degradedReason,
+        enabled: c.enabled,
       })),
     });
   }
