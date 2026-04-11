@@ -245,8 +245,9 @@ export {
   createScreenshotInterceptor,
   inferSource,
   parseImageMetadata,
+  storeAndInject,
 } from './capabilities/index.js'
-export type { RateLimiter, AuditLogger, AuditEntry, ScreenshotInterceptor } from './capabilities/index.js'
+export type { RateLimiter, AuditLogger, AuditEntry, ScreenshotInterceptor, StoreCallback, StoreAndInjectResult } from './capabilities/index.js'
 
 // Memory system
 export {

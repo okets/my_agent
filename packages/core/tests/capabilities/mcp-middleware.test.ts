@@ -5,6 +5,8 @@ import {
   createScreenshotInterceptor,
   inferSource,
   parseImageMetadata,
+  storeAndInject,
+  type StoreCallback,
 } from '../../src/capabilities/mcp-middleware.js'
 import type { ScreenshotMetadata } from '../../src/visual/types.js'
 
@@ -134,6 +136,78 @@ describe('parseImageMetadata', () => {
     expect(meta.width).toBe(0)
     expect(meta.height).toBe(0)
     expect(meta.source).toBe('generated')
+  })
+})
+
+describe('storeAndInject', () => {
+  const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
+  function makeMcpResult(blocks: unknown[]) {
+    return { content: blocks }
+  }
+
+  it('stores image and returns updatedMCPToolOutput with URL appended', () => {
+    const calls: Array<{ image: Buffer; metadata: unknown }> = []
+    const store: StoreCallback = (image, metadata) => {
+      calls.push({ image, metadata })
+      return { id: 'ss-test-id', filename: 'ss-test-id.png' }
+    }
+
+    const result = makeMcpResult([
+      { type: 'text', text: JSON.stringify({ description: 'test', width: 1920, height: 1080 }) },
+      { type: 'image', data: PNG_B64 },
+    ])
+
+    const output = storeAndInject(result, 'desktop_screenshot', store)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].metadata).toMatchObject({ source: 'desktop', width: 1920 })
+    expect(Buffer.isBuffer(calls[0].image)).toBe(true)
+
+    expect(output.hookSpecificOutput).toBeDefined()
+    const content = output.hookSpecificOutput!.updatedMCPToolOutput.content
+    expect(content).toHaveLength(3)
+    expect(content[2]).toMatchObject({ type: 'text', text: expect.stringContaining('/api/assets/screenshots/ss-test-id.png') })
+  })
+
+  it('returns {} when no image in result', () => {
+    const store: StoreCallback = () => { throw new Error('store should not be called') }
+    const result = makeMcpResult([{ type: 'text', text: 'hello' }])
+    const output = storeAndInject(result, 'desktop_screenshot', store)
+    expect(output).toEqual({})
+  })
+
+  it('returns {} when result is not MCP content format', () => {
+    const store: StoreCallback = () => { throw new Error('store should not be called') }
+    const output = storeAndInject({ success: true }, 'bash', store)
+    expect(output).toEqual({})
+  })
+
+  it('returns {} for non-PNG image data', () => {
+    const store: StoreCallback = () => { throw new Error('store should not be called') }
+    const result = makeMcpResult([{ type: 'image', data: 'SGVsbG8gV29ybGQ=' }])
+    const output = storeAndInject(result, 'desktop_screenshot', store)
+    expect(output).toEqual({})
+  })
+
+  it('handles Anthropic API format images', () => {
+    const calls: Array<{ image: Buffer; metadata: unknown }> = []
+    const store: StoreCallback = (image, metadata) => {
+      calls.push({ image, metadata })
+      return { id: 'ss-api-id', filename: 'ss-api-id.png' }
+    }
+
+    const result = makeMcpResult([
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_B64 } },
+    ])
+
+    const output = storeAndInject(result, 'browser_take_screenshot', store)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].metadata).toMatchObject({ source: 'playwright' })
+    expect(output.hookSpecificOutput).toBeDefined()
+    const content = output.hookSpecificOutput!.updatedMCPToolOutput.content
+    expect(content[content.length - 1]).toMatchObject({ type: 'text', text: expect.stringContaining('/api/assets/screenshots/ss-api-id.png') })
   })
 })
 

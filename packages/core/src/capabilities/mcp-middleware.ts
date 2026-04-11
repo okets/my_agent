@@ -114,6 +114,51 @@ export interface ScreenshotInterceptor {
   extractImage(result: unknown): string | null
 }
 
+export type StoreCallback = (image: Buffer, metadata: ScreenshotMetadata) => { id: string; filename: string }
+
+export interface StoreAndInjectResult {
+  hookSpecificOutput?: {
+    hookEventName: 'PostToolUse'
+    updatedMCPToolOutput: {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string; source?: unknown }>
+    }
+  }
+}
+
+export function storeAndInject(
+  toolResponse: unknown,
+  toolName: string,
+  store: StoreCallback,
+): StoreAndInjectResult {
+  const interceptor = createScreenshotInterceptor()
+  if (!interceptor.hasScreenshot(toolResponse)) return {}
+
+  const base64 = interceptor.extractImage(toolResponse)
+  if (!base64) return {}
+
+  const image = Buffer.from(base64, 'base64')
+  const metadata = parseImageMetadata(toolResponse, toolName)
+  const screenshot = store(image, metadata)
+
+  type ContentBlock = { type: string; text?: string; data?: string; mimeType?: string; source?: unknown }
+  const r = toolResponse as { content?: unknown[] }
+  const originalContent: ContentBlock[] = Array.isArray(r.content)
+    ? (r.content as ContentBlock[])
+    : []
+
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PostToolUse',
+      updatedMCPToolOutput: {
+        content: [
+          ...originalContent,
+          { type: 'text', text: `Screenshot URL: /api/assets/screenshots/${screenshot.filename}` },
+        ],
+      },
+    },
+  }
+}
+
 export function createScreenshotInterceptor(): ScreenshotInterceptor {
   const PNG_MAGIC_B64 = 'iVBORw0KGgo'
 

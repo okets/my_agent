@@ -14,10 +14,13 @@ export {
   createScreenshotInterceptor,
   inferSource,
   parseImageMetadata,
+  storeAndInject,
   type RateLimiter,
   type AuditLogger,
   type AuditEntry,
   type ScreenshotInterceptor,
+  type StoreCallback,
+  type StoreAndInjectResult,
 } from './mcp-middleware.js'
 export {
   validateToolContract,
