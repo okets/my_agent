@@ -120,6 +120,16 @@ After the builder finishes, tell the user what to do next in **user-friendly ter
 - The file watcher and registry handle activation automatically — no restart needed.
 - If no API key is needed (e.g., Edge TTS): just confirm it's working.
 
+## Auto-Enable on First Build
+
+**After all capability files are written**, the builder MUST create the `.enabled` file to activate the capability immediately:
+
+```bash
+echo "$(date -Iseconds)" > .my_agent/capabilities/<name>/.enabled
+```
+
+This enables the capability without requiring the user to toggle it on manually in Settings. The `.enabled` file contains the creation timestamp for audit purposes.
+
 ## Self-Healing Protocol
 
 When the brain sees a degraded capability:
