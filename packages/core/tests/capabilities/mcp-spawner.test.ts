@@ -61,4 +61,25 @@ describe('McpCapabilitySpawner', () => {
     await spawner.shutdownCapability('Smoke Test')
     expect(spawner.listActive()).toHaveLength(0)
   }, 15_000)
+
+  it('emits crash event when child process exits unexpectedly', async () => {
+    spawner = new McpCapabilitySpawner()
+    const handle = await spawner.spawn(makeSmokeCap(), 'crash-session')
+    expect(handle.process).not.toBeNull()
+
+    const crashPromise = new Promise<unknown>((resolve) => {
+      spawner.on('crash', (event) => resolve(event))
+    })
+
+    // Kill the child process to simulate unexpected exit
+    handle.process!.kill('SIGKILL')
+
+    const event = await crashPromise as { capabilityName: string; sessionId: string; pid: number }
+    expect(event.capabilityName).toBe('Smoke Test')
+    expect(event.sessionId).toBe('crash-session')
+    expect(event.pid).toBe(handle.pid)
+
+    // Handle should be removed from active list
+    expect(spawner.listActive()).toHaveLength(0)
+  }, 15_000)
 })
