@@ -26,6 +26,16 @@ vi.mock("@my-agent/core", () => ({
     preToolUse: vi.fn().mockResolvedValue({}),
     resetTurn: vi.fn(),
   }),
+  createCapabilityRateLimiter: vi.fn().mockReturnValue({
+    check: vi.fn().mockReturnValue(true),
+  }),
+  createCapabilityAuditLogger: vi.fn().mockReturnValue({
+    log: vi.fn().mockResolvedValue(undefined),
+  }),
+  createScreenshotInterceptor: vi.fn().mockReturnValue({
+    hasScreenshot: vi.fn().mockReturnValue(false),
+    extractImage: vi.fn().mockReturnValue(null),
+  }),
   coreAgents: {},
 }));
 
