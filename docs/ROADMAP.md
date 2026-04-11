@@ -30,7 +30,7 @@
 | **M9.2: Worker Todo Coverage** | **Done** | 11 sprints (S1-S10 incl. S5.1). Worker infrastructure fully working. Delegation behavior deferred to M9.3. 1345 tests. |
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **Done** | 5 sprints (S1-S4 incl. S2.5). Real-time delivery, channel unification, streaming broadcast, job progress card, brief delivery fix. |
-| **M9.5: Capability Framework v2** | Planned | 4 sprints (MCP interface, settings UI, desktop extraction, agent verification) |
+| **M9.5: Capability Framework v2** | **Active** | S1 done (36 tests), S2-S4 planned |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -931,10 +931,10 @@ Extend the capability framework to support MCP-based capabilities alongside scri
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | Framework Extension | Planned | Extend registry for `mcp` interface: `entrypoint`, `requires.system`, `.enabled` toggle, three-tier tool contract types. Extend scanner for system tool probing. Extend test harness for MCP capabilities (spawn, connect, validate tools, functional screenshot test). Smoke-test MCP capability validates the harness. |
+| S1 | Framework Extension | Done | Extend registry for `mcp` interface: `entrypoint`, `requires.system`, `.enabled` toggle, three-tier tool contract types. Extend scanner for system tool probing. Extend test harness for MCP capabilities (spawn, connect, validate tools, functional screenshot test). Smoke-test MCP capability validates the harness. [plan](../sprints/m9.5-s1-framework-extension/plan.md) [review](../sprints/m9.5-s1-framework-extension/review.md) |
 | S2 | Settings UI | Planned | Capabilities section in settings. All well-known types rendered (installed/disabled/not-installed states). Toggle on/off. Health indicators. Disabled hint: "Ask {agent_name} to add {type}". New `GET /api/settings/capabilities` and `POST /api/settings/capabilities/:type/toggle` endpoints. Browser-tested. |
-| S3 | Desktop Extraction | Planned | Move all platform code from `dashboard/src/desktop/` to `.my_agent/capabilities/desktop-x11/`. Wire `app.ts` to use registry instead of hardcoded init. Delete desktop-specific framework code (detector, X11 backend, MCP servers, routes). Generalize rate limiting and audit hooks for any MCP capability. Desktop works as before, driven through registry. |
-| S4 | Template & Agent Verification | Planned | Write `skills/capability-templates/desktop-control.md` template with three-tier tool contract. Build reset script for clean-state testing. Delete desktop capability → ask agent to build it from scratch → test harness must pass → tools must work. Iterate until agent reliably single-shots it. |
+| S3 | Desktop Extraction | Planned | Move all platform code from `dashboard/src/desktop/` to `.my_agent/capabilities/desktop-x11/`. Wire `app.ts` to use registry instead of hardcoded init. Delete desktop-specific framework code (detector, X11 backend, MCP servers, routes). Generalize rate limiting and audit hooks for any MCP capability. **S1 deferred items:** wire middleware to PostToolUse hooks in `app.ts`, wire spawner `crash` event → registry health `degraded`, make audit logger writer async-compatible, add `_process` access warning in spawner integration. Desktop works as before, driven through registry. |
+| S4 | Template & Agent Verification | Planned | Write `skills/capability-templates/desktop-control.md` template with three-tier tool contract. Build reset script for clean-state testing. **S1 deferred items:** tool schema validation against template contract in test harness, functional screenshot test (`desktop_screenshot` call + PNG validation). Delete desktop capability → ask agent to build it from scratch → test harness must pass → tools must work. Iterate until agent reliably single-shots it. |
 
 **Key decisions:**
 - Two socket shapes: `script` (framework calls, stateless) and `mcp` (brain calls, stateful). Determined by who invokes the capability.
