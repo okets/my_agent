@@ -107,7 +107,6 @@ import { HeartbeatService } from "./automations/heartbeat-service.js";
 import { readTodoFile } from "./automations/todo-file.js";
 import { PersistentNotificationQueue } from "./notifications/persistent-queue.js";
 import { VisualActionService } from "./visual/visual-action-service.js";
-import { McpCapabilitySpawner } from "@my-agent/core";
 import { PlaywrightScreenshotBridge } from "./playwright/playwright-screenshot-bridge.js";
 
 // ─── Service Namespaces ──────────────────────────────────────────────────────
@@ -1642,31 +1641,13 @@ export class App extends EventEmitter {
 
     // ── Desktop control (M9.5-S3: registry-based) ──
     {
-      // Registry path: if desktop-x11 capability is installed, use spawner
+      // Registry path: if desktop-x11 capability is installed and enabled, wire factory
       const desktopCap = app.capabilityRegistry?.list().find(
-        (c) => c.provides === 'desktop-control' && c.interface === 'mcp' && c.entrypoint,
+        (c) => c.provides === 'desktop-control' && c.interface === 'mcp' && c.entrypoint && c.enabled,
       )
 
       if (desktopCap && desktopCap.status === 'available') {
-        // The SDK spawns the MCP server process via the stdio config returned by the factory.
-        // We don't use McpCapabilitySpawner here — the SDK manages the child process lifecycle.
-        // Instead, we use a standalone spawner instance solely for crash monitoring:
-        // after the SDK spawns the process, we attach a crash listener that updates registry health.
-        const spawner = new McpCapabilitySpawner()
-
-        // Wire crash event → registry health degraded (S1 deferred)
-        spawner.on('crash', (event: { capabilityName: string; pid: number; code: number | null; signal: string | null }) => {
-          const cap = app.capabilityRegistry?.list().find(c => c.name === event.capabilityName)
-          if (cap) {
-            cap.health = 'degraded'
-            cap.degradedReason = `Process crashed (pid=${event.pid}, code=${event.code}, signal=${event.signal})`
-            app.emit('capability:changed', app.capabilityRegistry!.list())
-            console.warn(`[Desktop] Capability "${event.capabilityName}" crashed — health set to degraded`)
-          }
-        })
-
         // Factory: return stdio config so the SDK spawns the process itself.
-        // No spawner.spawn() here — the SDK handles spawn + transport + client.
         const entrypointParts = desktopCap.entrypoint!.split(/\s+/)
         addMcpServerFactory('desktop-x11', async () => ({
           command: entrypointParts[0],
