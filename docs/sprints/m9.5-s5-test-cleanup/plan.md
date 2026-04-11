@@ -2,9 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix all 31 failing dashboard tests from the S3 desktop extraction. Close out the `.enabled` auto-creation gap and collect structured tool UX feedback from Nina. All tests green — milestone test debt cleared.
+**Goal:** Fix all 31 failing dashboard tests from the S3 desktop extraction. Close out the `.enabled` auto-creation gap. Apply Nina's tool UX feedback: add `desktop_focus_window` as 8th required tool, include `scaleFactor` in screenshot metadata. All tests green — milestone test debt cleared.
 
 **Design spec:** `docs/design/capability-framework-v2.md` §S5
+**Nina's review:** `docs/sprints/m9.5-s5-test-cleanup/ninas-review.md`
 
 ---
 
@@ -20,6 +21,11 @@
 | Modify | `packages/dashboard/tests/unit/capabilities/capability-system.test.ts` | Add `enabled: true` to test capabilities |
 | Modify | `packages/dashboard/tests/session-manager-skills.test.ts` | Add missing exports to `@my-agent/core` mock |
 | Modify | `packages/core/skills/capability-brainstorming/SKILL.md` | Add `.enabled` creation instruction to builder flow |
+| Modify | `packages/core/src/capabilities/tool-contracts.ts` | Add `desktop_focus_window` as 8th required tool |
+| Modify | `skills/capability-templates/desktop-control.md` | Add `desktop_focus_window`, `scaleFactor` in screenshot metadata |
+| Modify | `packages/core/tests/fixtures/desktop-x11-fixture/src/server.ts` | Add `desktop_focus_window` tool, `scaleFactor` in screenshot |
+| Modify | `packages/core/tests/capabilities/schema-validation.test.ts` | Update contract assertions (8 required tools) |
+| Modify | `.my_agent/capabilities/desktop-x11/src/server.ts` | Add `desktop_focus_window` tool, `scaleFactor` in screenshot metadata |
 
 ---
 
@@ -283,49 +289,225 @@ git commit -m "feat(brainstorming): auto-create .enabled file on first capabilit
 
 ---
 
-## Task 6: Structured tool UX feedback from Nina
+## Task 6: Nina's tool UX feedback — summary and action items
 
-Open the dashboard, start a new conversation with Nina, and ask the structured feedback questions. This is a conversation task, not a code task.
+Nina's structured review is at `docs/sprints/m9.5-s5-test-cleanup/ninas-review.md`. Key findings:
 
-- [ ] **Step 1: Open dashboard and start new conversation**
+**What she used:** `desktop_screenshot`, `desktop_info(windows)`, `desktop_click`, `desktop_key` (accidental — was trying to focus a window).
 
-Navigate to the dashboard via Tailscale URL. Click the "New" button for a fresh conversation.
+**Biggest gap:** No `desktop_focus_window(windowId)` tool. She had the window ID from `desktop_info` but couldn't use it to raise/focus the window. Had to fumble with taskbar clicks instead. The X11 backend already implements `focusWindow(windowId)` — this is a missing tool registration.
 
-- [ ] **Step 2: Ask Nina the structured questions**
+**Coordinate confusion:** The screenshot is scaled down but she doesn't know the scale factor until she clicks wrong. She wants the scale factor included with every screenshot response so she can calculate click coordinates accurately.
 
-Send this message:
+**Optional tools she'd reach for regularly:** `window_screenshot`, `find_element`, `OCR`. All stay optional but the first two are high-value.
 
-> I'd like your feedback on the desktop control tools you've been using. Please answer each question:
-> 1. Which desktop tools did you actually use when I asked you to read the KWrite document?
-> 2. Were any of the tools confusing or unnecessary?
-> 3. Was anything missing that would have helped?
-> 4. Was the coordinate system intuitive when clicking?
-> 5. Would any of these optional tools have been useful: OCR, find_element, diff_check, window_screenshot, drag?
+**Action items from this review:**
+- Task 7: Add `desktop_focus_window` as 8th required tool
+- Task 8: Include `scaleFactor` in screenshot response metadata
 
-- [ ] **Step 3: Log responses in DECISIONS.md**
+No task needed for this — the review is already captured. Just log the action items in DECISIONS.md.
 
-Create `docs/sprints/m9.5-s5-test-cleanup/DECISIONS.md` and log Nina's responses:
+- [ ] **Step 1: Create DECISIONS.md with review summary**
+
+Create `docs/sprints/m9.5-s5-test-cleanup/DECISIONS.md`:
 
 ```markdown
 # M9.5-S5: Decisions Log
 
 ## D1: Nina's tool UX feedback (S4 deferred C4)
 
-**Date:** [date]
-**Questions and responses:**
+**Date:** 2026-04-11
+**Full review:** `ninas-review.md`
 
-1. Which tools used: [response]
-2. Confusing/unnecessary: [response]
-3. Missing: [response]
-4. Coordinate system: [response]
-5. Optional tools: [response]
-
-**Template implications:** [any changes needed based on feedback]
+**Action items:**
+1. Add `desktop_focus_window` as 8th required tool (Task 7) — she had window IDs but couldn't focus them
+2. Include `scaleFactor` in screenshot metadata (Task 8) — she couldn't predict coordinate mapping
+3. OCR, find_element, window_screenshot stay optional — high value but not minimum-viable
 ```
 
-- [ ] **Step 4: If feedback suggests template changes, make them**
+---
 
-Only adjust `skills/capability-templates/desktop-control.md` if Nina identifies something actionable (e.g., a missing required tool, a confusing parameter name). Don't change the template for "nice to have" suggestions.
+## Task 7: Add `desktop_focus_window` as required tool
+
+Nina's biggest friction point. The backend already implements `focusWindow(windowId)`. This is a missing tool registration in the contract and template.
+
+**Files:**
+- Modify: `packages/core/src/capabilities/tool-contracts.ts`
+- Modify: `skills/capability-templates/desktop-control.md`
+- Modify: `packages/core/tests/fixtures/desktop-x11-fixture/src/server.ts`
+- Modify: `.my_agent/capabilities/desktop-x11/src/server.ts` (runtime capability)
+
+- [ ] **Step 1: Add to tool-contracts.ts**
+
+In `packages/core/src/capabilities/tool-contracts.ts`, add `desktop_focus_window` to the `required` array in `DESKTOP_CONTROL_CONTRACT`:
+
+```typescript
+{ name: 'desktop_focus_window', requiredParams: [{ name: 'windowId', required: true }] },
+```
+
+- [ ] **Step 2: Add to desktop-control.md template**
+
+In `skills/capability-templates/desktop-control.md`, add after the `desktop_wait` section in the Required Tools:
+
+```markdown
+### desktop_focus_window
+
+Bring a window to the foreground by its ID (from `desktop_info(windows)`).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `windowId` | string | Yes | Window ID from `desktop_info` windows query |
+
+**Returns:** Screenshot after focusing the window.
+```
+
+Update the required tool count from 7 to 8 throughout the template.
+
+- [ ] **Step 3: Add to test fixture**
+
+In `packages/core/tests/fixtures/desktop-x11-fixture/src/server.ts`, add:
+
+```typescript
+server.tool(
+  'desktop_focus_window',
+  'Focus window by ID (test fixture)',
+  { windowId: z.string() },
+  async ({ windowId }) => ({
+    content: [{ type: 'text', text: JSON.stringify({ focused: windowId, fixture: true }) }],
+  }),
+)
+```
+
+- [ ] **Step 4: Add to real capability server**
+
+In `.my_agent/capabilities/desktop-x11/src/server.ts`, add the tool:
+
+```typescript
+server.tool(
+  'desktop_focus_window',
+  'Bring a window to the foreground by its ID (from desktop_info windows query)',
+  { windowId: z.string() },
+  async ({ windowId }) => {
+    await backend.focusWindow(windowId)
+    return screenshotResult(`Focused window ${windowId}`)
+  },
+)
+```
+
+- [ ] **Step 5: Update schema-validation tests**
+
+In `packages/core/tests/capabilities/schema-validation.test.ts`, update the test that checks required tool count:
+
+```typescript
+expect(DESKTOP_CONTROL_CONTRACT.required).toHaveLength(8)
+```
+
+Add `'desktop_focus_window'` to the expected tool names array. Add the tool to the simulated tool lists in the validation tests.
+
+- [ ] **Step 6: Run tests**
+
+```bash
+cd packages/core && npx vitest run tests/capabilities/ --reporter=verbose
+```
+
+Expected: All tests pass with the updated contract (8 required tools).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add packages/core/src/capabilities/tool-contracts.ts skills/capability-templates/desktop-control.md packages/core/tests/fixtures/desktop-x11-fixture/src/server.ts packages/core/tests/capabilities/schema-validation.test.ts
+git commit -m "feat(desktop-control): add desktop_focus_window as 8th required tool
+
+Nina's UX feedback: she had window IDs from desktop_info but couldn't
+focus them. Had to fumble with taskbar clicks. The X11 backend already
+implements focusWindow() — this registers it as an MCP tool."
+```
+
+---
+
+## Task 8: Include `scaleFactor` in screenshot response metadata
+
+Every screenshot response should include the scale factor so the brain can calculate accurate click coordinates without a separate `desktop_info(display)` call.
+
+**Files:**
+- Modify: `skills/capability-templates/desktop-control.md`
+- Modify: `.my_agent/capabilities/desktop-x11/src/server.ts` (runtime capability)
+- Modify: `packages/core/tests/fixtures/desktop-x11-fixture/src/server.ts`
+
+- [ ] **Step 1: Update template — screenshot returns scaleFactor**
+
+In `skills/capability-templates/desktop-control.md`, update the `desktop_screenshot` returns description:
+
+```markdown
+**Returns:** Image content (base64 PNG) + metadata JSON with `width`, `height`, and `scaleFactor`.
+```
+
+Update the code example:
+
+```typescript
+return {
+  content: [
+    { type: 'image', data: screenshot.base64, mimeType: 'image/png' },
+    { type: 'text', text: JSON.stringify({ width: screenshot.width, height: screenshot.height, scaleFactor }) },
+  ],
+}
+```
+
+Add a note: "The `scaleFactor` tells the brain the ratio between screenshot coordinates and screen coordinates. Click coordinates from the screenshot must be divided by this factor to get actual screen positions. The capability handles this scaling internally — the brain sends screenshot-space coordinates and the capability converts them."
+
+- [ ] **Step 2: Update real capability server**
+
+In `.my_agent/capabilities/desktop-x11/src/server.ts`, update the `screenshotResult` helper to include `scaleFactor`:
+
+```typescript
+async function screenshotResult(description: string) {
+  const buf = await backend.screenshot()
+  const base64 = buf.toString('base64')
+  return {
+    content: [
+      { type: 'text', text: JSON.stringify({ description, scaleFactor, width: display.width, height: display.height }) },
+      { type: 'image', data: base64, mimeType: 'image/png' },
+    ],
+  }
+}
+```
+
+Also update the `desktop_screenshot` tool to include scaleFactor in its metadata.
+
+- [ ] **Step 3: Update test fixture**
+
+In `packages/core/tests/fixtures/desktop-x11-fixture/src/server.ts`, update the `desktop_screenshot` response to include `scaleFactor`:
+
+```typescript
+{ type: 'text', text: JSON.stringify({ width: 1920, height: 1080, scaleFactor: 1.0, fixture: true }) }
+```
+
+- [ ] **Step 4: Update the template guidance**
+
+Add to the "Coordinate Scaling" section of the template:
+
+```markdown
+**Every screenshot response includes `scaleFactor` in its metadata.** This tells the brain the ratio between the screenshot's coordinate space and the actual screen coordinates. The brain sends coordinates in screenshot space — the capability's `toScreenCoord()` function handles the conversion internally. The brain does NOT need to scale coordinates itself, but the scaleFactor helps it understand the mapping.
+```
+
+- [ ] **Step 5: Run tests**
+
+```bash
+cd packages/core && npx vitest run tests/capabilities/ --reporter=verbose
+```
+
+Expected: All tests pass.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add skills/capability-templates/desktop-control.md packages/core/tests/fixtures/desktop-x11-fixture/src/server.ts
+git commit -m "feat(desktop-control): include scaleFactor in screenshot metadata
+
+Nina's UX feedback: coordinate confusion — she couldn't predict the
+mapping between screenshot coordinates and click coordinates. Now every
+screenshot response includes scaleFactor so the brain knows the ratio."
+```
 
 ---
 
@@ -338,4 +520,6 @@ Only adjust `skills/capability-templates/desktop-control.md` if Nina identifies 
 | Fix session-manager-skills.test.ts (mock) | Task 3 | All tests pass |
 | Zero test failures across both packages | Task 4 | Full suite green |
 | `.enabled` auto-creation on build | Task 5 | Instruction in brainstorming skill |
-| Structured tool UX feedback | Task 6 | Nina's responses logged in DECISIONS.md |
+| Nina's tool UX feedback logged | Task 6 | Review summary + action items in DECISIONS.md |
+| `desktop_focus_window` as 8th required tool | Task 7 | Contract, template, fixture, real server updated |
+| `scaleFactor` in screenshot metadata | Task 8 | Template, fixture, real server updated |
