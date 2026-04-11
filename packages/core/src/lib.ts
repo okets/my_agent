@@ -236,8 +236,15 @@ export type {
 } from './desktop/index.js'
 
 // Capabilities
-export { CapabilityRegistry, scanCapabilities, testCapability } from './capabilities/index.js'
+export { CapabilityRegistry, scanCapabilities, testCapability, McpCapabilitySpawner } from './capabilities/index.js'
+export type { McpHandle } from './capabilities/index.js'
 export type { Capability, CapabilityFrontmatter, CapabilityMcpConfig, CapabilityTestResult } from './capabilities/index.js'
+export {
+  createCapabilityRateLimiter,
+  createCapabilityAuditLogger,
+  createScreenshotInterceptor,
+} from './capabilities/index.js'
+export type { RateLimiter, AuditLogger, AuditEntry, ScreenshotInterceptor } from './capabilities/index.js'
 
 // Memory system
 export {
