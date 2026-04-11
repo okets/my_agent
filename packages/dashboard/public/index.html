@@ -3029,16 +3029,17 @@
                     .then(r => r.json())
                     .then(d => {
                       if (d.error) return;
-                      if (d.effective === 'next_session') {
-                        const cap = this.caps.find(c => c.type === type);
-                        if (cap) {
-                          cap._timing = 'Takes effect next session';
-                          setTimeout(() => { cap._timing = null; }, 4000);
-                        }
-                      }
+                      const showTiming = d.effective === 'next_session';
                       // Refetch full list — avoids optimistically snapping degraded → healthy
                       return fetch('/api/settings/capabilities').then(r => r.json()).then(d => {
                         this.caps = d.capabilities;
+                        if (showTiming) {
+                          const cap = this.caps.find(c => c.type === type);
+                          if (cap) {
+                            cap._timing = 'Takes effect next session';
+                            setTimeout(() => { cap._timing = null; }, 4000);
+                          }
+                        }
                       });
                     })
                     .finally(() => { this.toggling = null; });
@@ -7908,15 +7909,16 @@
                     .then(r => r.json())
                     .then(d => {
                       if (d.error) return;
-                      if (d.effective === 'next_session') {
-                        const cap = this.caps.find(c => c.type === type);
-                        if (cap) {
-                          cap._timing = 'Takes effect next session';
-                          setTimeout(() => { cap._timing = null; }, 4000);
-                        }
-                      }
+                      const showTiming = d.effective === 'next_session';
                       return fetch('/api/settings/capabilities').then(r => r.json()).then(d => {
                         this.caps = d.capabilities;
+                        if (showTiming) {
+                          const cap = this.caps.find(c => c.type === type);
+                          if (cap) {
+                            cap._timing = 'Takes effect next session';
+                            setTimeout(() => { cap._timing = null; }, 4000);
+                          }
+                        }
                       });
                     })
                     .finally(() => { this.toggling = null; });
@@ -7953,6 +7955,9 @@
                             :class="[stateColor(cap.state), cap.state === 'healthy' ? 'animate-pulse' : '']"></span>
                           <div class="min-w-0">
                             <span class="text-sm text-white/80 block" x-text="cap.label"></span>
+                            <template x-if="cap.capabilityName">
+                              <span class="text-[10px] text-white/30" x-text="cap.capabilityName"></span>
+                            </template>
                             <template x-if="cap.state === 'not-installed'">
                               <span class="text-[10px] text-white/25 italic block" x-text="cap.hint"></span>
                             </template>
