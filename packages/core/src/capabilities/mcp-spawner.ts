@@ -63,6 +63,13 @@ export class McpCapabilitySpawner extends EventEmitter {
 
     // Get child process reference from transport for lifecycle management
     const childProcess = (transport as unknown as { _process?: ChildProcess })._process ?? null
+    if (!childProcess) {
+      console.warn(
+        `[McpSpawner] Warning: cannot access child process for "${capability.name}" — ` +
+        `crash recovery and graceful shutdown unavailable. ` +
+        `This may indicate an MCP SDK update changed internal transport structure.`,
+      )
+    }
     const pid = childProcess?.pid ?? 0
 
     // Crash recovery: listen for unexpected exits

@@ -107,17 +107,8 @@ import { HeartbeatService } from "./automations/heartbeat-service.js";
 import { readTodoFile } from "./automations/todo-file.js";
 import { PersistentNotificationQueue } from "./notifications/persistent-queue.js";
 import { VisualActionService } from "./visual/visual-action-service.js";
-import { detectDesktopEnvironment } from "./desktop/desktop-capability-detector.js";
-import { X11Backend } from "./desktop/x11-backend.js";
-import { createDesktopServer } from "./mcp/desktop-server.js";
-import { createDesktopActionServer } from "./mcp/desktop-action-server.js";
-import {
-  createDesktopRateLimiter,
-  createDesktopAuditLogger,
-} from "./hooks/desktop-hooks.js";
-import type { DesktopEnvironment, DesktopBackend } from "@my-agent/core";
+import { McpCapabilitySpawner } from "@my-agent/core";
 import { PlaywrightScreenshotBridge } from "./playwright/playwright-screenshot-bridge.js";
-// Desktop action tools registered via desktop-action-server.ts (direct MCP, like Playwright)
 
 // ─── Service Namespaces ──────────────────────────────────────────────────────
 // Thin wrappers that delegate reads and emit App events on mutations.
@@ -381,11 +372,6 @@ export class App extends EventEmitter {
   // Capabilities (M9-S1)
   capabilityRegistry: CapabilityRegistry | null = null;
 
-  // Desktop control (M8-S2)
-  desktopEnv: DesktopEnvironment | null = null;
-  desktopBackend: DesktopBackend | null = null;
-  desktopRateLimiter: ReturnType<typeof createDesktopRateLimiter> | null = null;
-  desktopAuditLogger: ReturnType<typeof createDesktopAuditLogger> | null = null;
   playwrightBridge: PlaywrightScreenshotBridge | null = null;
 
   private constructor(agentDir: string, isHatched: boolean) {
@@ -1654,76 +1640,46 @@ export class App extends EventEmitter {
       addMcpServer("skills", skillServer);
     }
 
-    // ── Desktop control (M8-S2) ──
+    // ── Desktop control (M9.5-S3: registry-based) ──
     {
-      const desktopEnv = detectDesktopEnvironment();
-      app.desktopEnv = desktopEnv;
+      // Registry path: if desktop-x11 capability is installed, use spawner
+      const desktopCap = app.capabilityRegistry?.list().find(
+        (c) => c.provides === 'desktop-control' && c.interface === 'mcp' && c.entrypoint,
+      )
 
-      // Create backend
-      let backend: DesktopBackend | null = null;
-      if (desktopEnv.backend === "x11") {
-        backend = new X11Backend({
-          hasXdotool: desktopEnv.tools.xdotool,
-          hasMaim: desktopEnv.tools.maim,
-          hasWmctrl: desktopEnv.tools.wmctrl,
-        });
-        app.desktopBackend = backend;
-      }
+      if (desktopCap && desktopCap.status === 'available') {
+        // The SDK spawns the MCP server process via the stdio config returned by the factory.
+        // We don't use McpCapabilitySpawner here — the SDK manages the child process lifecycle.
+        // Instead, we use a standalone spawner instance solely for crash monitoring:
+        // after the SDK spawns the process, we attach a crash listener that updates registry health.
+        const spawner = new McpCapabilitySpawner()
 
-      // Safety hooks — standalone utilities for MCP tool handlers
-      app.desktopRateLimiter = createDesktopRateLimiter({ maxPerMinute: 30 });
-      app.desktopAuditLogger = createDesktopAuditLogger((entry) => {
-        console.log(
-          `[Desktop] audit: ${entry.tool} at ${entry.timestamp}${entry.instruction ? ` — ${entry.instruction.slice(0, 80)}` : ""}`,
-        );
-      });
+        // Wire crash event → registry health degraded (S1 deferred)
+        spawner.on('crash', (event: { capabilityName: string; pid: number; code: number | null; signal: string | null }) => {
+          const cap = app.capabilityRegistry?.list().find(c => c.name === event.capabilityName)
+          if (cap) {
+            cap.health = 'degraded'
+            cap.degradedReason = `Process crashed (pid=${event.pid}, code=${event.code}, signal=${event.signal})`
+            app.emit('capability:changed', app.capabilityRegistry!.list())
+            console.warn(`[Desktop] Capability "${event.capabilityName}" crashed — health set to degraded`)
+          }
+        })
 
-      // Register desktop info/capabilities MCP server (always — returns helpful errors if no backend)
-      const enabledFlagPath = join(agentDir, ".desktop-enabled");
-      const desktopServer = createDesktopServer({
-        backend,
-        visualService: app.visualActionService,
-        rateLimiter: app.desktopRateLimiter ?? undefined,
-        auditLogger: app.desktopAuditLogger ?? undefined,
-        isEnabled: () => existsSync(enabledFlagPath),
-      });
-      addMcpServer("desktop-tools", desktopServer);
+        // Factory: return stdio config so the SDK spawns the process itself.
+        // No spawner.spawn() here — the SDK handles spawn + transport + client.
+        const entrypointParts = desktopCap.entrypoint!.split(/\s+/)
+        addMcpServerFactory('desktop-x11', async () => ({
+          command: entrypointParts[0],
+          args: entrypointParts.slice(1),
+          cwd: desktopCap.path,
+          env: Object.fromEntries(
+            Object.entries(process.env).filter((e): e is [string, string] => e[1] !== undefined),
+          ),
+        }))
 
-      // Register direct desktop action tools (click, type, screenshot, etc.)
-      // Factory pattern: each session gets a fresh MCP server instance
-      // (in-process SDK servers can only bind to one transport at a time)
-      if (backend) {
-        const desktopBackend = backend;
-        const desktopVas = app.visualActionService;
-        const isDesktopEnabled = () => existsSync(enabledFlagPath);
-        addMcpServerFactory("desktop-actions", () =>
-          createDesktopActionServer({
-            backend: desktopBackend,
-            vas: desktopVas,
-            isEnabled: isDesktopEnabled,
-          }),
-        );
-        console.log(
-          "[Desktop] Direct action tools registered (desktop_click, desktop_type, etc.)",
-        );
-      }
-
-      // Log desktop status
-      if (desktopEnv.hasDisplay) {
-        console.log(
-          `[Desktop] ${desktopEnv.displayServer} detected, backend: ${desktopEnv.backend ?? "none"}, ` +
-            `capabilities: screenshot=${desktopEnv.capabilities.screenshot}, mouse=${desktopEnv.capabilities.mouse}, ` +
-            `keyboard=${desktopEnv.capabilities.keyboard}, windowMgmt=${desktopEnv.capabilities.windowManagement}`,
-        );
-        if (desktopEnv.setupNeeded.length > 0) {
-          console.log(
-            `[Desktop] Setup needed: ${desktopEnv.setupNeeded.join("; ")}`,
-          );
-        }
+        console.log(`[Desktop] desktop-x11 capability wired via registry`)
       } else {
-        console.log(
-          "[Desktop] No display detected — desktop tools will return helpful errors",
-        );
+        console.log('[Desktop] No desktop-control capability installed — desktop tools unavailable')
       }
     }
 

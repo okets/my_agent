@@ -17,7 +17,7 @@ import {
   type Options,
 } from "@anthropic-ai/claude-agent-sdk";
 import { loadModels } from "@my-agent/core";
-import { detectDesktopEnvironment } from "../desktop/desktop-capability-detector.js";
+import { scanCapabilities } from "@my-agent/core";
 import { detectPlaywrightStatus } from "../playwright/playwright-status.js";
 import {
   getPersonalities,
@@ -218,20 +218,29 @@ export function createHatchingSession(
 
   const getDesktopStatusTool = tool(
     "get_desktop_status",
-    "Check whether desktop control is available on this machine. Returns display server type, whether a backend is ready, capabilities (screenshot, mouse, keyboard, window management), and a list of missing tools to install. Call this to decide whether to mention the desktop setup step to the user.",
+    "Check whether desktop control is available. Desktop control is now a capability — this checks if a desktop-control capability is installed and its status.",
     {},
     async () => {
-      const env = detectDesktopEnvironment();
+      const capDir = join(agentDir, "capabilities");
+      const envPath = join(agentDir, "..", "packages", "dashboard", ".env");
+      let desktopCap = null;
+      try {
+        const caps = await scanCapabilities(capDir, envPath);
+        desktopCap = caps.find((c) => c.provides === "desktop-control");
+      } catch {
+        // capabilities dir may not exist yet during hatching
+      }
       return {
         content: [
           {
             type: "text" as const,
             text: JSON.stringify({
-              hasDisplay: env.hasDisplay,
-              displayServer: env.displayServer,
-              backend: env.backend,
-              capabilities: env.capabilities,
-              setupNeeded: env.setupNeeded,
+              installed: !!desktopCap,
+              status: desktopCap?.status ?? "not-installed",
+              name: desktopCap?.name ?? null,
+              setupNeeded: desktopCap
+                ? []
+                : ["Install desktop-x11 capability in capabilities/"],
             }),
           },
         ],

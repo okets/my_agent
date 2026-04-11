@@ -7,8 +7,11 @@ import {
   cleanupSkillFilters,
   coreAgents,
   createDelegationEnforcer,
+  createCapabilityRateLimiter,
+  createCapabilityAuditLogger,
+  createScreenshotInterceptor,
 } from "@my-agent/core";
-import type { DelegationEnforcer } from "@my-agent/core";
+import type { DelegationEnforcer, AuditEntry } from "@my-agent/core";
 import type {
   Query,
   ContentBlock,
@@ -19,6 +22,8 @@ import type {
   SearchService,
 } from "@my-agent/core";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import { appendFile, mkdir } from "node:fs/promises";
+import { join, dirname } from "node:path";
 import { processStream, type StreamEvent } from "./stream-processor.js";
 import { SystemPromptBuilder } from "./system-prompt-builder.js";
 import type { BuildContext } from "./system-prompt-builder.js";
@@ -332,6 +337,67 @@ export class SessionManager {
       matcher: "WebSearch",
       hooks: [this.delegationEnforcer.preToolUse],
     });
+
+    // Capability rate limiter — PreToolUse: block tool call when limit exceeded (S1 deferred, wired in S3)
+    const capRateLimiter = createCapabilityRateLimiter({ maxPerMinute: 30 })
+
+    this.hooks!.PreToolUse!.push({
+      matcher: 'desktop_.*',
+      hooks: [
+        async (_input) => {
+          const allowed = capRateLimiter.check('desktop-control')
+          if (!allowed) {
+            return {
+              systemMessage: `Rate limit exceeded for desktop-control (30/min). Wait before retrying.`,
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse' as const,
+                permissionDecision: 'deny' as const,
+                permissionDecisionReason: 'Capability rate limit exceeded (30 calls per minute)',
+              },
+            }
+          }
+          return {}
+        },
+      ],
+    })
+
+    // Capability audit logger + screenshot interceptor — PostToolUse (S1 deferred, wired in S3)
+    const auditLogPath = join(agentDir, 'logs', 'capability-audit.jsonl')
+    const capAuditLogger = createCapabilityAuditLogger(async (entry: AuditEntry) => {
+      try {
+        await mkdir(dirname(auditLogPath), { recursive: true })
+        await appendFile(auditLogPath, JSON.stringify(entry) + '\n', 'utf-8')
+      } catch {
+        // Audit logging is best-effort
+      }
+    })
+    const screenshotInterceptor = createScreenshotInterceptor()
+
+    if (!this.hooks!.PostToolUse) this.hooks!.PostToolUse = []
+    this.hooks!.PostToolUse.push({
+      matcher: 'desktop_.*',
+      hooks: [
+        async (input) => {
+          // Audit logging
+          const toolName = 'tool_name' in input ? (input as { tool_name: string }).tool_name : 'unknown'
+          await capAuditLogger.log({
+            capabilityName: 'desktop-x11',
+            toolName,
+            sessionId: input.session_id,
+          })
+
+          // Screenshot interception — log when screenshots are returned
+          if ('tool_result' in input) {
+            const result = (input as { tool_result: unknown }).tool_result
+            if (screenshotInterceptor.hasScreenshot(result)) {
+              console.log(`[Capability Middleware] Screenshot captured by ${toolName}`)
+            }
+          }
+
+          return {}
+        },
+      ],
+    })
 
     console.log(
       `[SessionManager] Initialized (trust: brain, dir: ${agentDir})`,
