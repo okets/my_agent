@@ -114,6 +114,32 @@ async function testMcpCapability(capability: Capability): Promise<CapabilityTest
       }
     }
 
+    // Functional screenshot test for desktop-control
+    if (capability.provides === 'desktop-control') {
+      try {
+        const ssResult = await client.callTool({ name: 'desktop_screenshot', arguments: {} })
+        const contents = ssResult.content as Array<{ type: string; data?: string }>
+        const imageContent = contents.find(c => c.type === 'image' && c.data)
+
+        if (!imageContent) {
+          return { status: 'error', latencyMs, message: 'desktop_screenshot did not return image content' }
+        }
+
+        const buffer = Buffer.from(imageContent.data!, 'base64')
+        if (buffer.length < 8) {
+          return { status: 'error', latencyMs, message: `Screenshot too small: ${buffer.length} bytes` }
+        }
+
+        const pngHeader = buffer.subarray(0, 4)
+        if (pngHeader[0] !== 0x89 || pngHeader[1] !== 0x50 || pngHeader[2] !== 0x4e || pngHeader[3] !== 0x47) {
+          return { status: 'error', latencyMs, message: 'Screenshot is not a valid PNG (bad header)' }
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        return { status: 'error', latencyMs, message: `Screenshot test failed: ${message}` }
+      }
+    }
+
     return { status: 'ok', latencyMs }
   } catch (err) {
     const latencyMs = Math.round(performance.now() - start)
@@ -125,6 +151,59 @@ async function testMcpCapability(capability: Capability): Promise<CapabilityTest
     } catch {
       // ignore cleanup errors
     }
+  }
+}
+
+/**
+ * Functional screenshot test: call desktop_screenshot and validate
+ * the response contains valid image content (PNG header check).
+ */
+export async function testMcpScreenshot(capability: Capability): Promise<CapabilityTestResult> {
+  if (!capability.entrypoint) {
+    return { status: 'error', latencyMs: 0, message: 'MCP capability missing entrypoint' }
+  }
+
+  const parts = capability.entrypoint.split(/\s+/)
+  const transport = new StdioClientTransport({
+    command: parts[0],
+    args: parts.slice(1),
+    cwd: capability.path,
+    env: { ...process.env } as Record<string, string>,
+  })
+
+  const client = new Client({ name: 'screenshot-test', version: '1.0.0' })
+  const start = performance.now()
+
+  try {
+    await client.connect(transport)
+
+    const result = await client.callTool({ name: 'desktop_screenshot', arguments: {} })
+    const latencyMs = Math.round(performance.now() - start)
+
+    const contents = result.content as Array<{ type: string; data?: string; mimeType?: string }>
+    const imageContent = contents.find(c => c.type === 'image' && c.data)
+
+    if (!imageContent) {
+      return { status: 'error', latencyMs, message: 'desktop_screenshot did not return image content' }
+    }
+
+    const buffer = Buffer.from(imageContent.data!, 'base64')
+    if (buffer.length < 8) {
+      return { status: 'error', latencyMs, message: `Screenshot too small: ${buffer.length} bytes` }
+    }
+
+    const pngHeader = buffer.subarray(0, 4)
+    if (pngHeader[0] !== 0x89 || pngHeader[1] !== 0x50 || pngHeader[2] !== 0x4e || pngHeader[3] !== 0x47) {
+      return { status: 'error', latencyMs, message: 'Screenshot is not a valid PNG (bad header)' }
+    }
+
+    return { status: 'ok', latencyMs }
+  } catch (err) {
+    const latencyMs = Math.round(performance.now() - start)
+    const message = err instanceof Error ? err.message : String(err)
+    return { status: 'error', latencyMs, message }
+  } finally {
+    try { await client.close() } catch { /* ignore */ }
   }
 }
 

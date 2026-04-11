@@ -6,12 +6,23 @@ const server = new McpServer({ name: 'desktop-x11-test', version: '1.0.0' })
 
 // Required tools (7)
 
+// Minimal valid 1x1 red PNG (68 bytes)
+const TINY_PNG = Buffer.from(
+  '89504e470d0a1a0a0000000d49484452000000010000000108020000009001' +
+  '2e00000000c4944415478016360f8cf00000001010000187227a00000000' +
+  '049454e44ae426082',
+  'hex',
+).toString('base64')
+
 server.tool(
   'desktop_screenshot',
   'Take screenshot (test fixture)',
   { region: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional() },
   async () => ({
-    content: [{ type: 'text', text: JSON.stringify({ fixture: true, width: 1920, height: 1080 }) }],
+    content: [
+      { type: 'image', data: TINY_PNG, mimeType: 'image/png' },
+      { type: 'text', text: JSON.stringify({ width: 1920, height: 1080, fixture: true }) },
+    ],
   }),
 )
 

@@ -6,7 +6,7 @@ export type {
 } from './types.js'
 export { CapabilityRegistry } from './registry.js'
 export { scanCapabilities } from './scanner.js'
-export { testCapability } from './test-harness.js'
+export { testCapability, testMcpScreenshot } from './test-harness.js'
 export { McpCapabilitySpawner, type McpHandle } from './mcp-spawner.js'
 export {
   createCapabilityRateLimiter,
