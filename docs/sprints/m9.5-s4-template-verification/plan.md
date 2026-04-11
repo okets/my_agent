@@ -104,7 +104,7 @@ const server = new McpServer({ name: 'desktop-x11-test', version: '1.0.0' })
 server.tool(
   'desktop_screenshot',
   'Take screenshot (test fixture)',
-  { region: z.string().optional() },
+  { region: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional() },
   async () => ({
     content: [{ type: 'text', text: JSON.stringify({ fixture: true, width: 1920, height: 1080 }) }],
   }),
@@ -251,7 +251,7 @@ describe('MCP tool schema validation', () => {
 
     // Simulate a tool list with correct schemas
     const tools = [
-      { name: 'desktop_screenshot', inputSchema: { type: 'object', properties: { region: { type: 'string' } } } },
+      { name: 'desktop_screenshot', inputSchema: { type: 'object', properties: { region: { type: 'object' } } } },
       { name: 'desktop_click', inputSchema: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'] } },
       { name: 'desktop_type', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } },
       { name: 'desktop_key', inputSchema: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] } },
@@ -525,7 +525,7 @@ const TINY_PNG = Buffer.from(
 server.tool(
   'desktop_screenshot',
   'Take screenshot (test fixture)',
-  { region: z.string().optional() },
+  { region: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional() },
   async () => ({
     content: [
       { type: 'image', data: TINY_PNG, mimeType: 'image/png' },
@@ -764,7 +764,7 @@ Capture the screen or a region.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `region` | string | No | Region spec (e.g., "100,100,500,400" for x,y,w,h). Omit for full screen. |
+| `region` | object `{ x, y, width, height }` | No | Region to capture. All fields are numbers. Omit for full screen. |
 
 **Returns:** Image content (base64 PNG) + metadata JSON with `width` and `height`.
 
@@ -772,7 +772,7 @@ Capture the screen or a region.
 server.tool(
   'desktop_screenshot',
   'Capture the screen or a region',
-  { region: z.string().optional().describe('Region as "x,y,width,height". Omit for full screen.') },
+  { region: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).optional() },
   async ({ region }) => {
     const screenshot = await takeScreenshot(region) // Platform-specific
     return {
@@ -881,7 +881,7 @@ OCR the screen or a region, returning text with bounding boxes.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `region` | string | No | Region spec (same format as desktop_screenshot) |
+| `region` | object `{ x, y, width, height }` | No | Region to OCR (same format as desktop_screenshot) |
 
 **Returns:** JSON array of `{ text, bounds: { x, y, width, height }, confidence }`.
 
@@ -1129,14 +1129,70 @@ scripts/reset-capability.sh removes a capability folder from
 
 ---
 
-### Task 7: Build-from-scratch loop — delete capability and verify harness
+### Task 6.5: Update brainstorming skill with MCP guidance
 
 **Files:**
-- No new files — this task uses the reset script and test harness
+- Modify: `packages/core/skills/capability-brainstorming/SKILL.md`
+- Modify: `packages/core/skills/capability-brainstorming/references/capability-template.md`
+- Modify: `packages/core/skills/capability-brainstorming/references/well-known-types.md`
 
-This task validates the framework end-to-end: delete the desktop-x11 capability, verify the test harness reports failure, then verify the existing capability passes when restored.
+The brainstorming skill currently only knows about `script` interface capabilities. Before the build-from-scratch loop can work, the skill needs MCP awareness so it can guide the builder agent correctly.
 
-- [ ] **Step 1: Backup the current capability folder**
+- [ ] **Step 1: Add MCP interface section to SKILL.md**
+
+After the "Check existing capabilities" step, add guidance for MCP capabilities:
+- When the requested well-known type is `desktop-control`, use `interface: mcp` (not `script`)
+- Reference `skills/capability-templates/desktop-control.md` for the full MCP contract
+- Builder instructions for MCP: write package.json, standalone MCP server (no framework imports), entrypoint in CAPABILITY.md frontmatter
+
+- [ ] **Step 2: Update capability-template.md reference**
+
+Add an MCP CAPABILITY.md template alongside the existing script template:
+
+```yaml
+---
+name: <Human-readable name>
+provides: <well-known type>
+interface: mcp
+entrypoint: npx tsx src/server.ts
+requires:
+  env: []
+  system:
+    - <required-cli-tool>
+---
+```
+
+- [ ] **Step 3: Update well-known-types.md**
+
+Add `desktop-control` to the well-known types table:
+
+| Type | What It Does | Dashboard Reaction | Channel Reaction |
+|------|-------------|-------------------|-----------------|
+| desktop-control | Screen interaction via MCP tools | Settings toggle, rate limiting | N/A — brain-only |
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add packages/core/skills/capability-brainstorming/
+git commit -m "feat(m9.5-s4): add MCP guidance to capability brainstorming skill
+
+Brainstorming skill now knows about interface: mcp capabilities.
+Adds desktop-control to well-known types, MCP CAPABILITY.md template,
+and builder guidance for standalone MCP servers."
+```
+
+---
+
+### Task 7: Build-from-scratch loop — agent builds capability from template
+
+**Files:**
+- No new files — this task uses the reset script, brainstorming skill, and test harness
+
+This is the core S4 verification: prove an agent can build the desktop-control capability from scratch using only the template. This is inherently iterative — the plan describes the loop structure, not a fixed recipe.
+
+**Pre-requisite:** Back up the current working capability before starting.
+
+- [ ] **Step 1: Backup the current capability**
 
 ```bash
 cp -r .my_agent/capabilities/desktop-x11 /tmp/desktop-x11-backup
@@ -1150,54 +1206,137 @@ bash scripts/reset-capability.sh desktop-x11
 
 - [ ] **Step 3: Verify scanner reports no desktop-control**
 
-Run a quick check that the capability is gone from the registry — the scanner should find no desktop-control capability in `.my_agent/capabilities/`.
+Confirm the capability is gone from the registry.
 
-- [ ] **Step 4: Restore the capability**
+- [ ] **Step 4: Start a brain session and request desktop control**
+
+Open the dashboard (or use headless App) and send the message: "I want desktop control"
+
+This triggers the brainstorming skill flow:
+1. Skill checks templates → finds `desktop-control.md`
+2. Asks 1-2 questions (platform, constraints)
+3. Spawns builder agent with the template reference
+4. Builder creates the capability folder, installs deps, writes server
+
+Wait for the builder to complete.
+
+- [ ] **Step 5: Run test harness against the agent-built capability**
 
 ```bash
-cp -r /tmp/desktop-x11-backup .my_agent/capabilities/desktop-x11
+cd packages/core && npx vitest run tests/capabilities/ --reporter=verbose
 ```
 
-- [ ] **Step 5: Run the full test harness against the restored capability**
+The harness validates all 3 stages:
+1. Environment check (detect.sh exits 0)
+2. Schema validation (7 required tools present with correct schemas)
+3. Functional screenshot (desktop_screenshot returns valid PNG)
 
-Run the test harness via the test suite. All 3 stages should pass: environment check, schema validation, functional screenshot.
+- [ ] **Step 6: If harness fails — iterate**
 
-Run: `cd packages/core && npx vitest run tests/capabilities/ --reporter=verbose`
-Expected: All tests pass.
+Examine what went wrong:
+- Missing tool? → Template needs clearer instructions
+- Wrong schema? → Template's tool spec is ambiguous
+- Server won't start? → Template's entrypoint/package.json guidance is insufficient
+- detect.sh fails? → Template's script examples need adjustment
 
-- [ ] **Step 6: Verify the real capability returns a real screenshot**
+Fix the template (Task 5), delete the capability again, repeat from Step 2. The goal is **single-shot reliable build** — the agent should produce a passing capability on the first try.
 
-Use the standalone `testMcpScreenshot` function against the real capability (not the fixture). This proves desktop tools actually work on this machine.
+- [ ] **Step 7: If harness passes — verify real screenshot**
 
-Write a quick inline test or use the harness directly — the real capability at `.my_agent/capabilities/desktop-x11` should return a real PNG screenshot of the current display.
+Call `desktop_screenshot` against the agent-built capability. Confirm it returns a real PNG of the current display (not a mock).
 
-- [ ] **Step 7: Log results in DECISIONS.md**
+- [ ] **Step 8: Log results in DECISIONS.md**
 
-Create `docs/sprints/m9.5-s4-template-verification/DECISIONS.md` with the build-from-scratch loop results.
+Create `docs/sprints/m9.5-s4-template-verification/DECISIONS.md` documenting:
+- Number of iterations needed
+- What failed on each iteration (if any)
+- Template adjustments made
+- Final harness result
+
+- [ ] **Step 9: Commit**
+
+If the template was adjusted, commit the updated template. Commit DECISIONS.md.
 
 ---
 
-### Task 8: Acceptance test — read text from Kwrite
+### Task 8: Acceptance test — conversation with Nina reads Kwrite
 
 **Files:**
-- No new files — this uses the real desktop-control capability
+- No new files — this is an agent-driven test through the dashboard
 
-This is the acceptance gate: use the desktop tools to read text from the open Kwrite document.
+The acceptance test is agent-level, not framework-level: Nina uses the desktop tools herself to read text from a Kwrite document. The developer observes — they don't call MCP tools directly.
 
-- [ ] **Step 1: Take a screenshot via the desktop capability**
+- [ ] **Step 1: Ensure Kwrite is open with text content**
 
-Use the MCP test client to call `desktop_screenshot` against the real capability at `.my_agent/capabilities/desktop-x11`. Save the screenshot to verify Kwrite is visible.
+Kwrite should already be open. If not, open it with some test content.
 
-- [ ] **Step 2: Verify Kwrite text is readable**
+- [ ] **Step 2: Open dashboard chat and ask Nina**
 
-Examine the screenshot. The acceptance test passes if the desktop tools can capture the screen and the Kwrite document content is visible in the screenshot.
+Navigate to the dashboard at the Tailscale address. In the chat, type:
 
-- [ ] **Step 3: Log acceptance test result**
+> What text is in the open Kwrite document?
+
+- [ ] **Step 3: Observe Nina's tool usage**
+
+Nina should:
+1. Use `desktop_screenshot` to capture the screen
+2. See the Kwrite window in the screenshot
+3. Read the text content
+4. Respond with what she sees
+
+- [ ] **Step 4: Evaluate pass/fail**
+
+**Pass criteria:**
+- Nina used the desktop tools (not just guessing)
+- She correctly identified the Kwrite text content
+- The response was natural and accurate
+
+**Fail criteria:**
+- Nina couldn't find or use the desktop tools
+- She misread the content
+- Desktop capability wasn't available in the session
+
+- [ ] **Step 5: Log acceptance test result**
 
 Add to `docs/sprints/m9.5-s4-template-verification/DECISIONS.md`:
-- Screenshot captured successfully: yes/no
-- Kwrite visible: yes/no
-- Text readable: yes/no
+- Tools Nina used
+- Text she reported vs actual text
+- Pass/fail verdict
+- Any issues observed
+
+---
+
+### Task 8.5: User feedback — Nina reflects on tool UX
+
+**Files:**
+- Modify: `docs/sprints/m9.5-s4-template-verification/DECISIONS.md`
+- Possibly modify: `skills/capability-templates/desktop-control.md` (if feedback is actionable)
+
+After the acceptance test, ask Nina to reflect on the desktop control tools. This feedback informs template refinement and future platform implementations.
+
+- [ ] **Step 1: Ask Nina for feedback**
+
+In the dashboard chat, ask Nina to reflect on:
+- Which tools did you use? Which were most helpful?
+- Were any tools confusing or unnecessary?
+- What was missing that would have helped?
+- Was coordinate interpretation intuitive?
+- Would optional tools (OCR, find_element, diff_check) have helped?
+
+- [ ] **Step 2: Log feedback**
+
+Add Nina's responses to DECISIONS.md under a "User Feedback" section.
+
+- [ ] **Step 3: Adjust template if needed**
+
+If Nina's feedback reveals actionable improvements (e.g., "I wished I could search for UI elements by name"), update the template to emphasize those optional tools or adjust required tool descriptions.
+
+- [ ] **Step 4: Commit if template changed**
+
+```bash
+git add skills/capability-templates/desktop-control.md docs/sprints/m9.5-s4-template-verification/DECISIONS.md
+git commit -m "docs(m9.5-s4): user feedback on desktop tools, template adjusted"
+```
 
 ---
 
