@@ -159,8 +159,8 @@ export async function scanCapabilities(
         capability.entrypoint = data.entrypoint
       }
 
-      // For MCP capabilities, load and expand .mcp.json (if no entrypoint — coexistence)
-      if (data.interface === 'mcp') {
+      // For MCP capabilities without entrypoint, load .mcp.json (mutually exclusive per spec)
+      if (data.interface === 'mcp' && !data.entrypoint) {
         const mcpConfig = loadMcpConfig(capDir, envPath, requiredEnv)
         if (mcpConfig) {
           capability.mcpConfig = mcpConfig

@@ -140,4 +140,29 @@ describe('scanner — system tools and entrypoint', () => {
     expect(caps[0].mcpConfig).toBeDefined()
     expect(caps[0].entrypoint).toBeUndefined() // no entrypoint — uses .mcp.json
   })
+
+  it('entrypoint and .mcp.json are mutually exclusive — entrypoint wins', async () => {
+    const dir = join(capDir, 'both-patterns')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'CAPABILITY.md'), [
+      '---',
+      'name: Both Patterns',
+      'provides: test-type',
+      'interface: mcp',
+      'entrypoint: npx tsx src/server.ts',
+      '---',
+      'Test.',
+    ].join('\n'))
+    // Both entrypoint AND .mcp.json present — entrypoint should win, .mcp.json ignored
+    writeFileSync(join(dir, '.mcp.json'), JSON.stringify({
+      type: 'stdio',
+      command: 'echo',
+      args: ['test'],
+    }))
+    writeFileSync(join(dir, '.enabled'), new Date().toISOString())
+
+    const caps = await scanCapabilities(capDir, envPath)
+    expect(caps[0].entrypoint).toBe('npx tsx src/server.ts')
+    expect(caps[0].mcpConfig).toBeUndefined() // .mcp.json not loaded when entrypoint present
+  })
 })
