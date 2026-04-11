@@ -247,6 +247,32 @@ Two changes to `automation-executor.ts`:
 - Validates brain curation end-to-end
 - Runs against a real brain session (per S8 rule: no mocks for agent compliance)
 
+### Smoke Test: KWrite Desktop Read
+
+**Prompt sent to brain via dashboard chat (conversation path):**
+
+> "Read the text from my unsaved work on KWrite, it is minimized."
+
+**Expected flow:**
+1. Brain calls `desktop_info(windows)` → finds KWrite window ID (screenshot generated)
+2. Brain calls `desktop_focus_window` → brings KWrite to foreground (screenshot generated)
+3. Brain calls `desktop_screenshot` → captures KWrite content (screenshot generated)
+4. Brain reads the text, composes reply with the key screenshot showing KWrite content
+
+**Verify:**
+- VAS has 3+ screenshots stored (one per tool call that returns an image)
+- Brain's conversation reply contains 1 screenshot URL (the KWrite content, not the intermediate focus/info steps)
+- That URL resolves to a valid PNG via `/api/assets/screenshots/ss-*.png`
+- Ref scanner indexed the URL under `conv/<conversationId>`
+- Screenshot renders inline in the chat bubble in the dashboard
+
+**Why this test:**
+- Exercises the conversation path (complements the CNN automation path)
+- Uses desktop MCP tools (not Playwright) — validates that both tool families flow through the same interceptor
+- Multi-step desktop interaction generates several screenshots but only the result matters
+- Validates brain curation in conversation context (not job summary)
+- Runs against a real brain session with real desktop interaction
+
 ---
 
 ## Risks and Mitigations
