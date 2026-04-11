@@ -97,7 +97,11 @@ Before ending your session, verify ALL of the following:
 4. **Format check:** If the task specified an output format, verify your deliverable matches it exactly.
 
 Do not assume your work is correct — verify by re-reading output files.
-Do not waste tokens on pleasantries or narration. Be autonomous — make decisions, don't ask questions.`;
+Do not waste tokens on pleasantries or narration. Be autonomous — make decisions, don't ask questions.
+
+## Visual Output
+
+When your task involves visual output (screenshots, images), include the most relevant screenshot URL(s) as markdown images in your summary. The framework provides URLs in the format "Screenshot URL: /api/assets/screenshots/ss-xxx.png". Pick the result, not the journey. Use standard markdown: ![description](url)`;
 
 export async function buildWorkingNinaPrompt(
   agentDir: string,
