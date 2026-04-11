@@ -23,29 +23,40 @@ function truncate(content: string): string {
   return content.slice(0, MAX_LENGTH) + TRUNCATION_NOTICE;
 }
 
-export function resolveJobSummary(
+/**
+ * Resolve a job summary from disk artifacts, with fallback.
+ * Returns { text, source } so callers can distinguish disk hits from fallbacks.
+ */
+function resolve(
   runDir: string | undefined | null,
   fallbackWork: string,
-): string {
+): { text: string; source: "deliverable" | "status-report" | "fallback" } {
   if (!runDir) {
     console.log(`[summary-resolver] No runDir — using fallback (${fallbackWork.length} chars)`);
-    return truncate(fallbackWork);
+    return { text: truncate(fallbackWork), source: "fallback" };
   }
 
   const deliverable = readAndStrip(path.join(runDir, "deliverable.md"));
   if (deliverable) {
     console.log(`[summary-resolver] Resolved from deliverable.md (${deliverable.length} chars)`);
-    return truncate(deliverable);
+    return { text: truncate(deliverable), source: "deliverable" };
   }
 
   const statusReport = readAndStrip(path.join(runDir, "status-report.md"));
   if (statusReport) {
     console.log(`[summary-resolver] Resolved from status-report.md (${statusReport.length} chars)`);
-    return truncate(statusReport);
+    return { text: truncate(statusReport), source: "status-report" };
   }
 
   console.log(`[summary-resolver] No disk artifacts — using fallback (${fallbackWork.length} chars)`);
-  return truncate(fallbackWork);
+  return { text: truncate(fallbackWork), source: "fallback" };
+}
+
+export function resolveJobSummary(
+  runDir: string | undefined | null,
+  fallbackWork: string,
+): string {
+  return resolve(runDir, fallbackWork).text;
 }
 
 export async function resolveJobSummaryAsync(
@@ -57,18 +68,18 @@ export async function resolveJobSummaryAsync(
     model: "haiku",
   ) => Promise<string>,
 ): Promise<string> {
-  // Try disk artifacts first
-  const syncResult = resolveJobSummary(runDir, fallbackWork);
+  const { text, source } = resolve(runDir, fallbackWork);
 
-  // If disk artifacts were found, return them
-  if (syncResult !== truncate(fallbackWork)) return syncResult;
+  // Disk artifact found — use it, no Haiku needed
+  if (source !== "fallback") return text;
 
-  // If fallback is short enough, no need for Haiku
-  if (fallbackWork.length <= MAX_LENGTH) return syncResult;
+  // Fallback is short enough — no summarization needed
+  if (fallbackWork.length <= MAX_LENGTH) return text;
 
-  // Try Haiku summarization
+  // Try Haiku summarization for long raw streams with no disk artifacts
   if (queryModelFn) {
     try {
+      console.log(`[summary-resolver] Haiku fallback for ${fallbackWork.length} char stream`);
       return await queryModelFn(
         fallbackWork.slice(0, 8000),
         "Summarize this work output concisely. Preserve all key findings, numbers, and actionable items. Keep under 3000 characters.",
@@ -79,5 +90,5 @@ export async function resolveJobSummaryAsync(
     }
   }
 
-  return syncResult;
+  return text;
 }
