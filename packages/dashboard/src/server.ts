@@ -19,6 +19,7 @@ import { registerNotebookRoutes } from "./routes/notebook.js";
 import { registerMemoryRoutes } from "./routes/memory.js";
 import { registerConversationSearchRoutes } from "./routes/conversation-search.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
+import { registerCapabilityRoutes } from "./routes/capabilities.js";
 import { registerDesktopRoutes } from "./routes/desktop.js";
 import { registerPlaywrightRoutes } from "./routes/playwright-routes.js";
 import { registerSkillRoutes } from "./routes/skills.js";
@@ -263,6 +264,9 @@ export async function createServer(
 
   // Register settings routes (M6.9-S2)
   await registerSettingsRoutes(fastify);
+
+  // Register capability settings routes (M9.5-S2)
+  await registerCapabilityRoutes(fastify);
 
   // Register desktop control routes (M8-S2)
   await registerDesktopRoutes(fastify);
