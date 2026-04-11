@@ -1648,17 +1648,25 @@ export class App extends EventEmitter {
 
       if (desktopCap && desktopCap.status === 'available') {
         // Factory: return stdio config so the SDK spawns the process itself.
+        // Resolve entrypoint args to absolute paths (SDK may not support cwd).
         const entrypointParts = desktopCap.entrypoint!.split(/\s+/)
-        addMcpServerFactory('desktop-x11', async () => ({
+        const resolvedArgs = entrypointParts.slice(1).map((arg) =>
+          arg.startsWith('.') || (!arg.startsWith('/') && arg.includes('/'))
+            ? join(desktopCap.path, arg)
+            : arg,
+        )
+        addMcpServerFactory('desktop-x11', async () => {
+          console.log(`[Desktop] Factory invoked — spawning MCP server`)
+          return {
           command: entrypointParts[0],
-          args: entrypointParts.slice(1),
+          args: resolvedArgs,
           cwd: desktopCap.path,
           env: Object.fromEntries(
             Object.entries(process.env).filter((e): e is [string, string] => e[1] !== undefined),
           ),
-        }))
+        }})
 
-        console.log(`[Desktop] desktop-x11 capability wired via registry`)
+        console.log(`[Desktop] desktop-x11 capability wired via registry (cmd: ${entrypointParts[0]} ${resolvedArgs.join(' ')})`)
       } else {
         console.log('[Desktop] No desktop-control capability installed — desktop tools unavailable')
       }

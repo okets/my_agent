@@ -41,3 +41,57 @@ When the capability was deleted but Nina's memory still recalled having desktop 
 **Root cause:** The system prompt lists available capabilities but doesn't explicitly say what's NOT available. Nina's memory fills in the gap incorrectly.
 
 **Potential fix for future:** Add negative capability hints to the system prompt (e.g., "Desktop control: not installed — use brainstorming skill if requested"). Low priority — this only matters for rebuild testing, not normal user flows.
+
+## D3: Factory→session wiring bug (resolved)
+
+**Date:** 2026-04-11
+**Task:** Task 8 — Acceptance test
+
+### Problem
+
+Desktop MCP tools were not available in chat sessions despite the factory being registered. Nina fell back to xdotool/dbus workarounds instead of using her MCP tools.
+
+### Root cause
+
+The factory returned `{ command: 'npx', args: ['tsx', 'src/server.ts'], cwd: desktopCap.path }`. The SDK's `McpStdioServerConfig` type doesn't include `cwd` — the SDK spawns the child process without setting the working directory. So `npx tsx src/server.ts` ran from the agent directory (`.my_agent/`) and couldn't find `src/server.ts`.
+
+### Fix
+
+Resolve relative paths in entrypoint args to absolute paths before passing to the factory:
+```typescript
+const resolvedArgs = entrypointParts.slice(1).map((arg) =>
+  arg.startsWith('.') || (!arg.startsWith('/') && arg.includes('/'))
+    ? join(desktopCap.path, arg)
+    : arg,
+)
+```
+
+Result: `npx tsx /home/nina/.../desktop-x11/src/server.ts` — works regardless of cwd.
+
+### Secondary issue
+
+A pre-existing concurrency bug: shared MCP server instances (memory, skills, etc.) throw "Already connected to a transport" when a system message injection runs concurrently with a user message. Non-blocking — the query recovers, but the error is logged. Not in scope for this sprint.
+
+## D4: Desktop screenshots should render inline in conversation (CTO PRIORITY)
+
+**Date:** 2026-04-11
+**Flagged by:** CTO
+
+### Issue
+
+When Nina takes a desktop screenshot via `desktop_screenshot`, the base64 image data is returned to the brain via MCP but is NOT displayed to the user in the conversation UI. Nina describes what she sees in text instead.
+
+### CTO direction
+
+> "The visual enhancement skill already should show images from jobs automatically. This is a classic one to use in-conversation. The user will see the desktop as Nina works. This will be awesome. A picture is worth a 1000 words."
+
+### What's needed
+
+1. The `desktop_screenshot` tool returns `{ type: 'image', data: base64, mimeType: 'image/png' }` — the data is already there
+2. The Visual Action Service (VAS) and visual enhancement skill already handle image rendering for automation jobs
+3. Desktop screenshots taken in conversation should use the same pipeline — store via VAS, render inline in the chat bubble
+4. This turns desktop control from a text-described capability into a visual, interactive experience
+
+### Priority
+
+CTO-flagged. Should be addressed in the next sprint touching desktop or conversation rendering.
