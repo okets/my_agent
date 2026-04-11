@@ -12,6 +12,8 @@ export {
   createCapabilityRateLimiter,
   createCapabilityAuditLogger,
   createScreenshotInterceptor,
+  inferSource,
+  parseImageMetadata,
   type RateLimiter,
   type AuditLogger,
   type AuditEntry,

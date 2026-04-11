@@ -243,6 +243,8 @@ export {
   createCapabilityRateLimiter,
   createCapabilityAuditLogger,
   createScreenshotInterceptor,
+  inferSource,
+  parseImageMetadata,
 } from './capabilities/index.js'
 export type { RateLimiter, AuditLogger, AuditEntry, ScreenshotInterceptor } from './capabilities/index.js'
 

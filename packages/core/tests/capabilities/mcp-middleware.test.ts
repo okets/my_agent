@@ -3,7 +3,10 @@ import {
   createCapabilityRateLimiter,
   createCapabilityAuditLogger,
   createScreenshotInterceptor,
+  inferSource,
+  parseImageMetadata,
 } from '../../src/capabilities/mcp-middleware.js'
+import type { ScreenshotMetadata } from '../../src/visual/types.js'
 
 describe('createCapabilityRateLimiter', () => {
   it('allows calls within the limit', () => {
@@ -66,5 +69,116 @@ describe('createScreenshotInterceptor', () => {
     const result = { content: [{ type: 'image', data: 'iVBORw0KGgoAAAANSUhEUg==' }] }
     const extracted = interceptor.extractImage(result)
     expect(extracted).toBe('iVBORw0KGgoAAAANSUhEUg==')
+  })
+})
+
+describe('inferSource', () => {
+  it('maps desktop_* tools to desktop', () => {
+    expect(inferSource('desktop_click')).toBe('desktop')
+    expect(inferSource('desktop_screenshot')).toBe('desktop')
+  })
+
+  it('maps browser_* tools to playwright', () => {
+    expect(inferSource('browser_navigate')).toBe('playwright')
+    expect(inferSource('browser_take_screenshot')).toBe('playwright')
+  })
+
+  it('maps playwright_* tools to playwright', () => {
+    expect(inferSource('playwright_click')).toBe('playwright')
+  })
+
+  it('maps unknown tools to generated', () => {
+    expect(inferSource('generate_image')).toBe('generated')
+    expect(inferSource('some_tool')).toBe('generated')
+  })
+})
+
+describe('parseImageMetadata', () => {
+  it('extracts metadata from text content block JSON', () => {
+    const result = {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ description: 'A screenshot', width: 1920, height: 1080 }),
+        },
+        { type: 'image', data: 'iVBORw0KGgoAAAANSUhEUg==' },
+      ],
+    }
+    const meta: ScreenshotMetadata = parseImageMetadata(result, 'desktop_screenshot')
+    expect(meta.description).toBe('A screenshot')
+    expect(meta.width).toBe(1920)
+    expect(meta.height).toBe(1080)
+    expect(meta.source).toBe('desktop')
+  })
+
+  it('falls back when text block is not valid JSON', () => {
+    const result = {
+      content: [
+        { type: 'text', text: 'not json' },
+        { type: 'image', data: 'iVBORw0KGgoAAAANSUhEUg==' },
+      ],
+    }
+    const meta: ScreenshotMetadata = parseImageMetadata(result, 'browser_take_screenshot')
+    expect(meta.description).toBeUndefined()
+    expect(meta.width).toBe(0)
+    expect(meta.height).toBe(0)
+    expect(meta.source).toBe('playwright')
+  })
+
+  it('falls back when no text block exists', () => {
+    const result = {
+      content: [{ type: 'image', data: 'iVBORw0KGgoAAAANSUhEUg==' }],
+    }
+    const meta: ScreenshotMetadata = parseImageMetadata(result, 'some_tool')
+    expect(meta.description).toBeUndefined()
+    expect(meta.width).toBe(0)
+    expect(meta.height).toBe(0)
+    expect(meta.source).toBe('generated')
+  })
+})
+
+describe('screenshot interceptor — dual format', () => {
+  it('detects Anthropic API format: { type: image, source: { type: base64, data } }', () => {
+    const interceptor = createScreenshotInterceptor()
+    const result = {
+      content: [
+        {
+          type: 'image',
+          source: { type: 'base64', data: 'iVBORw0KGgoAAAANSUhEUg==' },
+        },
+      ],
+    }
+    expect(interceptor.hasScreenshot(result)).toBe(true)
+    expect(interceptor.extractImage(result)).toBe('iVBORw0KGgoAAAANSUhEUg==')
+  })
+
+  it('still detects MCP format: { type: image, data }', () => {
+    const interceptor = createScreenshotInterceptor()
+    const result = {
+      content: [{ type: 'image', data: 'iVBORw0KGgoAAAANSUhEUg==' }],
+    }
+    expect(interceptor.hasScreenshot(result)).toBe(true)
+    expect(interceptor.extractImage(result)).toBe('iVBORw0KGgoAAAANSUhEUg==')
+  })
+
+  it('rejects non-PNG base64 data in MCP format', () => {
+    const interceptor = createScreenshotInterceptor()
+    const result = {
+      content: [{ type: 'image', data: 'AAABBBCCC' }],
+    }
+    expect(interceptor.hasScreenshot(result)).toBe(false)
+  })
+
+  it('rejects non-PNG base64 data in Anthropic API format', () => {
+    const interceptor = createScreenshotInterceptor()
+    const result = {
+      content: [
+        {
+          type: 'image',
+          source: { type: 'base64', data: 'AAABBBCCC' },
+        },
+      ],
+    }
+    expect(interceptor.hasScreenshot(result)).toBe(false)
   })
 })

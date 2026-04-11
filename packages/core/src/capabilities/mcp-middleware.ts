@@ -10,6 +10,53 @@
  * Wired via PostToolUse hooks in the Agent SDK (done in S3).
  */
 
+import type { ScreenshotSource, ScreenshotMetadata } from '../visual/types.js'
+
+export function inferSource(toolName: string): ScreenshotSource {
+  if (toolName.startsWith('desktop_')) return 'desktop'
+  if (toolName.startsWith('browser_') || toolName.startsWith('playwright_')) return 'playwright'
+  return 'generated'
+}
+
+export function parseImageMetadata(result: unknown, toolName: string): ScreenshotMetadata {
+  const fallback: ScreenshotMetadata = {
+    description: undefined,
+    width: 0,
+    height: 0,
+    source: inferSource(toolName),
+  }
+
+  if (!result || typeof result !== 'object') return fallback
+  const r = result as { content?: unknown[] }
+  if (!Array.isArray(r.content)) return fallback
+
+  for (const block of r.content) {
+    if (
+      block &&
+      typeof block === 'object' &&
+      'type' in block &&
+      (block as { type: string }).type === 'text' &&
+      'text' in block &&
+      typeof (block as { text: unknown }).text === 'string'
+    ) {
+      const text = (block as { text: string }).text
+      try {
+        const parsed = JSON.parse(text) as Record<string, unknown>
+        return {
+          description: typeof parsed.description === 'string' ? parsed.description : undefined,
+          width: typeof parsed.width === 'number' ? parsed.width : 0,
+          height: typeof parsed.height === 'number' ? parsed.height : 0,
+          source: inferSource(toolName),
+        }
+      } catch {
+        return fallback
+      }
+    }
+  }
+
+  return fallback
+}
+
 export interface RateLimiter {
   check(capabilityType: string): boolean
 }
@@ -70,20 +117,26 @@ export interface ScreenshotInterceptor {
 export function createScreenshotInterceptor(): ScreenshotInterceptor {
   const PNG_MAGIC_B64 = 'iVBORw0KGgo'
 
-  function findImageContent(result: unknown): { type: string; data: string } | null {
+  function findImageData(result: unknown): string | null {
     if (!result || typeof result !== 'object') return null
     const r = result as { content?: unknown[] }
     if (!Array.isArray(r.content)) return null
     for (const block of r.content) {
+      if (!block || typeof block !== 'object') continue
+      const b = block as Record<string, unknown>
+      if (b['type'] !== 'image') continue
+
+      // MCP format: { type: 'image', data: string }
+      if (typeof b['data'] === 'string') return b['data']
+
+      // Anthropic API format: { type: 'image', source: { type: 'base64', data: string } }
       if (
-        block &&
-        typeof block === 'object' &&
-        'type' in block &&
-        (block as { type: string }).type === 'image' &&
-        'data' in block &&
-        typeof (block as { data: unknown }).data === 'string'
+        b['source'] &&
+        typeof b['source'] === 'object' &&
+        (b['source'] as Record<string, unknown>)['type'] === 'base64' &&
+        typeof (b['source'] as Record<string, unknown>)['data'] === 'string'
       ) {
-        return block as { type: string; data: string }
+        return (b['source'] as Record<string, unknown>)['data'] as string
       }
     }
     return null
@@ -91,15 +144,13 @@ export function createScreenshotInterceptor(): ScreenshotInterceptor {
 
   return {
     hasScreenshot(result: unknown): boolean {
-      const img = findImageContent(result)
-      if (!img) return false
-      return img.data.startsWith(PNG_MAGIC_B64)
+      const data = findImageData(result)
+      if (!data) return false
+      return data.startsWith(PNG_MAGIC_B64)
     },
 
     extractImage(result: unknown): string | null {
-      const img = findImageContent(result)
-      if (!img) return null
-      return img.data
+      return findImageData(result)
     },
   }
 }
