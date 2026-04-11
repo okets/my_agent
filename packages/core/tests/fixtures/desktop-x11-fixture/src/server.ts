@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 const server = new McpServer({ name: 'desktop-x11-test', version: '1.0.0' })
 
-// Required tools (7)
+// Required tools (8)
 
 // Minimal valid 1x1 red PNG (68 bytes)
 const TINY_PNG = Buffer.from(
@@ -21,7 +21,7 @@ server.tool(
   async () => ({
     content: [
       { type: 'image', data: TINY_PNG, mimeType: 'image/png' },
-      { type: 'text', text: JSON.stringify({ width: 1920, height: 1080, fixture: true }) },
+      { type: 'text', text: JSON.stringify({ width: 1920, height: 1080, scaleFactor: 1.0, fixture: true }) },
     ],
   }),
 )
@@ -77,6 +77,15 @@ server.tool(
   { seconds: z.number() },
   async ({ seconds }) => ({
     content: [{ type: 'text', text: JSON.stringify({ waited: seconds, fixture: true }) }],
+  }),
+)
+
+server.tool(
+  'desktop_focus_window',
+  'Focus window by ID (test fixture)',
+  { windowId: z.string() },
+  async ({ windowId }) => ({
+    content: [{ type: 'text', text: JSON.stringify({ focused: windowId, fixture: true }) }],
   }),
 )
 

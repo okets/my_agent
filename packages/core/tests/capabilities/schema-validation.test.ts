@@ -12,7 +12,7 @@ afterEach(() => {
 })
 
 describe('MCP tool schema validation', () => {
-  it('validates all 7 required desktop-control tools are present', async () => {
+  it('validates all 8 required desktop-control tools are present', async () => {
     writeFileSync(FIXTURE_ENABLED_PATH, new Date().toISOString())
 
     const caps = await scanCapabilities(FIXTURES_DIR, '/dev/null')
@@ -26,7 +26,7 @@ describe('MCP tool schema validation', () => {
 
   it('reports error when required tool is missing', async () => {
     const { DESKTOP_CONTROL_CONTRACT } = await import('../../src/capabilities/tool-contracts.js')
-    expect(DESKTOP_CONTROL_CONTRACT.required).toHaveLength(7)
+    expect(DESKTOP_CONTROL_CONTRACT.required).toHaveLength(8)
     expect(DESKTOP_CONTROL_CONTRACT.required.map(t => t.name)).toEqual([
       'desktop_screenshot',
       'desktop_click',
@@ -35,6 +35,7 @@ describe('MCP tool schema validation', () => {
       'desktop_scroll',
       'desktop_info',
       'desktop_wait',
+      'desktop_focus_window',
     ])
   })
 
@@ -49,6 +50,7 @@ describe('MCP tool schema validation', () => {
       { name: 'desktop_scroll', inputSchema: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, direction: {} }, required: ['x', 'y', 'direction'] } },
       { name: 'desktop_info', inputSchema: { type: 'object', properties: { query: {} }, required: ['query'] } },
       { name: 'desktop_wait', inputSchema: { type: 'object', properties: { seconds: { type: 'number' } }, required: ['seconds'] } },
+      { name: 'desktop_focus_window', inputSchema: { type: 'object', properties: { windowId: { type: 'string' } }, required: ['windowId'] } },
     ]
 
     const result = validateToolContract('desktop-control', tools)
@@ -67,6 +69,7 @@ describe('MCP tool schema validation', () => {
       { name: 'desktop_key', inputSchema: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] } },
       { name: 'desktop_scroll', inputSchema: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, direction: {} }, required: ['x', 'y', 'direction'] } },
       { name: 'desktop_info', inputSchema: { type: 'object', properties: { query: {} }, required: ['query'] } },
+      { name: 'desktop_focus_window', inputSchema: { type: 'object', properties: { windowId: { type: 'string' } }, required: ['windowId'] } },
     ]
 
     const result = validateToolContract('desktop-control', tools)
@@ -86,6 +89,7 @@ describe('MCP tool schema validation', () => {
       { name: 'desktop_scroll', inputSchema: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, direction: {} }, required: ['x', 'y', 'direction'] } },
       { name: 'desktop_info', inputSchema: { type: 'object', properties: { query: {} }, required: ['query'] } },
       { name: 'desktop_wait', inputSchema: { type: 'object', properties: { seconds: { type: 'number' } }, required: ['seconds'] } },
+      { name: 'desktop_focus_window', inputSchema: { type: 'object', properties: { windowId: { type: 'string' } }, required: ['windowId'] } },
     ]
 
     const result = validateToolContract('desktop-control', tools)

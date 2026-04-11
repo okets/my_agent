@@ -40,7 +40,7 @@ requires:
 
 Adjust `requires.system` for your platform. The `scripts/detect.sh` script validates these.
 
-## Required Tools (7)
+## Required Tools (8)
 
 Every desktop-control capability MUST expose these tools. The test harness validates their presence and input schemas.
 
@@ -54,7 +54,7 @@ Capture the screen or a region.
 |-----------|------|----------|-------------|
 | `region` | object `{ x, y, width, height }` | No | Region to capture. All fields are numbers. Omit for full screen. |
 
-**Returns:** Image content (base64 PNG) + metadata JSON with `width` and `height`.
+**Returns:** Image content (base64 PNG) + metadata JSON with `width`, `height`, and `scaleFactor`.
 
 ```typescript
 server.tool(
@@ -66,7 +66,7 @@ server.tool(
     return {
       content: [
         { type: 'image', data: screenshot.base64, mimeType: 'image/png' },
-        { type: 'text', text: JSON.stringify({ width: screenshot.width, height: screenshot.height }) },
+        { type: 'text', text: JSON.stringify({ width: screenshot.width, height: screenshot.height, scaleFactor }) },
       ],
     }
   },
@@ -138,6 +138,16 @@ Pause execution for UI settling.
 | `seconds` | number | Yes | Seconds to wait (max 10) |
 
 **Returns:** Screenshot after waiting.
+
+### desktop_focus_window
+
+Bring a window to the foreground by its ID (from `desktop_info(windows)`).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `windowId` | string | Yes | Window ID from `desktop_info` windows query |
+
+**Returns:** Screenshot after focusing the window.
 
 ## Optional Tools (5)
 
@@ -296,6 +306,8 @@ screenshot_quality: 80  # PNG compression level
 
 The capability handles coordinate scaling internally. The brain works in the screenshot's coordinate space. If the display uses HiDPI scaling, the capability maps coordinates before passing to system tools. The framework does not handle scaling.
 
+**Every screenshot response includes `scaleFactor` in its metadata.** This tells the brain the ratio between the screenshot's coordinate space and the actual screen coordinates. The brain sends coordinates in screenshot space — the capability's `toScreenCoord()` function handles the conversion internally. The brain does NOT need to scale coordinates itself, but the scaleFactor helps it understand the mapping.
+
 ## Server Entry Point Pattern
 
 ```typescript
@@ -318,7 +330,7 @@ The server MUST NOT import from `@my-agent/core` or any framework package. It is
 The test harness validates this capability in 3 stages:
 
 1. **Environment check** — `scripts/detect.sh` exits 0
-2. **Schema validation** — all 7 required tools present with correct input schemas (validated against `packages/core/src/capabilities/tool-contracts.ts`)
+2. **Schema validation** — all 8 required tools present with correct input schemas (validated against `packages/core/src/capabilities/tool-contracts.ts`)
 3. **Functional test** — `desktop_screenshot` returns valid PNG (header bytes `\x89PNG`, minimum 1KB for real screenshots)
 
 A capability is not done until the harness passes all 3 stages.

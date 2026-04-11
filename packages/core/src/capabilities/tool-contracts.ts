@@ -37,6 +37,7 @@ export const DESKTOP_CONTROL_CONTRACT: ToolContract = {
     { name: 'desktop_scroll', requiredParams: [{ name: 'x', required: true }, { name: 'y', required: true }, { name: 'direction', required: true }] },
     { name: 'desktop_info', requiredParams: [{ name: 'query', required: true }] },
     { name: 'desktop_wait', requiredParams: [{ name: 'seconds', required: true }] },
+    { name: 'desktop_focus_window', requiredParams: [{ name: 'windowId', required: true }] },
   ],
   optional: [
     { name: 'desktop_diff_check', requiredParams: [] },
