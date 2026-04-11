@@ -208,6 +208,7 @@ describe("CapabilityRegistry", () => {
     path: "/tmp/fake/deepgram-stt",
     status: "available",
     health: "untested",
+    enabled: true,
   };
 
   const unavailableCap: Capability = {
@@ -218,6 +219,7 @@ describe("CapabilityRegistry", () => {
     status: "unavailable",
     unavailableReason: "missing OPENAI_API_KEY",
     health: "untested",
+    enabled: true,
   };
 
   const otherCap: Capability = {
@@ -227,6 +229,7 @@ describe("CapabilityRegistry", () => {
     path: "/tmp/fake/elevenlabs-tts",
     status: "available",
     health: "untested",
+    enabled: true,
   };
 
   beforeEach(() => {
@@ -257,12 +260,10 @@ describe("CapabilityRegistry", () => {
     expect(result!.status).toBe("available");
   });
 
-  it("get(type) falls back to unavailable if no available match", () => {
+  it("get(type) returns undefined for unavailable capability", () => {
     registry.load([unavailableCap]);
     const result = registry.get("audio-to-text");
-    expect(result).toBeDefined();
-    expect(result!.name).toBe("whisper-stt");
-    expect(result!.status).toBe("unavailable");
+    expect(result).toBeUndefined();
   });
 
   it("list() returns all capabilities", () => {
@@ -302,6 +303,7 @@ describe("CapabilityRegistry", () => {
       path: realDir,
       status: "available",
       health: "untested",
+      enabled: true,
     };
     registry.load([realCap]);
 
@@ -337,6 +339,7 @@ describe("CapabilityRegistry", () => {
       path: realDir,
       status: "available",
       health: "untested",
+      enabled: true,
     };
     registry.load([refCap]);
 
