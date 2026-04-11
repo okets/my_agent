@@ -1,12 +1,17 @@
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, writeFileSync, unlinkSync } from 'node:fs'
 import * as path from 'node:path'
+import { EventEmitter } from 'node:events'
 import { parseFrontmatterContent } from '../metadata/frontmatter.js'
 import { testCapability } from './test-harness.js'
 import type { Capability, CapabilityTestResult } from './types.js'
 
-export class CapabilityRegistry {
+export class CapabilityRegistry extends EventEmitter {
   private capabilities: Map<string, Capability> = new Map()
   private projectRoot: string = ''
+
+  constructor() {
+    super()
+  }
 
   /** Set the project root for template lookups during testing */
   setProjectRoot(root: string): void {
@@ -29,16 +34,53 @@ export class CapabilityRegistry {
 
   /**
    * Get capability by well-known `provides` type.
-   * Returns the first available match, falling back to the first unavailable one.
+   * Returns the capability only when status is 'available' AND enabled is true.
    */
   get(type: string): Capability | undefined {
-    let fallback: Capability | undefined
     for (const cap of this.capabilities.values()) {
       if (cap.provides !== type) continue
-      if (cap.status === 'available') return cap
-      if (!fallback) fallback = cap
+      if (cap.status === 'available' && cap.enabled) return cap
     }
-    return fallback
+    return undefined
+  }
+
+  /**
+   * Check if a capability type is explicitly enabled.
+   * Returns false if the type doesn't exist in the registry.
+   */
+  isEnabled(type: string): boolean {
+    for (const cap of this.capabilities.values()) {
+      if (cap.provides === type) return cap.enabled
+    }
+    return false
+  }
+
+  /**
+   * Toggle a capability's enabled state.
+   * Writes or removes the .enabled file in the capability folder.
+   * Emits 'capability:changed' event for downstream listeners.
+   * Returns the new enabled state, or undefined if the type is not found.
+   */
+  toggle(type: string): boolean | undefined {
+    let target: Capability | undefined
+    for (const cap of this.capabilities.values()) {
+      if (cap.provides === type) { target = cap; break }
+    }
+    if (!target) return undefined
+
+    const enabledPath = path.join(target.path, '.enabled')
+    if (target.enabled) {
+      // Disable — remove .enabled file
+      try { unlinkSync(enabledPath) } catch { /* already gone */ }
+      target.enabled = false
+    } else {
+      // Enable — write .enabled file
+      writeFileSync(enabledPath, new Date().toISOString())
+      target.enabled = true
+    }
+
+    this.emit('capability:changed', { type, enabled: target.enabled, name: target.name })
+    return target.enabled
   }
 
   /** All capabilities */
@@ -108,8 +150,8 @@ export class CapabilityRegistry {
       cap.health = 'healthy'
       cap.lastTestLatencyMs = result.latencyMs
       cap.degradedReason = undefined
-    } else if (result.message?.includes('not found')) {
-      // Script not yet written (builder still working) — keep untested, don't mark degraded
+    } else if (result.message?.includes('not found') || result.message?.includes('environment check failed')) {
+      // Script not yet written or environment not suitable — keep untested, don't mark degraded
       cap.health = 'untested'
       cap.degradedReason = undefined
       cap.lastTestLatencyMs = undefined
