@@ -52,6 +52,11 @@ const TEMPLATES: Record<string, TodoTemplate> = {
   generic: {
     items: [
       {
+        text: "Write deliverable.md with your key findings and output — this is what gets delivered to the user",
+        mandatory: true,
+        validation: "deliverable_written",
+      },
+      {
         text: "Verify output matches the requested format and content — re-read your deliverable before marking done",
         mandatory: true,
       },
@@ -64,6 +69,11 @@ const TEMPLATES: Record<string, TodoTemplate> = {
   },
   research: {
     items: [
+      {
+        text: "Write deliverable.md with your key findings and output — this is what gets delivered to the user",
+        mandatory: true,
+        validation: "deliverable_written",
+      },
       {
         text: "Identify and document at least 3 sources — list URLs or file paths consulted",
         mandatory: true,

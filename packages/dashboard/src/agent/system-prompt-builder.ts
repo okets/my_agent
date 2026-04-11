@@ -140,7 +140,7 @@ export class SystemPromptBuilder {
     const briefing = context.pendingBriefing ?? [];
     if (briefing.length > 0) {
       dynamicParts.push(
-        `[Pending Briefing]\nThe following events occurred since your last interaction:\n${briefing.map((b) => `- ${b}`).join("\n")}\n\nInform the user about these naturally. For interrupted jobs, ask whether to resume or discard.\n[End Pending Briefing]`,
+        `[Pending Briefing]\nThe following events occurred since your last interaction:\n${briefing.map((b) => `- ${b}`).join("\n")}\n\nForward these results to the user verbatim. Adjust tone for conversation but do not summarize or paraphrase the content. For interrupted jobs, ask whether to resume or discard.\n[End Pending Briefing]`,
       );
     }
 

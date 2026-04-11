@@ -102,6 +102,24 @@ const VALIDATORS: Record<string, ValidatorFn> = {
     return { pass: true };
   },
 
+  deliverable_written: (runDir) => {
+    const delPath = path.join(runDir, "deliverable.md");
+    if (!fs.existsSync(delPath)) {
+      return {
+        pass: false,
+        message: "deliverable.md not found — write your deliverable before marking this done",
+      };
+    }
+    const content = fs.readFileSync(delPath, "utf-8").trim();
+    if (content.length < 50) {
+      return {
+        pass: false,
+        message: "deliverable.md is too short (< 50 chars). Include meaningful deliverable content.",
+      };
+    }
+    return { pass: true };
+  },
+
   change_type_set: (runDir) => {
     const delPath = path.join(runDir, "deliverable.md");
     if (!fs.existsSync(delPath)) {

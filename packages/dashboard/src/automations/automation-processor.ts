@@ -14,6 +14,8 @@ import type {
 import type { AutomationJobService } from "./automation-job-service.js";
 import type { PersistentNotificationQueue } from "../notifications/persistent-queue.js";
 import { readTodoFile } from "./todo-file.js";
+import { resolveJobSummaryAsync } from "./summary-resolver.js";
+import { queryModel } from "../scheduler/query-model.js";
 import path from "node:path";
 
 export type JobEventName =
@@ -236,7 +238,7 @@ export class AutomationProcessor {
         ? (job.summary ?? "A job requires your review.")
         : type === "job_failed"
           ? `Failed: ${result.error ?? "unknown error"}`
-          : (result.work ?? "Completed successfully.").slice(0, 500);
+          : await resolveJobSummaryAsync(job.run_dir, result.work ?? "Completed successfully.", queryModel);
 
     // Write to persistent queue — heartbeat handles delivery
     if (this.config.notificationQueue) {
