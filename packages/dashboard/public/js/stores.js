@@ -109,7 +109,7 @@ document.addEventListener("alpine:init", () => {
     },
     has(type) {
       return this.items.some(
-        (c) => c.provides === type && c.status === "available",
+        (c) => c.provides === type && c.status === "available" && c.enabled !== false,
       );
     },
   });
