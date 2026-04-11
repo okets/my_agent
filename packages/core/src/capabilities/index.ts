@@ -17,3 +17,11 @@ export {
   type AuditEntry,
   type ScreenshotInterceptor,
 } from './mcp-middleware.js'
+export {
+  validateToolContract,
+  getToolContract,
+  DESKTOP_CONTROL_CONTRACT,
+  type ToolContract,
+  type ToolSpec,
+  type ValidationResult,
+} from './tool-contracts.js'

@@ -12,6 +12,7 @@ import { promisify } from 'node:util'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { Capability, CapabilityTestResult } from './types.js'
+import { validateToolContract } from './tool-contracts.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -103,6 +104,14 @@ async function testMcpCapability(capability: Capability): Promise<CapabilityTest
 
     if (!tools || tools.length === 0) {
       return { status: 'error', latencyMs, message: 'MCP server registered no tools' }
+    }
+
+    // Schema validation against well-known type contract
+    if (capability.provides) {
+      const validation = validateToolContract(capability.provides, tools)
+      if (!validation.valid) {
+        return { status: 'error', latencyMs, message: `Contract violations: ${validation.errors.join('; ')}` }
+      }
     }
 
     return { status: 'ok', latencyMs }
