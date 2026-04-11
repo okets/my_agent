@@ -48,11 +48,11 @@ export interface AuditLogger {
 }
 
 export function createCapabilityAuditLogger(
-  writer: (entry: AuditEntry) => void,
+  writer: (entry: AuditEntry) => void | Promise<void>,
 ): AuditLogger {
   return {
     async log({ capabilityName, toolName, sessionId }) {
-      writer({
+      await writer({
         timestamp: new Date().toISOString(),
         capability: capabilityName,
         tool: toolName,
