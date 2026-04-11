@@ -47,10 +47,21 @@ Check `skills/capability-templates/` for a matching template:
 ls skills/capability-templates/
 ```
 
-If a template exists for the requested capability type (e.g., `audio-to-text.md` for voice recognition):
-- Read the template — it defines the exact script contract
+If a template exists for the requested capability type (e.g., `audio-to-text.md` for voice recognition, `desktop-control.md` for screen interaction):
+- Read the template — it defines the exact contract (script or MCP)
 - Tell the user what the template provides
 - Skip generic research — the template has the answers
+
+**MCP vs Script:** Check the template's `interface` field in frontmatter:
+- `interface: script` — stateless, framework calls a shell script (voice, image)
+- `interface: mcp` — stateful MCP server, brain calls tools directly (desktop control)
+
+For MCP capabilities, the builder must:
+- Write a standalone MCP server (no `@my-agent/core` imports)
+- Include `package.json` with `@modelcontextprotocol/sdk` and `zod`
+- Set `entrypoint` in CAPABILITY.md frontmatter
+- Implement all required tools defined in the template
+- Run `npm install` in `scripts/setup.sh`
 
 Also check `skills/capability-templates/_bundles.md` for composite requests:
 - "I want voice" = audio-to-text + text-to-audio
