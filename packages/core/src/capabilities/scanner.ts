@@ -108,6 +108,7 @@ export async function scanCapabilities(
           status: 'invalid',
           error: 'Missing name in CAPABILITY.md frontmatter',
           health: 'untested',
+          enabled: false,
         })
         continue
       }
@@ -122,6 +123,7 @@ export async function scanCapabilities(
         path: capDir,
         status: missingVars.length === 0 ? 'available' : 'unavailable',
         health: 'untested',
+        enabled: true, // default — Task 2 adds .enabled file reading
       }
 
       if (missingVars.length > 0) {
@@ -145,6 +147,7 @@ export async function scanCapabilities(
         status: 'invalid',
         error: err instanceof Error ? err.message : 'Unknown error parsing CAPABILITY.md',
         health: 'untested',
+        enabled: false,
       })
     }
   }

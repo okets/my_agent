@@ -15,6 +15,8 @@ export interface Capability {
   degradedReason?: string // e.g. "401 Unauthorized"
   lastTestLatencyMs?: number // milliseconds for last successful test
   mcpConfig?: CapabilityMcpConfig // expanded .mcp.json for interface: 'mcp' capabilities
+  enabled: boolean // read from .enabled file in capability folder
+  entrypoint?: string // command to start MCP server (mcp interface only)
 }
 
 /** Result from running a capability test */
@@ -29,7 +31,9 @@ export interface CapabilityFrontmatter {
   name: string
   provides?: string
   interface: 'script' | 'mcp'
+  entrypoint?: string // command to start the MCP server
   requires?: {
     env?: string[]
+    system?: string[] // CLI tools that must be present
   }
 }
