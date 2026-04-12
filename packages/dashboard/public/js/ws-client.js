@@ -119,6 +119,25 @@ class NinaWebSocket {
           }
         }
 
+        // M9.4-S5: emit DOM events for progress-card handoff wiring.
+        // These must fire whether Alpine is loaded or not.
+        if (data.type === "start" && data.triggerJobId) {
+          // Only tag-carrying start events fire the handoff. Untagged
+          // user/model turns are ignored (spec I1).
+          window.dispatchEvent(
+            new CustomEvent("assistant-turn-start", {
+              detail: { triggerJobId: data.triggerJobId },
+            }),
+          );
+        } else if (data.type === "handoff_pending") {
+          // Always dispatch — frontend handler decides which cards to refresh.
+          window.dispatchEvent(
+            new CustomEvent("handoff-pending", {
+              detail: { jobId: data.jobId },
+            }),
+          );
+        }
+
         if (this.callbacks.onMessage) {
           this.callbacks.onMessage(data);
         }
