@@ -157,6 +157,8 @@ Brain calls tool → [Rate Limiter] → [Audit Logger] → MCP Server → [Scree
 
 **Implementation:** The Agent SDK's hook system (`PostToolUse` hooks) provides the interception point. The framework registers hooks that fire after any tool call from an MCP capability server, keyed by the server's registered name.
 
+**Framework directive language (learned in S6):** Framework-level behavioral directives to LLM brains (e.g., "include the screenshot URL in your reply") must use prescriptive MUST/NEVER language, include a concrete format example, and list explicit rules. Advisory MAY/SHOULD language consistently loses against other prompt pressures (token cost, brevity, uncertainty). Reserve advisory language for tool descriptions; use prescriptive language for behavior the framework enforces.
+
 ### Dependency Management for MCP Capabilities
 
 MCP capabilities that use npm packages need a `package.json`:
