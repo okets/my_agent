@@ -90,7 +90,10 @@ describe("Progress card — component structure", () => {
     expect(progressCardJs).toContain("statusClass(");
     expect(progressCardJs).toContain("currentStepText(");
     expect(progressCardJs).toContain("isDone(");
-    expect(progressCardJs).toContain("handleJobCompleted(");
+    // M9.4-S5: handleJobCompleted replaced by enterHandingOff + legacyFade
+    expect(progressCardJs).toContain("enterHandingOff(");
+    expect(progressCardJs).toContain("legacyFade(");
+    expect(progressCardJs).toContain("enterFading(");
   });
 
   it("has two-phase completion: 'done' then 'fading'", () => {
