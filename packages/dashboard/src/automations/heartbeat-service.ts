@@ -7,6 +7,7 @@
 
 import type { AutomationJobService } from "./automation-job-service.js";
 import type { PersistentNotificationQueue, PersistentNotification } from "../notifications/persistent-queue.js";
+import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import { readTodoFile } from "./todo-file.js";
 import { timingLog } from "./timing.js";
 import path from "node:path";
@@ -17,7 +18,7 @@ export interface HeartbeatConfig {
   conversationInitiator: {
     alert(
       prompt: string,
-      options?: { sourceChannel?: string },
+      options?: { sourceChannel?: string; triggerJobId?: string },
     ): Promise<boolean>;
     initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
   } | null;
@@ -25,15 +26,34 @@ export interface HeartbeatConfig {
   tickIntervalMs: number; // default: 30 * 1000
   capabilityHealthIntervalMs: number; // default: 60 * 60 * 1000
   capabilityHealthCheck?: () => Promise<void>;
+  /** WS broadcast (M9.4-S5 B7). Optional — heartbeat tolerates absence in tests. */
+  registry?: ConnectionRegistry;
 }
 
 export class HeartbeatService {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private lastCapabilityCheck = 0;
   private config: HeartbeatConfig;
+  private draining = false;
 
   constructor(config: HeartbeatConfig) {
     this.config = config;
+  }
+
+  /**
+   * Trigger an immediate drain of pending notifications.
+   * Reentrancy-guarded — concurrent callers no-op. (M9.4-S5 B1)
+   */
+  async drainNow(): Promise<void> {
+    if (this.draining) return;
+    this.draining = true;
+    try {
+      await this.deliverPendingNotifications();
+    } catch (err) {
+      console.warn("[Heartbeat] drainNow error:", err);
+    } finally {
+      this.draining = false;
+    }
   }
 
   start(): void {
@@ -57,7 +77,14 @@ export class HeartbeatService {
 
   async tick(): Promise<void> {
     await this.checkStaleJobs();
-    await this.deliverPendingNotifications();
+    if (!this.draining) {
+      this.draining = true;
+      try {
+        await this.deliverPendingNotifications();
+      } finally {
+        this.draining = false;
+      }
+    }
     await this.checkCapabilityHealth();
   }
 
@@ -118,6 +145,19 @@ export class HeartbeatService {
     const MAX_DELIVERY_ATTEMPTS = 10;
     const pending = this.config.notificationQueue.listPending();
     for (const n of pending) timingLog(n.job_id, "deliverPending start");
+
+    // Stage 1 (M9.4-S5 B7): upfront batch — broadcast handoff_pending for every
+    // queued notification *before* any await, so all sibling cards refresh
+    // their safety nets before serial alert delivery begins.
+    if (this.config.registry) {
+      for (const n of pending) {
+        this.config.registry.broadcastToAll({
+          type: "handoff_pending",
+          jobId: n.job_id,
+        });
+      }
+    }
+
     for (const notification of pending) {
       // Skip notifications that have exceeded max delivery attempts
       if (notification.delivery_attempts >= MAX_DELIVERY_ATTEMPTS) {
@@ -128,19 +168,29 @@ export class HeartbeatService {
         continue;
       }
 
+      // Stage 2 (M9.4-S5 B7): per-iteration refresh — refresh the active
+      // notification's clock right before its alert blocks.
+      if (this.config.registry) {
+        this.config.registry.broadcastToAll({
+          type: "handoff_pending",
+          jobId: notification.job_id,
+        });
+      }
+
       try {
         const prompt = this.formatNotification(notification);
         timingLog(notification.job_id, "alert() invoked");
         const delivered =
           await this.config.conversationInitiator.alert(prompt, {
             sourceChannel: notification.source_channel,
+            triggerJobId: notification.job_id, // M9.4-S5 B3
           });
 
         if (delivered) {
           this.config.notificationQueue.markDelivered(notification._filename!);
         } else {
           // No current conversation at all (fresh install edge case).
-          // Fall back to initiate().
+          // Fall back to initiate() — per spec C2, no triggerJobId here.
           await this.config.conversationInitiator.initiate({
             firstTurnPrompt: `[SYSTEM: ${prompt}]`,
           });
