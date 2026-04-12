@@ -85,7 +85,7 @@ export class ConversationInitiator {
    */
   async alert(
     prompt: string,
-    options?: { sourceChannel?: string },
+    options?: { sourceChannel?: string; triggerJobId?: string },
   ): Promise<boolean> {
     const current = await this.conversationManager.getCurrent();
     if (!current) {
@@ -108,6 +108,7 @@ export class ConversationInitiator {
         current.id,
         prompt,
         (current.turnCount ?? 0) + 1,
+        { triggerJobId: options?.triggerJobId },
       )) {
         // consume events (turn saving + broadcasting handled by sendSystemMessage)
       }
@@ -122,6 +123,7 @@ export class ConversationInitiator {
         current.id,
         prompt,
         (current.turnCount ?? 0) + 1,
+        { triggerJobId: options?.triggerJobId },
       )) {
         // consume events
       }
@@ -147,7 +149,7 @@ export class ConversationInitiator {
         current.id,
         prompt,
         (current.turnCount ?? 0) + 1,
-        { channel: outboundChannel },
+        { channel: outboundChannel, triggerJobId: options?.triggerJobId },
       )) {
         if (event.type === "text_delta" && event.text) {
           response += event.text;
