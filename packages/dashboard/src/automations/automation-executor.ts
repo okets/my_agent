@@ -24,6 +24,7 @@ import type {
   Space,
   AuditEntry,
   StoreCallback,
+  TodoItem,
 } from "@my-agent/core";
 import type { PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import fs from "node:fs";
@@ -271,10 +272,34 @@ export class AutomationExecutor {
         }
       }
 
+      // Assemble todos *before* building the system prompt so the Progress
+      // Cadence section can inline them. Todo-list assembly is a pure function
+      // of the manifest + job type; we reuse `todoItems` below when wiring the
+      // todo MCP server so there is a single source of truth per job.
+      const todoPath = job.run_dir
+        ? path.join(job.run_dir, "todos.json")
+        : null;
+      const jobType = this.detectJobType(automation);
+      const todoItems = assembleJobTodos(
+        automation.manifest.todos,
+        jobType,
+      );
+      if (todoPath) {
+        if (todoItems.length > 0) {
+          writeTodoFile(todoPath, {
+            items: todoItems,
+            last_activity: new Date().toISOString(),
+          });
+        } else {
+          createEmptyTodoFile(todoPath);
+        }
+      }
+
       const automationContext = this.buildAutomationContext(
         automation,
         spaces,
         triggerContext,
+        todoItems,
       );
 
       const systemPrompt = `${basePrompt}\n\n${automationContext}`;
@@ -294,24 +319,9 @@ export class AutomationExecutor {
       // chart/image servers when visual capabilities are needed.
       const workerMcpServers: NonNullable<Options["mcpServers"]> = {};
 
-      // Todo server — every worker gets persistent task tracking with 3-layer assembly
-      const todoPath = job.run_dir
-        ? path.join(job.run_dir, "todos.json")
-        : null;
+      // Todo MCP server — reuses `todoItems` / `todoPath` assembled above for
+      // the Progress Cadence prompt section (single source of truth per job).
       if (todoPath) {
-        const jobType = this.detectJobType(automation);
-        const todoItems = assembleJobTodos(
-          automation.manifest.todos,
-          jobType,
-        );
-        if (todoItems.length > 0) {
-          writeTodoFile(todoPath, {
-            items: todoItems,
-            last_activity: new Date().toISOString(),
-          });
-        } else {
-          createEmptyTodoFile(todoPath);
-        }
         // Resolve target_path for validators (capability_frontmatter checks this dir)
         const resolvedTargetDir = automation.manifest.target_path
           ? path.resolve(this.config.agentDir, "..", automation.manifest.target_path)
@@ -809,6 +819,7 @@ export class AutomationExecutor {
     automation: Automation,
     spaces: Space[],
     triggerContext?: Record<string, unknown>,
+    todoItems: TodoItem[] = [],
   ): string {
     const sections: string[] = [];
 
@@ -842,7 +853,57 @@ export class AutomationExecutor {
       this.getAutonomyInstructions(automation.manifest.autonomy ?? "full"),
     );
 
+    // Progress Cadence — MUST be the last section. Recency placement is
+    // deliberate (see M9.4-S6 spec). Omitted entirely for todo-less jobs.
+    if (todoItems.length > 0) {
+      sections.push(this.buildProgressCadenceSection(todoItems));
+    }
+
     return sections.join("\n\n");
+  }
+
+  private buildProgressCadenceSection(todoItems: TodoItem[]): string {
+    const inlined = todoItems
+      .map((item) => `- [id: ${item.id}] ${item.text}`)
+      .join("\n");
+
+    return [
+      "## Progress Cadence (read last — this matters)",
+      "",
+      "You have a todo list. The human watching this job sees a progress card that",
+      "updates whenever you call the todo MCP tool. If you do work without calling",
+      "the tool, the card sits silent — and silence feels like the job crashed.",
+      "",
+      "Narrating your progress is not a UI obligation. It is how methodical work",
+      "looks. Announce each step, do it, close it, move to the next.",
+      "",
+      "**Your steps for this job:**",
+      inlined,
+      "",
+      "**The rhythm — apply it for every step:**",
+      "1. Call `todo_in_progress(<id>)` — BEFORE any other tool call for that step.",
+      "2. Do the work for that step.",
+      "3. Call `todo_done(<id>)` — IMMEDIATELY when the step is finished.",
+      "4. Repeat for the next step.",
+      "",
+      "**The first tool call of this job MUST be `todo_in_progress` on your first step.**",
+      "Not `Read`, not `Bash`, not `browser_*`, not a capability tool. `todo_in_progress`.",
+      "",
+      "**The last tool call before writing `deliverable.md` MUST be `todo_done` on your final step.**",
+      "",
+      "**Anti-patterns — do not do these:**",
+      "- Do **not** batch todo updates at the end. Calling `todo_done` on three steps",
+      "  in a row after all work is finished defeats the purpose.",
+      "- Do **not** mark a step done before its work is actually complete.",
+      "- Do **not** skip the `todo_in_progress` step because a task seems quick.",
+      "  Quick steps still get announced.",
+      "- Do **not** mark multiple steps in_progress simultaneously. One step at",
+      "  a time.",
+      "",
+      "If you find yourself about to call a non-todo tool and your most recent",
+      "todo call was `todo_done` (or there has been no todo call yet), pause —",
+      "you owe a `todo_in_progress` first.",
+    ].join("\n");
   }
 
   private getAutonomyInstructions(

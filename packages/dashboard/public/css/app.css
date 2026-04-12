@@ -1848,3 +1848,33 @@ button[title="Rename conversation"]:active {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
 }
+
+/* ── Progress card: pulsing arrow for in_progress todos (M9.4-S6 UX) ── */
+@keyframes pulse-task {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.pulse-task {
+  animation: pulse-task 1.5s ease-in-out infinite;
+}
+
+/* Counter pill that floats over the top border of the progress card */
+.progress-counter-pill {
+  position: absolute;
+  top: -8px;
+  right: 10px;
+  padding: 1px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  line-height: 14px;
+  border-radius: 6px;
+  background: var(--color-panel, #1f2335);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(226, 228, 240, 0.65);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: "SF Mono", ui-monospace, monospace;
+}

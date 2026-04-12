@@ -81,29 +81,132 @@ function progressCard() {
 
     statusIcon(status) {
       switch (status) {
-        case "done": return "\u2713";
-        case "in_progress": return "\u21bb";
-        case "blocked": return "\u2298";
-        default: return "\u25cb";
+        case "done": return "\u2713";         // ✓
+        case "in_progress": return "\u2192";  // →  (M9.4-S6 UX: right arrow, pulses)
+        case "blocked": return "\u2298";       // ⊘
+        case "failed": return "\u2717";        // ✗
+        default: return "\u25cb";              // ○
       }
     },
 
+    /**
+     * M9.4-S6 UX: row-level class applied to the whole todo row.
+     * Color inherits down to the bullet, number, and text spans.
+     * NOTE: pulse is applied only on the bullet (see iconPulseClass),
+     * so the row color is static while just the bullet breathes.
+     */
     statusClass(status) {
       switch (status) {
-        case "done": return "text-green-400/60";
-        case "in_progress": return "text-blue-400";
+        case "done": return "text-green-400";
+        case "in_progress": return "text-orange-400";
         case "blocked": return "text-orange-400/60";
+        case "failed": return "text-red-400";
         default: return "text-gray-500";
       }
+    },
+
+    /**
+     * Pulse animation class for the bullet only — in_progress breathes,
+     * everything else stays static.
+     */
+    iconPulseClass(status) {
+      return status === "in_progress" ? "pulse-task" : "";
+    },
+
+    /**
+     * M9.4-S6 UX: row-level class for the COLLAPSED view (summarises the
+     * job's current state in one line). Color only; pulse is applied to
+     * the bullet glyph separately.
+     */
+    collapsedRowClass(job) {
+      if (job.status === "failed") return "text-red-400";
+      if (this.isDone(job.id)) return "text-green-400";
+      return "text-orange-400";
+    },
+
+    /**
+     * M9.4-S6 UX: leading glyph inside the counter pill.
+     * - failed job → ✗ (red)
+     * - all tasks done → ✓ (green)
+     * - running → ● (pulsing orange)
+     */
+    pillIcon(job) {
+      if (job.status === "failed") return "\u2717";        // ✗
+      if (this.isDone(job.id)) return "\u2713";             // ✓
+      return "\u25cf";                                       // ●
+    },
+
+    pillIconClass(job) {
+      if (job.status === "failed") return "text-red-400";
+      if (this.isDone(job.id)) return "text-green-400";
+      return "text-orange-400 pulse-task";
+    },
+
+    /**
+     * M9.4-S6 UX: for a failed job, the "focal" step is the one that failed
+     * (falling back to the last in-progress item if no per-item failed status
+     * is flagged, e.g. when the worker crashed mid-tool-call). For a running
+     * job, it's simply the in-progress item. Returned index is 0-based within
+     * `items`, or -1 when nothing applies.
+     */
+    _focalItemIndex(job) {
+      const snap = this.frozenSnapshot[job.id] || job;
+      const items = snap.todoProgress?.items || [];
+      if (items.length === 0) return -1;
+      if (job.status === "failed") {
+        let idx = items.findIndex(i => i.status === "failed");
+        if (idx < 0) idx = items.findIndex(i => i.status === "in_progress");
+        return idx;
+      }
+      return items.findIndex(i => i.status === "in_progress");
     },
 
     currentStepText(job) {
       // M9.4-S5: prefer frozen snapshot when the card is in handing-off so the
       // live state:jobs broadcast can't overwrite the displayed step.
       const snap = this.frozenSnapshot[job.id] || job;
-      if (!snap.todoProgress?.items) return "";
-      const current = snap.todoProgress.items.find(i => i.status === "in_progress");
-      return current ? current.text : "";
+      const items = snap.todoProgress?.items || [];
+      const idx = this._focalItemIndex(job);
+      return idx >= 0 ? items[idx].text : "";
+    },
+
+    /**
+     * M9.4-S6 UX: 1-based index of the focal step (in-progress for running
+     * jobs, failed item for failed jobs). Used next to the bullet in the
+     * collapsed view.
+     */
+    currentStepNumber(job) {
+      const idx = this._focalItemIndex(job);
+      return idx >= 0 ? idx + 1 : null;
+    },
+
+    isFailed(job) {
+      return job.status === "failed";
+    },
+
+    /**
+     * M9.4-S6 UX: counter text for the top-right pill.
+     * - running / completed → "K/N Done"
+     * - failed → "Task K failed" where K is the 1-based index of the first
+     *   failed item (falling back to the in-progress item if no per-item
+     *   status is flagged failed, since a mid-tool-call crash leaves the
+     *   last in-progress item as the effective failure point).
+     */
+    counterText(job) {
+      const snap = this.frozenSnapshot[job.id] || job;
+      const p = snap.todoProgress;
+      if (!p || typeof p.total !== "number") return "";
+
+      if (job.status === "failed") {
+        const items = p.items || [];
+        let failedIdx = items.findIndex(i => i.status === "failed");
+        if (failedIdx < 0) failedIdx = items.findIndex(i => i.status === "in_progress");
+        if (failedIdx >= 0) return `Task ${failedIdx + 1} failed`;
+        return "Failed";
+      }
+
+      const done = typeof p.done === "number" ? p.done : 0;
+      return `${done}/${p.total} Done`;
     },
 
     /**

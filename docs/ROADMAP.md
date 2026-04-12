@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-12 (M9.4-S5 merged; M9.4-S6 Progress Cadence spec'd — UX-2 follow-up)
+> **Updated:** 2026-04-12 (M9.4-S6 Progress Cadence merged — prompt fix + progress card UX redesign)
 
 ---
 
@@ -64,7 +64,7 @@ M9.3 Delegation Compliance — 4 sprints, 75% compliance, prompt + hook + auto-f
 
 IN PROGRESS (M9.4)
 ══════════════════
-M9.4 Conversation UX/UI — 6 sprints done + S6 spec'd (progress cadence, UX-2 follow-up from M9.4-S5 smoke test)
+M9.4 Conversation UX/UI — 7 sprints done (S6 = progress cadence prompt fix + progress card UX redesign)
 
 NEXT (M9.5)
 ═══════════
@@ -909,7 +909,7 @@ Fix real-time notification delivery, unify all message paths through the Headles
 | S3 | Job Progress Card | Done | Replace inline progress bar with sticky card above compose box. Collapsed (default): current step + done/total. Expanded (click/tap): full step list, 5-row max with scrollbar, ✕ to close. Max 2 cards. StatePublisher includes todo items in snapshot. [Plan](../sprints/m9.4-s3-job-progress-card/plan.md) · [Review](../sprints/m9.4-s3-job-progress-card/review.md) |
 | S4 | Brief Delivery Pipeline Fix | Done | Remove `.slice(0, 500)` truncation, read worker artifacts from disk instead of raw stream, mandatory deliverable todo with validator, Haiku fallback for missing artifacts, verbatim framing in both delivery paths, debrief-reporter becomes assembler (no Haiku re-digest). [Plan](../sprints/m9.4-s4-brief-delivery-fix/plan.md) · [Review](../sprints/m9.4-s4-brief-delivery-fix/architect-review.md) · [Bug](../bugs/2026-04-08-brief-delivery-broken.md) |
 | S5 | Job Card Handoff Continuity | Done | Closed the ~30 s silent gap between job completion and Nina's reply. (A) event-triggered notification drain — `HeartbeatService.drainNow()` invoked by `AutomationProcessor` after enqueue. (B) progress card three-phase state (running → handing-off → fading) with sibling-aware 10 s safety net and mandatory `handoff_pending` WS broadcast. [Spec](../sprints/m9.4-s5-job-card-handoff/spec.md) · [Plan](../sprints/m9.4-s5-job-card-handoff/plan.md) · [Review](../sprints/m9.4-s5-job-card-handoff/review.md) · 474 unit + 16 browser tests passing. Origin: M9.5-S6 [FOLLOW-UPS UX-1](../sprints/m9.5-s6-screenshot-pipeline/FOLLOW-UPS.md) |
-| S6 | Progress Cadence — Methodical Worker Rhythm | Spec'd | Fix the progress counter sitting at `0/N` while the worker is doing real work. Root cause: Sonnet batches `todo_in_progress`/`todo_done` MCP calls retroactively. Approach: strong prompting at the tail of the system prompt, with the worker's actual todos inlined alongside rhythm rules. No hooks, no UI changes, no MCP tool changes. α-gate: CTO CNN smoke test must show counter advance to 1/N within ~5 s of job start. [Spec](../sprints/m9.4-s6-progress-cadence/spec.md) · Origin: M9.4-S5 [FOLLOW-UPS UX-2](../sprints/m9.4-s5-job-card-handoff/FOLLOW-UPS.md) |
+| S6 | Progress Cadence — Methodical Worker Rhythm | Done | Prompt-sprint core: `## Progress Cadence` appended as the tail section of the worker system prompt, with the worker's todos inlined as `- [id: X] text` bullets. Worker now narrates step-by-step instead of batching at the end. α-gate (live CNN run via `/pair-browse`) confirmed cadence. Scope expanded mid-sprint to redesign the progress card (DEV-1): counter pill `● K/N Done` / `✓ N/N Done` / `✗ Task K failed` floats over the top border; row shows bullet + task number + step text with only the in-progress `→` pulsing. [Spec](../sprints/m9.4-s6-progress-cadence/spec.md) · [Plan](../sprints/m9.4-s6-progress-cadence/plan.md) · [Deviations](../sprints/m9.4-s6-progress-cadence/DEVIATIONS.md) · [Review](../sprints/m9.4-s6-progress-cadence/review.md) · [Test report](../sprints/m9.4-s6-progress-cadence/test-report.md) · Origin: M9.4-S5 [FOLLOW-UPS UX-2](../sprints/m9.4-s5-job-card-handoff/FOLLOW-UPS.md) |
 
 **Key decisions:**
 - The 15-minute threshold is correct in purpose (channel decision) but was wrong in implementation (combined with "which conversation"). Split into `getCurrent()` + `getLastWebMessageAge()`.
