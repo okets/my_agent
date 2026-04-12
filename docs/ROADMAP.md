@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-11 (M9.4 done, M9.5 Capability Framework v2 planned)
+> **Updated:** 2026-04-12 (M9.4 reopened with S5 Job Card Handoff Continuity — UX-1 from M9.5-S6 smoke test)
 
 ---
 
@@ -29,7 +29,7 @@
 | **M9.1: Agentic Flow Overhaul** | **Done** | All 8 sprints complete. Todo system, heartbeat, hooks, restart recovery — validated with real LLM. Voice sprint unblocked. |
 | **M9.2: Worker Todo Coverage** | **Done** | 11 sprints (S1-S10 incl. S5.1). Worker infrastructure fully working. Delegation behavior deferred to M9.3. 1345 tests. |
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
-| **M9.4: Conversation UX/UI** | **Done** | 5 sprints (S1-S4 incl. S2.5). Real-time delivery, channel unification, streaming broadcast, job progress card, brief delivery fix. |
+| **M9.4: Conversation UX/UI** | **In Progress** | 5 done + S5 spec'd. S5 reopens M9.4 to close UX-1 (job card handoff continuity) discovered during M9.5-S6 smoke test. |
 | **M9.5: Capability Framework v2** | **Done** | 6 sprints. Framework extension, settings UI, desktop extraction, templates, test cleanup, screenshot pipeline. |
 | **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
@@ -62,9 +62,9 @@ M9.1 Agentic Flow Overhaul — todo system, heartbeat, enforcement, restart reco
 M9.2 Worker Todo Coverage — 11 sprints, worker isolation, skill filter, 1345 tests
 M9.3 Delegation Compliance — 4 sprints, 75% compliance, prompt + hook + auto-fire + progress
 
-DONE (M9.4)
-═══════════
-M9.4 Conversation UX/UI — 5 sprints, real-time delivery, channel unification, streaming, progress card, brief fix
+IN PROGRESS (M9.4)
+══════════════════
+M9.4 Conversation UX/UI — 5 sprints done + S5 spec'd (job card handoff continuity, UX-1 follow-up from M9.5-S6)
 
 NEXT (M9.5)
 ═══════════
@@ -908,6 +908,7 @@ Fix real-time notification delivery, unify all message paths through the Headles
 | S2.5 | Streaming Broadcast | Done | All streaming events (text_delta, done, thinking, error) flow through App events → WS broadcast. All callers auto-broadcast. Removed `conversation_ready`. Swept 6 bypassed mutation paths (unpin, setModel, abbreviation rename, job:started, external messages) through App events. Audio players on incoming voice notes + persisted TTS audioUrl on outgoing. [Plan](../sprints/m9.4-s2.5-streaming-broadcast/plan.md) · [Review](../sprints/m9.4-s2.5-streaming-broadcast/review.md) |
 | S3 | Job Progress Card | Done | Replace inline progress bar with sticky card above compose box. Collapsed (default): current step + done/total. Expanded (click/tap): full step list, 5-row max with scrollbar, ✕ to close. Max 2 cards. StatePublisher includes todo items in snapshot. [Plan](../sprints/m9.4-s3-job-progress-card/plan.md) · [Review](../sprints/m9.4-s3-job-progress-card/review.md) |
 | S4 | Brief Delivery Pipeline Fix | Done | Remove `.slice(0, 500)` truncation, read worker artifacts from disk instead of raw stream, mandatory deliverable todo with validator, Haiku fallback for missing artifacts, verbatim framing in both delivery paths, debrief-reporter becomes assembler (no Haiku re-digest). [Plan](../sprints/m9.4-s4-brief-delivery-fix/plan.md) · [Review](../sprints/m9.4-s4-brief-delivery-fix/architect-review.md) · [Bug](../bugs/2026-04-08-brief-delivery-broken.md) |
+| S5 | Job Card Handoff Continuity | Spec'd | Close the ~30 s silent gap between job completion and Nina's reply. Two changes: (A) event-triggered notification drain — `HeartbeatService.drainNow()` invoked by `AutomationProcessor` after enqueue. (B) progress card three-phase state — card stays in "Done" until the WS `start` frame tagged with the matching `triggerJobId` arrives, then runs the existing fade. 10 s safety net per card for `notify: none/debrief` paths. [Spec](../sprints/m9.4-s5-job-card-handoff/spec.md) · Origin: M9.5-S6 [FOLLOW-UPS UX-1](../sprints/m9.5-s6-screenshot-pipeline/FOLLOW-UPS.md) |
 
 **Key decisions:**
 - The 15-minute threshold is correct in purpose (channel decision) but was wrong in implementation (combined with "which conversation"). Split into `getCurrent()` + `getLastWebMessageAge()`.
