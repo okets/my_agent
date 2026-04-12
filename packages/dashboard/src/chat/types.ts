@@ -13,7 +13,7 @@ import type { ConversationSearchService } from "../conversations/search-service.
 
 /** Event yielded from ChatService.sendMessage() */
 export type ChatEvent =
-  | { type: "start" }
+  | { type: "start"; triggerJobId?: string }
   | { type: "text_delta"; text: string }
   | { type: "thinking_delta"; text: string }
   | { type: "thinking_end" }
@@ -89,6 +89,8 @@ export interface ChatMessageOptions {
 export interface SystemMessageOptions {
   /** Channel to stamp on the assistant turn (for channel-aware conversations) */
   channel?: string;
+  /** M9.4-S5: tag the start frame so the frontend can match it to a specific job card */
+  triggerJobId?: string;
 }
 
 /**

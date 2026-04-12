@@ -49,8 +49,10 @@ export async function* sendSystemMessage(
     return;
   }
 
-  console.log(`[timing] start emitted (no jobId mapping yet)`);
-  yield { type: "start" as const };
+  console.log(`[timing] start emitted id=${options?.triggerJobId ?? "(untagged)"}`);
+  yield options?.triggerJobId
+    ? { type: "start" as const, triggerJobId: options.triggerJobId }
+    : { type: "start" as const };
   app.emit("chat:start", conversationId);
 
   let assistantContent = "";
