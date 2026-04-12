@@ -47,6 +47,8 @@ export interface AutomationProcessorConfig {
   onAlertDelivered?: () => void;
   /** Persistent notification queue — heartbeat handles delivery */
   notificationQueue?: PersistentNotificationQueue;
+  /** Heartbeat reference for fast-path drain on job:completed (M9.4-S5 B2). */
+  heartbeat?: { drainNow(): Promise<void> };
 }
 
 export class AutomationProcessor {
@@ -55,6 +57,16 @@ export class AutomationProcessor {
 
   constructor(config: AutomationProcessorConfig) {
     this.config = config;
+  }
+
+  /**
+   * Wire the heartbeat reference post-construction (M9.4-S5 B2).
+   * Required because Heartbeat is constructed after Processor in app.ts.
+   * Must be called before the first job completes, otherwise drain falls
+   * back to the next 30s tick.
+   */
+  setHeartbeat(hb: { drainNow(): Promise<void> }): void {
+    this.config.heartbeat = hb;
   }
 
   /**
@@ -258,6 +270,13 @@ export class AutomationProcessor {
         source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
       });
       timingLog(jobId, "enqueued");
+
+      // M9.4-S5 B2: fire-and-forget fast-path drain. Failures are non-fatal
+      // — next 30s heartbeat tick retries.
+      this.config.heartbeat?.drainNow().catch((err) => {
+        console.warn(`[AutomationProcessor] drainNow failed for ${jobId}:`, err);
+      });
+
       this.config.onAlertDelivered?.();
       return;
     }
