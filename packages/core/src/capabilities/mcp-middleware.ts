@@ -12,10 +12,36 @@
 
 import type { ScreenshotSource, ScreenshotMetadata } from '../visual/types.js'
 
+/**
+ * Parse the SDK's `mcp__<server>__<tool>` convention.
+ * Returns `{ server, tool }` for MCP tools, or `null` for built-in tools.
+ */
+export function parseMcpToolName(toolName: string): { server: string; tool: string } | null {
+  const m = toolName.match(/^mcp__([^_]+(?:-[^_]+)*)__(.+)$/)
+  return m ? { server: m[1], tool: m[2] } : null
+}
+
 export function inferSource(toolName: string): ScreenshotSource {
-  if (toolName.startsWith('desktop_')) return 'desktop'
-  if (toolName.startsWith('browser_') || toolName.startsWith('playwright_')) return 'playwright'
+  const parsed = parseMcpToolName(toolName)
+  const name = parsed ? parsed.tool : toolName
+  if (name.startsWith('desktop_')) return 'desktop'
+  if (name.startsWith('browser_') || name.startsWith('playwright_')) return 'playwright'
   return 'generated'
+}
+
+/**
+ * Normalize a tool response into a content-block array.
+ * The SDK passes MCP tool responses as either:
+ *  - `[...blocks]` (raw content array — most common)
+ *  - `{ content: [...blocks] }` (wrapped — some code paths)
+ */
+function toContentBlocks(result: unknown): unknown[] | null {
+  if (Array.isArray(result)) return result
+  if (result && typeof result === 'object') {
+    const r = result as { content?: unknown }
+    if (Array.isArray(r.content)) return r.content
+  }
+  return null
 }
 
 export function parseImageMetadata(result: unknown, toolName: string): ScreenshotMetadata {
@@ -26,11 +52,10 @@ export function parseImageMetadata(result: unknown, toolName: string): Screensho
     source: inferSource(toolName),
   }
 
-  if (!result || typeof result !== 'object') return fallback
-  const r = result as { content?: unknown[] }
-  if (!Array.isArray(r.content)) return fallback
+  const blocks = toContentBlocks(result)
+  if (!blocks) return fallback
 
-  for (const block of r.content) {
+  for (const block of blocks) {
     if (
       block &&
       typeof block === 'object' &&
@@ -116,12 +141,17 @@ export interface ScreenshotInterceptor {
 
 export type StoreCallback = (image: Buffer, metadata: ScreenshotMetadata) => { id: string; filename: string }
 
+/**
+ * Shape matches the SDK's `tool_response` for MCP tools: a raw content block array.
+ * The SDK assigns `Q = hookSpecificOutput.updatedMCPToolOutput` directly, replacing
+ * the tool response in-place — no wrapping, no `{ content: [...] }` object.
+ */
+export type McpContentBlock = { type: string; text?: string; data?: string; mimeType?: string; source?: unknown }
+
 export interface StoreAndInjectResult {
   hookSpecificOutput?: {
     hookEventName: 'PostToolUse'
-    updatedMCPToolOutput: {
-      content: Array<{ type: string; text?: string; data?: string; mimeType?: string; source?: unknown }>
-    }
+    updatedMCPToolOutput: McpContentBlock[]
   }
 }
 
@@ -140,21 +170,16 @@ export function storeAndInject(
   const metadata = parseImageMetadata(toolResponse, toolName)
   const screenshot = store(image, metadata)
 
-  type ContentBlock = { type: string; text?: string; data?: string; mimeType?: string; source?: unknown }
-  const r = toolResponse as { content?: unknown[] }
-  const originalContent: ContentBlock[] = Array.isArray(r.content)
-    ? (r.content as ContentBlock[])
-    : []
+  const blocks = toContentBlocks(toolResponse)
+  const originalContent: McpContentBlock[] = (blocks ?? []) as McpContentBlock[]
 
   return {
     hookSpecificOutput: {
       hookEventName: 'PostToolUse',
-      updatedMCPToolOutput: {
-        content: [
-          ...originalContent,
-          { type: 'text', text: `Screenshot URL: /api/assets/screenshots/${screenshot.filename}` },
-        ],
-      },
+      updatedMCPToolOutput: [
+        ...originalContent,
+        { type: 'text', text: `Screenshot URL: /api/assets/screenshots/${screenshot.filename}` },
+      ],
     },
   }
 }
@@ -163,10 +188,9 @@ export function createScreenshotInterceptor(): ScreenshotInterceptor {
   const PNG_MAGIC_B64 = 'iVBORw0KGgo'
 
   function findImageData(result: unknown): string | null {
-    if (!result || typeof result !== 'object') return null
-    const r = result as { content?: unknown[] }
-    if (!Array.isArray(r.content)) return null
-    for (const block of r.content) {
+    const blocks = toContentBlocks(result)
+    if (!blocks) return null
+    for (const block of blocks) {
       if (!block || typeof block !== 'object') continue
       const b = block as Record<string, unknown>
       if (b['type'] !== 'image') continue

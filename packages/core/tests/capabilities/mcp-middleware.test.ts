@@ -5,6 +5,7 @@ import {
   createScreenshotInterceptor,
   inferSource,
   parseImageMetadata,
+  parseMcpToolName,
   storeAndInject,
   type StoreCallback,
 } from '../../src/capabilities/mcp-middleware.js'
@@ -93,6 +94,27 @@ describe('inferSource', () => {
     expect(inferSource('generate_image')).toBe('generated')
     expect(inferSource('some_tool')).toBe('generated')
   })
+
+  it('strips SDK mcp__<server>__ prefix before matching', () => {
+    // Framework is capability-agnostic — any server name should work
+    expect(inferSource('mcp__any-server__desktop_info')).toBe('desktop')
+    expect(inferSource('mcp__any-server__desktop_screenshot')).toBe('desktop')
+    expect(inferSource('mcp__any-server__browser_take_screenshot')).toBe('playwright')
+    expect(inferSource('mcp__any-server__other_tool')).toBe('generated')
+  })
+})
+
+describe('parseMcpToolName', () => {
+  it('extracts server and tool from SDK mcp__<server>__<tool> convention', () => {
+    expect(parseMcpToolName('mcp__some-server__some_tool')).toEqual({ server: 'some-server', tool: 'some_tool' })
+    expect(parseMcpToolName('mcp__another__other_tool')).toEqual({ server: 'another', tool: 'other_tool' })
+  })
+
+  it('returns null for non-MCP tool names', () => {
+    expect(parseMcpToolName('Bash')).toBeNull()
+    expect(parseMcpToolName('Read')).toBeNull()
+    expect(parseMcpToolName('desktop_info')).toBeNull()
+  })
 })
 
 describe('parseImageMetadata', () => {
@@ -165,7 +187,7 @@ describe('storeAndInject', () => {
     expect(Buffer.isBuffer(calls[0].image)).toBe(true)
 
     expect(output.hookSpecificOutput).toBeDefined()
-    const content = output.hookSpecificOutput!.updatedMCPToolOutput.content
+    const content = output.hookSpecificOutput!.updatedMCPToolOutput
     expect(content).toHaveLength(3)
     expect(content[2]).toMatchObject({ type: 'text', text: expect.stringContaining('/api/assets/screenshots/ss-test-id.png') })
   })
@@ -206,8 +228,31 @@ describe('storeAndInject', () => {
     expect(calls).toHaveLength(1)
     expect(calls[0].metadata).toMatchObject({ source: 'playwright' })
     expect(output.hookSpecificOutput).toBeDefined()
-    const content = output.hookSpecificOutput!.updatedMCPToolOutput.content
+    const content = output.hookSpecificOutput!.updatedMCPToolOutput
     expect(content[content.length - 1]).toMatchObject({ type: 'text', text: expect.stringContaining('/api/assets/screenshots/ss-api-id.png') })
+  })
+
+  it('handles tool_response as a raw array (actual SDK shape for MCP tools)', () => {
+    // SDK passes MCP tool_response as the content array directly, not wrapped in { content: [] }
+    const calls: Array<{ image: Buffer; metadata: unknown }> = []
+    const store: StoreCallback = (image, metadata) => {
+      calls.push({ image, metadata })
+      return { id: 'ss-raw', filename: 'ss-raw.png' }
+    }
+
+    const rawArrayResponse = [
+      { type: 'text', text: JSON.stringify({ description: 'Focused KWrite', width: 1800, height: 1100 }) },
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_B64 } },
+    ]
+
+    const output = storeAndInject(rawArrayResponse, 'mcp__any-server__desktop_focus_window', store)
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].metadata).toMatchObject({ source: 'desktop', width: 1800, height: 1100 })
+    expect(output.hookSpecificOutput).toBeDefined()
+    const content = output.hookSpecificOutput!.updatedMCPToolOutput
+    expect(content).toHaveLength(3)
+    expect(content[2]).toMatchObject({ type: 'text', text: expect.stringContaining('/api/assets/screenshots/ss-raw.png') })
   })
 })
 

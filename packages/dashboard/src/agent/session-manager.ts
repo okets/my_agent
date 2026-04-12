@@ -10,6 +10,7 @@ import {
   createCapabilityRateLimiter,
   createCapabilityAuditLogger,
   storeAndInject,
+  parseMcpToolName,
 } from "@my-agent/core";
 import type { DelegationEnforcer, AuditEntry, StoreCallback } from "@my-agent/core";
 import type {
@@ -390,19 +391,19 @@ export class SessionManager {
           const postInput = input as PostToolUseHookInput
           const toolName = postInput.tool_name ?? 'unknown'
 
-          // Audit logging for capability tools
-          if (toolName.startsWith('desktop_')) {
+          // Audit logging — framework is capability-agnostic, derive server name from tool prefix
+          const parsed = parseMcpToolName(toolName)
+          if (parsed) {
             await capAuditLogger.log({
-              capabilityName: 'desktop-x11',
-              toolName,
+              capabilityName: parsed.server,
+              toolName: parsed.tool,
               sessionId: postInput.session_id,
             })
           }
 
           // Screenshot pipeline — store and inject URL for any image-producing tool
           if (vasStoreCallback) {
-            const toolResponse = postInput.tool_response
-            return storeAndInject(toolResponse, toolName, vasStoreCallback)
+            return storeAndInject(postInput.tool_response, toolName, vasStoreCallback)
           }
 
           return {}

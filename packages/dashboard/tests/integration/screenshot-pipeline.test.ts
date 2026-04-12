@@ -51,13 +51,11 @@ describe('Screenshot pipeline integration', () => {
     expect(screenshots[0].source).toBe('desktop')
     expect(screenshots[0].width).toBe(1920)
 
-    // Output has URL injected
+    // Output has URL injected — updatedMCPToolOutput is a raw array (SDK shape for MCP tool_response)
     expect(result.hookSpecificOutput).toBeDefined()
-    const updated = result.hookSpecificOutput!.updatedMCPToolOutput as {
-      content: unknown[]
-    }
-    expect(updated.content).toHaveLength(3)
-    const urlBlock = updated.content[2] as { type: string; text: string }
+    const updated = result.hookSpecificOutput!.updatedMCPToolOutput as unknown[]
+    expect(updated).toHaveLength(3)
+    const urlBlock = updated[2] as { type: string; text: string }
     expect(urlBlock.text).toContain(screenshots[0].filename)
   })
 

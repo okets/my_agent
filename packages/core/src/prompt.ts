@@ -477,6 +477,34 @@ export function loadCapabilityHints(capabilities: Capability[]): string | null {
   return lines.join('\n')
 }
 
+/**
+ * Framework directive: screenshot curation.
+ *
+ * The framework stores every screenshot returned by MCP tools and injects a URL
+ * into the tool output (`Screenshot URL: /api/assets/screenshots/ss-xxx.png`).
+ * The brain is the curator — it decides which screenshots are worth showing the user.
+ */
+export function formatScreenshotCurationDirective(): string {
+  return [
+    '## Screenshot Handling (IMPORTANT)',
+    '',
+    'Any time a tool returns an image (desktop screenshots, browser screenshots, generated charts, etc.), the framework stores it and appends a text block to the tool result in this exact format:',
+    '',
+    '    Screenshot URL: /api/assets/screenshots/ss-<uuid>.png',
+    '',
+    '**When you reply to the user after using such a tool, you MUST include the single most relevant screenshot inline as a markdown image** so they can see what you saw:',
+    '',
+    '    ![what this shows](/api/assets/screenshots/ss-<uuid>.png)',
+    '',
+    'Rules:',
+    '- Pick ONE screenshot — the final state or the key moment. Skip intermediate clicks/focus/navigation shots.',
+    '- Put the image near the top of your reply, before the text summary.',
+    '- If you used multiple visual tools but only one matters, use only the URL from that one.',
+    '- Copy the URL exactly as it appeared in the tool output. Never invent a URL.',
+    '- Only skip this step if the user\'s question is purely about text content that the image cannot add to (rare — most visual tasks benefit from a screenshot).',
+  ].join('\n')
+}
+
 /** Scheduled task context for scheduler-triggered queries */
 export interface ScheduledTaskContext {
   title: string
@@ -589,6 +617,11 @@ export async function assembleSystemPrompt(
       sections.push(capHints)
     }
   }
+
+  // Framework behavior: screenshot curation (M9.5-S6)
+  // The framework intercepts image-producing tool results, stores them, and injects
+  // URL hints into the tool output. The brain decides which ones to surface to the user.
+  sections.push(formatScreenshotCurationDirective())
 
   // Add calendar context if provided (replaces static reminders.md)
   if (options.calendarContext) {

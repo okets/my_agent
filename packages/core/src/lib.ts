@@ -58,7 +58,7 @@ export { migrateConfig } from './config-migration.js'
 export { ConfigWriter } from './config-writer.js'
 export type { BrainConfig, HealthConfig } from './types.js'
 
-export { assembleSystemPrompt, loadProperties, loadAutomationHints, loadCapabilityHints } from './prompt.js'
+export { assembleSystemPrompt, loadProperties, loadAutomationHints, loadCapabilityHints, formatScreenshotCurationDirective } from './prompt.js'
 
 export { resolveAuth, validateSetupToken, isAuthenticated, clearAuth } from './auth.js'
 export type { ResolvedAuth } from './auth.js'
@@ -245,6 +245,7 @@ export {
   createScreenshotInterceptor,
   inferSource,
   parseImageMetadata,
+  parseMcpToolName,
   storeAndInject,
 } from './capabilities/index.js'
 export type { RateLimiter, AuditLogger, AuditEntry, ScreenshotInterceptor, StoreCallback, StoreAndInjectResult } from './capabilities/index.js'

@@ -14,6 +14,7 @@ export {
   createScreenshotInterceptor,
   inferSource,
   parseImageMetadata,
+  parseMcpToolName,
   storeAndInject,
   type RateLimiter,
   type AuditLogger,
