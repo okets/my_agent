@@ -5979,40 +5979,67 @@
         <div x-data="progressCard()" class="shrink-0 px-3 flex flex-col gap-1.5"
              x-show="cards.length > 0">
           <template x-for="job in cards" :key="job.id">
-            <div class="glass-strong rounded-lg overflow-hidden transition-opacity duration-500 cursor-pointer select-none"
+            <div class="glass-strong rounded-lg overflow-visible transition-opacity duration-500 cursor-pointer select-none relative"
                  @click="toggle(job.id)"
                  :style="isFading(job.id) ? 'opacity:0' : 'opacity:1'"
                  style="border: 1px solid rgba(255,255,255,0.08)">
 
-              <!-- Collapsed view: shows current step text + done/total counter -->
+              <!-- Counter pill (floats over top border, visible in both modes) -->
+              <div class="progress-counter-pill"
+                   x-show="job.todoProgress && job.todoProgress.total > 0">
+                <span :class="pillIconClass(job)" x-text="pillIcon(job)"></span>
+                <span x-text="counterText(job)"></span>
+              </div>
+
+              <!-- Collapsed view: bullet + task-number + step text.
+                   Row-level color is static; only the running ARROW bullet breathes.
+                   States: failed → ✗ (static red), done → ✓ (static green),
+                   running → → (pulsing orange). -->
               <div x-show="!isExpanded(job.id)"
-                   class="flex items-center gap-2 px-3 py-2">
-                <span class="text-blue-400 text-xs">●</span>
-                <span class="text-xs text-tokyo-text truncate flex-1"
-                      x-text="isDone(job.id) ? 'Done' : (currentStepText(job) || job.automationName || 'Job')"></span>
-                <span class="text-xs text-gray-500 shrink-0"
-                      x-text="isDone(job.id) ? '✓' : (job.todoProgress?.done + '/' + job.todoProgress?.total)"></span>
+                   class="flex items-center gap-2 px-3 py-2 text-xs"
+                   :class="collapsedRowClass(job)">
+                <template x-if="isFailed(job)">
+                  <span class="flex items-center gap-1 shrink-0 font-mono">
+                    <span>✗</span>
+                    <span class="tabular-nums inline-block text-right min-w-[1.25rem]"
+                          x-text="currentStepNumber(job) ? currentStepNumber(job) + '.' : ''"></span>
+                  </span>
+                </template>
+                <template x-if="!isFailed(job) && isDone(job.id)">
+                  <span class="shrink-0 font-mono">✓</span>
+                </template>
+                <template x-if="!isFailed(job) && !isDone(job.id)">
+                  <span class="flex items-center gap-1 shrink-0 font-mono">
+                    <span class="pulse-task">→</span>
+                    <span class="tabular-nums inline-block text-right min-w-[1.25rem]"
+                          x-text="currentStepNumber(job) ? currentStepNumber(job) + '.' : ''"></span>
+                  </span>
+                </template>
+                <span class="truncate flex-1"
+                      x-text="isFailed(job) ? (currentStepText(job) || 'Failed') : (isDone(job.id) ? 'Done' : (currentStepText(job) || job.automationName || 'Job'))"></span>
               </div>
 
               <!-- Expanded view: header with job name + step list -->
               <div x-show="isExpanded(job.id)" x-cloak>
                 <!-- Header -->
                 <div class="flex items-center gap-2 px-3 py-2">
-                  <span class="text-blue-400 text-xs">●</span>
                   <span class="text-xs text-tokyo-text truncate flex-1"
                         x-text="job.automationName || 'Job'"></span>
                   <button @click.stop="dismiss(job.id)"
                           class="text-gray-500 hover:text-gray-300 text-xs leading-none p-0.5">✕</button>
                 </div>
-                <!-- Step list (max 4 visible, scrolls) -->
+                <!-- Step list (max 4 visible, scrolls). Row color is static per status;
+                     only the in_progress bullet breathes (pulse-task via iconPulseClass). -->
                 <div class="max-h-[6.5rem] overflow-y-auto px-3 pb-2" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent">
-                  <template x-for="item in job.todoProgress?.items || []" :key="item.id">
-                    <div class="flex items-start gap-2 py-0.5">
-                      <span class="text-xs leading-5 shrink-0" :class="statusClass(item.status)"
+                  <template x-for="(item, idx) in job.todoProgress?.items || []" :key="item.id">
+                    <div class="flex items-start gap-2 py-0.5 text-xs leading-5"
+                         :class="statusClass(item.status)">
+                      <span class="shrink-0 font-mono"
+                            :class="iconPulseClass(item.status)"
                             x-text="statusIcon(item.status)"></span>
-                      <span class="text-xs leading-5 truncate"
-                            :class="item.status === 'in_progress' ? 'text-blue-400' : (item.status === 'done' ? 'text-green-400/60' : (item.status === 'blocked' ? 'text-orange-400/60' : 'text-gray-500'))"
-                            x-text="item.text"></span>
+                      <span class="shrink-0 tabular-nums font-mono inline-block text-right min-w-[1.25rem]"
+                            x-text="(idx + 1) + '.'"></span>
+                      <span class="truncate" x-text="item.text"></span>
                     </div>
                   </template>
                 </div>
@@ -9073,40 +9100,67 @@
           <div x-data="progressCard()" class="shrink-0 px-3 pb-1 flex flex-col gap-1.5"
                x-show="cards.length > 0">
             <template x-for="job in cards" :key="job.id">
-              <div class="glass-strong rounded-lg overflow-hidden transition-opacity duration-500 cursor-pointer select-none"
+              <div class="glass-strong rounded-lg overflow-visible transition-opacity duration-500 cursor-pointer select-none relative"
                    @click="toggle(job.id)"
                    :style="isFading(job.id) ? 'opacity:0' : 'opacity:1'"
                    style="border: 1px solid rgba(255,255,255,0.08)">
 
-                <!-- Collapsed view: shows current step text + done/total counter -->
+                <!-- Counter pill (floats over top border, visible in both modes) -->
+                <div class="progress-counter-pill"
+                     x-show="job.todoProgress && job.todoProgress.total > 0">
+                  <span :class="pillIconClass(job)" x-text="pillIcon(job)"></span>
+                  <span x-text="counterText(job)"></span>
+                </div>
+
+                <!-- Collapsed view: bullet + task-number + step text.
+                     Row-level color is static; only the running ARROW bullet breathes.
+                     States: failed → ✗ (static red), done → ✓ (static green),
+                     running → → (pulsing orange). -->
                 <div x-show="!isExpanded(job.id)"
-                     class="flex items-center gap-2 px-3 py-2">
-                  <span class="text-blue-400 text-xs">●</span>
-                  <span class="text-xs text-tokyo-text truncate flex-1"
-                        x-text="isDone(job.id) ? 'Done' : (currentStepText(job) || job.automationName || 'Job')"></span>
-                  <span class="text-xs text-gray-500 shrink-0"
-                        x-text="isDone(job.id) ? '✓' : (job.todoProgress?.done + '/' + job.todoProgress?.total)"></span>
+                     class="flex items-center gap-2 px-3 py-2 text-xs"
+                     :class="collapsedRowClass(job)">
+                  <template x-if="isFailed(job)">
+                    <span class="flex items-center gap-1 shrink-0 font-mono">
+                      <span>✗</span>
+                      <span class="tabular-nums inline-block text-right min-w-[1.25rem]"
+                            x-text="currentStepNumber(job) ? currentStepNumber(job) + '.' : ''"></span>
+                    </span>
+                  </template>
+                  <template x-if="!isFailed(job) && isDone(job.id)">
+                    <span class="shrink-0 font-mono">✓</span>
+                  </template>
+                  <template x-if="!isFailed(job) && !isDone(job.id)">
+                    <span class="flex items-center gap-1 shrink-0 font-mono">
+                      <span class="pulse-task">→</span>
+                      <span class="tabular-nums inline-block text-right min-w-[1.25rem]"
+                            x-text="currentStepNumber(job) ? currentStepNumber(job) + '.' : ''"></span>
+                    </span>
+                  </template>
+                  <span class="truncate flex-1"
+                        x-text="isFailed(job) ? (currentStepText(job) || 'Failed') : (isDone(job.id) ? 'Done' : (currentStepText(job) || job.automationName || 'Job'))"></span>
                 </div>
 
                 <!-- Expanded view: header with job name + step list -->
                 <div x-show="isExpanded(job.id)" x-cloak>
                   <!-- Header -->
                   <div class="flex items-center gap-2 px-3 py-2">
-                    <span class="text-blue-400 text-xs">●</span>
                     <span class="text-xs text-tokyo-text truncate flex-1"
                           x-text="job.automationName || 'Job'"></span>
                     <button @click.stop="dismiss(job.id)"
                             class="text-gray-500 hover:text-gray-300 text-xs leading-none p-0.5">✕</button>
                   </div>
-                  <!-- Step list (max 4 visible, scrolls) -->
+                  <!-- Step list (max 4 visible, scrolls). Row color is static per status;
+                       only the in_progress bullet breathes (pulse-task via iconPulseClass). -->
                   <div class="max-h-[6.5rem] overflow-y-auto px-3 pb-2" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent">
-                    <template x-for="item in job.todoProgress?.items || []" :key="item.id">
-                      <div class="flex items-start gap-2 py-0.5">
-                        <span class="text-xs leading-5 shrink-0" :class="statusClass(item.status)"
+                    <template x-for="(item, idx) in job.todoProgress?.items || []" :key="item.id">
+                      <div class="flex items-start gap-2 py-0.5 text-xs leading-5"
+                           :class="statusClass(item.status)">
+                        <span class="shrink-0 font-mono"
+                              :class="iconPulseClass(item.status)"
                               x-text="statusIcon(item.status)"></span>
-                        <span class="text-xs leading-5 truncate"
-                              :class="item.status === 'in_progress' ? 'text-blue-400' : (item.status === 'done' ? 'text-green-400/60' : (item.status === 'blocked' ? 'text-orange-400/60' : 'text-gray-500'))"
-                              x-text="item.text"></span>
+                        <span class="shrink-0 tabular-nums font-mono inline-block text-right min-w-[1.25rem]"
+                              x-text="(idx + 1) + '.'"></span>
+                        <span class="truncate" x-text="item.text"></span>
                       </div>
                     </template>
                   </div>
