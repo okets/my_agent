@@ -8,6 +8,7 @@
 import type { AutomationJobService } from "./automation-job-service.js";
 import type { PersistentNotificationQueue, PersistentNotification } from "../notifications/persistent-queue.js";
 import { readTodoFile } from "./todo-file.js";
+import { timingLog } from "./timing.js";
 import path from "node:path";
 
 export interface HeartbeatConfig {
@@ -116,6 +117,7 @@ export class HeartbeatService {
 
     const MAX_DELIVERY_ATTEMPTS = 10;
     const pending = this.config.notificationQueue.listPending();
+    for (const n of pending) timingLog(n.job_id, "deliverPending start");
     for (const notification of pending) {
       // Skip notifications that have exceeded max delivery attempts
       if (notification.delivery_attempts >= MAX_DELIVERY_ATTEMPTS) {
@@ -128,6 +130,7 @@ export class HeartbeatService {
 
       try {
         const prompt = this.formatNotification(notification);
+        timingLog(notification.job_id, "alert() invoked");
         const delivered =
           await this.config.conversationInitiator.alert(prompt, {
             sourceChannel: notification.source_channel,

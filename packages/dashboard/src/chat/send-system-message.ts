@@ -49,6 +49,7 @@ export async function* sendSystemMessage(
     return;
   }
 
+  console.log(`[timing] start emitted (no jobId mapping yet)`);
   yield { type: "start" as const };
   app.emit("chat:start", conversationId);
 

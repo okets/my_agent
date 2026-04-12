@@ -44,6 +44,7 @@ import { runValidation } from "./todo-validators.js";
 import { handleCreateChart } from "../mcp/chart-server.js";
 import { queryModel } from "../scheduler/query-model.js";
 import { resolveJobSummary } from "./summary-resolver.js";
+import { timingMark } from "./timing.js";
 
 /** Working Nina's allowed tools — full access including web for research workers */
 const WORKER_TOOLS = [
@@ -421,6 +422,7 @@ export class AutomationExecutor {
       }
 
       this.abortControllers.delete(job.id);
+      timingMark(job.id);
 
       // If aborted by user, return early — stop route handles status + notification
       if (abortController.signal.aborted) {
