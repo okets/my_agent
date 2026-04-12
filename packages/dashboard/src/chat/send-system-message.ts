@@ -49,7 +49,9 @@ export async function* sendSystemMessage(
     return;
   }
 
-  yield { type: "start" as const };
+  yield options?.triggerJobId
+    ? { type: "start" as const, triggerJobId: options.triggerJobId }
+    : { type: "start" as const };
   app.emit("chat:start", conversationId);
 
   let assistantContent = "";

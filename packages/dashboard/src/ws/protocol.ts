@@ -118,7 +118,7 @@ export type ClientMessage =
 
 // Server → Client messages
 export type ServerMessage =
-  | { type: "start" }
+  | { type: "start"; triggerJobId?: string }
   | { type: "interim_status"; message: string }
   | { type: "text_delta"; content: string }
   | { type: "thinking_delta"; content: string }
@@ -210,6 +210,7 @@ export type ServerMessage =
       timestamp: number;
     }
   | { type: "state:jobs"; jobs: JobSnapshot[]; timestamp: number }
+  | { type: "handoff_pending"; jobId: string }
   | {
       type: "state:screenshot";
       screenshot: ScreenshotSnapshot;
@@ -312,6 +313,7 @@ export interface JobSnapshot {
   completed?: string;
   summary?: string;
   triggerType?: string;
+  notify?: string;
   todoProgress?: {
     done: number
     total: number

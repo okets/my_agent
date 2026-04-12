@@ -246,4 +246,55 @@ describe("AutomationProcessor", () => {
     expect(mockAlert).toHaveBeenCalledTimes(1);
     expect(mockAlert.mock.calls[0][0]).toContain("[job_needs_review]");
   });
+
+  describe("M9.4-S5 drainNow fast-path", () => {
+    it("calls heartbeat.drainNow() after enqueueing a notification", async () => {
+      const automation = createTestAutomation({ notify: "immediate" });
+      const enqueue = vi.fn();
+      const queue = {
+        enqueue,
+        listPending: () => [],
+        markDelivered: vi.fn(),
+        incrementAttempts: vi.fn(),
+      } as any;
+      const drainNow = vi.fn().mockResolvedValue(undefined);
+
+      const processorWithHb = new AutomationProcessor({
+        automationManager: manager,
+        executor: mockExecutor,
+        jobService,
+        agentDir: tempDir,
+        notificationQueue: queue,
+      });
+      processorWithHb.setHeartbeat({ drainNow });
+
+      await processorWithHb.fire(automation);
+
+      expect(enqueue).toHaveBeenCalledTimes(1);
+      expect(drainNow).toHaveBeenCalledTimes(1);
+    });
+
+    it("works without a heartbeat reference (degraded mode)", async () => {
+      const automation = createTestAutomation({ notify: "immediate" });
+      const enqueue = vi.fn();
+      const queue = {
+        enqueue,
+        listPending: () => [],
+        markDelivered: vi.fn(),
+        incrementAttempts: vi.fn(),
+      } as any;
+
+      const processorNoHb = new AutomationProcessor({
+        automationManager: manager,
+        executor: mockExecutor,
+        jobService,
+        agentDir: tempDir,
+        notificationQueue: queue,
+      });
+      // No setHeartbeat call
+
+      await expect(processorNoHb.fire(automation)).resolves.not.toThrow();
+      expect(enqueue).toHaveBeenCalledTimes(1);
+    });
+  });
 });

@@ -1568,7 +1568,11 @@ export class App extends EventEmitter {
           staleThresholdMs: 5 * 60 * 1000,
           tickIntervalMs: 30 * 1000,
           capabilityHealthIntervalMs: 60 * 60 * 1000,
+          registry: connectionRegistry, // M9.4-S5 B7: WS broadcast for handoff_pending
         });
+        // M9.4-S5 B2: wire heartbeat into processor for fast-path drain.
+        // Must be set BEFORE start() so the first drainNow path is wired.
+        app.automationProcessor?.setHeartbeat(heartbeatService);
         heartbeatService.start();
 
         // Service namespace

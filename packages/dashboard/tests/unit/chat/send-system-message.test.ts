@@ -107,6 +107,23 @@ describe("sendSystemMessage()", () => {
     expect(emittedEvents[2].args[0]).toBe("conv-1");
   });
 
+  it("yields { type: 'start', triggerJobId } when option passed (M9.4-S5)", async () => {
+    const { app } = createMockApp();
+    const events = await collectEvents(
+      sendSystemMessage(app, "conv-1", "prompt", 1, { triggerJobId: "job-abc" }),
+    );
+    expect(events[0]).toMatchObject({ type: "start", triggerJobId: "job-abc" });
+  });
+
+  it("yields { type: 'start' } without triggerJobId when option absent (M9.4-S5)", async () => {
+    const { app } = createMockApp();
+    const events = await collectEvents(
+      sendSystemMessage(app, "conv-1", "prompt", 1),
+    );
+    expect(events[0]).toEqual({ type: "start" });
+    expect(events[0]).not.toHaveProperty("triggerJobId");
+  });
+
   it("skips when session is busy streaming", async () => {
     const { app, appendedTurns, emittedEvents } = createMockApp({
       isStreaming: true,

@@ -107,3 +107,71 @@ describe("state:jobs todoProgress.items", () => {
     expect(snapshot.todoProgress).toBeUndefined();
   });
 });
+
+describe("M9.4-S5 — todoProgress preserved post-completion + notify field", () => {
+  it("includes todoProgress on a completed job that has todos", async () => {
+    await createTestAutomation(harness, "test-auto");
+
+    const job = harness.automationJobService!.createJob("test-auto");
+    harness.automationJobService!.updateJob(job.id, { status: "running" });
+
+    writeTodoFile(path.join(job.run_dir!, "todos.json"), {
+      items: [
+        { id: "t1", text: "Step", status: "done", mandatory: true, created_by: "framework" },
+      ],
+      last_activity: new Date().toISOString(),
+    });
+
+    // Flip status to completed
+    harness.automationJobService!.updateJob(job.id, {
+      status: "completed",
+      completed: new Date().toISOString(),
+    });
+
+    harness.clearBroadcasts();
+    harness.statePublisher.publishJobs();
+    await delay(150);
+
+    const broadcasts = harness.getBroadcasts("state:jobs");
+    const last = broadcasts[broadcasts.length - 1] as any;
+    const snap = last.jobs.find((j: any) => j.id === job.id);
+
+    expect(snap).toBeDefined();
+    expect(snap.status).toBe("completed");
+    expect(snap.todoProgress).toBeDefined();
+    expect(snap.todoProgress.items).toHaveLength(1);
+    expect(snap.todoProgress.items[0].status).toBe("done");
+  });
+
+  it("includes notify field from the automation manifest", async () => {
+    fs.writeFileSync(
+      path.join(harness.automationsDir!, "test-notify-auto.md"),
+      [
+        "---",
+        "name: Test Notify",
+        "status: active",
+        "notify: immediate",
+        "trigger:",
+        "  - type: manual",
+        `created: ${new Date().toISOString()}`,
+        "---",
+        "",
+        "Test notify automation.",
+      ].join("\n"),
+    );
+    await harness.automationManager!.syncAll();
+
+    const job = harness.automationJobService!.createJob("test-notify-auto");
+
+    harness.clearBroadcasts();
+    harness.statePublisher.publishJobs();
+    await delay(150);
+
+    const broadcasts = harness.getBroadcasts("state:jobs");
+    const last = broadcasts[broadcasts.length - 1] as any;
+    const snap = last.jobs.find((j: any) => j.id === job.id);
+
+    expect(snap).toBeDefined();
+    expect(snap.notify).toBe("immediate");
+  });
+});
