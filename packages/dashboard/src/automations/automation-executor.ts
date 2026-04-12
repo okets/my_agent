@@ -12,6 +12,9 @@ import {
   cleanupSkillFilters,
   parseFrontmatterContent,
   createStopReminder,
+  createCapabilityAuditLogger,
+  storeAndInject,
+  parseMcpToolName,
 } from "@my-agent/core";
 import type {
   Automation,
@@ -19,7 +22,10 @@ import type {
   HookEvent,
   HookCallbackMatcher,
   Space,
+  AuditEntry,
+  StoreCallback,
 } from "@my-agent/core";
+import type { PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import fs from "node:fs";
 import path from "node:path";
 import { getHandler } from "../scheduler/jobs/handler-registry.js";
@@ -91,21 +97,60 @@ export class AutomationExecutor {
     return false;
   }
 
-  /** Merge per-job Stop hook into static config hooks */
+  /** Merge per-job Stop + PostToolUse hooks into static config hooks */
   private buildJobHooks(
     todoPath: string | null,
+    vasStore?: StoreCallback,
   ): typeof this.config.hooks {
-    if (!todoPath) return this.config.hooks;
-
-    return {
+    const hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> = {
       ...(this.config.hooks ?? {}),
-      Stop: [
-        ...(this.config.hooks?.Stop ?? []),
-        {
-          hooks: [createStopReminder(todoPath)],
-        },
-      ],
     };
+
+    if (todoPath) {
+      hooks.Stop = [
+        ...(this.config.hooks?.Stop ?? []),
+        { hooks: [createStopReminder(todoPath)] },
+      ];
+    }
+
+    if (vasStore) {
+      const auditLogPath = path.join(this.config.agentDir, 'logs', 'capability-audit.jsonl');
+      const capAuditLogger = createCapabilityAuditLogger(async (entry: AuditEntry) => {
+        try {
+          await fs.promises.mkdir(path.dirname(auditLogPath), { recursive: true });
+          await fs.promises.appendFile(auditLogPath, JSON.stringify(entry) + '\n', 'utf-8');
+        } catch {
+          // Audit logging is best-effort
+        }
+      });
+
+      hooks.PostToolUse = [
+        ...(this.config.hooks?.PostToolUse ?? []),
+        {
+          hooks: [
+            async (input) => {
+              const postInput = input as PostToolUseHookInput;
+              const toolName = postInput.tool_name ?? 'unknown';
+
+              // Audit logging — framework is capability-agnostic, derive server name from tool prefix
+              const parsed = parseMcpToolName(toolName);
+              if (parsed) {
+                await capAuditLogger.log({
+                  capabilityName: parsed.server,
+                  toolName: parsed.tool,
+                  sessionId: postInput.session_id,
+                });
+              }
+
+              // Screenshot pipeline — store and inject URL for any image-producing tool
+              return storeAndInject(postInput.tool_response, toolName, vasStore);
+            },
+          ],
+        },
+      ];
+    }
+
+    return hooks;
   }
 
   /** Auto-detect job type from manifest or target_path */
@@ -292,6 +337,21 @@ export class AutomationExecutor {
         });
       }
 
+      // Playwright MCP server — enables workers to take web screenshots
+      workerMcpServers["playwright"] = {
+        type: "stdio" as const,
+        command: "npx",
+        args: ["@playwright/mcp"],
+      };
+
+      // Compute VAS store callback for screenshot pipeline
+      const vasStore: StoreCallback | undefined = this.config.visualService
+        ? (image, metadata) => {
+            const ss = this.config.visualService!.store(image, metadata);
+            return { id: ss.id, filename: ss.filename };
+          }
+        : undefined;
+
       // 6. Execute query (try session resumption if resume_from_job is specified)
       let resumeSessionId: string | undefined;
       const resumeMatch = automation.instructions.match(
@@ -322,7 +382,7 @@ export class AutomationExecutor {
         settingSources: ["project"],
         additionalDirectories: [this.config.agentDir],
         mcpServers: workerMcpServers,
-        hooks: this.buildJobHooks(todoPath),
+        hooks: this.buildJobHooks(todoPath, vasStore),
         ...(resumeSessionId ? { resume: resumeSessionId } : {}),
       });
 
@@ -613,6 +673,12 @@ export class AutomationExecutor {
                 : undefined,
             hooks: this.buildJobHooks(
               job.run_dir ? path.join(job.run_dir, "todos.json") : null,
+              this.config.visualService
+                ? (image, metadata) => {
+                    const ss = this.config.visualService!.store(image, metadata);
+                    return { id: ss.id, filename: ss.filename };
+                  }
+                : undefined,
             ),
             includePartialMessages: false,
           });

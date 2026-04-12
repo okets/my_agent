@@ -12,10 +12,16 @@ export {
   createCapabilityRateLimiter,
   createCapabilityAuditLogger,
   createScreenshotInterceptor,
+  inferSource,
+  parseImageMetadata,
+  parseMcpToolName,
+  storeAndInject,
   type RateLimiter,
   type AuditLogger,
   type AuditEntry,
   type ScreenshotInterceptor,
+  type StoreCallback,
+  type StoreAndInjectResult,
 } from './mcp-middleware.js'
 export {
   validateToolContract,

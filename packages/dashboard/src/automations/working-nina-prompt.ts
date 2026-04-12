@@ -1,5 +1,6 @@
 import { readProperties } from "../conversations/properties.js";
 import { resolveTimezone } from "../utils/timezone.js";
+import { formatScreenshotCurationDirective } from "@my-agent/core";
 
 export interface WorkingNinaPromptOptions {
   taskTitle: string;
@@ -97,7 +98,9 @@ Before ending your session, verify ALL of the following:
 4. **Format check:** If the task specified an output format, verify your deliverable matches it exactly.
 
 Do not assume your work is correct — verify by re-reading output files.
-Do not waste tokens on pleasantries or narration. Be autonomous — make decisions, don't ask questions.`;
+Do not waste tokens on pleasantries or narration. Be autonomous — make decisions, don't ask questions.
+
+`;
 
 export async function buildWorkingNinaPrompt(
   agentDir: string,
@@ -134,6 +137,8 @@ export async function buildWorkingNinaPrompt(
 
   const sections = [
     WORKING_NINA_PERSONA,
+    "",
+    formatScreenshotCurationDirective(),
     "",
     `[Temporal Context]`,
     `Current time: ${now}`,

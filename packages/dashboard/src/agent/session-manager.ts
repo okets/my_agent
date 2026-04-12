@@ -9,9 +9,10 @@ import {
   createDelegationEnforcer,
   createCapabilityRateLimiter,
   createCapabilityAuditLogger,
-  createScreenshotInterceptor,
+  storeAndInject,
+  parseMcpToolName,
 } from "@my-agent/core";
-import type { DelegationEnforcer, AuditEntry } from "@my-agent/core";
+import type { DelegationEnforcer, AuditEntry, StoreCallback } from "@my-agent/core";
 import type {
   Query,
   ContentBlock,
@@ -21,7 +22,7 @@ import type {
   HookCallbackMatcher,
   SearchService,
 } from "@my-agent/core";
-import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import { appendFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { processStream, type StreamEvent } from "./stream-processor.js";
@@ -79,6 +80,17 @@ export function setConversationTodoProvider(
   provider: (conversationId: string) => Array<{ text: string; status: string }>,
 ): void {
   conversationTodoProvider = provider;
+}
+
+/** VAS store callback — set from app.ts so PostToolUse hook can store screenshots */
+let vasStoreCallback: StoreCallback | null = null;
+
+/**
+ * Register the VisualActionService store callback for screenshot interception.
+ * Called from app.ts after VAS is created.
+ */
+export function setVasStoreCallback(store: StoreCallback): void {
+  vasStoreCallback = store;
 }
 
 /** Shared prompt builder — initialized once via initPromptBuilder(), shared across all sessions */
@@ -361,7 +373,7 @@ export class SessionManager {
       ],
     })
 
-    // Capability audit logger + screenshot interceptor — PostToolUse (S1 deferred, wired in S3)
+    // Capability audit logger + screenshot pipeline — PostToolUse
     const auditLogPath = join(agentDir, 'logs', 'capability-audit.jsonl')
     const capAuditLogger = createCapabilityAuditLogger(async (entry: AuditEntry) => {
       try {
@@ -371,27 +383,27 @@ export class SessionManager {
         // Audit logging is best-effort
       }
     })
-    const screenshotInterceptor = createScreenshotInterceptor()
 
     if (!this.hooks!.PostToolUse) this.hooks!.PostToolUse = []
     this.hooks!.PostToolUse.push({
-      matcher: 'desktop_.*',
       hooks: [
         async (input) => {
-          // Audit logging
-          const toolName = 'tool_name' in input ? (input as { tool_name: string }).tool_name : 'unknown'
-          await capAuditLogger.log({
-            capabilityName: 'desktop-x11',
-            toolName,
-            sessionId: input.session_id,
-          })
+          const postInput = input as PostToolUseHookInput
+          const toolName = postInput.tool_name ?? 'unknown'
 
-          // Screenshot interception — log when screenshots are returned
-          if ('tool_result' in input) {
-            const result = (input as { tool_result: unknown }).tool_result
-            if (screenshotInterceptor.hasScreenshot(result)) {
-              console.log(`[Capability Middleware] Screenshot captured by ${toolName}`)
-            }
+          // Audit logging — framework is capability-agnostic, derive server name from tool prefix
+          const parsed = parseMcpToolName(toolName)
+          if (parsed) {
+            await capAuditLogger.log({
+              capabilityName: parsed.server,
+              toolName: parsed.tool,
+              sessionId: postInput.session_id,
+            })
+          }
+
+          // Screenshot pipeline — store and inject URL for any image-producing tool
+          if (vasStoreCallback) {
+            return storeAndInject(postInput.tool_response, toolName, vasStoreCallback)
           }
 
           return {}

@@ -81,6 +81,7 @@ import {
   setRunningTasksChecker,
   setPendingBriefingProvider,
   setConversationTodoProvider,
+  setVasStoreCallback,
 } from "./agent/session-manager.js";
 import { createSpaceToolsServer } from "./mcp/space-tools-server.js";
 import { createSkillServer } from "./mcp/skill-server.js";
@@ -389,6 +390,12 @@ export class App extends EventEmitter {
     const { agentDir, connectionRegistry } = options;
     const hatched = isHatched(agentDir);
     const app = new App(agentDir, hatched);
+
+    // Wire VAS store callback so PostToolUse hook can store screenshots
+    setVasStoreCallback((image, metadata) => {
+      const ss = app.visualActionService.store(image, metadata);
+      return { id: ss.id, filename: ss.filename };
+    });
 
     // Shared map for collision suppression between conversation + automation watchdogs (M9-S3.1)
     const recentAutomationAlerts = new Map<string, number>();

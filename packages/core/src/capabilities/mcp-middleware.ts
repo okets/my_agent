@@ -10,6 +10,78 @@
  * Wired via PostToolUse hooks in the Agent SDK (done in S3).
  */
 
+import type { ScreenshotSource, ScreenshotMetadata } from '../visual/types.js'
+
+/**
+ * Parse the SDK's `mcp__<server>__<tool>` convention.
+ * Returns `{ server, tool }` for MCP tools, or `null` for built-in tools.
+ */
+export function parseMcpToolName(toolName: string): { server: string; tool: string } | null {
+  const m = toolName.match(/^mcp__([^_]+(?:-[^_]+)*)__(.+)$/)
+  return m ? { server: m[1], tool: m[2] } : null
+}
+
+export function inferSource(toolName: string): ScreenshotSource {
+  const parsed = parseMcpToolName(toolName)
+  const name = parsed ? parsed.tool : toolName
+  if (name.startsWith('desktop_')) return 'desktop'
+  if (name.startsWith('browser_') || name.startsWith('playwright_')) return 'playwright'
+  return 'generated'
+}
+
+/**
+ * Normalize a tool response into a content-block array.
+ * The SDK passes MCP tool responses as either:
+ *  - `[...blocks]` (raw content array — most common)
+ *  - `{ content: [...blocks] }` (wrapped — some code paths)
+ */
+function toContentBlocks(result: unknown): unknown[] | null {
+  if (Array.isArray(result)) return result
+  if (result && typeof result === 'object') {
+    const r = result as { content?: unknown }
+    if (Array.isArray(r.content)) return r.content
+  }
+  return null
+}
+
+export function parseImageMetadata(result: unknown, toolName: string): ScreenshotMetadata {
+  const fallback: ScreenshotMetadata = {
+    description: undefined,
+    width: 0,
+    height: 0,
+    source: inferSource(toolName),
+  }
+
+  const blocks = toContentBlocks(result)
+  if (!blocks) return fallback
+
+  for (const block of blocks) {
+    if (
+      block &&
+      typeof block === 'object' &&
+      'type' in block &&
+      (block as { type: string }).type === 'text' &&
+      'text' in block &&
+      typeof (block as { text: unknown }).text === 'string'
+    ) {
+      const text = (block as { text: string }).text
+      try {
+        const parsed = JSON.parse(text) as Record<string, unknown>
+        return {
+          description: typeof parsed.description === 'string' ? parsed.description : undefined,
+          width: typeof parsed.width === 'number' ? parsed.width : 0,
+          height: typeof parsed.height === 'number' ? parsed.height : 0,
+          source: inferSource(toolName),
+        }
+      } catch {
+        return fallback
+      }
+    }
+  }
+
+  return fallback
+}
+
 export interface RateLimiter {
   check(capabilityType: string): boolean
 }
@@ -67,23 +139,73 @@ export interface ScreenshotInterceptor {
   extractImage(result: unknown): string | null
 }
 
+export type StoreCallback = (image: Buffer, metadata: ScreenshotMetadata) => { id: string; filename: string }
+
+/**
+ * Shape matches the SDK's `tool_response` for MCP tools: a raw content block array.
+ * The SDK assigns `Q = hookSpecificOutput.updatedMCPToolOutput` directly, replacing
+ * the tool response in-place — no wrapping, no `{ content: [...] }` object.
+ */
+export type McpContentBlock = { type: string; text?: string; data?: string; mimeType?: string; source?: unknown }
+
+export interface StoreAndInjectResult {
+  hookSpecificOutput?: {
+    hookEventName: 'PostToolUse'
+    updatedMCPToolOutput: McpContentBlock[]
+  }
+}
+
+export function storeAndInject(
+  toolResponse: unknown,
+  toolName: string,
+  store: StoreCallback,
+): StoreAndInjectResult {
+  const interceptor = createScreenshotInterceptor()
+  if (!interceptor.hasScreenshot(toolResponse)) return {}
+
+  const base64 = interceptor.extractImage(toolResponse)
+  if (!base64) return {}
+
+  const image = Buffer.from(base64, 'base64')
+  const metadata = parseImageMetadata(toolResponse, toolName)
+  const screenshot = store(image, metadata)
+
+  const blocks = toContentBlocks(toolResponse)
+  const originalContent: McpContentBlock[] = (blocks ?? []) as McpContentBlock[]
+
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PostToolUse',
+      updatedMCPToolOutput: [
+        ...originalContent,
+        { type: 'text', text: `Screenshot URL: /api/assets/screenshots/${screenshot.filename}` },
+      ],
+    },
+  }
+}
+
 export function createScreenshotInterceptor(): ScreenshotInterceptor {
   const PNG_MAGIC_B64 = 'iVBORw0KGgo'
 
-  function findImageContent(result: unknown): { type: string; data: string } | null {
-    if (!result || typeof result !== 'object') return null
-    const r = result as { content?: unknown[] }
-    if (!Array.isArray(r.content)) return null
-    for (const block of r.content) {
+  function findImageData(result: unknown): string | null {
+    const blocks = toContentBlocks(result)
+    if (!blocks) return null
+    for (const block of blocks) {
+      if (!block || typeof block !== 'object') continue
+      const b = block as Record<string, unknown>
+      if (b['type'] !== 'image') continue
+
+      // MCP format: { type: 'image', data: string }
+      if (typeof b['data'] === 'string') return b['data']
+
+      // Anthropic API format: { type: 'image', source: { type: 'base64', data: string } }
       if (
-        block &&
-        typeof block === 'object' &&
-        'type' in block &&
-        (block as { type: string }).type === 'image' &&
-        'data' in block &&
-        typeof (block as { data: unknown }).data === 'string'
+        b['source'] &&
+        typeof b['source'] === 'object' &&
+        (b['source'] as Record<string, unknown>)['type'] === 'base64' &&
+        typeof (b['source'] as Record<string, unknown>)['data'] === 'string'
       ) {
-        return block as { type: string; data: string }
+        return (b['source'] as Record<string, unknown>)['data'] as string
       }
     }
     return null
@@ -91,15 +213,13 @@ export function createScreenshotInterceptor(): ScreenshotInterceptor {
 
   return {
     hasScreenshot(result: unknown): boolean {
-      const img = findImageContent(result)
-      if (!img) return false
-      return img.data.startsWith(PNG_MAGIC_B64)
+      const data = findImageData(result)
+      if (!data) return false
+      return data.startsWith(PNG_MAGIC_B64)
     },
 
     extractImage(result: unknown): string | null {
-      const img = findImageContent(result)
-      if (!img) return null
-      return img.data
+      return findImageData(result)
     },
   }
 }
