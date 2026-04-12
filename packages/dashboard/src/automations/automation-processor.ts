@@ -16,7 +16,6 @@ import type { PersistentNotificationQueue } from "../notifications/persistent-qu
 import { readTodoFile } from "./todo-file.js";
 import { resolveJobSummaryAsync } from "./summary-resolver.js";
 import { queryModel } from "../scheduler/query-model.js";
-import { timingLog } from "./timing.js";
 import path from "node:path";
 
 export type JobEventName =
@@ -211,7 +210,6 @@ export class AutomationProcessor {
     jobId: string,
     result: ExecutionResult,
   ): Promise<void> {
-    timingLog(jobId, "handleNotification");
     const notify = automation.manifest.notify ?? "debrief";
     const job = this.config.jobService.getJob(jobId);
     if (!job) return;
@@ -269,8 +267,6 @@ export class AutomationProcessor {
         delivery_attempts: 0,
         source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
       });
-      timingLog(jobId, "enqueued");
-
       // M9.4-S5 B2: fire-and-forget fast-path drain. Failures are non-fatal
       // — next 30s heartbeat tick retries.
       this.config.heartbeat?.drainNow().catch((err) => {
