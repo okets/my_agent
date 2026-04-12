@@ -64,4 +64,22 @@ All 10 existing browser tests (T1–T10) pass.
 
 ## Closing smoke test (CTO, human-led)
 
-(filled by CTO after sprint review)
+**Date:** 2026-04-12 (pair-browse session)
+**Automation:** `screenshot-cnn-homepage` (notify=immediate), one-shot via
+"Schedule a one-time automation to run in 1 minute" conversation with Nina.
+
+**Handoff behavior — VERIFIED:**
+- Worker ran to completion (3/3 todos done).
+- Card entered `handing-off` at terminal status; stayed visible in "Done"
+  state past the legacy 2 s fade mark.
+- Nina's tagged `start` (triggered via `drainNow()` fast-path) arrived,
+  card transitioned to `fading` → removed. Reply streamed cleanly.
+- No perceptible silent gap. The M9.5-S6 "30-second silence" bug is gone.
+
+**Separately noted (not a regression):** progress counter sat at 0/3
+during the first 20-30 s of the job while the worker was visibly
+working (browser open, navigation). Root-caused to worker's `todo_*`
+MCP tool cadence, not our handoff code. Logged as UX-2 in FOLLOW-UPS.md
+for architect discussion.
+
+**Sign-off:** handoff verified, sprint closing.
