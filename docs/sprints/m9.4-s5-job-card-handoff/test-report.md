@@ -10,7 +10,23 @@ created: 2026-04-12
 
 ## Pre-implementation timing baseline
 
-(filled by Task 2 after headless-App run)
+CNN smoke test (cnn-homepage-screenshot, notify=immediate), fired via
+`POST /api/automations/cnn-homepage-screenshot/fire`, 2026-04-12 04:29 UTC.
+
+| Event | Elapsed from job:done |
+|-------|----------------------|
+| handleNotification | +10 ms |
+| enqueued | +12 ms |
+| deliverPending start | +12 560 ms |
+| alert() invoked | +12 560 ms |
+| start emitted | (immediately after; not jobId-mapped yet) |
+
+**Heartbeat wait between `enqueued` and `deliverPending start`: ~12.5 s.**
+
+Notes:
+- 12.5 s is well within the 0–30 s expected window for a 30 s tick — the run happened to land mid-tick.
+- Confirms Contributor 1 (heartbeat-driven delivery) as dominant. Proceeding with structural changes (Tasks 3–13).
+- Job summary work and sendSystemMessage init were both <50 ms in this run.
 
 ## Unit test results
 

@@ -527,7 +527,7 @@ export class StatePublisher {
     const jobs = this.automationJobService.listJobs({ limit: 50 });
     return jobs.map((j) => {
       const automation = this.automationManager?.findById(j.automationId);
-      const todoProgress: JobSnapshot["todoProgress"] = j.status === 'running' && j.run_dir
+      const todoProgress: JobSnapshot["todoProgress"] = j.run_dir
         ? (() => {
             try {
               const todoFile = readTodoFile(path.join(j.run_dir, 'todos.json'))
@@ -556,6 +556,7 @@ export class StatePublisher {
         triggerType: (j.context as Record<string, unknown>)?.trigger as
           | string
           | undefined,
+        notify: automation?.manifest.notify,
         todoProgress,
       };
     });
