@@ -30,11 +30,33 @@ Notes:
 
 ## Unit test results
 
-(filled as tasks land)
+| Suite | Tests | Status |
+|-------|-------|--------|
+| `tests/integration/state-publishing-jobs.test.ts` | 4 | ✓ all pass (2 existing + 2 new M9.4-S5) |
+| `tests/unit/chat/send-system-message.test.ts` | 8 | ✓ all pass (6 existing + 2 new M9.4-S5) |
+| `tests/unit/automations/heartbeat-service.test.ts` | 5 | ✓ all pass (new, M9.4-S5) |
+| `tests/unit/automations/automation-processor.test.ts` | 11 | ✓ all pass (9 existing + 2 new M9.4-S5) |
+| `tests/unit/ui/ws-client.test.ts` | 3 | ✓ all pass (new, M9.4-S5) |
+| `tests/unit/ui/progress-card.test.ts` | 13 | ✓ all pass (existing; `handleJobCompleted` assertion updated to new method names) |
 
 ## Browser test results
 
-(filled by Task 12)
+Run against `http://localhost:4321` with the dashboard on our sprint branch.
+
+### M9.4-S5 suite — `tests/browser/progress-card-handoff.test.ts`
+
+| AC | Test | Duration | Status |
+|----|------|----------|--------|
+| 4 | card stays in 'Done' until matching tagged start arrives | 6.2 s | ✓ |
+| 5 | sibling card resets safety net when A fades | 13.6 s | ✓ |
+| 6 | notify='none' runs legacy 2 s fade, no handing-off | 3.0 s | ✓ |
+| 6b (NF5) | notify=undefined treated as debrief (legacy fade) | 3.0 s | ✓ |
+| 7 | safety net fires at 10 s with no start and no handoff_pending | 13.5 s | ✓ |
+| 12 | handoff_pending for own jobId resets safety net (cold-start) | 14.6 s | ✓ |
+
+### M9.4-S3 regression — `tests/browser/progress-card.test.ts`
+
+All 10 existing browser tests (T1–T10) pass.
 
 ## Post-implementation timing
 
