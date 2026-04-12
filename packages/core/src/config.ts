@@ -24,6 +24,29 @@ export interface ModelDefaults {
 
 const DEFAULT_MODEL = DEFAULT_MODELS.sonnet
 
+export type BrainModelTier = 'sonnet' | 'haiku' | 'opus'
+
+export function isBrainModelTier(value: unknown): value is BrainModelTier {
+  return value === 'sonnet' || value === 'haiku' || value === 'opus'
+}
+
+/**
+ * Resolve brain.model to a concrete model ID.
+ * Accepts a tier name ('sonnet'/'haiku'/'opus') which is expanded via
+ * preferences.models (or DEFAULT_MODELS), or a literal model ID which
+ * passes through unchanged. Missing value falls back to the sonnet default.
+ */
+export function resolveBrainModel(
+  raw: string | undefined,
+  overrides?: Partial<ModelDefaults>,
+): string {
+  if (!raw) return DEFAULT_MODEL
+  if (isBrainModelTier(raw)) {
+    return overrides?.[raw] ?? DEFAULT_MODELS[raw]
+  }
+  return raw
+}
+
 const DEFAULT_RECONNECT: ReconnectPolicy = {
   initialMs: 2000,
   maxMs: 30000,
@@ -239,9 +262,11 @@ export function loadConfig(): BrainConfig {
   migrateConfig(agentDir)
 
   const yaml = loadYamlConfig(agentDir)
+  const rawModel = process.env.MY_AGENT_MODEL ?? yaml?.brain?.model
+  const resolvedModel = resolveBrainModel(rawModel, yaml?.preferences?.models)
 
   return {
-    model: process.env.MY_AGENT_MODEL ?? yaml?.brain?.model ?? DEFAULT_MODEL,
+    model: resolvedModel,
     brainDir:
       process.env.MY_AGENT_BRAIN_DIR ??
       (yaml?.brain?.dir ? path.resolve(agentDir, yaml.brain.dir) : path.join(agentDir, 'brain')),

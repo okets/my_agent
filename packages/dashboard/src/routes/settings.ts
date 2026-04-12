@@ -21,8 +21,10 @@ import {
   removeEnvValue,
   readFrontmatter,
   scanCapabilities,
+  isBrainModelTier,
   type UserPreferences,
   type ModelDefaults,
+  type BrainModelTier,
   type CapabilityFrontmatter,
 } from "@my-agent/core";
 
@@ -268,6 +270,98 @@ export async function registerSettingsRoutes(
       return reply
         .code(500)
         .send({ error: "Failed to save models" } as unknown as ModelDefaults);
+    }
+  });
+
+  /**
+   * GET /api/settings/brain-model
+   *
+   * Returns the default conversation model tier (sonnet/haiku/opus).
+   * If brain.model is a literal model ID (legacy or env override), reverse-maps
+   * it through preferences.models; falls back to "sonnet" if no match.
+   */
+  fastify.get<{ Reply: { tier: BrainModelTier } }>(
+    "/api/settings/brain-model",
+    async () => {
+      const agentDir = fastify.agentDir;
+      const configPath = join(agentDir, "config.yaml");
+
+      let stored: unknown;
+      if (existsSync(configPath)) {
+        try {
+          const yaml =
+            (parse(readFileSync(configPath, "utf-8")) as Record<
+              string,
+              unknown
+            >) ?? {};
+          stored = (yaml.brain as Record<string, unknown> | undefined)?.model;
+        } catch {
+          stored = undefined;
+        }
+      }
+
+      if (isBrainModelTier(stored)) return { tier: stored };
+
+      // Reverse-map a concrete model ID through configured tier versions.
+      if (typeof stored === "string") {
+        const models = loadModels(agentDir);
+        for (const tier of ["sonnet", "haiku", "opus"] as const) {
+          if (models[tier] === stored) return { tier };
+        }
+      }
+
+      return { tier: "sonnet" };
+    },
+  );
+
+  /**
+   * PUT /api/settings/brain-model
+   *
+   * Updates the default conversation model tier. Writes tier name to
+   * brain.model in config.yaml. Takes effect on next new conversation.
+   */
+  fastify.put<{
+    Body: { tier: unknown };
+    Reply: { tier: BrainModelTier } | { error: string };
+  }>("/api/settings/brain-model", async (request, reply) => {
+    const tier = (request.body as { tier?: unknown } | undefined)?.tier;
+    if (!isBrainModelTier(tier)) {
+      return reply
+        .code(400)
+        .send({ error: "tier must be 'sonnet', 'haiku', or 'opus'" });
+    }
+
+    const agentDir = fastify.agentDir;
+    const configPath = join(agentDir, "config.yaml");
+
+    try {
+      let yaml: Record<string, unknown> = {};
+      if (existsSync(configPath)) {
+        try {
+          yaml =
+            (parse(readFileSync(configPath, "utf-8")) as Record<
+              string,
+              unknown
+            >) ?? {};
+        } catch {
+          yaml = {};
+        }
+      }
+
+      const brain = (yaml.brain as Record<string, unknown>) ?? {};
+      brain.model = tier;
+      yaml.brain = brain;
+
+      writeFileSync(configPath, stringify(yaml, { lineWidth: 120 }), "utf-8");
+      fastify.log.info(`[Settings] Brain model tier set to ${tier}`);
+
+      return { tier };
+    } catch (err) {
+      fastify.log.error(
+        "[Settings] Failed to save brain model: %s",
+        err instanceof Error ? err.message : String(err),
+      );
+      return reply.code(500).send({ error: "Failed to save brain model" });
     }
   });
 

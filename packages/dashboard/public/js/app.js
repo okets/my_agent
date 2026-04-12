@@ -452,6 +452,9 @@ function chat() {
     savingModels: false,
     modelsStatus: null, // "saved" | "error"
 
+    // Default tier for Conversation Nina (new conversations pick this up)
+    brainModelTier: "sonnet", // "sonnet" | "haiku" | "opus"
+
     notebookTree: [], // { path, name, type, children?, size?, modified? }
     notebookLoading: false,
     selectedNotebookFile: null, // { path, name, content, loading }
@@ -902,11 +905,30 @@ function chat() {
       // Send /new as a slash command — same path as WhatsApp /new
       this.resetChatState();
       this.currentConversationId = null;
+      // Reset selected model to the configured default tier so the next
+      // message carries the right model (client sends selectedModel, which
+      // overrides the server's brain.model config).
+      this.applyDefaultConversationModel();
       this._pendingNewConversation = true;
       this.ws.send({ type: "message", content: "/new" });
       this.$nextTick(() => {
         this.$refs.chatInput?.focus();
       });
+    },
+
+    /**
+     * Set selectedModel from the configured default tier (brainModelTier →
+     * configuredModels[tier]). Also syncs the header model badge.
+     * Used when entering a "new conversation" state or when the user changes
+     * the default tier while not inside an existing conversation.
+     */
+    applyDefaultConversationModel() {
+      const fallback = "claude-sonnet-4-6";
+      const modelId = this.configuredModels?.[this.brainModelTier] || fallback;
+      this.selectedModel = modelId;
+      if (Alpine.store("model")) {
+        Alpine.store("model").set(this.brainModelTier || "sonnet");
+      }
     },
 
     switchConversation(conversationId) {
@@ -1484,27 +1506,29 @@ function chat() {
           this.resetChatState();
           if (data.conversation) {
             this.currentConversationId = data.conversation.id;
-            // Sync model from conversation (use persisted selection as fallback)
-            this.selectedModel =
-              data.conversation.model ||
-              localStorage.getItem("selectedModel") ||
-              "claude-sonnet-4-6";
+            if (data.conversation.model) {
+              // Existing conversation with persisted model — honour it
+              this.selectedModel = data.conversation.model;
+              if (Alpine.store("model")) {
+                const m = this.selectedModel || "";
+                Alpine.store("model").set(
+                  m.includes("opus")
+                    ? "opus"
+                    : m.includes("haiku")
+                      ? "haiku"
+                      : "sonnet",
+                );
+              }
+            } else {
+              // Fresh conversation (e.g. just created via /new) — use
+              // configured default tier. data.conversation.model is null
+              // until the first message is sent.
+              this.applyDefaultConversationModel();
+            }
           } else {
             this.currentConversationId = null;
-            // Preserve user's last model selection for new conversations
-            this.selectedModel =
-              localStorage.getItem("selectedModel") || "claude-sonnet-4-6";
-          }
-          // Sync model store for header badge
-          if (Alpine.store("model")) {
-            const m = this.selectedModel || "";
-            Alpine.store("model").set(
-              m.includes("opus")
-                ? "opus"
-                : m.includes("haiku")
-                  ? "haiku"
-                  : "sonnet",
-            );
+            // New conversation view: use the configured default tier.
+            this.applyDefaultConversationModel();
           }
 
           // Convert turns to messages
@@ -3135,6 +3159,24 @@ function chat() {
         console.error("[App] Failed to load models:", err);
       }
 
+      // Load default conversation tier
+      try {
+        const res = await fetch("/api/settings/brain-model");
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.tier) this.brainModelTier = data.tier;
+        }
+      } catch (err) {
+        console.error("[App] Failed to load brain model tier:", err);
+      }
+
+      // If we're on the empty "new conversation" state (WS may have already
+      // fired conversation_loaded with null before this fetch resolved),
+      // re-apply the default so selectedModel matches the configured tier.
+      if (!this.currentConversationId) {
+        this.applyDefaultConversationModel();
+      }
+
       // Load available models from Anthropic API
       try {
         const res = await fetch("/api/settings/available-models");
@@ -3220,6 +3262,33 @@ function chat() {
         this.modelsStatus = "error";
       } finally {
         this.savingModels = false;
+      }
+    },
+
+    async saveBrainModelTier() {
+      this.modelsStatus = null;
+      try {
+        const res = await fetch("/api/settings/brain-model", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier: this.brainModelTier }),
+        });
+        if (!res.ok) {
+          this.modelsStatus = "error";
+          return;
+        }
+        const data = await res.json();
+        if (data?.tier) this.brainModelTier = data.tier;
+        // If the user is on the empty "new conversation" state, sync
+        // selectedModel so the next message uses the new default.
+        if (!this.currentConversationId) {
+          this.applyDefaultConversationModel();
+        }
+        this.modelsStatus = "saved";
+        setTimeout(() => (this.modelsStatus = null), 2000);
+      } catch (err) {
+        console.error("[App] Failed to save brain model tier:", err);
+        this.modelsStatus = "error";
       }
     },
 

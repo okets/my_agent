@@ -2894,8 +2894,23 @@
                         </select>
                       </div>
                     </template>
+                    <div class="flex items-center gap-3 pt-2 mt-2 border-t border-white/5">
+                      <span class="text-xs text-tokyo-muted w-14">Default</span>
+                      <select
+                        x-model="brainModelTier"
+                        @change="saveBrainModelTier()"
+                        class="flex-1 bg-[#1e1e2e] border border-white/10 rounded px-2 py-1.5 text-sm text-tokyo-text focus:border-violet-500/50 focus:outline-none"
+                      >
+                        <option value="sonnet">Sonnet</option>
+                        <option value="haiku">Haiku</option>
+                        <option value="opus">Opus</option>
+                      </select>
+                    </div>
                   </div>
-                  <div class="mt-2 h-4">
+                  <p class="text-[11px] text-tokyo-muted mt-2">
+                    Applies to new conversations. Current conversation keeps its model.
+                  </p>
+                  <div class="mt-1 h-4">
                     <span
                       x-show="modelsStatus === 'saved'"
                       x-transition
@@ -7901,7 +7916,22 @@
                         </select>
                       </div>
                     </template>
+                    <div class="flex items-center gap-2 pt-2 mt-1 border-t border-white/5">
+                      <span class="text-xs text-tokyo-muted w-12">Default</span>
+                      <select
+                        x-model="brainModelTier"
+                        @change="saveBrainModelTier()"
+                        class="flex-1 bg-[#1e1e2e] border border-white/10 rounded px-2 py-1.5 text-sm text-tokyo-text focus:border-violet-500/50 focus:outline-none"
+                      >
+                        <option value="sonnet">Sonnet</option>
+                        <option value="haiku">Haiku</option>
+                        <option value="opus">Opus</option>
+                      </select>
+                    </div>
                   </div>
+                  <p class="text-[11px] text-tokyo-muted mt-1">
+                    Applies to new conversations.
+                  </p>
                   <div class="mt-1 h-4">
                     <span
                       x-show="modelsStatus === 'saved'"
