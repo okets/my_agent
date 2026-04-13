@@ -582,6 +582,12 @@ function chat() {
         : this.agentName.split(/\s+/)[0];
     },
 
+    get mobileHeaderLabel() {
+      return this.$store.mobile.chatState === "full"
+        ? "Chat with " + this.agentNickname
+        : this.agentFirstName + "'s Dashboard";
+    },
+
     get modelDisplayName() {
       const model = this.modelOptions.find((m) => m.id === this.selectedModel);
       return model ? model.name : "Sonnet 4.5";

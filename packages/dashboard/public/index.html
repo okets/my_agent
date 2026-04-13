@@ -150,13 +150,23 @@
       <div x-show="$store.mobile.isMobile" class="mobile-header" x-cloak>
         <!-- Left: status dot + agent name -->
         <div class="flex items-center gap-2 min-w-0">
+          <img
+            x-show="$store.connection.status === 'connected'"
+            :src="agentLogoSrc"
+            alt="Agent logo"
+            class="agent-logo-avatar w-[1.5625rem] h-[1.5625rem] rounded-full shrink-0"
+          />
           <span
-            class="w-2.5 h-2.5 rounded-full shrink-0"
-            :class="$store.connection.status === 'connected' ? 'bg-green-400' : $store.connection.status === 'reconnecting' ? 'bg-yellow-400 animate-pulse' : 'bg-red-400'"
+            x-show="$store.connection.status === 'reconnecting'"
+            class="w-2.5 h-2.5 rounded-full shrink-0 bg-yellow-400 animate-pulse"
+          ></span>
+          <span
+            x-show="$store.connection.status === 'offline'"
+            class="w-2.5 h-2.5 rounded-full shrink-0 bg-red-400"
           ></span>
           <span
             class="text-sm font-semibold truncate"
-            x-text="$store.mobile.chatState === 'full' ? 'Chat with ' + agentNickname : agentName + ' Dashboard'"
+            x-text="mobileHeaderLabel"
           ></span>
         </div>
         <!-- Right: collapse arrow (in full chat) or bell + gear -->
