@@ -292,11 +292,18 @@ count accounted for by the removed route test file.
 > UI, the debug API (which keys on folder name for paths), and profile
 > resolution. Pick the slug FIRST, use it consistently."
 
-No re-run needed — FU2 is cosmetic and Nina's current `.my_agent/
-capabilities/chrome/` still registers (capability name field is
-`browser-chrome`, so registry uses that; folder slug is cosmetic). Future
-builds will land the correct slug. If the current Chrome capability
-deserves a rename for consistency, that's a user-triggered action.
+**Canonical state reconciled:** CTO flagged that the existing
+`.my_agent/capabilities/chrome/` folder was itself a violation of the
+new rule. Renamed `chrome/ → browser-chrome/` on disk. Wrapper resolves
+paths via `__dirname` (no hardcoded folder slug) so the rename was
+a pure filesystem move. Dashboard restarted, registry re-scanned:
+```
+[Capabilities] Discovered 5 capabilities: browser-chrome [available], …
+[SessionManager] browser-control: 1 registry capability(ies) — browser-chrome
+```
+`/api/settings/capabilities/v2` confirms `browser-chrome` present,
+enabled, canDelete. Future builds will land the correct slug per the new
+prompt rule.
 
 **FU1 status:** CLOSED. **FU2 status:** CLOSED. All four sprint follow-ups
 now resolved in-branch.
