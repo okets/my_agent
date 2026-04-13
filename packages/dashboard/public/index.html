@@ -38,13 +38,6 @@
     <!-- Fonts -->
     <link rel="icon" type="image/png" href="/favicon.png?v=__BUILD_VERSION__" />
     <link rel="apple-touch-icon" href="/favicon.png?v=__BUILD_VERSION__" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
-      rel="stylesheet"
-    />
-
     <!-- Load agent info -->
     <script>
       fetch("/api/hatching/status")
@@ -61,21 +54,22 @@
     <!-- Alpine.js -->
     <script
       defer
-      src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"
+      src="/vendor/alpinejs/collapse.min.js?v=__BUILD_VERSION__"
     ></script>
     <script
       defer
-      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+      src="/vendor/alpinejs/cdn.min.js?v=__BUILD_VERSION__"
     ></script>
 
     <!-- Markdown + sanitization -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script src="/vendor/marked/marked.umd.js?v=__BUILD_VERSION__"></script>
+    <script src="/vendor/dompurify/purify.min.js?v=__BUILD_VERSION__"></script>
 
-    <!-- FullCalendar (CDN) -->
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <!-- FullCalendar -->
+    <script src="/vendor/fullcalendar/index.global.min.js?v=__BUILD_VERSION__"></script>
 
     <!-- App styles -->
+    <link rel="stylesheet" href="css/fonts.css?v=__BUILD_VERSION__" />
     <link rel="stylesheet" href="css/tailwind.css?v=__BUILD_VERSION__" />
     <link rel="stylesheet" href="css/app.css?v=__BUILD_VERSION__" />
     <link rel="stylesheet" href="css/calendar.css?v=__BUILD_VERSION__" />
