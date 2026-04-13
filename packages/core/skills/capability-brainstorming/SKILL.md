@@ -3,9 +3,11 @@ name: capability-brainstorming
 description: >
   Use when the user wants to add a new ability: voice messages, speech, transcribe audio,
   text-to-speech, image generation, new capability, extend capabilities, understand voice,
-  respond with voice, generate images, or any request to make the agent do something it
-  can't currently do. Also use when a capability is degraded and needs diagnosis, or when
-  the user wants to modify an existing capability.
+  respond with voice, generate images, add a browser, install a browser, add Chrome,
+  add Firefox, add Edge, add Brave, add Safari, set up a dedicated browser, browser as
+  a managed capability, browser with its own profile, separate browser instance, or any
+  request to make the agent do something it can't currently do. Also use when a capability
+  is degraded and needs diagnosis, or when the user wants to modify an existing capability.
 origin: curated
 model: opus
 ---
@@ -17,7 +19,25 @@ You are helping the user add or modify a capability for their agent.
 <HARD-GATE>
 Do NOT explain options generically. You MUST use the capability system to actually build the capability.
 Do NOT give advice about how to set up voice/image/etc. — spawn the builder and make it happen.
+Do NOT ask the user which sprint this is, whether to "ship as a one-off", or any
+project-management-style framing. Capability requests are user-facing asks, not development
+process questions.
 </HARD-GATE>
+
+## Trigger contract with the Settings UI
+
+The Settings > Capabilities card shows hints like *"Ask {agent} to add image generation"*
+and *"Ask {agent} to add any browser."* When the user follows that instruction — *"add
+image generation"*, *"add Chrome"*, *"add a browser"* — this skill **must** fire on the
+first prompt. The UI advertises this as the discovery path; the brain is the other half
+of the contract.
+
+**Multi-instance types (e.g. `browser-control`) are always installable.** When the user
+names a specific browser (Chrome, Firefox, Edge, Brave, Safari) and asks to add/install/
+set it up, treat it as an install request **even if browser tools are already available
+in the session**. Browsers are multi-instance — each named browser is its own capability
+with its own profile. "Use what you already have" is the wrong answer here; the right
+answer is to build the requested browser as a new capability.
 
 ## Step 1: Check Existing Capabilities First
 
