@@ -249,6 +249,10 @@ export class HeartbeatService {
         return `A background task was interrupted (stale — no activity for 5+ minutes).\n\nProgress: ${n.todos_completed ?? 0}/${n.todos_total ?? 0} items done.\nIncomplete: ${n.incomplete_items?.join(", ") || "unknown"}\nResumable: ${n.resumable ? "yes" : "no"}\n\n${naturalFraming}`;
       case "job_needs_review":
         return `A background task needs your review.\n\n${n.summary}\n\n${naturalFraming}`;
+      case "infra_alert":
+        // Caller supplies the full user-facing prompt in `summary`. Passed
+        // through verbatim so the queue path preserves the original wording.
+        return n.summary;
       default:
         return `[Notification] ${n.summary}\n\n${naturalFraming}`;
     }

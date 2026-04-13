@@ -103,3 +103,28 @@ Six test files with `vi.fn().mockResolvedValue(true|false)` on `alert` migrated 
 - Full dashboard suite: 1187 pass, 12 skipped, 4 fail (all pre-existing: 2 UI status-icon assertions in `tests/unit/ui/progress-card.test.ts`, 1 Playwright automation-ui test, 1 Playwright progress-card test — none touch routing, notifications, or the initiator).
 - M10-S0-scoped tests: 32/32 pass (17 initiator + 8 routing-presence + 7 get-last-user-turn). The three new architect-acceptance tests all FAILED against the pre-fix code (verified during TDD phase) and PASS now.
 - Grep: still 0 references to `sourceChannel`, `source_channel`, `isDashboardSourced`, `getLastWebMessageAge`, `useWeb`, `webAge` in `packages/dashboard/src/`.
+
+---
+
+## 2026-04-13 — Eventual give-up on persistent transport failure (explicit)
+
+`HeartbeatService.deliverPendingNotifications()` caps retries at `MAX_DELIVERY_ATTEMPTS = 10` (see `heartbeat-service.ts`). The behavior, stated plainly:
+
+- Each `drainNow()` / 30 s tick bumps `delivery_attempts` by 1 on a `transport_failed` result.
+- When a notification reaches `delivery_attempts >= 10`, the loop logs:
+  `[Heartbeat] Notification <job_id> exceeded 10 delivery attempts — moving to delivered`
+- The notification is then moved to `notifications/delivered/` **without the user ever being told**. There is no UI surface, no in-transcript trace, no retry queue, no escalation. It is silently given up on.
+
+**Why acceptable for M10-S0:** the retry cadence (30 s × 10 = ~5 min minimum, unbounded if drainNow runs more often) covers essentially all transient transport glitches. A 5+ minute continuous disconnect is an operator-visible outage — the dashboard transport status + server logs are the appropriate surface, not the user's conversation.
+
+**Known gap (M10-S0.1 candidate):** there is no operator-facing alert when the give-up log fires. If a user is on WhatsApp and WA is down for >5 min, a completion may be silently dropped and the operator only learns by grepping logs. A follow-up sprint should add either (a) a bounded-time infinite retry with an in-UI pending indicator, or (b) an operator dashboard that surfaces the delivered-but-gave-up counter. Not blocking M10-S0 — the failure mode is operator-negligence rather than data-loss (the transcript record and the automation job summary still exist; only the push notification is lost).
+
+---
+
+## 2026-04-13 — Final tiny gaps
+
+Three leftover items flagged post-architect-review:
+
+- **`mount_failure` wired through the notification queue.** Previously `app.ts:1619` called `alert()` fire-and-forget and swallowed the result. Now it enqueues a new `infra_alert` notification type and fires `drainNow()`. Transient WA flakes on mount-failure alerts retry through the same path as job completions. `formatNotification` handles `infra_alert` by passing the summary through verbatim (the caller already composed the user-facing wording).
+- **`initiate()` hardening.** When a caller explicitly passes `channel: "X"` and transport X is disconnected, `initiate()` now throws `Error("initiate(): requested channel X is not connected")` instead of silently creating a web-bound conversation. Unreachable from `alert()` today (upfront check catches it), but guards future callers. Test: `tests/conversation-initiator.test.ts — "throws when the explicitly-requested channel is disconnected (hardening)"`.
+- **Give-up semantics documented above.**

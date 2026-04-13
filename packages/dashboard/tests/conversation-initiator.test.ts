@@ -427,6 +427,24 @@ describe("ConversationInitiator", () => {
       expect(channelManager.sent[0].content).toBe("Good morning!");
     });
 
+    it("throws when the explicitly-requested channel is disconnected (hardening)", async () => {
+      const chatService = createMockChatService();
+      const channelManager = createMockChannelManager(false); // disconnected
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager,
+        getOutboundChannel: () => "web",
+      });
+
+      await expect(
+        initiator.initiate({
+          firstTurnPrompt: "[SYSTEM: test]",
+          channel: "whatsapp",
+        }),
+      ).rejects.toThrow(/whatsapp/);
+    });
+
     it("demotes existing current conversation", async () => {
       const existing = await manager.create();
       expect(existing.status).toBe("current");

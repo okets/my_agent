@@ -198,6 +198,20 @@ export class ConversationInitiator {
       options?.channel,
     );
 
+    // Harden: if the caller explicitly asked for a non-web channel and it's
+    // unavailable, fail loud rather than silently creating a web-only
+    // conversation on the "wrong" channel. alert()'s upfront connectivity
+    // check means this path is unreachable today; this guards future callers.
+    if (
+      options?.channel &&
+      options.channel !== "web" &&
+      !resolvedChannelId
+    ) {
+      throw new Error(
+        `initiate(): requested channel "${options.channel}" is not connected`,
+      );
+    }
+
     const conv = await this.conversationManager.create({
       externalParty: ownerJid ?? undefined,
     });
