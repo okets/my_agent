@@ -171,6 +171,51 @@ clean up in Phase G prep.
 
 ---
 
+## D8 — Fix skill discoverability gap (FU4 closed in-sprint)
+
+**Date:** 2026-04-13
+**Phase:** post-G, pre-merge.
+
+**Context:** CTO pushback on Phase F — took 3 prompts before the skill
+invoked, even though the Settings card explicitly says *"Ask {agent} to
+add any browser"*. Users won't be that persistent; we ship a broken
+UI/brain contract.
+
+**Fix:** Edit `packages/core/skills/capability-brainstorming/SKILL.md`:
+- Expanded description to enumerate browser-by-name triggers ("add Chrome",
+  "add Firefox", "install a browser", "dedicated browser instance",
+  "browser with its own profile", etc.).
+- Added explicit rule: multi-instance types are always installable;
+  naming a specific browser = install request, **even if browser tools
+  are already present in the session**.
+- Strengthened `<HARD-GATE>`: no project-management framing ("which
+  sprint", "ship one-off vs full") — capability requests are user asks,
+  not dev process questions.
+- Added "Trigger contract with the Settings UI" section that quotes the
+  UI hint text verbatim so the contract is visible inside the skill.
+
+**Verification (option C from pushback thread):** Disabled browser-chrome
+(no `.enabled`), restarted dashboard (empty registry, no fallback per
+Phase G), opened fresh chat, sent "add Chrome". Nina responded with ONE
+focused clarifier ("Chrome as a browser capability?"), proceeded without
+waiting for reply, verified the existing disabled capability's shape
+(detect.sh, deps, wrapper), and reported completion. Auto-renamed the
+conversation to "Installing Chrome Browser Capability [browser-automation,
+chrome-setup, capabilities, playwright]".
+
+Compared to Phase F iteration 1 (3 prompts + PM framing + "you already
+have Playwright" dismissal), this is the discoverability the feature's
+UI hint promised.
+
+**FU4 status:** CLOSED. Fix shipped in commit `dabdd69`.
+
+**Note on FU3:** Nina still didn't create `.enabled` after verifying the
+capability was good — option C re-test surfaced the same gap as Phase F.
+FU3 stays open as the next capability-sprint priority (top reviewer
+recommendation).
+
+---
+
 ## D3 — Pin @playwright/mcp in capability's package.json (not npx fetch)
 
 **Date:** 2026-04-13

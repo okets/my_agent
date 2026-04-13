@@ -51,6 +51,14 @@ single `touch`). This is a P1 polish for the next capability sprint.
 
 ## FU4 — `capability-brainstorming` skill description needs browser triggers
 
+**Status:** CLOSED in-sprint via commit `dabdd69`. See DECISIONS.md D8. Kept
+in this log as reference for future multi-instance capability types (same
+pattern will be needed when adding a second multi-instance type).
+
+---
+
+## FU4 (original) — `capability-brainstorming` skill description needs browser triggers
+
 **Discovered:** Phase F (D6 + D7).
 
 The skill triggered on prompt 3 of 3 in iteration 2, after the user
