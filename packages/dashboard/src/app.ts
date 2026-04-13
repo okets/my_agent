@@ -1085,6 +1085,7 @@ export class App extends EventEmitter {
         app.conversationSearchService ?? undefined,
         app.conversationManager ?? undefined,
         debriefAdapter,
+        app.capabilityRegistry ?? undefined,
       );
     }
 
@@ -1186,6 +1187,7 @@ export class App extends EventEmitter {
               app.emit("job:progress", job);
             }
           },
+          capabilityRegistry: app.capabilityRegistry ?? undefined,
         });
 
         // Persistent notification queue — heartbeat handles delivery
@@ -1650,14 +1652,14 @@ export class App extends EventEmitter {
       addMcpServer("skills", skillServer);
     }
 
-    // ── Desktop control (M9.5-S3: registry-based) ──
+    // ── Desktop control (M9.5-S3: registry-based; M9.5-S7: listByProvides) ──
     {
-      // Registry path: if desktop-x11 capability is installed and enabled, wire factory
-      const desktopCap = app.capabilityRegistry?.list().find(
-        (c) => c.provides === 'desktop-control' && c.interface === 'mcp' && c.entrypoint && c.enabled,
-      )
+      // Registry path: if a desktop-control capability is installed and enabled, wire factory
+      const desktopCap = app.capabilityRegistry
+        ?.listByProvides('desktop-control')
+        .filter((c) => c.interface === 'mcp' && c.entrypoint && c.status === 'available' && c.enabled)[0]
 
-      if (desktopCap && desktopCap.status === 'available') {
+      if (desktopCap) {
         // Factory: return stdio config so the SDK spawns the process itself.
         // Resolve entrypoint args to absolute paths (SDK may not support cwd).
         const entrypointParts = desktopCap.entrypoint!.split(/\s+/)
@@ -1677,9 +1679,9 @@ export class App extends EventEmitter {
           ),
         }})
 
-        console.log(`[Desktop] desktop-x11 capability wired via registry (cmd: ${entrypointParts[0]} ${resolvedArgs.join(' ')})`)
+        console.log(`[Desktop] desktop-control: 1 registry capability — ${desktopCap.name} (cmd: ${entrypointParts[0]} ${resolvedArgs.join(' ')})`)
       } else {
-        console.log('[Desktop] No desktop-control capability installed — desktop tools unavailable')
+        console.log('[Desktop] desktop-control: no capabilities — desktop tools unavailable')
       }
     }
 

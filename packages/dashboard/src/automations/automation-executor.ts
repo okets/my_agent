@@ -25,6 +25,7 @@ import type {
   AuditEntry,
   StoreCallback,
   TodoItem,
+  CapabilityRegistry,
 } from "@my-agent/core";
 import type { PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import fs from "node:fs";
@@ -68,6 +69,7 @@ export interface AutomationExecutorConfig {
   hooks?: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
   visualService?: import("../visual/visual-action-service.js").VisualActionService;
   onJobProgress?: (jobId: string, progress: TodoProgress) => void;
+  capabilityRegistry?: CapabilityRegistry;
 }
 
 export interface ExecutionResult {
@@ -347,12 +349,45 @@ export class AutomationExecutor {
         });
       }
 
-      // Playwright MCP server — enables workers to take web screenshots
-      workerMcpServers["playwright"] = {
-        type: "stdio" as const,
-        command: "npx",
-        args: ["@playwright/mcp"],
-      };
+      // Browser-control capabilities (M9.5-S7: registry-based, dual-path)
+      const browserCaps =
+        this.config.capabilityRegistry
+          ?.listByProvides("browser-control")
+          .filter((c) => c.status === "available" && c.enabled) ?? [];
+
+      if (browserCaps.length === 0) {
+        workerMcpServers["playwright"] = {
+          type: "stdio" as const,
+          command: "npx",
+          args: ["@playwright/mcp"],
+        };
+        console.log(
+          `[AutomationExecutor] browser-control: no capabilities, using hardcoded fallback (npx @playwright/mcp)`,
+        );
+      } else {
+        for (const cap of browserCaps) {
+          const parts = (cap.entrypoint ?? "").trim().split(/\s+/);
+          const command = parts[0] ?? "";
+          const args = parts.slice(1).map((arg) =>
+            arg.startsWith(".") || (!arg.startsWith("/") && arg.includes("/"))
+              ? path.join(cap.path, arg)
+              : arg,
+          );
+          workerMcpServers[cap.name] = {
+            type: "stdio" as const,
+            command,
+            args,
+            env: Object.fromEntries(
+              Object.entries(process.env).filter(
+                (e): e is [string, string] => e[1] !== undefined,
+              ),
+            ),
+          };
+        }
+        console.log(
+          `[AutomationExecutor] browser-control: ${browserCaps.length} registry capability(ies) — ${browserCaps.map((c) => c.name).join(", ")}`,
+        );
+      }
 
       // Compute VAS store callback for screenshot pipeline
       const vasStore: StoreCallback | undefined = this.config.visualService

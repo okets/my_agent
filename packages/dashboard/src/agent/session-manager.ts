@@ -21,6 +21,7 @@ import type {
   HookEvent,
   HookCallbackMatcher,
   SearchService,
+  CapabilityRegistry,
 } from "@my-agent/core";
 import type { Options, PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import { appendFile, mkdir } from "node:fs/promises";
@@ -136,6 +137,7 @@ export function initMcpServers(
   conversationSearchService?: ConversationSearchService,
   conversationManager?: ConversationManager,
   debriefScheduler?: DebriefSchedulerLike,
+  capabilityRegistry?: CapabilityRegistry,
 ): void {
   // Derive agentDir from notebookDir (parent directory)
   const agentDir = notebookDir.replace(/\/notebook$/, "");
@@ -166,15 +168,62 @@ export function initMcpServers(
     console.log(`[SessionManager] Debrief MCP server registered`);
   }
 
-  // Playwright browser automation MCP server (stdio transport)
-  servers.playwright = {
-    type: "stdio" as const,
-    command: "npx",
-    args: ["@playwright/mcp"],
-  };
-  console.log(`[SessionManager] Playwright MCP server registered`);
+  // Browser-control capabilities (M9.5-S7: registry-based, dual-path)
+  const browserCaps =
+    capabilityRegistry
+      ?.listByProvides("browser-control")
+      .filter((c) => c.status === "available" && c.enabled) ?? [];
+
+  if (browserCaps.length === 0) {
+    servers.playwright = {
+      type: "stdio" as const,
+      command: "npx",
+      args: ["@playwright/mcp"],
+    };
+    console.log(
+      `[SessionManager] browser-control: no capabilities, using hardcoded fallback (npx @playwright/mcp)`,
+    );
+  } else {
+    for (const cap of browserCaps) {
+      const { command, args } = parseEntrypoint(cap.entrypoint ?? "", cap.path);
+      // SDK type has no `cwd`; parseEntrypoint absolutizes script paths and
+      // the wrapper resolves capabilityRoot via import.meta.url.
+      servers[cap.name] = {
+        type: "stdio" as const,
+        command,
+        args,
+        env: Object.fromEntries(
+          Object.entries(process.env).filter(
+            (e): e is [string, string] => e[1] !== undefined,
+          ),
+        ),
+      };
+    }
+    console.log(
+      `[SessionManager] browser-control: ${browserCaps.length} registry capability(ies) — ${browserCaps.map((c) => c.name).join(", ")}`,
+    );
+  }
 
   sharedMcpServers = servers;
+}
+
+/**
+ * Parse a CAPABILITY.md `entrypoint` string into `{ command, args }`.
+ * Args that look like relative paths (start with `.` or contain `/` without
+ * starting with `/`) are resolved against the capability folder.
+ */
+function parseEntrypoint(
+  entrypoint: string,
+  capPath: string,
+): { command: string; args: string[] } {
+  const parts = entrypoint.trim().split(/\s+/);
+  const command = parts[0] ?? "";
+  const args = parts.slice(1).map((arg) =>
+    arg.startsWith(".") || (!arg.startsWith("/") && arg.includes("/"))
+      ? path.join(capPath, arg)
+      : arg,
+  );
+  return { command, args };
 }
 
 /**
