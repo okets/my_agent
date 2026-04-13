@@ -3210,11 +3210,11 @@
                             <!-- Per-instance boxes -->
                             <template x-for="inst in type.instances" :key="inst.name">
                               <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md bg-white/[0.03] border border-white/5">
-                                <!-- Icon -->
+                                <!-- Icon — full-color brand SVGs ship with their own colors;
+                                     generic.svg is monochrome and gets a dim grey tint via JS fallback. -->
                                 <img :src="iconUrl(inst, type)" :alt="inst.label"
-                                  class="w-4 h-4 flex-shrink-0 opacity-80"
-                                  style="filter: invert(95%) sepia(8%) saturate(180%) hue-rotate(195deg);"
-                                  @error="$el.src = '/icons/browsers/generic.svg'">
+                                  class="w-4 h-4 flex-shrink-0"
+                                  @error="$el.src = '/icons/browsers/generic.svg'; $el.style.filter = 'invert(95%) sepia(8%) saturate(180%) hue-rotate(195deg)'; $el.style.opacity = '0.7';">
 
                                 <!-- Name + status -->
                                 <div class="flex-1 min-w-0">
