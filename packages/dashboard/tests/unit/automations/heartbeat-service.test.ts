@@ -39,7 +39,7 @@ function baseConfig(overrides: Partial<HeartbeatConfig>): HeartbeatConfig {
 
 describe("HeartbeatService.drainNow (M9.4-S5)", () => {
   it("delivers pending notifications when called directly", async () => {
-    const alert = vi.fn().mockResolvedValue(true);
+    const alert = vi.fn().mockResolvedValue({ status: "delivered" });
     const queue = mockQueue([
       { job_id: "job-1", _filename: "1.json", delivery_attempts: 0, type: "job_completed", summary: "ok" },
     ]);
@@ -56,7 +56,7 @@ describe("HeartbeatService.drainNow (M9.4-S5)", () => {
   });
 
   it("passes triggerJobId to alert()", async () => {
-    const alert = vi.fn().mockResolvedValue(true);
+    const alert = vi.fn().mockResolvedValue({ status: "delivered" });
     const queue = mockQueue([
       { job_id: "job-xyz", _filename: "x.json", delivery_attempts: 0, type: "job_completed", summary: "ok" },
     ]);
@@ -136,7 +136,7 @@ describe("HeartbeatService.drainNow (M9.4-S5)", () => {
   });
 
   it("honors MAX_DELIVERY_ATTEMPTS guard — skips alert and moves to delivered", async () => {
-    const alert = vi.fn().mockResolvedValue(true);
+    const alert = vi.fn().mockResolvedValue({ status: "delivered" });
     const queue = mockQueue([
       { job_id: "job-exceeded", _filename: "x.json", delivery_attempts: 10, type: "job_completed", summary: "ok" },
     ]);

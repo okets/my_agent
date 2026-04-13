@@ -1452,7 +1452,6 @@ export class App extends EventEmitter {
                     todos_total: total,
                     created: new Date().toISOString(),
                     delivery_attempts: 0,
-                    source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
                   });
                 }
               })
@@ -1483,7 +1482,6 @@ export class App extends EventEmitter {
                   resumable: !!job.sdk_session_id,
                   created: new Date().toISOString(),
                   delivery_attempts: 0,
-                  source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
                 });
                 app.statePublisher?.publishJobs();
               });
@@ -1508,7 +1506,6 @@ export class App extends EventEmitter {
             resumable: !!job.sdk_session_id,
             created: new Date().toISOString(),
             delivery_attempts: 0,
-            source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
           });
         }
 
@@ -1615,14 +1612,22 @@ export class App extends EventEmitter {
         // Re-sync watchers when automation manifests change
         app.automationSyncService.on("sync", () => watchTriggerService.sync());
 
-        // Mount failure -> alert user
+        // Mount failure -> alert user via the notification queue so transient
+        // transport failures retry (same path as automation completions).
         watchTriggerService.on("mount_failure", async ({ path, attempts }) => {
-          if (app.conversationInitiator) {
-            const prompt = `A filesystem watch on "${path}" has failed after ${attempts} retry attempts. The mount may be down.\n\nYou are the conversation layer — let the user know about this infrastructure issue briefly. Don't be dramatic, just inform them so they can check if needed.`;
-            await app.conversationInitiator.alert(prompt, {
-              sourceChannel: "dashboard",
-            });
-          }
+          const prompt = `A filesystem watch on "${path}" has failed after ${attempts} retry attempts. The mount may be down.\n\nYou are the conversation layer — let the user know about this infrastructure issue briefly. Don't be dramatic, just inform them so they can check if needed.`;
+          notificationQueue.enqueue({
+            job_id: `infra-mount-${Date.now()}`,
+            automation_id: "_infra",
+            type: "infra_alert",
+            summary: prompt,
+            created: new Date().toISOString(),
+            delivery_attempts: 0,
+          });
+          // Fast-path drain; failures are non-fatal (next 30 s tick retries).
+          heartbeatService.drainNow().catch((err) => {
+            console.warn("[app] mount_failure drainNow failed:", err);
+          });
         });
 
         console.log(

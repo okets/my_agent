@@ -182,6 +182,18 @@ export class ConversationManager {
   }
 
   /**
+   * Get the most recent user turn (any channel) from a conversation.
+   *
+   * Returns `{ channel, timestamp }` for the latest user turn or null if no
+   * user turns exist. Powers the routing presence rule (M10-S0).
+   */
+  async getLastUserTurn(
+    id: string,
+  ): Promise<{ channel: string | undefined; timestamp: string } | null> {
+    return this.transcripts.getLastUserTurn(id);
+  }
+
+  /**
    * Get turns before a given timestamp (cursor-based pagination)
    */
   async getTurnsBefore(

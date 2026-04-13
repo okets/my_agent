@@ -5,7 +5,12 @@
  *
  * Two primitives:
  * - alert(): Inject a system prompt into the current conversation
- * - initiate(): Start a new conversation on the preferred outbound channel
+ * - initiate(): Start a new conversation on a specific channel
+ *
+ * Routing follows the M10-S0 presence rule: last user turn's channel if
+ * within threshold, else preferred outbound channel. Delivery failures are
+ * surfaced via the AlertResult return type so callers (heartbeat) can retry
+ * instead of silently dropping.
  */
 
 import type { ConversationManager } from "../conversations/manager.js";
@@ -53,6 +58,16 @@ export interface ConversationInitiatorOptions {
   activityThresholdMinutes?: number;
 }
 
+/**
+ * Outcome of `alert()`. Three distinguishable states so callers can decide
+ * whether to retry (`transport_failed`), fall back to `initiate()`
+ * (`no_conversation`), or treat the notification as handled (`delivered`).
+ */
+export type AlertResult =
+  | { status: "delivered" }
+  | { status: "no_conversation" }
+  | { status: "transport_failed"; reason: string };
+
 const DEFAULT_THRESHOLD_MINUTES = 15;
 
 export class ConversationInitiator {
@@ -72,39 +87,41 @@ export class ConversationInitiator {
   }
 
   /**
-   * Deliver a system notification to the current conversation.
+   * Deliver a system notification (Working Nina escalation) to the current
+   * conversation, applying the M10-S0 routing presence rule:
    *
-   * Always finds the current conversation (there's always one, unless fresh install).
-   * Uses web recency to decide delivery channel:
-   * - Last web message < threshold: deliver via web (app.chat broadcasts to WS clients)
-   * - Last web message > threshold: deliver via preferred channel (WhatsApp)
+   *   targetChannel =
+   *     last user turn within threshold  → that turn's channel
+   *     otherwise                        → preferred outbound channel
    *
-   * Channel switches (web→WhatsApp) trigger a new conversation per the asymmetric rule.
-   *
-   * Returns true if delivered, false only if no current conversation exists.
+   * Channel is transport, not identity. There is no source-channel input:
+   * the rule depends only on conversation history and operator preference.
    */
   async alert(
     prompt: string,
-    options?: { sourceChannel?: string; triggerJobId?: string },
-  ): Promise<boolean> {
+    options?: { triggerJobId?: string },
+  ): Promise<AlertResult> {
     const current = await this.conversationManager.getCurrent();
     if (!current) {
       console.warn(
         "[ConversationInitiator] alert() — no current conversation exists",
       );
-      return false;
+      return { status: "no_conversation" };
     }
 
-    // Channel decision: is the user on the web?
-    const webAge = await this.getLastWebMessageAge(current.id);
-    const useWeb = webAge !== null && webAge < this.thresholdMinutes;
+    const last = await this.conversationManager.getLastUserTurn(current.id);
+    const within =
+      last !== null &&
+      Date.now() - new Date(last.timestamp).getTime() <
+        this.thresholdMinutes * 60 * 1000;
+    const preferred = this.getOutboundChannel();
+    const targetChannel = within
+      ? (last!.channel ?? "web")
+      : preferred || "web";
 
-    // Dashboard-sourced actions always stay on web — never route to WhatsApp
-    const isDashboardSourced = options?.sourceChannel === "dashboard";
-
-    if (useWeb || isDashboardSourced) {
-      // Deliver via app.chat — broadcasts to all WS clients automatically
-      for await (const event of this.chatService.sendSystemMessage(
+    // Web delivery: no external transport involved, no forward.
+    if (!targetChannel || targetChannel === "web") {
+      for await (const _event of this.chatService.sendSystemMessage(
         current.id,
         prompt,
         (current.turnCount ?? 0) + 1,
@@ -112,72 +129,93 @@ export class ConversationInitiator {
       )) {
         // consume events (turn saving + broadcasting handled by sendSystemMessage)
       }
-      return true;
+      return { status: "delivered" };
     }
 
-    // User not on web — deliver via preferred channel
-    const outboundChannel = this.getOutboundChannel();
-    if (!outboundChannel || outboundChannel === "web") {
-      // Web-only user, but they haven't messaged recently. Still deliver via web.
-      for await (const event of this.chatService.sendSystemMessage(
-        current.id,
-        prompt,
-        (current.turnCount ?? 0) + 1,
-        { triggerJobId: options?.triggerJobId },
-      )) {
-        // consume events
+    // External channel target. Resolve transport + ownerJid upfront so that a
+    // disconnected transport bubbles up as transport_failed BEFORE we either
+    // write an assistant turn or demote the current conversation.
+    const { ownerJid, resolvedChannelId } =
+      this.resolveOutboundInfo(targetChannel);
+    if (!ownerJid || !resolvedChannelId) {
+      console.warn(
+        `[ConversationInitiator] target channel "${targetChannel}" not available — deferring delivery`,
+      );
+      return {
+        status: "transport_failed",
+        reason: `${targetChannel} not connected`,
+      };
+    }
+
+    const isSameChannel =
+      !!current.externalParty && current.externalParty === ownerJid;
+
+    if (!isSameChannel) {
+      // Channel switch — new conversation on the presence-rule target, NOT
+      // on the preferred channel. Pass the channel explicitly so initiate()
+      // doesn't silently fall back to `getOutboundChannel()`.
+      await this.initiate({
+        firstTurnPrompt: `[SYSTEM: ${prompt}]`,
+        channel: targetChannel,
+      });
+      return { status: "delivered" };
+    }
+
+    let response = "";
+    for await (const event of this.chatService.sendSystemMessage(
+      current.id,
+      prompt,
+      (current.turnCount ?? 0) + 1,
+      { channel: targetChannel, triggerJobId: options?.triggerJobId },
+    )) {
+      if (event.type === "text_delta" && event.text) {
+        response += event.text;
       }
-      return true;
     }
-
-    // Check if this is a channel switch (web→WhatsApp).
-    // Conversations without externalParty are web-only; those with externalParty
-    // are already bound to an external channel. Compare with resolved ownerJid
-    // (not channel name) since externalParty is a JID like "123@s.whatsapp.net".
-    const { ownerJid } = this.resolveOutboundInfo();
-    const isCurrentOnWeb = !current.externalParty;
-    const isSameChannel = !isCurrentOnWeb && current.externalParty === ownerJid;
-    const needsNewConversation = !isSameChannel;
-
-    if (needsNewConversation) {
-      // Channel switch: create new conversation on preferred channel
-      await this.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
-    } else {
-      // Same channel: continue current conversation via app.chat
-      let response = "";
-      for await (const event of this.chatService.sendSystemMessage(
-        current.id,
-        prompt,
-        (current.turnCount ?? 0) + 1,
-        { channel: outboundChannel, triggerJobId: options?.triggerJobId },
-      )) {
-        if (event.type === "text_delta" && event.text) {
-          response += event.text;
-        }
-      }
-      // Forward to external channel
-      await this.forwardToChannel(response, outboundChannel);
+    const forward = await this.forwardToChannel(response, targetChannel);
+    if (!forward.delivered) {
+      return {
+        status: "transport_failed",
+        reason: forward.reason ?? "forward failed",
+      };
     }
-
-    return true;
+    return { status: "delivered" };
   }
 
   /**
-   * Start a new conversation on the preferred outbound channel.
-   * Falls back silently to web if the channel is unavailable.
-   * The conversation agent speaks first — no user turn needed.
+   * Start a new conversation on the given channel (or the preferred outbound
+   * channel if no override is supplied). The conversation agent speaks first.
+   *
+   * Callers invoking this as the channel-switch branch of `alert()` should
+   * pass the presence-rule target explicitly — otherwise the new conversation
+   * lands on the preferred channel, which may differ from the target.
    */
   async initiate(options?: {
     firstTurnPrompt?: string;
+    channel?: string;
   }): Promise<Conversation> {
-    // Resolve outbound channel info so the conversation is reply-matchable
-    const { ownerJid, resolvedChannelId } = this.resolveOutboundInfo();
+    const { ownerJid, resolvedChannelId } = this.resolveOutboundInfo(
+      options?.channel,
+    );
+
+    // Harden: if the caller explicitly asked for a non-web channel and it's
+    // unavailable, fail loud rather than silently creating a web-only
+    // conversation on the "wrong" channel. alert()'s upfront connectivity
+    // check means this path is unreachable today; this guards future callers.
+    if (
+      options?.channel &&
+      options.channel !== "web" &&
+      !resolvedChannelId
+    ) {
+      throw new Error(
+        `initiate(): requested channel "${options.channel}" is not connected`,
+      );
+    }
 
     const conv = await this.conversationManager.create({
       externalParty: ownerJid ?? undefined,
     });
 
-    // Brain speaks first via app.chat — broadcasts to WS clients
     const prompt =
       options?.firstTurnPrompt ||
       "[SYSTEM: You are reaching out to the user proactively. You are the conversation layer — explain briefly why you're messaging them. If you don't have a specific reason, let them know you're available.]";
@@ -194,24 +232,25 @@ export class ConversationInitiator {
       }
     }
 
-    // Forward to external channel if applicable
     if (response && resolvedChannelId) {
-      await this.forwardToChannel(response);
+      await this.forwardToChannel(response, resolvedChannelId);
     }
 
     return conv;
   }
 
-  // === Private helpers (unchanged from original) ===
+  // === Private helpers ===
 
   /**
-   * Resolve the outbound channel's transport ID and owner JID.
+   * Resolve a transport ID and owner JID for the given channel name.
+   * Defaults to the preferred outbound channel when no override is supplied.
+   * Returns nulls if the channel is "web", unknown, or disconnected.
    */
-  private resolveOutboundInfo(): {
+  private resolveOutboundInfo(channelOverride?: string): {
     ownerJid: string | null;
     resolvedChannelId: string | null;
   } {
-    const channelId = this.getOutboundChannel();
+    const channelId = channelOverride ?? this.getOutboundChannel();
     if (channelId === "web" || !channelId) {
       return { ownerJid: null, resolvedChannelId: null };
     }
@@ -234,15 +273,20 @@ export class ConversationInitiator {
   }
 
   /**
-   * Try to send a message via the preferred outbound channel.
-   * Silently falls back to web (no send) if channel is unavailable.
+   * Send a message via the given channel (or preferred outbound channel).
+   * Returns `delivered: false` with a reason when the transport is
+   * disconnected, has no ownerJid, or `send()` throws — so callers can
+   * retry rather than silently report success.
    */
   async forwardToChannel(
     content: string,
     channelOverride?: string,
-  ): Promise<void> {
+  ): Promise<{ delivered: boolean; reason?: string }> {
     const channelId = channelOverride ?? this.getOutboundChannel();
-    if (channelId === "web" || !channelId) return;
+    if (channelId === "web" || !channelId) {
+      // Web "forward" is a no-op — chat.sendSystemMessage already broadcast.
+      return { delivered: true };
+    }
 
     try {
       const channels = this.channelManager.getTransportInfos();
@@ -252,57 +296,28 @@ export class ConversationInitiator {
         (c) => c.id === channelId || c.plugin === pluginName,
       );
       if (!channel?.statusDetail?.connected) {
-        console.warn(
-          `[ConversationInitiator] Channel ${channelId} not connected, falling back to web`,
-        );
-        return;
+        const reason = `${channelId} not connected`;
+        console.warn(`[ConversationInitiator] ${reason}`);
+        return { delivered: false, reason };
       }
 
       const resolvedId = channel.id;
       const config = this.channelManager.getTransportConfig(resolvedId);
       const ownerJid = config?.ownerJid;
       if (!ownerJid) {
-        console.warn(
-          `[ConversationInitiator] No owner identity for channel ${channelId}, falling back to web`,
-        );
-        return;
+        const reason = `no ownerJid for ${channelId}`;
+        console.warn(`[ConversationInitiator] ${reason}`);
+        return { delivered: false, reason };
       }
 
       await this.channelManager.send(resolvedId, ownerJid, { content });
+      return { delivered: true };
     } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[ConversationInitiator] Failed to send via ${channelId}, falling back to web:`,
-        err,
+        `[ConversationInitiator] send via ${channelId} threw: ${reason}`,
       );
+      return { delivered: false, reason };
     }
-  }
-
-  /**
-   * Get the age (in minutes) of the most recent user message on the web channel.
-   * Returns null if no web user messages exist in the conversation.
-   *
-   * Web messages are identified by having no `channel` field or `channel === 'web'`.
-   */
-  private async getLastWebMessageAge(
-    conversationId: string,
-  ): Promise<number | null> {
-    const SEARCH_DEPTH = 50;
-    const recentTurns = await this.conversationManager.getRecentTurns(
-      conversationId,
-      SEARCH_DEPTH,
-    );
-
-    // Find the most recent user turn from web (no channel = web, or channel === 'web')
-    const lastWebUserTurn = recentTurns
-      .filter(
-        (t) =>
-          t.role === "user" && (!t.channel || t.channel === "web"),
-      )
-      .at(-1); // getRecentTurns returns oldest-first, so last = most recent
-
-    if (!lastWebUserTurn) return null;
-
-    const ageMs = Date.now() - new Date(lastWebUserTurn.timestamp).getTime();
-    return ageMs / (60 * 1000);
   }
 }

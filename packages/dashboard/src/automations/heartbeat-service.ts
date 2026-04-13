@@ -17,9 +17,16 @@ export interface HeartbeatConfig {
   conversationInitiator: {
     alert(
       prompt: string,
-      options?: { sourceChannel?: string; triggerJobId?: string },
-    ): Promise<boolean>;
-    initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
+      options?: { triggerJobId?: string },
+    ): Promise<
+      | { status: "delivered" }
+      | { status: "no_conversation" }
+      | { status: "transport_failed"; reason: string }
+    >;
+    initiate(options?: {
+      firstTurnPrompt?: string;
+      channel?: string;
+    }): Promise<unknown>;
   } | null;
   staleThresholdMs: number; // default: 5 * 60 * 1000
   tickIntervalMs: number; // default: 30 * 1000
@@ -128,7 +135,6 @@ export class HeartbeatService {
           resumable: true,
           created: new Date().toISOString(),
           delivery_attempts: 0,
-          source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
         });
 
         console.log(
@@ -177,21 +183,29 @@ export class HeartbeatService {
 
       try {
         const prompt = this.formatNotification(notification);
-        const delivered =
-          await this.config.conversationInitiator.alert(prompt, {
-            sourceChannel: notification.source_channel,
-            triggerJobId: notification.job_id, // M9.4-S5 B3
-          });
+        const result = await this.config.conversationInitiator.alert(prompt, {
+          triggerJobId: notification.job_id, // M9.4-S5 B3
+        });
 
-        if (delivered) {
+        if (result.status === "delivered") {
           this.config.notificationQueue.markDelivered(notification._filename!);
-        } else {
-          // No current conversation at all (fresh install edge case).
+        } else if (result.status === "no_conversation") {
+          // Fresh install edge case — no conversation exists yet.
           // Fall back to initiate() — per spec C2, no triggerJobId here.
           await this.config.conversationInitiator.initiate({
             firstTurnPrompt: `[SYSTEM: ${prompt}]`,
           });
           this.config.notificationQueue.markDelivered(notification._filename!);
+        } else {
+          // transport_failed — keep the notification pending so the next tick
+          // (or drainNow) retries. MAX_DELIVERY_ATTEMPTS handles eventual
+          // give-up. Do NOT markDelivered; do NOT initiate().
+          console.warn(
+            `[Heartbeat] Notification ${notification.job_id} deferred: ${result.reason}`,
+          );
+          this.config.notificationQueue.incrementAttempts(
+            notification._filename!,
+          );
         }
       } catch (err) {
         console.error(
@@ -235,6 +249,10 @@ export class HeartbeatService {
         return `A background task was interrupted (stale — no activity for 5+ minutes).\n\nProgress: ${n.todos_completed ?? 0}/${n.todos_total ?? 0} items done.\nIncomplete: ${n.incomplete_items?.join(", ") || "unknown"}\nResumable: ${n.resumable ? "yes" : "no"}\n\n${naturalFraming}`;
       case "job_needs_review":
         return `A background task needs your review.\n\n${n.summary}\n\n${naturalFraming}`;
+      case "infra_alert":
+        // Caller supplies the full user-facing prompt in `summary`. Passed
+        // through verbatim so the queue path preserves the original wording.
+        return n.summary;
       default:
         return `[Notification] ${n.summary}\n\n${naturalFraming}`;
     }

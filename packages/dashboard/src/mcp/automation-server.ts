@@ -157,7 +157,7 @@ export function createAutomationServer(deps: AutomationServerDeps) {
 
         if (isOnceManual) {
           deps.processor
-            .fire(automation, { sourceChannel: "dashboard" })
+            .fire(automation, {})
             .catch((err) =>
               console.error(
                 `[automation-server] auto-fire failed for ${automation.id}:`,
@@ -226,17 +226,12 @@ export function createAutomationServer(deps: AutomationServerDeps) {
       }
 
       try {
-        // Tag source as 'dashboard' — the brain's MCP tools always run in a
-        // dashboard session. This prevents job notifications from bleeding
-        // to WhatsApp when the active conversation has channel history.
-        const contextWithSource = {
-          ...args.context,
-          sourceChannel: "dashboard",
-        };
-
+        // Routing of completion notifications is handled by the M10-S0
+        // presence rule in ConversationInitiator.alert() — no per-call-site
+        // source-channel tagging.
         // Fire is async — don't await, let it run in the background
         deps.processor
-          .fire(automation, contextWithSource)
+          .fire(automation, args.context ?? {})
           .catch((err) =>
             console.error(
               `[automation-server] fire failed for ${args.automationId}:`,

@@ -38,9 +38,16 @@ export interface AutomationProcessorConfig {
   conversationInitiator?: {
     alert(
       prompt: string,
-      options?: { sourceChannel?: string },
-    ): Promise<boolean>;
-    initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
+      options?: { triggerJobId?: string },
+    ): Promise<
+      | { status: "delivered" }
+      | { status: "no_conversation" }
+      | { status: "transport_failed"; reason: string }
+    >;
+    initiate(options?: {
+      firstTurnPrompt?: string;
+      channel?: string;
+    }): Promise<unknown>;
   } | null;
   /** Called after a failure alert is delivered — for collision suppression with conversation watchdog */
   onAlertDelivered?: () => void;
@@ -265,7 +272,6 @@ export class AutomationProcessor {
         resumable: job.status === "needs_review",
         created: new Date().toISOString(),
         delivery_attempts: 0,
-        source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
       });
       // M9.4-S5 B2: fire-and-forget fast-path drain. Failures are non-fatal
       // — next 30s heartbeat tick retries.
@@ -283,12 +289,18 @@ export class AutomationProcessor {
 
     const prompt = `[${type}] ${automation.manifest.name}: ${summary}`;
     try {
-      const alerted = await ci.alert(prompt);
-      if (alerted) {
+      const result = await ci.alert(prompt);
+      if (result.status === "delivered") {
         this.config.onAlertDelivered?.();
-      } else {
+      } else if (result.status === "no_conversation") {
         await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
         this.config.onAlertDelivered?.();
+      } else {
+        // transport_failed — no queue configured in this fallback path, so
+        // there's nothing to retry against. Log and move on.
+        console.warn(
+          `[AutomationProcessor] Alert for job ${jobId} deferred: ${result.reason}`,
+        );
       }
     } catch {
       console.warn(

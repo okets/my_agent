@@ -327,7 +327,7 @@ describe("E2E agentic flow", () => {
     expect(pending[0].automation_id).toBe("notify-test");
 
     // Set up heartbeat to deliver the notification
-    const mockAlert = vi.fn(async () => true);
+    const mockAlert = vi.fn(async () => ({ status: "delivered" as const }));
     const heartbeat = new HeartbeatService({
       jobService: harness.automationJobService!,
       notificationQueue: queue,

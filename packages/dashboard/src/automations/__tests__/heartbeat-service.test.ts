@@ -38,7 +38,10 @@ describe("HeartbeatService", () => {
       updateJob: vi.fn(),
       getJob: vi.fn(),
     };
-    mockCi = { alert: vi.fn(async () => true), initiate: vi.fn(async () => ({})) };
+    mockCi = {
+      alert: vi.fn(async () => ({ status: "delivered" as const })),
+      initiate: vi.fn(async () => ({})),
+    };
   });
 
   afterEach(() => {
@@ -59,7 +62,7 @@ describe("HeartbeatService", () => {
 
   it("detects stale job (old last_activity) and marks interrupted", async () => {
     // Alert returns false — heartbeat should fall back to initiate()
-    mockCi.alert.mockResolvedValue(false);
+    mockCi.alert.mockResolvedValue({ status: "no_conversation" });
 
     const runDir = path.join(tmpDir, "run-1");
     fs.mkdirSync(runDir, { recursive: true });
@@ -152,7 +155,7 @@ describe("HeartbeatService", () => {
   });
 
   it("falls back to initiate() when ci.alert() returns false", async () => {
-    mockCi.alert.mockResolvedValue(false);
+    mockCi.alert.mockResolvedValue({ status: "no_conversation" });
 
     queue.enqueue({
       job_id: "job-fail",
@@ -183,7 +186,7 @@ describe("HeartbeatService", () => {
   });
 
   it("stops retrying after max delivery attempts", async () => {
-    mockCi.alert.mockResolvedValue(false);
+    mockCi.alert.mockResolvedValue({ status: "no_conversation" });
 
     queue.enqueue({
       job_id: "job-maxed",

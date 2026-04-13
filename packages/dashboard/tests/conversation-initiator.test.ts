@@ -202,7 +202,7 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("Morning brief is due.");
-      expect(result).toBe(true);
+      expect(result).toMatchObject({ status: "delivered" });
       expect(chatService.calls).toHaveLength(1);
       expect(chatService.calls[0].conversationId).toBe(conv.id);
     });
@@ -224,7 +224,7 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("Morning brief is due.");
-      expect(result).toBe(true);
+      expect(result).toMatchObject({ status: "delivered" });
     });
 
     it("returns false when no current conversation exists", async () => {
@@ -238,16 +238,16 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("Morning brief is due.");
-      expect(result).toBe(false);
+      expect(result).toMatchObject({ status: "no_conversation" });
     });
 
-    it("dashboard-sourced alerts never route to WhatsApp", async () => {
+    it("M10-S0: presence rule — last user turn on web within threshold → web delivery (no source-channel carve-out)", async () => {
+      // The old test asserted dashboard-sourced alerts always stayed on web.
+      // Under M10-S0 there is no source-channel input. The same outcome must
+      // hold from the user side: if the user's last turn was recently on web,
+      // delivery stays on web regardless of preferred channel.
       const conv = await manager.create();
-      const oldTime = new Date(Date.now() - 20 * 60 * 1000);
-      await manager.appendTurn(
-        conv.id,
-        makeTurn("user", 1, { timestamp: oldTime.toISOString() }),
-      );
+      await manager.appendTurn(conv.id, makeTurn("user", 1)); // recent web turn
 
       const chatService = createMockChatService();
       const channelManager = createMockChannelManager(true);
@@ -258,15 +258,13 @@ describe("ConversationInitiator", () => {
         getOutboundChannel: () => "whatsapp",
       });
 
-      const result = await initiator.alert("test prompt", {
-        sourceChannel: "dashboard",
-      });
-      expect(result).toBe(true);
+      const result = await initiator.alert("test prompt");
+      expect(result).toMatchObject({ status: "delivered" });
       expect(channelManager.sent).toHaveLength(0);
       expect(chatService.calls).toHaveLength(1);
     });
 
-    it("routes to WhatsApp when web message is stale and preferred channel is whatsapp", async () => {
+    it("routes to WhatsApp when last user turn is stale and preferred channel is whatsapp", async () => {
       const conv = await manager.create();
       const oldTime = new Date(Date.now() - 20 * 60 * 1000);
       await manager.appendTurn(
@@ -284,7 +282,7 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("Task completed.");
-      expect(result).toBe(true);
+      expect(result).toMatchObject({ status: "delivered" });
       // Channel switch creates a NEW conversation via initiate()
       const allConversations = await manager.list({});
       expect(allConversations.length).toBe(2);
@@ -317,7 +315,7 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("Task completed.");
-      expect(result).toBe(true);
+      expect(result).toMatchObject({ status: "delivered" });
       // Should continue in CURRENT conversation (same channel), not create new one
       expect(chatService.calls).toHaveLength(1);
       expect(chatService.calls[0].conversationId).toBe(conv.id);
@@ -326,8 +324,52 @@ describe("ConversationInitiator", () => {
       expect(channelManager.sent[0].content).toBe("Continued on WhatsApp");
     });
 
-    it("returns null web age when only channel messages exist", async () => {
-      const conv = await manager.create();
+    it("channel switch honors presence-rule target, not preferred channel (architect fix 1)", async () => {
+      // Preferred = "web". Conversation has no externalParty (web-origin).
+      // User's last turn was on WA 5 min ago → presence rule → WA.
+      // Pre-fix: alert() computes targetChannel=whatsapp then calls initiate()
+      // which resolves via getOutboundChannel()="web", so the new conversation
+      // lands on web. This test must FAIL before the fix.
+      const conv = await manager.create(); // externalParty=null (web-origin)
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      await manager.appendTurn(
+        conv.id,
+        makeTurn("user", 1, {
+          channel: "whatsapp",
+          timestamp: fiveMinAgo.toISOString(),
+        }),
+      );
+
+      const chatService = createMockChatService("WA body");
+      const channelManager = createMockChannelManager(true);
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager,
+        getOutboundChannel: () => "web", // preferred ≠ target on purpose
+      });
+
+      const result = await initiator.alert("test");
+      expect(result).toMatchObject({ status: "delivered" });
+
+      const allConversations = await manager.list({});
+      expect(allConversations.length).toBe(2);
+      const newConv = allConversations.find((c) => c.id !== conv.id);
+      expect(newConv).toBeDefined();
+      // New conversation must be bound to WA — the presence-rule target —
+      // NOT the preferred channel.
+      expect(newConv!.externalParty).toBe("1234567890@s.whatsapp.net");
+
+      // Actual transport delivery must land on WA.
+      expect(channelManager.sent).toHaveLength(1);
+      expect(channelManager.sent[0].channelId).toBe("whatsapp");
+    });
+
+    it("recent WhatsApp turn → routes to WhatsApp (matches externalParty, same conversation)", async () => {
+      // Conversation already bound to WA (matches mock ownerJid).
+      const conv = await manager.create({
+        externalParty: "1234567890@s.whatsapp.net",
+      });
       await manager.appendTurn(
         conv.id,
         makeTurn("user", 1, { channel: "whatsapp" }),
@@ -343,9 +385,12 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("test");
-      expect(result).toBe(true);
-      // No web messages = not on web, routes via channel
-      expect(chatService.calls.length).toBeGreaterThanOrEqual(1);
+      expect(result).toMatchObject({ status: "delivered" });
+      // Stays on the same conversation, forwards to WA.
+      expect(chatService.calls).toHaveLength(1);
+      expect(chatService.calls[0].conversationId).toBe(conv.id);
+      expect(channelManager.sent).toHaveLength(1);
+      expect(channelManager.sent[0].channelId).toBe("whatsapp");
     });
   });
 
@@ -382,6 +427,24 @@ describe("ConversationInitiator", () => {
       expect(channelManager.sent[0].content).toBe("Good morning!");
     });
 
+    it("throws when the explicitly-requested channel is disconnected (hardening)", async () => {
+      const chatService = createMockChatService();
+      const channelManager = createMockChannelManager(false); // disconnected
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager,
+        getOutboundChannel: () => "web",
+      });
+
+      await expect(
+        initiator.initiate({
+          firstTurnPrompt: "[SYSTEM: test]",
+          channel: "whatsapp",
+        }),
+      ).rejects.toThrow(/whatsapp/);
+    });
+
     it("demotes existing current conversation", async () => {
       const existing = await manager.create();
       expect(existing.status).toBe("current");
@@ -415,7 +478,7 @@ describe("ConversationInitiator", () => {
       });
 
       const alerted = await initiator.alert("Morning brief ready.");
-      expect(alerted).toBe(true);
+      expect(alerted).toMatchObject({ status: "delivered" });
       expect(chatService.calls).toHaveLength(1);
     });
   });

@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-12 (M9.4-S6 Progress Cadence merged — prompt fix + progress card UX redesign)
+> **Updated:** 2026-04-13 (M10-S0 Routing Simplification implemented — sourceChannel abstraction deleted, presence rule live in branch)
 
 ---
 
@@ -31,7 +31,7 @@
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **In Progress** | 6 done (S1-S5 + S2.5) + S6 spec'd. S5 closed UX-1 (handoff continuity); S6 addresses UX-2 (progress counter cadence via methodical-worker prompting). |
 | **M9.5: Capability Framework v2** | **Done** | 7 sprints done. S7 shipped browser-control as the framework's first multi-instance capability type. |
-| **M10: Channel SDK + Transports** | Planned | 4 sprints (transport SDK, email MS365, Discord, docs) |
+| **M10: Channel SDK + Transports** | In Progress | S0 (routing simplification) implemented + reviewed in branch; S1-S4 planned |
 | **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
 | **M13: Platform Hardening**  | Planned | 3 sprints (auth, backup/restore, update) — S4/S5 absorbed by M9.5 |
@@ -964,7 +964,7 @@ Mature the transport plugin interface into a proper SDK. Prove it with email (MS
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S0 | Routing Simplification | Planned | **M10 blocker.** Eliminate `sourceChannel` tagging and all routing hardcodes. Replace with one presence rule at delivery time: last user turn's channel if within 15 min, else preferred channel. Fixes WhatsApp-bleed issues #2/#3/#4 by removing the class of bug. [Plan](sprints/m10-s0-routing-simplification/plan.md) |
+| S0 | Routing Simplification | In Review | **M10 blocker.** Eliminated `sourceChannel` tagging and all routing hardcodes. One presence rule at delivery: last user turn's channel if within 15 min, else preferred channel. Removes the class of WhatsApp-bleed bugs (#2/#3/#4) by deleting the abstraction that caused them. [Plan](sprints/m10-s0-routing-simplification/plan.md) · [Fix doc](fixes/whatsapp-bleed-issue-4.md) · 6 integration + 7 unit tests, 0 prod refs to `sourceChannel`. Awaiting trip-review walkthrough + Task 6 production re-delivery. |
 | S1 | Transport SDK | Planned | Audit existing transport/channel interface (M3-S6), study OpenClaw connector patterns, define mature Transport SDK (lifecycle hooks, auth flows, message normalization, rich content mapping, health monitoring). Migrate WhatsApp transport to new SDK. |
 | S2 | Email Transport (MS365) | Planned | MS365 transport via Microsoft Graph API. OAuth flow, inbound polling, outbound sending, attachments, threading. Proves SDK works for async polling-based transports. |
 | S3 | Discord Transport | Planned | Discord.js transport. Bot auth, real-time websocket, rich embeds, reactions, threads. Proves SDK works for real-time event-based transports. |

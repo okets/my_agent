@@ -21,9 +21,16 @@ export interface AutomationSchedulerConfig {
   conversationInitiator?: {
     alert(
       prompt: string,
-      options?: { sourceChannel?: string },
-    ): Promise<boolean>;
-    initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
+      options?: { triggerJobId?: string },
+    ): Promise<
+      | { status: "delivered" }
+      | { status: "no_conversation" }
+      | { status: "transport_failed"; reason: string }
+    >;
+    initiate(options?: {
+      firstTurnPrompt?: string;
+      channel?: string;
+    }): Promise<unknown>;
   } | null;
 }
 
@@ -289,10 +296,10 @@ export class AutomationScheduler {
     }
   }
 
-  // NOTE: This bypasses the persistent notification queue and calls ci.alert()/ci.initiate()
-  // directly without sourceChannel. Scheduled jobs are not dashboard-originated, so this is
-  // acceptable. If dashboard-sourced scheduled jobs are ever supported, this needs routing
-  // through the persistent queue. See M9.3-S3.5 plan Task 7.4 Path 4.
+  // Scheduled-job failures bypass the persistent notification queue and call
+  // ci.alert()/ci.initiate() directly. Routing follows the M10-S0 presence
+  // rule (last user turn within 15 min → that channel, else preferred), so
+  // there is no source-channel input to thread through.
   private async notifyFailure(
     automationId: string,
     jobId: string,
@@ -307,9 +314,11 @@ export class AutomationScheduler {
       `A working agent running "${name}" ${errorSummary}.\n\n` +
       `Job ID: ${jobId}\n\n` +
       `You are the conversation layer — let the user know briefly.`;
-    const alerted = await ci.alert(prompt);
-    if (!alerted) {
+    const result = await ci.alert(prompt);
+    if (result.status === "no_conversation") {
       await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
     }
+    // transport_failed: nothing to retry here (no queue wired in this path).
+    // The alert already logged via the initiator.
   }
 }
