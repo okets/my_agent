@@ -964,6 +964,7 @@ Mature the transport plugin interface into a proper SDK. Prove it with email (MS
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
+| S0 | Routing Simplification | Planned | **M10 blocker.** Eliminate `sourceChannel` tagging and all routing hardcodes. Replace with one presence rule at delivery time: last user turn's channel if within 15 min, else preferred channel. Fixes WhatsApp-bleed issues #2/#3/#4 by removing the class of bug. [Plan](sprints/m10-s0-routing-simplification/plan.md) |
 | S1 | Transport SDK | Planned | Audit existing transport/channel interface (M3-S6), study OpenClaw connector patterns, define mature Transport SDK (lifecycle hooks, auth flows, message normalization, rich content mapping, health monitoring). Migrate WhatsApp transport to new SDK. |
 | S2 | Email Transport (MS365) | Planned | MS365 transport via Microsoft Graph API. OAuth flow, inbound polling, outbound sending, attachments, threading. Proves SDK works for async polling-based transports. |
 | S3 | Discord Transport | Planned | Discord.js transport. Bot auth, real-time websocket, rich embeds, reactions, threads. Proves SDK works for real-time event-based transports. |
