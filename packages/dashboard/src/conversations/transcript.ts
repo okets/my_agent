@@ -186,6 +186,43 @@ export class TranscriptManager {
   }
 
   /**
+   * Get the most recent user turn from the transcript, scanning from the tail.
+   *
+   * Used by the routing presence rule (M10-S0): determines whether the user
+   * was recently active and on which channel, so escalations can be delivered
+   * to the right place. Returns `channel` (undefined for web turns) and the
+   * turn's ISO timestamp, or null if the transcript has no user turns.
+   */
+  getLastUserTurn(
+    conversationId: string,
+  ): { channel: string | undefined; timestamp: string } | null {
+    const transcriptPath = this.getTranscriptPath(conversationId);
+
+    if (!fs.existsSync(transcriptPath)) {
+      return null;
+    }
+
+    const content = fs.readFileSync(transcriptPath, "utf-8");
+    const lines = content.split("\n").filter((line) => line.trim());
+
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const parsed = JSON.parse(lines[i]) as TranscriptLine;
+        if (parsed.type === "turn" && parsed.role === "user") {
+          return {
+            channel: parsed.channel,
+            timestamp: parsed.timestamp,
+          };
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Get turns before a given timestamp (cursor-based pagination)
    *
    * Returns up to `limit` turns that appear before the given timestamp,

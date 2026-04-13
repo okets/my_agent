@@ -18,8 +18,6 @@ export interface PersistentNotification {
   created: string;
   delivery_attempts: number;
   resumable?: boolean;
-  /** Source channel for routing — prevents WhatsApp bleed for dashboard-initiated jobs */
-  source_channel?: string;
   /** Internal — filename in pending/ or delivered/. Not persisted to disk. */
   _filename?: string;
 }

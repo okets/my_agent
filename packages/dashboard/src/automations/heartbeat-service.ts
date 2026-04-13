@@ -17,7 +17,7 @@ export interface HeartbeatConfig {
   conversationInitiator: {
     alert(
       prompt: string,
-      options?: { sourceChannel?: string; triggerJobId?: string },
+      options?: { triggerJobId?: string },
     ): Promise<boolean>;
     initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
   } | null;
@@ -128,7 +128,6 @@ export class HeartbeatService {
           resumable: true,
           created: new Date().toISOString(),
           delivery_attempts: 0,
-          source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
         });
 
         console.log(
@@ -179,7 +178,6 @@ export class HeartbeatService {
         const prompt = this.formatNotification(notification);
         const delivered =
           await this.config.conversationInitiator.alert(prompt, {
-            sourceChannel: notification.source_channel,
             triggerJobId: notification.job_id, // M9.4-S5 B3
           });
 

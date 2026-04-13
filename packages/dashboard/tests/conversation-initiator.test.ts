@@ -241,13 +241,13 @@ describe("ConversationInitiator", () => {
       expect(result).toBe(false);
     });
 
-    it("dashboard-sourced alerts never route to WhatsApp", async () => {
+    it("M10-S0: presence rule — last user turn on web within threshold → web delivery (no source-channel carve-out)", async () => {
+      // The old test asserted dashboard-sourced alerts always stayed on web.
+      // Under M10-S0 there is no source-channel input. The same outcome must
+      // hold from the user side: if the user's last turn was recently on web,
+      // delivery stays on web regardless of preferred channel.
       const conv = await manager.create();
-      const oldTime = new Date(Date.now() - 20 * 60 * 1000);
-      await manager.appendTurn(
-        conv.id,
-        makeTurn("user", 1, { timestamp: oldTime.toISOString() }),
-      );
+      await manager.appendTurn(conv.id, makeTurn("user", 1)); // recent web turn
 
       const chatService = createMockChatService();
       const channelManager = createMockChannelManager(true);
@@ -258,15 +258,13 @@ describe("ConversationInitiator", () => {
         getOutboundChannel: () => "whatsapp",
       });
 
-      const result = await initiator.alert("test prompt", {
-        sourceChannel: "dashboard",
-      });
+      const result = await initiator.alert("test prompt");
       expect(result).toBe(true);
       expect(channelManager.sent).toHaveLength(0);
       expect(chatService.calls).toHaveLength(1);
     });
 
-    it("routes to WhatsApp when web message is stale and preferred channel is whatsapp", async () => {
+    it("routes to WhatsApp when last user turn is stale and preferred channel is whatsapp", async () => {
       const conv = await manager.create();
       const oldTime = new Date(Date.now() - 20 * 60 * 1000);
       await manager.appendTurn(
@@ -326,8 +324,11 @@ describe("ConversationInitiator", () => {
       expect(channelManager.sent[0].content).toBe("Continued on WhatsApp");
     });
 
-    it("returns null web age when only channel messages exist", async () => {
-      const conv = await manager.create();
+    it("recent WhatsApp turn → routes to WhatsApp (matches externalParty, same conversation)", async () => {
+      // Conversation already bound to WA (matches mock ownerJid).
+      const conv = await manager.create({
+        externalParty: "1234567890@s.whatsapp.net",
+      });
       await manager.appendTurn(
         conv.id,
         makeTurn("user", 1, { channel: "whatsapp" }),
@@ -344,8 +345,11 @@ describe("ConversationInitiator", () => {
 
       const result = await initiator.alert("test");
       expect(result).toBe(true);
-      // No web messages = not on web, routes via channel
-      expect(chatService.calls.length).toBeGreaterThanOrEqual(1);
+      // Stays on the same conversation, forwards to WA.
+      expect(chatService.calls).toHaveLength(1);
+      expect(chatService.calls[0].conversationId).toBe(conv.id);
+      expect(channelManager.sent).toHaveLength(1);
+      expect(channelManager.sent[0].channelId).toBe("whatsapp");
     });
   });
 

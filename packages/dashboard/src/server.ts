@@ -69,7 +69,7 @@ declare module "fastify" {
     conversationInitiator: {
       alert(
         prompt: string,
-        options?: { sourceChannel?: string },
+        options?: { triggerJobId?: string },
       ): Promise<boolean>;
       initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
     } | null;

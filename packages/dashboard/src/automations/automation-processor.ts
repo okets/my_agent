@@ -38,7 +38,7 @@ export interface AutomationProcessorConfig {
   conversationInitiator?: {
     alert(
       prompt: string,
-      options?: { sourceChannel?: string },
+      options?: { triggerJobId?: string },
     ): Promise<boolean>;
     initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
   } | null;
@@ -265,7 +265,6 @@ export class AutomationProcessor {
         resumable: job.status === "needs_review",
         created: new Date().toISOString(),
         delivery_attempts: 0,
-        source_channel: (job.context as Record<string, unknown>)?.sourceChannel as string | undefined,
       });
       // M9.4-S5 B2: fire-and-forget fast-path drain. Failures are non-fatal
       // — next 30s heartbeat tick retries.
