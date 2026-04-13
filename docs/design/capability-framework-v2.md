@@ -469,5 +469,12 @@ External audit conducted 2026-04-11. Key findings and resolutions:
 
 ---
 
+## See also
+
+- [Adding a New Multi-Instance Capability Type](adding-a-multi-instance-capability-type.md) — checklist for future multi-instance types (browser-control was the first; next one will need the same brain-layer work — skill triggers, builder prompt mandates, UI hint alignment).
+
+---
+
 *Created: 2026-04-11*
 *Approved: 2026-04-11 — CTO architect session*
+*Extended: 2026-04-13 — multi-instance-capability checklist added after M9.5-S7 Phase F findings*
