@@ -11,6 +11,7 @@ describe('Capability types', () => {
       status: 'available',
       health: 'untested',
       enabled: true,
+      canDelete: false,
       entrypoint: 'npx tsx src/server.ts',
     }
     expect(cap.enabled).toBe(true)
@@ -26,6 +27,7 @@ describe('Capability types', () => {
       status: 'available',
       health: 'untested',
       enabled: true,
+      canDelete: false,
     }
     expect(cap.entrypoint).toBeUndefined()
   })

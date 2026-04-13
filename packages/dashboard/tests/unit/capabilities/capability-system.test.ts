@@ -209,6 +209,7 @@ describe("CapabilityRegistry", () => {
     status: "available",
     health: "untested",
     enabled: true,
+    canDelete: false,
   };
 
   const unavailableCap: Capability = {
@@ -220,6 +221,7 @@ describe("CapabilityRegistry", () => {
     unavailableReason: "missing OPENAI_API_KEY",
     health: "untested",
     enabled: true,
+    canDelete: false,
   };
 
   const otherCap: Capability = {
@@ -230,6 +232,7 @@ describe("CapabilityRegistry", () => {
     status: "available",
     health: "untested",
     enabled: true,
+    canDelete: false,
   };
 
   beforeEach(() => {
@@ -304,6 +307,7 @@ describe("CapabilityRegistry", () => {
       status: "available",
       health: "untested",
       enabled: true,
+      canDelete: false,
     };
     registry.load([realCap]);
 
@@ -340,6 +344,7 @@ describe("CapabilityRegistry", () => {
       status: "available",
       health: "untested",
       enabled: true,
+      canDelete: false,
     };
     registry.load([refCap]);
 

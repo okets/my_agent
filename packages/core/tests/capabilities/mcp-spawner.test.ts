@@ -14,6 +14,7 @@ function makeSmokeCap(): Capability {
     status: 'available',
     health: 'untested',
     enabled: true,
+    canDelete: false,
     entrypoint: 'npx tsx server.ts',
   }
 }
