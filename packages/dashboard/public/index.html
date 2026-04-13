@@ -3027,37 +3027,79 @@
                 </div>
               </div>
 
-              <!-- Capabilities (M9.5-S2) -->
+              <!-- Capabilities (M9.5-S2 → S7) -->
               <div class="glass-strong rounded-xl p-5" x-data="{
-                caps: [],
+                types: [],
                 loading: true,
                 toggling: null,
+                deleteTarget: null,
+                wipeProfile: false,
+                deleting: false,
+                _onChange: null,
                 init() {
-                  fetch('/api/settings/capabilities')
+                  this.refresh();
+                  this._onChange = () => this.refresh();
+                  window.addEventListener('capability:changed', this._onChange);
+                },
+                destroy() {
+                  if (this._onChange) window.removeEventListener('capability:changed', this._onChange);
+                },
+                refresh() {
+                  return fetch('/api/settings/capabilities/v2')
                     .then(r => r.json())
-                    .then(d => { this.caps = d.capabilities; this.loading = false; })
+                    .then(d => {
+                      this.types = d.capabilities || [];
+                      if (Alpine.store('capabilities')) {
+                        Alpine.store('capabilities').updateV2(this.types);
+                      }
+                      this.loading = false;
+                    })
                     .catch(() => { this.loading = false; });
                 },
-                toggle(type) {
-                  this.toggling = type;
-                  fetch('/api/settings/capabilities/' + type + '/toggle', { method: 'POST' })
+                toggleInstance(typeKey, inst) {
+                  this.toggling = inst.name;
+                  fetch('/api/settings/capabilities/' + encodeURIComponent(typeKey) + '/' + encodeURIComponent(inst.name) + '/toggle', { method: 'POST' })
                     .then(r => r.json())
                     .then(d => {
                       if (d.error) return;
                       const showTiming = d.effective === 'next_session';
-                      // Refetch full list — avoids optimistically snapping degraded → healthy
-                      return fetch('/api/settings/capabilities').then(r => r.json()).then(d => {
-                        this.caps = d.capabilities;
+                      return this.refresh().then(() => {
                         if (showTiming) {
-                          const cap = this.caps.find(c => c.type === type);
-                          if (cap) {
-                            cap._timing = 'Takes effect next session';
-                            setTimeout(() => { cap._timing = null; }, 4000);
+                          const t = this.types.find(t => t.type === typeKey);
+                          const i = t && t.instances.find(x => x.name === inst.name);
+                          if (i) {
+                            i._timing = 'Takes effect next session';
+                            setTimeout(() => { i._timing = null; }, 4000);
                           }
                         }
                       });
                     })
                     .finally(() => { this.toggling = null; });
+                },
+                askDelete(typeKey, inst) {
+                  this.deleteTarget = { typeKey, inst };
+                  this.wipeProfile = false;
+                },
+                cancelDelete() {
+                  this.deleteTarget = null;
+                  this.wipeProfile = false;
+                },
+                confirmDelete() {
+                  if (!this.deleteTarget) return;
+                  const { typeKey, inst } = this.deleteTarget;
+                  this.deleting = true;
+                  const url = '/api/settings/capabilities/' + encodeURIComponent(typeKey) + '/' + encodeURIComponent(inst.name) + '?wipeProfile=' + (this.wipeProfile ? 'true' : 'false');
+                  fetch(url, { method: 'DELETE' })
+                    .then(r => r.json())
+                    .then(d => {
+                      if (d.error) return;
+                      return this.refresh();
+                    })
+                    .finally(() => {
+                      this.deleting = false;
+                      this.deleteTarget = null;
+                      this.wipeProfile = false;
+                    });
                 },
                 stateColor(state) {
                   return {
@@ -3068,14 +3110,24 @@
                     'not-installed': 'bg-white/10',
                   }[state] || 'bg-white/10';
                 },
-                stateText(cap) {
+                stateText(inst) {
                   return {
                     'healthy': 'Active',
-                    'degraded': cap.degradedReason || 'Degraded',
+                    'degraded': inst.degradedReason || 'Degraded',
                     'disabled': 'Disabled',
-                    'unavailable': cap.unavailableReason || 'Unavailable',
-                    'not-installed': '',
-                  }[cap.state] || '';
+                    'unavailable': inst.unavailableReason || 'Unavailable',
+                  }[inst.state] || '';
+                },
+                iconUrl(inst, type) {
+                  const slug = (inst && inst.iconSlug) || (type && type.iconSlug) || 'generic';
+                  return '/icons/browsers/' + slug + '.svg';
+                },
+                singletonState(type) {
+                  if (!type.instances || type.instances.length === 0) return 'not-installed';
+                  return type.instances[0].state;
+                },
+                singletonInstance(type) {
+                  return (type.instances && type.instances[0]) || null;
                 }
               }">
                 <h3 class="text-sm font-semibold text-white/90 mb-4 flex items-center gap-2">
@@ -3093,58 +3145,160 @@
 
                 <!-- Capability rows -->
                 <template x-if="!loading">
-                  <div class="space-y-3">
-                    <template x-for="cap in caps" :key="cap.type">
-                      <div class="flex items-center justify-between py-1">
-                        <!-- Left: indicator + label -->
-                        <div class="flex items-center gap-2.5 min-w-0">
-                          <span class="w-2 h-2 rounded-full flex-shrink-0"
-                            :class="[stateColor(cap.state), cap.state === 'healthy' ? 'animate-pulse' : '']"></span>
-                          <div class="min-w-0">
-                            <span class="text-sm text-white/80 block" x-text="cap.label"></span>
-                            <!-- Installed name -->
-                            <template x-if="cap.capabilityName">
-                              <span class="text-[10px] text-white/30" x-text="cap.capabilityName"></span>
+                  <div class="space-y-4">
+                    <template x-for="type in types" :key="type.type">
+                      <div>
+                        <!-- Singleton row (unchanged visual) -->
+                        <template x-if="!type.multiInstance">
+                          <div class="flex items-center justify-between py-1">
+                            <!-- Left: indicator + label -->
+                            <div class="flex items-center gap-2.5 min-w-0">
+                              <span class="w-2 h-2 rounded-full flex-shrink-0"
+                                :class="[stateColor(singletonState(type)), singletonState(type) === 'healthy' ? 'animate-pulse' : '']"></span>
+                              <div class="min-w-0">
+                                <span class="text-sm text-white/80 block" x-text="type.label"></span>
+                                <!-- Installed name -->
+                                <template x-if="singletonInstance(type)">
+                                  <span class="text-[10px] text-white/30" x-text="singletonInstance(type).name"></span>
+                                </template>
+                                <!-- Status text for degraded/unavailable -->
+                                <template x-if="singletonInstance(type) && (singletonInstance(type).state === 'degraded' || singletonInstance(type).state === 'unavailable')">
+                                  <span class="text-[10px] block"
+                                    :class="singletonInstance(type).state === 'degraded' ? 'text-amber-400/70' : 'text-white/30'"
+                                    x-text="stateText(singletonInstance(type))"></span>
+                                </template>
+                                <!-- Not-installed hint -->
+                                <template x-if="!singletonInstance(type)">
+                                  <span class="text-[10px] text-white/25 italic block" x-text="type.hint"></span>
+                                </template>
+                                <!-- Toggle timing message -->
+                                <template x-if="singletonInstance(type) && singletonInstance(type)._timing">
+                                  <span class="text-[10px] text-cyan-400/60 block" x-text="singletonInstance(type)._timing"></span>
+                                </template>
+                              </div>
+                            </div>
+
+                            <!-- Right: toggle -->
+                            <template x-if="singletonInstance(type) && singletonInstance(type).canToggle">
+                              <label class="flex items-center gap-2 cursor-pointer flex-shrink-0">
+                                <input type="checkbox" class="sr-only" :checked="singletonInstance(type).enabled"
+                                  :disabled="toggling === singletonInstance(type).name"
+                                  @change="toggleInstance(type.type, singletonInstance(type))">
+                                <div class="w-8 h-4 rounded-full transition-colors"
+                                  :class="singletonInstance(type).enabled ? 'bg-emerald-500/40' : 'bg-white/10'">
+                                  <div class="w-3.5 h-3.5 rounded-full bg-white/80 transition-transform mt-0.5"
+                                    :class="singletonInstance(type).enabled ? 'translate-x-4 ml-0.5' : 'translate-x-0.5'"></div>
+                                </div>
+                              </label>
                             </template>
-                            <!-- Status text for degraded/unavailable -->
-                            <template x-if="cap.state === 'degraded' || cap.state === 'unavailable'">
-                              <span class="text-[10px] block"
-                                :class="cap.state === 'degraded' ? 'text-amber-400/70' : 'text-white/30'"
-                                x-text="stateText(cap)"></span>
-                            </template>
-                            <!-- Not-installed hint -->
-                            <template x-if="cap.state === 'not-installed'">
-                              <span class="text-[10px] text-white/25 italic block" x-text="cap.hint"></span>
-                            </template>
-                            <!-- Toggle timing message -->
-                            <template x-if="cap._timing">
-                              <span class="text-[10px] text-cyan-400/60 block" x-text="cap._timing"></span>
+
+                            <template x-if="!singletonInstance(type) || !singletonInstance(type).canToggle">
+                              <div class="w-8 h-4 rounded-full bg-white/5 flex-shrink-0"></div>
                             </template>
                           </div>
-                        </div>
-
-                        <!-- Right: toggle -->
-                        <template x-if="cap.canToggle">
-                          <label class="flex items-center gap-2 cursor-pointer flex-shrink-0">
-                            <input type="checkbox" class="sr-only" :checked="cap.enabled"
-                              :disabled="toggling === cap.type"
-                              @change="toggle(cap.type)">
-                            <div class="w-8 h-4 rounded-full transition-colors"
-                              :class="cap.enabled ? 'bg-emerald-500/40' : 'bg-white/10'">
-                              <div class="w-3.5 h-3.5 rounded-full bg-white/80 transition-transform mt-0.5"
-                                :class="cap.enabled ? 'translate-x-4 ml-0.5' : 'translate-x-0.5'"></div>
-                            </div>
-                          </label>
                         </template>
 
-                        <!-- Not toggleable — show greyed toggle placeholder -->
-                        <template x-if="!cap.canToggle">
-                          <div class="w-8 h-4 rounded-full bg-white/5 flex-shrink-0"></div>
+                        <!-- Multi-instance group card -->
+                        <template x-if="type.multiInstance">
+                          <div class="rounded-lg border border-white/10 bg-white/[0.02] p-3 space-y-2">
+                            <!-- Group header -->
+                            <div class="flex items-center gap-2 mb-1">
+                              <span class="text-sm font-medium text-white/80" x-text="type.label"></span>
+                              <span class="text-[10px] text-white/30" x-text="type.instances.length + (type.instances.length === 1 ? ' instance' : ' instances')"></span>
+                            </div>
+
+                            <!-- Per-instance boxes -->
+                            <template x-for="inst in type.instances" :key="inst.name">
+                              <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-md bg-white/[0.03] border border-white/5">
+                                <!-- Icon — full-color brand SVGs ship with their own colors;
+                                     generic.svg is monochrome and gets a dim grey tint via JS fallback. -->
+                                <img :src="iconUrl(inst, type)" :alt="inst.label"
+                                  class="w-4 h-4 flex-shrink-0"
+                                  @error="$el.src = '/icons/browsers/generic.svg'; $el.style.filter = 'invert(95%) sepia(8%) saturate(180%) hue-rotate(195deg)'; $el.style.opacity = '0.7';">
+
+                                <!-- Name + status -->
+                                <div class="flex-1 min-w-0">
+                                  <div class="flex items-center gap-2">
+                                    <span class="text-sm text-white/85 truncate" x-text="inst.label"></span>
+                                    <span class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                      :class="[stateColor(inst.state), inst.state === 'healthy' ? 'animate-pulse' : '']"></span>
+                                  </div>
+                                  <template x-if="inst.state === 'degraded' || inst.state === 'unavailable'">
+                                    <span class="text-[10px] block"
+                                      :class="inst.state === 'degraded' ? 'text-amber-400/70' : 'text-white/30'"
+                                      x-text="stateText(inst)"></span>
+                                  </template>
+                                  <template x-if="inst._timing">
+                                    <span class="text-[10px] text-cyan-400/60 block" x-text="inst._timing"></span>
+                                  </template>
+                                </div>
+
+                                <!-- Toggle -->
+                                <template x-if="inst.canToggle">
+                                  <label class="flex items-center cursor-pointer flex-shrink-0">
+                                    <input type="checkbox" class="sr-only" :checked="inst.enabled"
+                                      :disabled="toggling === inst.name"
+                                      @change="toggleInstance(type.type, inst)">
+                                    <div class="w-8 h-4 rounded-full transition-colors"
+                                      :class="inst.enabled ? 'bg-emerald-500/40' : 'bg-white/10'">
+                                      <div class="w-3.5 h-3.5 rounded-full bg-white/80 transition-transform mt-0.5"
+                                        :class="inst.enabled ? 'translate-x-4 ml-0.5' : 'translate-x-0.5'"></div>
+                                    </div>
+                                  </label>
+                                </template>
+                                <template x-if="!inst.canToggle">
+                                  <div class="w-8 h-4 rounded-full bg-white/5 flex-shrink-0"></div>
+                                </template>
+
+                                <!-- Trash -->
+                                <template x-if="inst.canDelete">
+                                  <button @click="askDelete(type.type, inst)"
+                                    class="ml-1 p-1 rounded text-white/30 hover:text-tokyo-pink hover:bg-white/5 transition-colors flex-shrink-0"
+                                    :title="'Remove ' + inst.label">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">
+                                      <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clip-rule="evenodd" />
+                                    </svg>
+                                  </button>
+                                </template>
+                              </div>
+                            </template>
+
+                            <!-- Persistent hint -->
+                            <p class="text-[11px] text-white/40 italic pt-1" x-text="type.hint"></p>
+                          </div>
                         </template>
                       </div>
                     </template>
                   </div>
                 </template>
+
+                <!-- Delete confirmation dialog -->
+                <div x-show="deleteTarget" x-cloak
+                     class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+                     @click.self="cancelDelete()">
+                  <div class="glass-strong rounded-xl p-5 w-96 space-y-4" @click.stop>
+                    <h4 class="text-sm font-semibold text-white/90">Remove capability</h4>
+                    <p class="text-xs text-white/70" x-show="deleteTarget">
+                      Remove <span class="font-mono text-white/90" x-text="deleteTarget?.inst.name"></span>?
+                      Saved logins and cookies are kept — reinstalling this browser will restore them.
+                      Check below to wipe the profile too.
+                    </p>
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-white/70">
+                      <input type="checkbox" x-model="wipeProfile"
+                        class="rounded border-white/20 bg-white/5 text-tokyo-pink focus:ring-tokyo-pink/30">
+                      <span>Also delete saved logins and cookies</span>
+                    </label>
+                    <div class="flex gap-2 justify-end">
+                      <button @click="cancelDelete()" :disabled="deleting"
+                        class="text-xs px-3 py-1.5 rounded-lg text-gray-400 hover:text-gray-300">Cancel</button>
+                      <button @click="confirmDelete()" :disabled="deleting"
+                        class="text-xs px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors">
+                        <span x-show="!deleting">Remove</span>
+                        <span x-show="deleting">Removing...</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- Desktop Control -->
@@ -3244,106 +3398,6 @@
                 </div>
               </div>
 
-              <!-- Browser Automation (Playwright) -->
-              <div class="glass-strong rounded-xl p-5">
-                <div x-data="{ status: null, installing: false }" x-init="
-                  fetch('/api/debug/playwright-status')
-                    .then(r => r.json())
-                    .then(d => status = d)
-                    .catch(() => {})
-                ">
-                  <!-- Heading with enable/disable toggle -->
-                  <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-semibold text-white/90">Browser Automation</h3>
-                    <template x-if="status && status.ready">
-                      <label class="flex items-center gap-2 cursor-pointer">
-                        <span class="text-xs text-white/40" x-text="status.enabled ? 'Enabled' : 'Disabled'"></span>
-                        <input type="checkbox" class="sr-only" :checked="status.enabled"
-                          @change="
-                            fetch('/api/debug/playwright-toggle', { method: 'POST' })
-                              .then(r => r.json())
-                              .then(d => status.enabled = d.enabled)
-                          ">
-                        <div class="w-8 h-4 rounded-full transition-colors" :class="status.enabled ? 'bg-emerald-500/40' : 'bg-white/10'">
-                          <div class="w-3.5 h-3.5 rounded-full bg-white/80 transition-transform mt-0.5" :class="status.enabled ? 'translate-x-4 ml-0.5' : 'translate-x-0.5'"></div>
-                        </div>
-                      </label>
-                    </template>
-                  </div>
-
-                  <!-- Status indicator -->
-                  <div class="flex items-center gap-2 mb-3">
-                    <template x-if="status && status.ready && status.enabled">
-                      <span class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span class="text-xs text-white/70">Ready</span>
-                      </span>
-                    </template>
-                    <template x-if="status && status.ready && !status.enabled">
-                      <span class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-white/20"></span>
-                        <span class="text-xs text-white/40">Disabled</span>
-                      </span>
-                    </template>
-                    <template x-if="status && !status.ready && status.installed">
-                      <span class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                        <span class="text-xs text-white/50">Browsers not installed</span>
-                      </span>
-                    </template>
-                    <template x-if="status && !status.installed">
-                      <span class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-white/20"></span>
-                        <span class="text-xs text-white/40">Package not available</span>
-                      </span>
-                    </template>
-                    <template x-if="!status">
-                      <span class="text-xs text-white/30">Loading...</span>
-                    </template>
-                  </div>
-
-                  <!-- Browser list -->
-                  <template x-if="status && status.browsers && status.browsers.length > 0">
-                    <div class="grid grid-cols-2 gap-1.5 mb-3">
-                      <template x-for="b in status.browsers" :key="b.name">
-                        <div class="flex items-center gap-1.5">
-                          <span class="text-xs" :class="b.installed ? 'text-emerald-400' : 'text-white/20'" x-text="b.installed ? '✓' : '✗'"></span>
-                          <span class="text-xs text-white/50" x-text="b.name"></span>
-                        </div>
-                      </template>
-                    </div>
-                  </template>
-
-                  <!-- Install button (when browsers not installed) -->
-                  <template x-if="status && status.installed && status.setupNeeded && status.setupNeeded.length > 0">
-                    <div class="mt-2 p-3 rounded-lg bg-white/5 border border-white/10">
-                      <template x-for="item in status.setupNeeded" :key="item">
-                        <p class="text-xs text-white/40 font-mono mb-1" x-text="item"></p>
-                      </template>
-                      <button
-                        class="mt-2 px-3 py-1.5 text-xs rounded bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500/30 transition-colors"
-                        :disabled="installing"
-                        @click="
-                          installing = true;
-                          $el.textContent = 'Installing...';
-                          fetch('/api/debug/playwright-install', { method: 'POST' })
-                            .then(r => r.json())
-                            .then(d => {
-                              if (d.success) {
-                                fetch('/api/debug/playwright-status').then(r => r.json()).then(s => { status = s; installing = false; });
-                                $el.textContent = 'Installed!';
-                              } else {
-                                $el.textContent = 'Failed — check logs';
-                                installing = false;
-                              }
-                            })
-                            .catch(() => { $el.textContent = 'Failed'; installing = false; })
-                        "
-                      >Install Playwright Browsers</button>
-                    </div>
-                  </template>
-                </div>
-              </div>
             </div>
           </div>
 

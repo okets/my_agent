@@ -15,6 +15,7 @@ describe('testCapability — MCP interface', () => {
       status: 'available',
       health: 'untested',
       enabled: true,
+      canDelete: false,
       entrypoint: 'npx tsx server.ts',
     }
 
@@ -32,6 +33,7 @@ describe('testCapability — MCP interface', () => {
       status: 'available',
       health: 'untested',
       enabled: true,
+      canDelete: false,
     }
 
     const result = await testCapability(cap, '')
@@ -48,6 +50,7 @@ describe('testCapability — MCP interface', () => {
       status: 'available',
       health: 'untested',
       enabled: true,
+      canDelete: false,
       entrypoint: 'npx tsx server.ts',
     }
 

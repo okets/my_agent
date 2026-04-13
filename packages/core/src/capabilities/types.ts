@@ -17,7 +17,31 @@ export interface Capability {
   mcpConfig?: CapabilityMcpConfig // expanded .mcp.json for interface: 'mcp' capabilities
   enabled: boolean // read from .enabled file in capability folder
   entrypoint?: string // command to start MCP server (mcp interface only)
+  /**
+   * Whether this capability may be deleted via the UI / API.
+   * True for instances of well-known multi-instance types (e.g. `browser-control`),
+   * false for singletons (e.g. `desktop-control`, `audio-to-text`). Populated by the scanner.
+   */
+  canDelete: boolean
+  /**
+   * simple-icons slug (e.g. `googlechrome`, `microsoftedge`) used by the UI to
+   * pick a bundled SVG. Populated from the `icon:` frontmatter field. Optional;
+   * falls back to a generic icon when absent.
+   */
+  iconSlug?: string
 }
+
+/**
+ * Well-known capability `provides:` types whose instances the user may install,
+ * toggle, and delete freely from the settings UI. Any capability whose
+ * `provides` is in this set gets `canDelete: true` at scan time.
+ *
+ * Keep this list conservative — deletion is destructive. New entries require
+ * a UI card layout that supports multi-instance rendering.
+ */
+export const WELL_KNOWN_MULTI_INSTANCE: ReadonlySet<string> = new Set([
+  'browser-control',
+])
 
 /** Result from running a capability test */
 export interface CapabilityTestResult {
@@ -32,6 +56,7 @@ export interface CapabilityFrontmatter {
   provides?: string
   interface: 'script' | 'mcp'
   entrypoint?: string // command to start the MCP server
+  icon?: string // simple-icons slug (e.g. 'googlechrome', 'firefox')
   requires?: {
     env?: string[]
     system?: string[] // CLI tools that must be present

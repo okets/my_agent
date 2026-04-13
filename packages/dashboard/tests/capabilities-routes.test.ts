@@ -11,6 +11,7 @@ function makeCap(overrides: Partial<Capability> & { name: string }): Capability 
     status: 'available' as const,
     health: 'untested' as const,
     enabled: true,
+    canDelete: false,
     ...overrides,
   }
 }

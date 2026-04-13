@@ -110,6 +110,9 @@ class NinaWebSocket {
               if (Alpine.store("capabilities")) {
                 Alpine.store("capabilities").update(data.capabilities);
               }
+              // Notify settings card so it refetches /v2 — flat broadcast
+              // doesn't carry per-type label/multiInstance/icon metadata.
+              window.dispatchEvent(new CustomEvent("capability:changed"));
               break;
             case "model_changed":
               if (Alpine.store("model")) {

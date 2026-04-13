@@ -242,6 +242,11 @@ export { CapabilityRegistry, scanCapabilities, testCapability, McpCapabilitySpaw
 export type { McpHandle } from './capabilities/index.js'
 export type { Capability, CapabilityFrontmatter, CapabilityMcpConfig, CapabilityTestResult } from './capabilities/index.js'
 export {
+  WELL_KNOWN_TYPES as CAPABILITY_WELL_KNOWN_TYPES,
+  getWellKnownType as getWellKnownCapabilityType,
+} from './capabilities/index.js'
+export type { WellKnownType as WellKnownCapabilityType } from './capabilities/index.js'
+export {
   createCapabilityRateLimiter,
   createCapabilityAuditLogger,
   createScreenshotInterceptor,

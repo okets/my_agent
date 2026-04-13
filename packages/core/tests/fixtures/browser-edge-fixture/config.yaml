@@ -1,0 +1,4 @@
+browser: msedge
+headless: true
+executablePath: ""
+userDataDir: ""

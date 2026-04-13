@@ -103,14 +103,81 @@ document.addEventListener("alpine:init", () => {
   });
 
   Alpine.store("capabilities", {
+    /** v2 type-keyed list. Internal — public surface is has/get/list. */
+    types: [],
+    /** Last-known flat capability list (legacy WS broadcast shape). Used for
+     *  has()/get() lookups so existing call-sites keep working without v2. */
     items: [],
-    update(caps) {
-      this.items = caps || [];
+
+    /**
+     * Replace internal state from a v2 payload (array of CapabilityTypeV2).
+     * Also populates a flat `items` view for legacy lookups.
+     */
+    updateV2(types) {
+      this.types = types || [];
+      const flat = [];
+      for (const t of this.types) {
+        for (const inst of t.instances || []) {
+          flat.push({
+            name: inst.name,
+            provides: t.type,
+            enabled: inst.enabled,
+            status: inst.state === "unavailable" ? "unavailable" : "available",
+            health: inst.health,
+            iconSlug: inst.iconSlug,
+            label: inst.label,
+          });
+        }
+      }
+      this.items = flat;
     },
+
+    /**
+     * Legacy WS broadcast handler: accepts the flat capability list emitted
+     * by `app.emit('capability:changed', registry.list())`. Updates `items`
+     * directly so `has()` keeps working; v2 `types` is left untouched and
+     * the settings card refetches `/v2` on the `capability:changed` event.
+     */
+    update(caps) {
+      this.items = (caps || []).map((c) => ({
+        name: c.name,
+        provides: c.provides,
+        enabled: c.enabled !== false,
+        status: c.status,
+        health: c.health,
+        iconSlug: c.iconSlug,
+        label: c.name,
+      }));
+    },
+
+    /** True if any installed instance of `type` is available + enabled. */
     has(type) {
       return this.items.some(
-        (c) => c.provides === type && c.status === "available" && c.enabled !== false,
+        (c) =>
+          c.provides === type && c.status === "available" && c.enabled !== false,
       );
+    },
+
+    /** First available + enabled instance of `type`, or undefined. */
+    get(type) {
+      return this.items.find(
+        (c) =>
+          c.provides === type && c.status === "available" && c.enabled !== false,
+      );
+    },
+
+    /** All known capability instances (flat). */
+    list() {
+      return this.items.slice();
+    },
+
+    /** v2 helpers — used only by the settings card. */
+    listTypes() {
+      return this.types;
+    },
+
+    typeFor(type) {
+      return this.types.find((t) => t.type === type);
     },
   });
 

@@ -13,6 +13,7 @@ function makeCap(overrides: Partial<Capability> & { name: string }): Capability 
     status: 'available',
     health: 'untested',
     enabled: true,
+    canDelete: false,
     ...overrides,
   }
 }
