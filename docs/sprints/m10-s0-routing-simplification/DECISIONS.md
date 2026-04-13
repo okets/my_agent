@@ -128,3 +128,26 @@ Three leftover items flagged post-architect-review:
 - **`mount_failure` wired through the notification queue.** Previously `app.ts:1619` called `alert()` fire-and-forget and swallowed the result. Now it enqueues a new `infra_alert` notification type and fires `drainNow()`. Transient WA flakes on mount-failure alerts retry through the same path as job completions. `formatNotification` handles `infra_alert` by passing the summary through verbatim (the caller already composed the user-facing wording).
 - **`initiate()` hardening.** When a caller explicitly passes `channel: "X"` and transport X is disconnected, `initiate()` now throws `Error("initiate(): requested channel X is not connected")` instead of silently creating a web-bound conversation. Unreachable from `alert()` today (upfront check catches it), but guards future callers. Test: `tests/conversation-initiator.test.ts — "throws when the explicitly-requested channel is disconnected (hardening)"`.
 - **Give-up semantics documented above.**
+
+---
+
+## 2026-04-13 — Task 6: lost research re-delivered (production proof)
+
+Merged `sprint/m10-s0-routing-simplification` → master at `73513ec`; ROADMAP marked Done at `f3a89bf`. Restarted `nina-dashboard.service` to load the new code. Re-enqueued the delivered-but-lost notification for job `594f1962-4acd-440e-a3a8-76a4b1044a60` (Chiang Mai house research, April 13 11:39 UTC original completion) with the stale `source_channel: "dashboard"` field stripped.
+
+Conditions at enqueue:
+- Current conversation `conv-01KP32K8F4TWDA61XNT9PER8T5`, web-origin (`externalParty: null`).
+- Last user turn 2026-04-13T11:39:13Z — ~3h 22min stale (far past the 15-min threshold).
+- Preferred channel `ninas_dedicated_whatsapp`, transport connected.
+
+Heartbeat tick at 18:02:58 picked the notification up:
+- `targetChannel = "ninas_dedicated_whatsapp"` (stale → preferred).
+- `isSameChannel = false` (current conversation has no externalParty).
+- Channel-switch branch invoked `initiate({ channel: "ninas_dedicated_whatsapp" })`.
+- New conversation `conv-01KP3NW0XDYAB5NPWC3K41W31M` created with `external_party = "41433650172129@lid"` (confirmed by direct DB query) and marked `current`; the previous web conversation demoted to `inactive`.
+- Brain composed a first-turn response (job_completed VERBATIM framing, 4274 chars).
+- Baileys uploaded to `media-waw2-1.cdn.whatsapp.net` (image reference in the deliverable) and sent the text to 3 user devices, `msgId 3EB0027B5D7AFC647E9E7C` → JID `41433650172129@lid`.
+
+Notification moved from `pending/` → `delivered/1776092559000-m10s0-redelivery-594f1962.json`. User's WhatsApp has the research findings.
+
+**Fix proven in production.** The class of bug (`sourceChannel="dashboard"` forcing web) is gone — on the same input payload the old code sent to web; the new code routed to WA via the presence rule.
