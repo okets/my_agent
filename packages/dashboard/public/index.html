@@ -41,7 +41,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
 
@@ -1471,6 +1471,52 @@
                     <option value="dark">Catppuccin Mocha (Dark)</option>
                     <option value="light">Catppuccin Latte (Light)</option>
                   </select>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-white/5">
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <p class="text-sm text-tokyo-text">Agent Logo</p>
+                      <p class="text-xs text-tokyo-muted mt-0.5">
+                        Upload a custom logo for this agent. Falls back to the
+                        default logo when unset.
+                      </p>
+                    </div>
+                    <img
+                      :src="agentLogoSrc"
+                      alt="Agent logo preview"
+                      class="agent-logo-avatar w-12 h-12 rounded-full border border-white/10 shrink-0"
+                    />
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    class="hidden"
+                    x-ref="desktopLogoInput"
+                    @change="handleLogoSelect($event)"
+                  />
+                  <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      @click="openLogoPicker('desktopLogoInput')"
+                      :disabled="logoUploading"
+                      class="text-xs px-3 py-1.5 rounded-lg font-medium bg-tokyo-blue/15 text-tokyo-blue hover:bg-tokyo-blue/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span x-text="logoUploadLabel"></span>
+                    </button>
+                    <button
+                      x-show="hasCustomLogo"
+                      @click="removeCustomLogo()"
+                      :disabled="logoUploading"
+                      class="text-xs px-3 py-1.5 rounded-lg font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Use Default
+                    </button>
+                    <span
+                      x-show="logoStatusMessage"
+                      :class="logoStatusClass"
+                      x-text="logoStatusMessage"
+                    ></span>
+                  </div>
                 </div>
               </div>
 
@@ -5474,30 +5520,27 @@
         <header
           class="flex items-center gap-2 px-3 h-12 shrink-0 divider-bottom"
         >
-          <!-- Agent avatar -->
-          <img
-            src="/logo.png"
-            alt="Agent logo"
-            class="w-7 h-7 rounded-full shrink-0 object-cover"
-          />
+          <div
+            class="agent-header-tag flex items-center gap-1.5 px-2 py-[0.2rem] rounded-full shrink-0 min-w-0"
+          >
+            <img
+              :src="agentLogoSrc"
+              alt="Agent logo"
+              class="agent-logo-avatar w-[1.8rem] h-[1.8rem] rounded-full shrink-0"
+            />
+            <span
+              class="agent-header-name text-[0.85rem] truncate"
+              x-text="headerName"
+            ></span>
+          </div>
 
-          <!-- Title + Model badge + Rename + New chat -->
+          <!-- Title + Rename + New chat -->
           <div class="flex-1 min-w-0 flex items-center gap-1.5">
             <!-- Title display (read-only) -->
             <div
               x-show="!editingTitle"
               class="flex items-center gap-1.5 min-w-0 flex-1"
             >
-              <span
-                class="text-sm font-medium truncate flex-1"
-                x-text="currentTitle || 'New conversation'"
-              ></span>
-              <!-- Model indicator badge -->
-              <span
-                x-show="selectedModel"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0"
-                x-text="selectedModel.includes('opus') ? 'Opus' : selectedModel.includes('haiku') ? 'Haiku' : 'Sonnet'"
-              ></span>
               <!-- Rename pencil button -->
               <button
                 @click="startTitleEdit()"
@@ -5783,9 +5826,9 @@
             >
               <!-- Avatar -->
               <img
-                src="/logo.png"
+                :src="agentLogoSrc"
                 alt="Agent logo"
-                class="w-12 h-12 rounded-full object-cover mb-4"
+                class="agent-logo-avatar w-12 h-12 rounded-full mb-4"
               />
 
               <!-- Greeting -->
@@ -5812,9 +5855,9 @@
                 <div class="flex items-start gap-2.5 max-w-full">
                   <!-- Avatar -->
                   <img
-                    src="/logo.png"
+                    :src="agentLogoSrc"
                     alt="Agent logo"
-                    class="w-7 h-7 rounded-full shrink-0 object-cover mt-0.5"
+                    class="agent-logo-avatar w-7 h-7 rounded-full shrink-0 mt-0.5"
                   />
 
                   <!-- Bubble -->
@@ -6002,9 +6045,9 @@
             <div class="flex items-start gap-2.5">
               <!-- Avatar -->
               <img
-                src="/logo.png"
+                :src="agentLogoSrc"
                 alt="Agent logo"
-                class="w-7 h-7 rounded-full shrink-0 object-cover mt-0.5"
+                class="agent-logo-avatar w-7 h-7 rounded-full shrink-0 mt-0.5"
               />
 
               <!-- Dots bubble -->
@@ -6986,6 +7029,51 @@
                     <option value="dark">Mocha Dark</option>
                     <option value="light">Latte Light</option>
                   </select>
+                </div>
+                <div class="mt-4 pt-4 border-t border-white/5">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <span class="text-sm text-tokyo-text">Agent Logo</span>
+                      <p class="text-xs text-tokyo-muted mt-0.5">
+                        Custom logo for this agent with default fallback.
+                      </p>
+                    </div>
+                    <img
+                      :src="agentLogoSrc"
+                      alt="Agent logo preview"
+                      class="agent-logo-avatar w-10 h-10 rounded-full border border-white/10 shrink-0"
+                    />
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    class="hidden"
+                    x-ref="mobileLogoInput"
+                    @change="handleLogoSelect($event)"
+                  />
+                  <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      @click="openLogoPicker('mobileLogoInput')"
+                      :disabled="logoUploading"
+                      class="text-xs px-3 py-1.5 rounded-lg font-medium bg-tokyo-blue/15 text-tokyo-blue active:bg-tokyo-blue/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span x-text="logoUploadLabel"></span>
+                    </button>
+                    <button
+                      x-show="hasCustomLogo"
+                      @click="removeCustomLogo()"
+                      :disabled="logoUploading"
+                      class="text-xs px-3 py-1.5 rounded-lg font-medium bg-red-500/15 text-red-400 active:bg-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Use Default
+                    </button>
+                  </div>
+                  <p
+                    x-show="logoStatusMessage"
+                    class="mt-2"
+                    :class="logoStatusClass"
+                    x-text="logoStatusMessage"
+                  ></p>
                 </div>
               </div>
               <div
@@ -9072,14 +9160,8 @@
             >
               <div class="flex items-center gap-1.5 min-w-0">
                 <span
-                  class="text-xs text-tokyo-muted truncate"
-                  x-text="currentTitle || 'New conversation'"
-                ></span>
-                <!-- Model indicator badge (mobile) -->
-                <span
-                  x-show="selectedModel"
-                  class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-violet-500/15 text-violet-400 border border-violet-500/20 shrink-0"
-                  x-text="selectedModel.includes('opus') ? 'Opus' : selectedModel.includes('haiku') ? 'Haiku' : 'Sonnet'"
+                  class="agent-header-name text-xs text-tokyo-muted truncate"
+                  x-text="headerName"
                 ></span>
               </div>
               <button

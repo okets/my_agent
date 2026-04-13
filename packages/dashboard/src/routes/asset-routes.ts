@@ -1,14 +1,11 @@
 /**
- * Asset serving routes for stored screenshots.
- *
- * Single route serves all screenshots from the central folder:
- *   {agentDir}/screenshots/{filename}
+ * Asset serving routes for stored screenshots and branding assets.
  */
 
 import type { FastifyInstance } from "fastify";
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { access } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 
 /** Reject path segments that could be used for directory traversal. */
 function isSafe(segment: string): boolean {
@@ -17,9 +14,49 @@ function isSafe(segment: string): boolean {
   );
 }
 
+function resolveCustomLogoPath(agentDir: string): string | null {
+  const assetsDir = join(agentDir, "assets");
+  const candidates = [
+    join(assetsDir, "agent-logo.png"),
+    join(assetsDir, "agent-logo.jpg"),
+    join(assetsDir, "agent-logo.jpeg"),
+    join(assetsDir, "agent-logo.webp"),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+
+  return null;
+}
+
+function contentTypeForImage(filePath: string): string {
+  switch (extname(filePath).toLowerCase()) {
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".webp":
+      return "image/webp";
+    default:
+      return "image/png";
+  }
+}
+
 export async function registerAssetRoutes(
   fastify: FastifyInstance,
 ): Promise<void> {
+  fastify.get("/api/assets/branding/logo", async (_request, reply) => {
+    const customLogoPath = resolveCustomLogoPath(fastify.agentDir);
+    if (customLogoPath) {
+      return reply
+        .type(contentTypeForImage(customLogoPath))
+        .send(createReadStream(customLogoPath));
+    }
+
+    const defaultLogoPath = join(import.meta.dirname, "../../public/logo.png");
+    return reply.type("image/png").send(createReadStream(defaultLogoPath));
+  });
+
   // GET /api/assets/screenshots/:filename
   fastify.get<{
     Params: { filename: string };

@@ -9,7 +9,14 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { parse, stringify } from "yaml";
 import {
@@ -36,12 +43,23 @@ const READ_ONLY_KEYS = new Set([
 
 /** Keys that are configuration, not secrets */
 const CONFIG_KEYS = new Set(["PORT", "HOST", "NODE_ENV"]);
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const LOGO_MIME_TO_EXT = new Map<string, string>([
+  ["image/png", ".png"],
+  ["image/jpeg", ".jpg"],
+  ["image/webp", ".webp"],
+]);
 
 interface SecretEntry {
   key: string;
   maskedValue: string;
   readOnly: boolean;
   capabilities: string[];
+}
+
+interface LogoSettingsReply {
+  hasCustomLogo: boolean;
+  logoUrl: string;
 }
 
 /**
@@ -110,6 +128,43 @@ function buildEnvCapabilityMap(agentDir: string): Map<string, string[]> {
   return map;
 }
 
+function getCustomLogoPath(agentDir: string): string | null {
+  const assetsDir = join(agentDir, "assets");
+  const candidates = [
+    join(assetsDir, "agent-logo.png"),
+    join(assetsDir, "agent-logo.jpg"),
+    join(assetsDir, "agent-logo.jpeg"),
+    join(assetsDir, "agent-logo.webp"),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+
+  return null;
+}
+
+function clearCustomLogo(agentDir: string): void {
+  const assetsDir = join(agentDir, "assets");
+  const candidates = [
+    join(assetsDir, "agent-logo.png"),
+    join(assetsDir, "agent-logo.jpg"),
+    join(assetsDir, "agent-logo.jpeg"),
+    join(assetsDir, "agent-logo.webp"),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) unlinkSync(candidate);
+  }
+}
+
+function logoResponse(agentDir: string): LogoSettingsReply {
+  return {
+    hasCustomLogo: getCustomLogoPath(agentDir) !== null,
+    logoUrl: "/api/assets/branding/logo",
+  };
+}
+
 /** Cached available models (refreshed every 10 minutes) */
 let cachedAvailableModels: string[] | null = null;
 let cacheTimestamp = 0;
@@ -121,6 +176,52 @@ const CACHE_TTL_MS = 10 * 60_000;
 export async function registerSettingsRoutes(
   fastify: FastifyInstance,
 ): Promise<void> {
+  fastify.get<{ Reply: LogoSettingsReply }>("/api/settings/logo", async () => {
+    return logoResponse(fastify.agentDir);
+  });
+
+  fastify.post<{ Reply: LogoSettingsReply | { error: string } }>(
+    "/api/settings/logo",
+    async (request, reply) => {
+      const file = await request.file();
+      if (!file) {
+        return reply.code(400).send({ error: "Logo file is required" });
+      }
+
+      const extension = LOGO_MIME_TO_EXT.get(file.mimetype);
+      if (!extension) {
+        return reply.code(400).send({
+          error: "Logo must be PNG, JPEG, or WebP",
+        });
+      }
+
+      const buffer = await file.toBuffer();
+      if (buffer.length === 0) {
+        return reply.code(400).send({ error: "Uploaded logo is empty" });
+      }
+      if (buffer.length > MAX_LOGO_BYTES) {
+        return reply.code(400).send({
+          error: "Logo must be 2 MB or smaller",
+        });
+      }
+
+      const agentDir = fastify.agentDir;
+      const assetsDir = join(agentDir, "assets");
+      mkdirSync(assetsDir, { recursive: true });
+      clearCustomLogo(agentDir);
+      writeFileSync(join(assetsDir, `agent-logo${extension}`), buffer);
+      fastify.log.info("[Settings] Agent logo updated");
+
+      return logoResponse(agentDir);
+    },
+  );
+
+  fastify.delete<{ Reply: { ok: true } }>("/api/settings/logo", async () => {
+    clearCustomLogo(fastify.agentDir);
+    fastify.log.info("[Settings] Agent logo reset to default");
+    return { ok: true as const };
+  });
+
   /**
    * GET /api/settings/preferences
    *

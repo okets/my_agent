@@ -229,6 +229,10 @@ function chat() {
 
     // Theme: 'dark' or 'light'
     theme: "dark",
+    logoVersion: Date.now(),
+    hasCustomLogo: false,
+    logoUploading: false,
+    logoStatus: null,
 
     // Input history (shell-style up/down arrow)
     inputHistory: [],
@@ -521,6 +525,46 @@ function chat() {
       return this.isHatching ? "My Agent" : this.agentName;
     },
 
+    get agentLogoSrc() {
+      return "/api/assets/branding/logo?v=" + this.logoVersion;
+    },
+
+    get logoUploadLabel() {
+      return this.logoUploading ? "Uploading..." : "Upload Logo";
+    },
+
+    get logoStatusMessage() {
+      switch (this.logoStatus) {
+        case "saved":
+          return "Logo updated.";
+        case "reset":
+          return "Default logo restored.";
+        case "invalid-type":
+          return "Use PNG, JPEG, or WebP.";
+        case "too-large":
+          return "Max file size is 2 MB.";
+        case "error":
+          return "Upload failed.";
+        default:
+          return "";
+      }
+    },
+
+    get logoStatusClass() {
+      switch (this.logoStatus) {
+        case "saved":
+          return "text-xs text-green-400";
+        case "reset":
+          return "text-xs text-tokyo-muted";
+        case "invalid-type":
+        case "too-large":
+        case "error":
+          return "text-xs text-red-400";
+        default:
+          return "text-xs text-tokyo-muted";
+      }
+    },
+
     get headerInitial() {
       if (this.isHatching) return "A";
       // Get initials from agent name (first letter of each word, max 2)
@@ -638,6 +682,8 @@ function chat() {
           }
         })
         .catch(() => {});
+
+      this.loadLogoSettings();
 
       // Load channels and channel bindings
       this.fetchChannels();
@@ -3186,6 +3232,102 @@ function chat() {
         }
       } catch (err) {
         console.error("[App] Failed to load available models:", err);
+      }
+    },
+
+    async loadLogoSettings() {
+      try {
+        const res = await fetch("/api/settings/logo");
+        if (!res.ok) return;
+        const data = await res.json();
+        this.hasCustomLogo = !!data.hasCustomLogo;
+        this.refreshAgentLogo();
+      } catch (err) {
+        console.error("[App] Failed to load logo settings:", err);
+      }
+    },
+
+    refreshAgentLogo() {
+      this.logoVersion = Date.now();
+    },
+
+    openLogoPicker(refName) {
+      const input = this.$refs[refName];
+      if (input) input.click();
+    },
+
+    setLogoStatus(status, autoClear = false) {
+      this.logoStatus = status;
+      if (!autoClear) return;
+      setTimeout(() => {
+        if (this.logoStatus === status) this.logoStatus = null;
+      }, 3000);
+    },
+
+    async handleLogoSelect(event) {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+
+      const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+      if (!allowedTypes.includes(file.type)) {
+        this.setLogoStatus("invalid-type");
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        this.setLogoStatus("too-large");
+        return;
+      }
+
+      this.logoUploading = true;
+      this.logoStatus = null;
+
+      try {
+        const formData = new FormData();
+        formData.append("logo", file);
+
+        const res = await fetch("/api/settings/logo", {
+          method: "POST",
+          body: formData,
+        });
+        if (!res.ok) {
+          this.setLogoStatus("error");
+          return;
+        }
+
+        const data = await res.json();
+        this.hasCustomLogo = !!data.hasCustomLogo;
+        this.refreshAgentLogo();
+        this.setLogoStatus("saved", true);
+      } catch (err) {
+        console.error("[App] Failed to upload logo:", err);
+        this.setLogoStatus("error");
+      } finally {
+        this.logoUploading = false;
+      }
+    },
+
+    async removeCustomLogo() {
+      this.logoUploading = true;
+      this.logoStatus = null;
+
+      try {
+        const res = await fetch("/api/settings/logo", {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          this.setLogoStatus("error");
+          return;
+        }
+
+        this.hasCustomLogo = false;
+        this.refreshAgentLogo();
+        this.setLogoStatus("reset", true);
+      } catch (err) {
+        console.error("[App] Failed to reset logo:", err);
+        this.setLogoStatus("error");
+      } finally {
+        this.logoUploading = false;
       }
     },
 
