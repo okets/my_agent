@@ -267,6 +267,42 @@ always `browser-chrome`. FU2 stays open.
 
 ---
 
+## D10 — Close FU1 (legacy install card) + FU2 (folder-slug mismatch)
+
+**Date:** 2026-04-13
+**Phase:** post-G, post-D9 (zero-debt push).
+
+**FU1 fix:** Delete the legacy "Browser Automation (Playwright)" install
+card (`public/index.html:3401-3500`), its backing routes
+(`src/routes/playwright-routes.ts` + its test), and the server.ts
+registration. The Browsers capability card now handles every affordance
+the old card offered (status, toggle, install). `playwright-status.ts`
+stays — still used by `hatching-tools.ts` in the onboarding wizard.
+
+Verified: `curl /api/debug/playwright-status` → 404 after restart.
+`curl /api/settings/capabilities/v2` → 200 (new path intact). 4 test
+failures unchanged (pre-existing on master); 7-test drop in dashboard
+count accounted for by the removed route test file.
+
+**FU2 fix:** Strengthen capability-builder prompt. Added:
+> "The folder name MUST exactly equal the `name:` field in CAPABILITY.md.
+> E.g. if `name: browser-chrome`, create the folder at
+> `.my_agent/capabilities/browser-chrome/` — not `chrome/`, not
+> `chrome-browser/`. Mismatched slugs invite confusion in the Settings
+> UI, the debug API (which keys on folder name for paths), and profile
+> resolution. Pick the slug FIRST, use it consistently."
+
+No re-run needed — FU2 is cosmetic and Nina's current `.my_agent/
+capabilities/chrome/` still registers (capability name field is
+`browser-chrome`, so registry uses that; folder slug is cosmetic). Future
+builds will land the correct slug. If the current Chrome capability
+deserves a rename for consistency, that's a user-triggered action.
+
+**FU1 status:** CLOSED. **FU2 status:** CLOSED. All four sprint follow-ups
+now resolved in-branch.
+
+---
+
 ## D3 — Pin @playwright/mcp in capability's package.json (not npx fetch)
 
 **Date:** 2026-04-13

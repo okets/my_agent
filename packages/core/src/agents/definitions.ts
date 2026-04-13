@@ -54,6 +54,13 @@ Each capability lives in .my_agent/capabilities/<name>/ with:
 - config.yaml (optional) — non-secret configuration
 - references/ (optional) — detailed documentation
 
+**The folder name MUST exactly equal the \`name:\` field in
+CAPABILITY.md.** E.g. if \`name: browser-chrome\`, create the folder at
+\`.my_agent/capabilities/browser-chrome/\` — not \`chrome/\`, not
+\`chrome-browser/\`. Mismatched slugs invite confusion in the Settings UI,
+the debug API (which keys on folder name for paths), and profile
+resolution. Pick the slug FIRST, use it consistently.
+
 ## CAPABILITY.md Format
 \`\`\`yaml
 ---

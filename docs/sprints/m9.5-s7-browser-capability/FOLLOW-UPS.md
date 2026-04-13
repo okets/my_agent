@@ -6,6 +6,14 @@ Items discovered during sprint execution that are out of scope but worth trackin
 
 ## FU2 — Capability folder slug should match `name:` field
 
+**Status:** CLOSED in-sprint. See DECISIONS.md D10. Capability-builder
+prompt now requires `folder name === CAPABILITY.md name:`. No scanner
+enforcement yet — cosmetic-only guidance delivered via the agent prompt.
+
+---
+
+## FU2 (original) — Capability folder slug should match `name:` field
+
 **Discovered:** Phase F (iteration 2).
 
 Nina's capability-builder created the folder as `.my_agent/capabilities/chrome-browser/`
@@ -103,6 +111,17 @@ shipped.
 ---
 
 ## FU1 — Legacy "Browser Automation (Playwright)" install card
+
+**Status:** CLOSED in-sprint. See DECISIONS.md D10. Card removed from
+`public/index.html`, `routes/playwright-routes.ts` + its test deleted,
+`server.ts` registration removed. Underlying `playwright-status.ts`
+retained (still used by hatching-tools onboarding wizard).
+
+Verified: legacy endpoint 404s, capabilities v2 endpoint 200s.
+
+---
+
+## FU1 (original) — Legacy "Browser Automation (Playwright)" install card
 
 **File:** `packages/dashboard/public/index.html:3247-3346`
 **Discovered:** Phase D (frontend-dev).
