@@ -35,3 +35,37 @@ Decisions made during trip-mode execution. Append-only. CTO reviews via `/trip-r
 **Why:** CTO on mobile, explicit "you can proceed by yourself" on this question.
 
 ---
+
+## D3 — Pin @playwright/mcp in capability's package.json (not npx fetch)
+
+**Date:** 2026-04-13
+**Phase:** B (feedback loop into A template).
+
+**Decision:** Browser-control capabilities pin `@playwright/mcp` exactly in
+their own `package.json` (e.g. `"@playwright/mcp": "0.0.68"`). `npx` at
+runtime resolves the local pinned install first, so no fetch-on-demand.
+
+**Why:** The template originally said "invoked via npx, deliberately not a
+direct dependency." Phase B's first scaffold exposed two problems with that:
+(1) offline spawns would fail; (2) without a pin anywhere in the resolution
+chain, `npx` could pull `latest`, which would silently drift the plug's MCP
+server version and break the "frozen plug" invariant from D1. Pinning
+locally makes each plug a fully self-contained, version-frozen artifact.
+
+**Alternatives considered:**
+- Keep "no dependency, npx fetch-on-demand" — rejected (brittle, version
+  drift, requires network on every fresh environment).
+- Pin at framework level — rejected (defeats D1 self-containment: the plug
+  would depend on framework state to resolve the MCP server).
+
+**How to apply:** Phase A template updated (same commit as Phase B scaffold).
+Every future browser capability's `package.json` includes
+`"@playwright/mcp": "<exact-version>"`. The version may differ per
+capability — upgrades are an opt-in per plug.
+
+**Watch for:** If `npx` starts ignoring the local pin (e.g. future Node/npm
+changes to `npx` resolution), switch the wrapper to invoke the binary
+directly: `spawn(resolve(capabilityRoot, 'node_modules/.bin/mcp-server-playwright'), ...)`.
+The wrapper is already dumb enough that this is a 2-line change.
+
+---

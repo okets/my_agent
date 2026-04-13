@@ -263,14 +263,17 @@ for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
   "private": true,
   "type": "module",
   "dependencies": {
+    "@playwright/mcp": "0.0.68",
     "tsx": "^4.0.0",
     "yaml": "^2.8.2"
   }
 }
 ```
 
-`@playwright/mcp` is invoked via `npx` at runtime — it does not need to be a
-direct dependency (and deliberately isn't, so the capability stays small).
+**Pin `@playwright/mcp` exactly** (not a range) — each browser capability is
+frozen against a verified MCP server version; upgrading is a per-capability
+opt-in. `npx` will resolve the pinned local install first, so there is no
+fetch-on-demand at runtime.
 
 ## Icon slug allowlist
 
