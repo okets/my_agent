@@ -23,6 +23,12 @@ export interface Capability {
    * false for singletons (e.g. `desktop-control`, `audio-to-text`). Populated by the scanner.
    */
   canDelete: boolean
+  /**
+   * simple-icons slug (e.g. `googlechrome`, `microsoftedge`) used by the UI to
+   * pick a bundled SVG. Populated from the `icon:` frontmatter field. Optional;
+   * falls back to a generic icon when absent.
+   */
+  iconSlug?: string
 }
 
 /**
@@ -50,6 +56,7 @@ export interface CapabilityFrontmatter {
   provides?: string
   interface: 'script' | 'mcp'
   entrypoint?: string // command to start the MCP server
+  icon?: string // simple-icons slug (e.g. 'googlechrome', 'firefox')
   requires?: {
     env?: string[]
     system?: string[] // CLI tools that must be present

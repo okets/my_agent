@@ -155,6 +155,7 @@ export async function scanCapabilities(
         health: 'untested',
         enabled,
         canDelete: data.provides ? WELL_KNOWN_MULTI_INSTANCE.has(data.provides) : false,
+        iconSlug: data.icon,
       }
 
       if (allMissing.length > 0) {

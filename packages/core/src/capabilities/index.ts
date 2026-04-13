@@ -6,6 +6,11 @@ export type {
 } from './types.js'
 export { CapabilityRegistry } from './registry.js'
 export { scanCapabilities } from './scanner.js'
+export {
+  WELL_KNOWN_TYPES,
+  getWellKnownType,
+  type WellKnownType,
+} from './well-known-types.js'
 export { testCapability, testMcpScreenshot } from './test-harness.js'
 export { McpCapabilitySpawner, type McpHandle } from './mcp-spawner.js'
 export {
