@@ -27,6 +27,22 @@ This is a UX/consistency polish for a follow-up.
 
 ## FU3 — Capability-builder should auto-create `.enabled` on successful build
 
+**Status:** CLOSED in-sprint via commits `dabdd69` (skill description) and
+the capability-builder definition fix in this final batch. See DECISIONS.md
+D9.
+
+The fix added two prompt sections: explicit "create `.enabled` BEFORE
+reporting completion" instruction, and a "DO NOT restart the dashboard"
+rule (root cause of the verification round 1 failure — Nina restarted
+mid-build, killing herself before the `.enabled` step).
+
+Verified: empty-registry "add Chrome" rebuild completed end-to-end with
+`.enabled` written and the capability registered.
+
+---
+
+## FU3 (original) — Capability-builder should auto-create `.enabled` on successful build
+
 **Discovered:** Phase F (iteration 2).
 
 Nina's build produced a complete, healthy capability — but `.enabled` was

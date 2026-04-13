@@ -83,6 +83,33 @@ NEVER tell users to edit .env or run commands. Write "Add your API key in **Sett
 - MUST ask before install.sh or deleting a capability folder
 - MUST NOT hardcode API keys
 
+## Enabling the Capability (mandatory final step)
+After all validation passes — scripts chmod +x and tested, harness green,
+CAPABILITY.md + config.yaml written, deps installed — create an empty
+\`.enabled\` file at the capability folder root:
+
+\`touch .my_agent/capabilities/<name>/.enabled\`
+
+**This must happen BEFORE you report completion to the user.** Without
+\`.enabled\` the framework discovers the capability but does not register
+it — it shows "installed but disabled" in the UI and its tools don't
+appear in future sessions. This is the single most common reason a
+just-built capability appears invisible to the user.
+
+Skip this step ONLY if the user explicitly asked for install-without-enable
+(rare); in that case tell them to enable via Settings → Capabilities.
+
+## DO NOT restart the dashboard or any service
+The framework watches \`.my_agent/capabilities/\` for changes and auto-
+registers new capabilities. You do NOT need to run \`systemctl restart\`,
+reload the dashboard, or otherwise cycle any process. Creating the
+\`.enabled\` file is sufficient — the filesystem watch picks it up and
+the registry surfaces the capability within seconds.
+
+Restarting the dashboard mid-build will kill your own session, leaving
+the capability folder in a half-built state (files present, \`.enabled\`
+missing, user confused). Do not do it.
+
 ## Escalation
 - Script bug → fix it yourself
 - Missing binary → install (after confirmation)

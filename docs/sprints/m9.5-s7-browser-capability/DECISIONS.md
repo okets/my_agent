@@ -216,6 +216,57 @@ recommendation).
 
 ---
 
+## D9 — Fix capability-builder enable + restart bugs (FU3 closed in-sprint)
+
+**Date:** 2026-04-13
+**Phase:** post-G, post-D8.
+
+**Context:** External reviewer flagged FU3 (".enabled not auto-created on
+build") as top post-sprint priority. CTO escalated: "I hate technical debt,
+close it now."
+
+**Two related bugs surfaced under one symptom:**
+1. The `capability-builder` agent prompt never told Nina to create
+   `.enabled` as a final step.
+2. Nina's mental model included "restart the dashboard to activate" — so
+   she ran `systemctl --user restart nina-dashboard.service` mid-build,
+   killing her own session before the wrapper completed. First-attempt
+   verification surfaced this: folder existed, `.enabled` missing,
+   conversation cut off mid-stream.
+
+**Fix:** Edit `packages/core/src/agents/definitions.ts` capability-builder
+prompt with two new sections:
+- "Enabling the Capability (mandatory final step)" — explicit instruction
+  to `touch <capabilityRoot>/.enabled` BEFORE reporting completion to the
+  user.
+- "DO NOT restart the dashboard or any service" — filesystem watch
+  handles registration; restart will kill mid-build and leave the
+  capability half-built.
+
+**Verification round 1 (prompt only, no restart rule):** Folder built,
+`.enabled` missing — Nina restarted dashboard mid-build, killing herself.
+Logs showed `systemd ... Stopping nina-dashboard.service` mid-build.
+
+**Verification round 2 (added DO NOT restart rule):**
+- Empty registry, fresh chat, "add Chrome".
+- Build ran to completion: 9 todo items, all green.
+- No mid-build dashboard restart in logs (window 12:26–14:46).
+- `.enabled` file present at end (`-rw-rw-r-- 24 bytes` — Nina used the
+  toggle API endpoint to enable, equivalent to `touch`).
+- Capability registered: subsequent toggle/test endpoint hits succeeded.
+- Nina's chat report was structured: file inventory, test stage results
+  (detect.sh / MCP server / contract validation / harness — all PASS),
+  available tool list, profile location.
+
+**FU3 status:** CLOSED. Fix shipped in commit `<this commit>`.
+
+**Side note on FU2 (folder slug ≠ capability name):** Nina chose `chrome/`
+this run vs `chrome-browser/` last run vs `browser-chrome/` (the
+match-the-name shape) once. Slug varies per build, capability `name:` is
+always `browser-chrome`. FU2 stays open.
+
+---
+
 ## D3 — Pin @playwright/mcp in capability's package.json (not npx fetch)
 
 **Date:** 2026-04-13
