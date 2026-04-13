@@ -6,7 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "node --env-file=.env --import tsx/esm src/index.ts",
-    "build": "tsc",
+    "build": "npm run build:css && tsc",
+    "build:css": "tailwindcss -c tailwind.config.cjs -i ./public/css/tailwind.input.css -o ./public/css/tailwind.css --minify",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write src/ public/",
@@ -36,7 +37,10 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.18.1",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.9",
     "prettier": "^3.8.1",
+    "tailwindcss": "^3.4.17",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"
