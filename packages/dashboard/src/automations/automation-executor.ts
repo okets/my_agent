@@ -346,6 +346,7 @@ export class AutomationExecutor {
         });
         workerMcpServers["image-fetch-tools"] = createImageFetchServer({
           visualService: vs,
+          agentDir: this.config.agentDir,
         });
       }
 
@@ -697,6 +698,7 @@ export class AutomationExecutor {
             });
             resumeMcpServers["image-fetch-tools"] = createImageFetchServer({
               visualService: this.config.visualService,
+              agentDir: this.config.agentDir,
             });
           }
 

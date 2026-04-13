@@ -1711,6 +1711,7 @@ export class App extends EventEmitter {
       await import("./mcp/image-fetch-server.js");
     const imageFetchServer = createImageFetchServer({
       visualService: app.visualActionService,
+      agentDir: app.agentDir,
     });
     addMcpServer("image-fetch-tools", imageFetchServer);
     console.log("[App] Chart + image-fetch MCP servers registered");

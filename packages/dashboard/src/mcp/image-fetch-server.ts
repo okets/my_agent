@@ -4,16 +4,23 @@
  * Exposes a `fetch_image` tool that downloads images from URLs,
  * validates, converts to PNG via sharp, and stores via
  * VisualActionService. All network/security surface is concentrated here.
+ *
+ * Also exposes a `store_local_image` tool that reads an image from the
+ * local filesystem (within the project root) and stores it in VAS.
  */
 
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import sharp from "sharp";
+import fs from "node:fs";
+import path from "node:path";
 import type { VisualActionService } from "../visual/visual-action-service.js";
 import type { ScreenshotSource } from "@my-agent/core";
 
 export interface ImageFetchServerDeps {
   visualService: VisualActionService;
+  /** Absolute path to the .my_agent directory. Used to derive allowed root for local file access. */
+  agentDir: string;
 }
 
 // ── Magic byte validators ────────────────────────────────────────────────────
@@ -220,6 +227,113 @@ export async function handleFetchImage(
   };
 }
 
+// ── Local file handler ───────────────────────────────────────────────────────
+
+/**
+ * Resolve an allowed root for local file access.
+ * agentDir is e.g. /path/to/project/.my_agent — parent is the project root.
+ */
+function resolveAllowedRoot(agentDir: string): string {
+  return path.resolve(path.dirname(agentDir));
+}
+
+export async function handleStoreLocalImage(
+  deps: ImageFetchServerDeps,
+  args: { file_path: string; description?: string },
+) {
+  const allowedRoot = resolveAllowedRoot(deps.agentDir);
+  const resolved = path.resolve(args.file_path);
+
+  if (!resolved.startsWith(allowedRoot + path.sep) && resolved !== allowedRoot) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: `Access denied: path must be within ${allowedRoot}`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  let rawBuffer: Buffer;
+  try {
+    rawBuffer = fs.readFileSync(resolved);
+  } catch (err) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: `File read failed: ${err instanceof Error ? err.message : String(err)}`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  if (!hasValidMagicBytes(rawBuffer)) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: "File is not a recognized image format (PNG, JPEG, or GIF required)",
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  let pngBuffer: Buffer;
+  let width: number;
+  let height: number;
+  try {
+    const meta = await sharp(rawBuffer).metadata();
+    const longestEdge = Math.max(meta.width ?? 0, meta.height ?? 0);
+    let sharpInstance = sharp(rawBuffer);
+    if (longestEdge > 4096) {
+      sharpInstance = sharpInstance.resize({
+        width: meta.width! >= meta.height! ? 4096 : undefined,
+        height: meta.height! > meta.width! ? 4096 : undefined,
+        fit: "inside",
+        withoutEnlargement: true,
+      });
+    }
+    pngBuffer = await sharpInstance.png().toBuffer();
+    const pngMeta = await sharp(pngBuffer).metadata();
+    width = pngMeta.width!;
+    height = pngMeta.height!;
+  } catch (err) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: `Image processing failed: ${err instanceof Error ? err.message : String(err)}`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  const source: ScreenshotSource = "upload";
+  const screenshot = deps.visualService.store(pngBuffer, {
+    description: args.description ?? path.basename(resolved),
+    width,
+    height,
+    source,
+  });
+
+  const url = deps.visualService.url(screenshot);
+
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify({ id: screenshot.id, url, width, height }),
+      },
+    ],
+  };
+}
+
 // ── MCP Server ───────────────────────────────────────────────────────────────
 
 export function createImageFetchServer(deps: ImageFetchServerDeps) {
@@ -237,8 +351,25 @@ export function createImageFetchServer(deps: ImageFetchServerDeps) {
       handleFetchImage(deps, { url: args.url, description: args.description }),
   );
 
+  const storeLocalImageTool = tool(
+    "store_local_image",
+    "Read a local image file from disk and store it so it can be included in your response. Takes an absolute file path within the project, validates it is an image, and returns { id, url, width, height }. IMPORTANT: After calling this tool, you MUST include the returned url in your response text as ![description](url). Use this when the user asks you to send or show a local file (e.g. a logo, screenshot, or photo already on disk).",
+    {
+      file_path: z.string().describe("Absolute path to the local image file (must be within the project root)"),
+      description: z
+        .string()
+        .optional()
+        .describe("What this image shows — used for alt text and ![description](url)"),
+    },
+    async (args) =>
+      handleStoreLocalImage(deps, {
+        file_path: args.file_path,
+        description: args.description,
+      }),
+  );
+
   return createSdkMcpServer({
     name: "image-fetch-tools",
-    tools: [fetchImageTool],
+    tools: [fetchImageTool, storeLocalImageTool],
   });
 }
