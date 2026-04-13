@@ -168,39 +168,34 @@ export function initMcpServers(
     console.log(`[SessionManager] Debrief MCP server registered`);
   }
 
-  // Browser-control capabilities (M9.5-S7: registry-based, dual-path)
+  // Browser-control capabilities (M9.5-S7: registry-only)
   const browserCaps =
     capabilityRegistry
       ?.listByProvides("browser-control")
       .filter((c) => c.status === "available" && c.enabled) ?? [];
 
-  if (browserCaps.length === 0) {
-    servers.playwright = {
+  for (const cap of browserCaps) {
+    const { command, args } = parseEntrypoint(cap.entrypoint ?? "", cap.path);
+    // SDK type has no `cwd`; parseEntrypoint absolutizes script paths and
+    // the wrapper resolves capabilityRoot via import.meta.url.
+    servers[cap.name] = {
       type: "stdio" as const,
-      command: "npx",
-      args: ["@playwright/mcp"],
-    };
-    console.log(
-      `[SessionManager] browser-control: no capabilities, using hardcoded fallback (npx @playwright/mcp)`,
-    );
-  } else {
-    for (const cap of browserCaps) {
-      const { command, args } = parseEntrypoint(cap.entrypoint ?? "", cap.path);
-      // SDK type has no `cwd`; parseEntrypoint absolutizes script paths and
-      // the wrapper resolves capabilityRoot via import.meta.url.
-      servers[cap.name] = {
-        type: "stdio" as const,
-        command,
-        args,
-        env: Object.fromEntries(
-          Object.entries(process.env).filter(
-            (e): e is [string, string] => e[1] !== undefined,
-          ),
+      command,
+      args,
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(
+          (e): e is [string, string] => e[1] !== undefined,
         ),
-      };
-    }
+      ),
+    };
+  }
+  if (browserCaps.length > 0) {
     console.log(
       `[SessionManager] browser-control: ${browserCaps.length} registry capability(ies) — ${browserCaps.map((c) => c.name).join(", ")}`,
+    );
+  } else {
+    console.log(
+      `[SessionManager] browser-control: no capabilities registered — browser tools unavailable`,
     );
   }
 
