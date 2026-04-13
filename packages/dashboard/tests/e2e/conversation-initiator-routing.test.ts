@@ -125,7 +125,7 @@ describe("Conversation Initiator Reply Routing", () => {
     });
 
     const alerted = await initiator.alert("Test notification to user");
-    expect(alerted).toBe(true);
+    expect(alerted).toMatchObject({ status: "delivered" });
 
     // sendSystemMessage was called with the conversation and channel
     expect(chatService.calls.length).toBeGreaterThanOrEqual(1);

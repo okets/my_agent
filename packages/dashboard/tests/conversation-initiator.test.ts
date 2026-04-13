@@ -202,7 +202,7 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("Morning brief is due.");
-      expect(result).toBe(true);
+      expect(result).toMatchObject({ status: "delivered" });
       expect(chatService.calls).toHaveLength(1);
       expect(chatService.calls[0].conversationId).toBe(conv.id);
     });
@@ -224,7 +224,7 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("Morning brief is due.");
-      expect(result).toBe(true);
+      expect(result).toMatchObject({ status: "delivered" });
     });
 
     it("returns false when no current conversation exists", async () => {
@@ -238,7 +238,7 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("Morning brief is due.");
-      expect(result).toBe(false);
+      expect(result).toMatchObject({ status: "no_conversation" });
     });
 
     it("M10-S0: presence rule — last user turn on web within threshold → web delivery (no source-channel carve-out)", async () => {
@@ -259,7 +259,7 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("test prompt");
-      expect(result).toBe(true);
+      expect(result).toMatchObject({ status: "delivered" });
       expect(channelManager.sent).toHaveLength(0);
       expect(chatService.calls).toHaveLength(1);
     });
@@ -282,7 +282,7 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("Task completed.");
-      expect(result).toBe(true);
+      expect(result).toMatchObject({ status: "delivered" });
       // Channel switch creates a NEW conversation via initiate()
       const allConversations = await manager.list({});
       expect(allConversations.length).toBe(2);
@@ -315,13 +315,54 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("Task completed.");
-      expect(result).toBe(true);
+      expect(result).toMatchObject({ status: "delivered" });
       // Should continue in CURRENT conversation (same channel), not create new one
       expect(chatService.calls).toHaveLength(1);
       expect(chatService.calls[0].conversationId).toBe(conv.id);
       // Should forward to WhatsApp
       expect(channelManager.sent).toHaveLength(1);
       expect(channelManager.sent[0].content).toBe("Continued on WhatsApp");
+    });
+
+    it("channel switch honors presence-rule target, not preferred channel (architect fix 1)", async () => {
+      // Preferred = "web". Conversation has no externalParty (web-origin).
+      // User's last turn was on WA 5 min ago → presence rule → WA.
+      // Pre-fix: alert() computes targetChannel=whatsapp then calls initiate()
+      // which resolves via getOutboundChannel()="web", so the new conversation
+      // lands on web. This test must FAIL before the fix.
+      const conv = await manager.create(); // externalParty=null (web-origin)
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      await manager.appendTurn(
+        conv.id,
+        makeTurn("user", 1, {
+          channel: "whatsapp",
+          timestamp: fiveMinAgo.toISOString(),
+        }),
+      );
+
+      const chatService = createMockChatService("WA body");
+      const channelManager = createMockChannelManager(true);
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager,
+        getOutboundChannel: () => "web", // preferred ≠ target on purpose
+      });
+
+      const result = await initiator.alert("test");
+      expect(result).toMatchObject({ status: "delivered" });
+
+      const allConversations = await manager.list({});
+      expect(allConversations.length).toBe(2);
+      const newConv = allConversations.find((c) => c.id !== conv.id);
+      expect(newConv).toBeDefined();
+      // New conversation must be bound to WA — the presence-rule target —
+      // NOT the preferred channel.
+      expect(newConv!.externalParty).toBe("1234567890@s.whatsapp.net");
+
+      // Actual transport delivery must land on WA.
+      expect(channelManager.sent).toHaveLength(1);
+      expect(channelManager.sent[0].channelId).toBe("whatsapp");
     });
 
     it("recent WhatsApp turn → routes to WhatsApp (matches externalParty, same conversation)", async () => {
@@ -344,7 +385,7 @@ describe("ConversationInitiator", () => {
       });
 
       const result = await initiator.alert("test");
-      expect(result).toBe(true);
+      expect(result).toMatchObject({ status: "delivered" });
       // Stays on the same conversation, forwards to WA.
       expect(chatService.calls).toHaveLength(1);
       expect(chatService.calls[0].conversationId).toBe(conv.id);
@@ -419,7 +460,7 @@ describe("ConversationInitiator", () => {
       });
 
       const alerted = await initiator.alert("Morning brief ready.");
-      expect(alerted).toBe(true);
+      expect(alerted).toMatchObject({ status: "delivered" });
       expect(chatService.calls).toHaveLength(1);
     });
   });

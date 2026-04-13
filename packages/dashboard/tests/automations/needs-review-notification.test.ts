@@ -36,7 +36,7 @@ describe("needs_review notification", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    alertFn = vi.fn().mockResolvedValue(true);
+    alertFn = vi.fn().mockResolvedValue({ status: "delivered" });
     initiateFn = vi.fn().mockResolvedValue({});
 
     config = {
@@ -78,7 +78,7 @@ describe("needs_review notification", () => {
   });
 
   it("falls back to initiate() when alert returns false", async () => {
-    alertFn.mockResolvedValue(false);
+    alertFn.mockResolvedValue({ status: "no_conversation" });
     (config.jobService.getJob as ReturnType<typeof vi.fn>).mockReturnValue(
       makeJob({ status: "needs_review", summary: "Approve this change?" }),
     );

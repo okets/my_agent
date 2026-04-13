@@ -22,8 +22,15 @@ export interface AutomationSchedulerConfig {
     alert(
       prompt: string,
       options?: { triggerJobId?: string },
-    ): Promise<boolean>;
-    initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
+    ): Promise<
+      | { status: "delivered" }
+      | { status: "no_conversation" }
+      | { status: "transport_failed"; reason: string }
+    >;
+    initiate(options?: {
+      firstTurnPrompt?: string;
+      channel?: string;
+    }): Promise<unknown>;
   } | null;
 }
 
@@ -307,9 +314,11 @@ export class AutomationScheduler {
       `A working agent running "${name}" ${errorSummary}.\n\n` +
       `Job ID: ${jobId}\n\n` +
       `You are the conversation layer — let the user know briefly.`;
-    const alerted = await ci.alert(prompt);
-    if (!alerted) {
+    const result = await ci.alert(prompt);
+    if (result.status === "no_conversation") {
       await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
     }
+    // transport_failed: nothing to retry here (no queue wired in this path).
+    // The alert already logged via the initiator.
   }
 }

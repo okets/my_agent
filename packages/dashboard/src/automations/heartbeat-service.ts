@@ -18,8 +18,15 @@ export interface HeartbeatConfig {
     alert(
       prompt: string,
       options?: { triggerJobId?: string },
-    ): Promise<boolean>;
-    initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
+    ): Promise<
+      | { status: "delivered" }
+      | { status: "no_conversation" }
+      | { status: "transport_failed"; reason: string }
+    >;
+    initiate(options?: {
+      firstTurnPrompt?: string;
+      channel?: string;
+    }): Promise<unknown>;
   } | null;
   staleThresholdMs: number; // default: 5 * 60 * 1000
   tickIntervalMs: number; // default: 30 * 1000
@@ -176,20 +183,29 @@ export class HeartbeatService {
 
       try {
         const prompt = this.formatNotification(notification);
-        const delivered =
-          await this.config.conversationInitiator.alert(prompt, {
-            triggerJobId: notification.job_id, // M9.4-S5 B3
-          });
+        const result = await this.config.conversationInitiator.alert(prompt, {
+          triggerJobId: notification.job_id, // M9.4-S5 B3
+        });
 
-        if (delivered) {
+        if (result.status === "delivered") {
           this.config.notificationQueue.markDelivered(notification._filename!);
-        } else {
-          // No current conversation at all (fresh install edge case).
+        } else if (result.status === "no_conversation") {
+          // Fresh install edge case — no conversation exists yet.
           // Fall back to initiate() — per spec C2, no triggerJobId here.
           await this.config.conversationInitiator.initiate({
             firstTurnPrompt: `[SYSTEM: ${prompt}]`,
           });
           this.config.notificationQueue.markDelivered(notification._filename!);
+        } else {
+          // transport_failed — keep the notification pending so the next tick
+          // (or drainNow) retries. MAX_DELIVERY_ATTEMPTS handles eventual
+          // give-up. Do NOT markDelivered; do NOT initiate().
+          console.warn(
+            `[Heartbeat] Notification ${notification.job_id} deferred: ${result.reason}`,
+          );
+          this.config.notificationQueue.incrementAttempts(
+            notification._filename!,
+          );
         }
       } catch (err) {
         console.error(

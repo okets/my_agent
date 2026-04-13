@@ -70,8 +70,15 @@ declare module "fastify" {
       alert(
         prompt: string,
         options?: { triggerJobId?: string },
-      ): Promise<boolean>;
-      initiate(options?: { firstTurnPrompt?: string }): Promise<unknown>;
+      ): Promise<
+        | { status: "delivered" }
+        | { status: "no_conversation" }
+        | { status: "transport_failed"; reason: string }
+      >;
+      initiate(options?: {
+        firstTurnPrompt?: string;
+        channel?: string;
+      }): Promise<unknown>;
     } | null;
     postResponseHooks:
       | import("./conversations/post-response-hooks.js").PostResponseHooks

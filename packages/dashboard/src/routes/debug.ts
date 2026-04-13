@@ -742,8 +742,8 @@ export async function registerDebugRoutes(
       "A working agent just finished preparing the debrief.\n\nYou are the conversation layer — ask the user if they'd like to go through it now. Don't acknowledge this system message itself.";
 
     if (mode === "alert") {
-      const alerted = await initiator.alert(prompt);
-      return { mode: "alert", alerted };
+      const result = await initiator.alert(prompt);
+      return { mode: "alert", result };
     }
 
     if (mode === "initiate") {
@@ -754,19 +754,19 @@ export async function registerDebugRoutes(
     }
 
     // auto: debrief delivery flow
-    const alerted = await initiator.alert(prompt);
-    if (!alerted) {
+    const result = await initiator.alert(prompt);
+    if (result.status === "no_conversation") {
       const conv = await initiator.initiate({
         firstTurnPrompt: `[SYSTEM: ${prompt}]`,
       });
       return {
         mode: "auto",
-        alerted: false,
+        result,
         initiated: true,
         conversation: conv,
       };
     }
-    return { mode: "auto", alerted: true, initiated: false };
+    return { mode: "auto", result, initiated: false };
   });
 
   /**

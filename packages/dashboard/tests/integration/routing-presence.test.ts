@@ -333,9 +333,120 @@ describe("M10-S0: routing presence rule (integration)", () => {
       "A filesystem watch has failed. Let the user know.",
     );
 
-    expect(result).toBe(true);
+    expect(result).toMatchObject({ status: "delivered" });
     expect(channelManager.sent).toHaveLength(1);
     expect(channelManager.sent[0].transportId).toBe("whatsapp");
+  });
+
+  it("transport failure does not silently mark notification delivered (architect fix 2)", async () => {
+    // WA-bound conversation + recent WA user turn → presence rule says WA.
+    // WA transport is disconnected → alert() must NOT return delivered, and
+    // heartbeat must NOT markDelivered. Notification stays pending with
+    // attempts incremented. On reconnect, drainNow redelivers.
+    await setup({ preferredChannel: "whatsapp" });
+
+    // Override channel manager with disconnected variant for phase 1.
+    channelManager = makeChannelManager({ connected: false });
+    initiator = new ConversationInitiator({
+      conversationManager: harness.conversationManager,
+      chatService,
+      channelManager,
+      getOutboundChannel: () => "whatsapp",
+    });
+    heartbeat.stop();
+    heartbeat = new HeartbeatService({
+      jobService: harness.automationJobService!,
+      notificationQueue: notifQueue,
+      conversationInitiator: initiator,
+      staleThresholdMs: 60_000,
+      tickIntervalMs: 999_999,
+      capabilityHealthIntervalMs: 999_999,
+    });
+
+    const conv = await harness.conversationManager.create({
+      externalParty: WA_OWNER_JID,
+    });
+    await appendTurn(harness, conv.id, {
+      role: "user",
+      turnNumber: 1,
+      channel: "whatsapp",
+      ageMinutes: 1,
+    });
+
+    notifQueue.enqueue(
+      makeNotification({ job_id: "job-retry-001" }),
+    );
+
+    await heartbeat.drainNow();
+
+    expect(channelManager.sent).toHaveLength(0);
+    const pendingAfterFailure = notifQueue.listPending();
+    expect(pendingAfterFailure).toHaveLength(1);
+    expect(pendingAfterFailure[0].delivery_attempts).toBe(1);
+
+    // Reconnect the transport and drain again — must succeed.
+    channelManager = makeChannelManager({ connected: true });
+    initiator = new ConversationInitiator({
+      conversationManager: harness.conversationManager,
+      chatService,
+      channelManager,
+      getOutboundChannel: () => "whatsapp",
+    });
+    heartbeat.stop();
+    heartbeat = new HeartbeatService({
+      jobService: harness.automationJobService!,
+      notificationQueue: notifQueue,
+      conversationInitiator: initiator,
+      staleThresholdMs: 60_000,
+      tickIntervalMs: 999_999,
+      capabilityHealthIntervalMs: 999_999,
+    });
+
+    await heartbeat.drainNow();
+
+    expect(channelManager.sent).toHaveLength(1);
+    expect(channelManager.sent[0].transportId).toBe("whatsapp");
+    expect(notifQueue.listPending()).toHaveLength(0);
+  });
+
+  it("transient transport disconnect does not demote the current conversation (architect fix 3)", async () => {
+    // WA-bound conversation is current. WA transport disconnected. Recent WA
+    // user turn → presence rule says WA. Pre-fix: alert() falls into initiate()
+    // because isSameChannel=false when resolved ownerJid is null, and initiate
+    // creates a new conversation which demotes the current one.
+    await setup({ preferredChannel: "whatsapp" });
+    channelManager = makeChannelManager({ connected: false });
+    initiator = new ConversationInitiator({
+      conversationManager: harness.conversationManager,
+      chatService,
+      channelManager,
+      getOutboundChannel: () => "whatsapp",
+    });
+
+    const conv = await harness.conversationManager.create({
+      externalParty: WA_OWNER_JID,
+    });
+    await appendTurn(harness, conv.id, {
+      role: "user",
+      turnNumber: 1,
+      channel: "whatsapp",
+      ageMinutes: 1,
+    });
+
+    const convsBefore = await harness.conversationManager.list({});
+    const beforeIds = new Set(convsBefore.map((c) => c.id));
+
+    const result = await initiator.alert("test");
+    expect(result).toMatchObject({ status: "transport_failed" });
+
+    const convsAfter = await harness.conversationManager.list({});
+    expect(convsAfter.length).toBe(convsBefore.length);
+    for (const c of convsAfter) {
+      expect(beforeIds.has(c.id)).toBe(true);
+    }
+    const stillCurrent = await harness.conversationManager.get(conv.id);
+    expect(stillCurrent!.status).toBe("current");
+    expect(channelManager.sent).toHaveLength(0);
   });
 
   it("legacy on-disk notification with source_channel field deserializes cleanly", async () => {
