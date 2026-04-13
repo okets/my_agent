@@ -11,7 +11,12 @@ import { execFileSync } from 'node:child_process'
 import { basename, dirname, join } from 'node:path'
 import { readFrontmatter } from '../metadata/frontmatter.js'
 import { getEnvValue } from '../env.js'
-import type { Capability, CapabilityFrontmatter, CapabilityMcpConfig } from './types.js'
+import {
+  WELL_KNOWN_MULTI_INSTANCE,
+  type Capability,
+  type CapabilityFrontmatter,
+  type CapabilityMcpConfig,
+} from './types.js'
 
 /**
  * Recursively replace `${CAPABILITY_ROOT}` in all string values of an object.
@@ -122,6 +127,7 @@ export async function scanCapabilities(
           error: 'Missing name in CAPABILITY.md frontmatter',
           health: 'untested',
           enabled: false,
+          canDelete: false,
         })
         continue
       }
@@ -148,6 +154,7 @@ export async function scanCapabilities(
         status: allMissing.length === 0 ? 'available' : 'unavailable',
         health: 'untested',
         enabled,
+        canDelete: data.provides ? WELL_KNOWN_MULTI_INSTANCE.has(data.provides) : false,
       }
 
       if (allMissing.length > 0) {
@@ -177,6 +184,7 @@ export async function scanCapabilities(
         error: err instanceof Error ? err.message : 'Unknown error parsing CAPABILITY.md',
         health: 'untested',
         enabled: false,
+        canDelete: false,
       })
     }
   }
