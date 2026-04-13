@@ -69,3 +69,65 @@ directly: `spawn(resolve(capabilityRoot, 'node_modules/.bin/mcp-server-playwrigh
 The wrapper is already dumb enough that this is a 2-line change.
 
 ---
+
+## D4 — `iconSlug` sourced from CAPABILITY.md frontmatter `icon:` field
+
+**Date:** 2026-04-13
+**Phase:** D.
+
+**Decision:** The scanner reads an optional `icon:` string from CAPABILITY.md
+frontmatter and surfaces it on the `Capability` object as `iconSlug`. The
+v2 settings API forwards it on each instance and the UI maps the slug to
+`/icons/browsers/<slug>.svg` with a generic-globe fallback on load error.
+Type-level fallback `iconSlug` (e.g. `'browser'` on `browser-control`) is
+used only when an instance carries no `icon:` of its own.
+
+**Why:** Multi-instance UIs need per-instance branding (Chrome vs Edge vs
+Firefox icons distinguish rows at a glance). Using the simple-icons slug
+verbatim keeps the system extensible — any future browser or capability
+just adds its slug to its frontmatter and drops the SVG under
+`packages/dashboard/public/icons/<group>/`. No code change needed per
+new browser brand.
+
+**Alternatives considered:**
+- UI-side hardcoded mapping (`{ 'browser-chrome': 'googlechrome', ... }`)
+  — rejected: every new browser would require dashboard rebuild + restart.
+- Inlining the SVG in CAPABILITY.md — rejected: bloats markdown, inconsistent
+  with Phase A "template provides $ICON_SLUG placeholder" already settled.
+
+**How to apply:** Browser templates instruct the agent to set
+`icon: <simple-icons-slug>` in CAPABILITY.md. Bundled SVGs live at
+`packages/dashboard/public/icons/browsers/{googlechrome,microsoftedge,
+firefox,safari,brave,generic}.svg`. Generic fallback applies on missing
+asset (img.onerror swap).
+
+**Watch for:** If the framework gains a non-browser multi-instance type
+(e.g. `llm-provider`), generalise the icon root from `/icons/browsers/`
+to `/icons/<provides-type>/` so `iconSlug` resolution stays type-scoped.
+
+---
+
+## D5 — v2 toggle endpoint URL shape: `/:type/:instance/toggle`
+
+**Date:** 2026-04-13
+**Phase:** D.
+
+**Decision:** The new per-instance toggle endpoint is
+`POST /api/settings/capabilities/:type/:instance/toggle`. Both segments
+are validated server-side: the named instance must exist and its
+`provides` field must equal `:type`, otherwise 404/400. The legacy
+`POST /api/settings/capabilities/:type/toggle` route is preserved
+(unchanged behaviour for singletons) and now internally delegates to
+`registry.toggleByName(firstInstance.name)` — kept additive.
+
+**Why:** Including `:type` in the v2 path is redundant given that the
+instance name is globally unique, but it (a) lets the API layer enforce
+that the caller's mental model matches reality (catches typos like
+toggling `desktop-control/browser-chrome`); (b) keeps URL shape symmetric
+with the DELETE route which needs `:type` for the `canDelete` policy
+check; (c) makes server logs self-documenting.
+
+**How to apply:** Frontend always passes both segments. New consumers of
+the v2 API should follow the same pattern.
+
+---
