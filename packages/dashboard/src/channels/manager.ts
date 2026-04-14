@@ -35,6 +35,15 @@ interface TransportEntry {
   debouncer: MessageDebouncer<IncomingMessage> | null;
   /** Flag to suppress reconnects during QR pairing */
   pairing: boolean;
+  /**
+   * True when a genuine pairing operation is in progress (QR scanned or
+   * phone-pairing code requested) and we haven't yet notified the pairing
+   * handler. Cleared after the pairing handler fires on successful connect.
+   * Distinguishes true pairings from plain reconnects of stored-credential
+   * sessions — both land on `newStatus.connected`, but only true pairings
+   * should fire `pairingHandler`.
+   */
+  pendingPairingNotification: boolean;
 }
 
 /** Message handler signature */
@@ -177,6 +186,7 @@ export class TransportManager {
       reconnectTimer: null,
       debouncer: null,
       pairing: false,
+      pendingPairingNotification: false,
     };
 
     // Wire up event handlers
@@ -189,6 +199,9 @@ export class TransportManager {
     plugin.on("qr", (qrDataUrl: string) => {
       // Set pairing flag to suppress reconnects while waiting for QR scan
       entry.pairing = true;
+      // Arm the pairing-notification flag so the next successful connect
+      // is treated as a real pairing (not a stored-credential reconnect).
+      entry.pendingPairingNotification = true;
       // Suppress QR codes during phone number pairing
       if (this.phonePairingTransports.has(id)) {
         console.log(
@@ -450,6 +463,10 @@ export class TransportManager {
       throw new Error(`Transport plugin does not support phone number pairing`);
     }
 
+    // Arm the pairing-notification flag so the next successful connect
+    // is treated as a real pairing (not a stored-credential reconnect).
+    entry.pendingPairingNotification = true;
+
     try {
       const code = await (entry.plugin as any).requestPairingCode(phoneNumber);
       if (this.pairingCodeHandler) {
@@ -683,6 +700,7 @@ export class TransportManager {
           `[TransportManager] Transport ${transportId} logged out — not reconnecting`,
         );
         entry.pairing = false;
+        entry.pendingPairingNotification = false;
         return;
       }
 
@@ -729,9 +747,16 @@ export class TransportManager {
         `[TransportManager] Transport ${transportId} connected successfully`,
       );
 
-      // Notify pairing success handler
-      if (this.pairingHandler) {
-        this.pairingHandler(transportId);
+      // Only notify the pairing handler on a genuine pairing (QR scanned or
+      // phone-pairing code requested). Plain reconnects — e.g. baileys
+      // re-establishing a stored-credential session after a network blip —
+      // also land here, but should stay silent to avoid spurious "please
+      // authorize" prompts on the client.
+      if (entry.pendingPairingNotification) {
+        entry.pendingPairingNotification = false;
+        if (this.pairingHandler) {
+          this.pairingHandler(transportId);
+        }
       }
     }
   }

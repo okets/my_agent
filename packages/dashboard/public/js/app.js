@@ -1902,9 +1902,17 @@ function chat() {
           this.clearQrCountdown(data.transportId);
           // Refresh channel list to get updated status
           this.fetchChannels();
-          // Auto-trigger auth token for dedicated channels
+          // Auto-trigger auth token for dedicated channels that don't yet
+          // have an owner binding. Guards against stray transport_paired
+          // events on reconnect: if the owner is already bound, there's
+          // nothing to authorize and we'd just overwrite the UI with a
+          // "please send this code" panel.
           const pairedCh = this.channels.find((c) => c.id === data.transportId);
-          if (pairedCh && pairedCh.role === "dedicated") {
+          if (
+            pairedCh &&
+            pairedCh.role === "dedicated" &&
+            !this.getBinding(data.transportId)
+          ) {
             setTimeout(() => this.requestAuthToken(data.transportId), 500);
           }
           break;
