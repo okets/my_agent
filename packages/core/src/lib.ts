@@ -256,6 +256,9 @@ export {
   storeAndInject,
 } from './capabilities/index.js'
 export type { RateLimiter, AuditLogger, AuditEntry, ScreenshotInterceptor, StoreCallback, StoreAndInjectResult } from './capabilities/index.js'
+// CFR (M9.6)
+export { CfrEmitter, classifySttError, classifyEmptyStt } from './capabilities/index.js'
+export type { CapabilityFailureSymptom, TriggeringInput, FixAttempt, CapabilityFailure, SurrenderScope } from './capabilities/index.js'
 
 // Memory system
 export {

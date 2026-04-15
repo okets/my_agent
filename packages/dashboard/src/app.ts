@@ -48,7 +48,9 @@ import {
   scanCapabilities,
   resolveEnvPath,
   FileWatcher,
+  CfrEmitter,
 } from "@my-agent/core";
+import { RawMediaStore } from "./media/raw-media-store.js";
 import type { ListSpacesFilter } from "@my-agent/core";
 import type { HealthChangedEvent } from "@my-agent/core";
 import { createBaileysPlugin } from "@my-agent/channel-whatsapp";
@@ -372,6 +374,10 @@ export class App extends EventEmitter {
   // Capabilities (M9-S1)
   capabilityRegistry: CapabilityRegistry | null = null;
 
+  // CFR (M9.6-S1)
+  cfr!: CfrEmitter;
+  rawMediaStore: RawMediaStore | null = null;
+
   playwrightBridge: PlaywrightScreenshotBridge | null = null;
 
   private constructor(agentDir: string, isHatched: boolean) {
@@ -380,6 +386,8 @@ export class App extends EventEmitter {
     this.isHatched = isHatched;
     this.sessionRegistry = new SessionRegistry(5);
     this.visualActionService = new VisualActionService(agentDir);
+    this.cfr = new CfrEmitter();
+    this.rawMediaStore = new RawMediaStore(agentDir);
   }
 
   /**

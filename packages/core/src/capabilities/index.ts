@@ -4,6 +4,15 @@ export type {
   CapabilityMcpConfig,
   CapabilityTestResult,
 } from './types.js'
+export type {
+  CapabilityFailureSymptom,
+  TriggeringInput,
+  FixAttempt,
+  CapabilityFailure,
+  SurrenderScope,
+} from './cfr-types.js'
+export { CfrEmitter } from './cfr-emitter.js'
+export { classifySttError, classifyEmptyStt } from './failure-symptoms.js'
 export { CapabilityRegistry } from './registry.js'
 export { scanCapabilities } from './scanner.js'
 export {
