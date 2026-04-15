@@ -11,6 +11,7 @@ import { ConversationDatabase } from "./db.js";
 import type {
   Conversation,
   TranscriptTurn,
+  TranscriptLine,
   TranscriptMeta,
   ListConversationsOptions,
   GetTurnsOptions,
@@ -191,6 +192,27 @@ export class ConversationManager {
     id: string,
   ): Promise<{ channel: string | undefined; timestamp: string } | null> {
     return this.transcripts.getLastUserTurn(id);
+  }
+
+  /**
+   * Read the full JSONL transcript (all line types — meta, turns, events).
+   *
+   * Used by consumers that need to correlate events with turns (e.g. the
+   * abbreviation queue honoring `turn_corrected` events, or the orphan
+   * watchdog checking for `watchdog_rescued` idempotency markers).
+   */
+  async getFullTranscript(id: string): Promise<TranscriptLine[]> {
+    return this.transcripts.readFullTranscript(id);
+  }
+
+  /**
+   * Append an arbitrary event line to the transcript.
+   *
+   * Used for event types that don't have a dedicated setter (e.g.
+   * `turn_corrected`, `watchdog_rescued`, `watchdog_resolved_stale`).
+   */
+  async appendEvent(id: string, event: TranscriptLine): Promise<void> {
+    this.transcripts.appendEvent(id, event);
   }
 
   /**

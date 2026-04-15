@@ -792,7 +792,7 @@ Place at `packages/core/src/prompts/orphan-rescue.md`.
 **Verification commands:**
 ```bash
 cd packages/core && npx vitest run tests/conversations/orphan-watchdog
-cd packages/dashboard && npx vitest run tests/automations/abbreviation
+cd packages/dashboard && npx vitest run tests/conversations/abbreviation-honors-correction
 ```
 
 **Escalate via deviation proposal if:**

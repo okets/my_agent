@@ -25,6 +25,11 @@ export type {
   TranscriptEvent,
   TranscriptMetaUpdate,
   TranscriptLine,
+  TurnCorrectedEvent,
+  WatchdogRescuedEvent,
+  WatchdogResolvedStaleEvent,
+  WatchdogRescueCompletedEvent,
+  CapabilitySurrenderEvent,
   ListConversationsOptions,
   GetTurnsOptions,
 } from "./types.js";

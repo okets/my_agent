@@ -51,8 +51,11 @@ import {
   CfrEmitter,
   CapabilityWatcher,
   RecoveryOrchestrator,
+  OrphanWatchdog,
+  reverify,
   loadModels,
 } from "@my-agent/core";
+import type { OrphanSweepReport } from "@my-agent/core";
 import { RawMediaStore } from "./media/raw-media-store.js";
 import type { ListSpacesFilter } from "@my-agent/core";
 import type { HealthChangedEvent } from "@my-agent/core";
@@ -923,6 +926,70 @@ export class App extends EventEmitter {
         getOutboundChannel: () => loadPreferences(agentDir).outboundChannel,
       });
       console.log("[ConversationInitiator] Initialized");
+    }
+
+    // ── Orphaned-turn watchdog (M9.6-S5) ──
+    // Boot-time sweep of the last 5 conversations. Any user turn with no
+    // following assistant turn gets a mediator-framed rescue prompt (if
+    // recent) or a watchdog_resolved_stale marker (if > 30 min old). Voice
+    // placeholders with on-disk raw media go through STT reverify first.
+    if (hatched) {
+      const orphanWatchdog = new OrphanWatchdog({
+        conversationLimit: 5,
+        staleThresholdMs: 30 * 60 * 1000,
+        rawMediaStore: app.rawMediaStore,
+        conversationManager: app.conversationManager,
+        reverify: app.capabilityRegistry && app.capabilityWatcher
+          ? (failure) =>
+              reverify(failure, app.capabilityRegistry!, app.capabilityWatcher!)
+          : undefined,
+        systemMessageInjector: async (convId, prompt) => {
+          // Mediator-framed injection — same pattern as reprocessTurn (M9.6-S4).
+          // Drain the stream so the assistant turn lands in the transcript,
+          // then forward the response back on the SAME CHANNEL the original
+          // user turn arrived on (routing rule: conversation replies stay on
+          // the conversation's channel, not the preferred outbound channel).
+          const conv = await app.conversationManager.get(convId);
+          const nextTurn = (conv?.turnCount ?? 0) + 1;
+          let response = "";
+          for await (const event of app.chat.sendSystemMessage(
+            convId,
+            prompt,
+            nextTurn,
+          )) {
+            if (event.type === "text_delta" && event.text) {
+              response += event.text;
+            }
+          }
+          if (response) {
+            const ci = app.conversationInitiator;
+            if (ci) {
+              // Pass the orphaned turn's original channel as the override so a
+              // WhatsApp voice note is rescued back to WhatsApp, not to the
+              // preferred outbound channel (which may be "web").
+              const lastUser = await app.conversationManager.getLastUserTurn(convId);
+              await ci.forwardToChannel(response, lastUser?.channel);
+            }
+          }
+        },
+      });
+
+      // Run once at boot — cap at 10s so a slow sweep never blocks startup.
+      Promise.race<OrphanSweepReport>([
+        orphanWatchdog.sweep(),
+        new Promise<OrphanSweepReport>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("orphan sweep timeout")),
+            10_000,
+          ),
+        ),
+      ])
+        .then((report) => {
+          console.log("[orphan-watchdog] sweep complete", report);
+        })
+        .catch((err) => {
+          console.warn("[orphan-watchdog] sweep failed or timed out", err);
+        });
     }
 
     // WorkLoopScheduler removed in M7-S6 — jobs are now automation manifests
