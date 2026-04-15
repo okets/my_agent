@@ -43,16 +43,16 @@ export interface RawMediaStoreLike {
 }
 
 /**
- * A single transcript line — structural subset of the dashboard's
- * `TranscriptLine` union (meta, turn, event, meta_update, turn_corrected,
- * watchdog_rescued, watchdog_resolved_stale). Defined structurally so this
- * module stays in `packages/core` without depending on `@my-agent/dashboard`.
+ * A single transcript line — discriminated by `type`. Intentionally loose
+ * (only the `type` tag is required on non-turn lines) so the dashboard's
+ * richer `TranscriptLine` union is structurally assignable without this
+ * module importing from `@my-agent/dashboard`.
  */
 export type TranscriptLineLike =
-  | { type: "meta"; [k: string]: unknown }
+  | { type: "meta" }
   | TranscriptTurnLike
-  | { type: "event"; event: string; [k: string]: unknown }
-  | { type: "meta_update"; [k: string]: unknown }
+  | { type: "event"; event: string }
+  | { type: "meta_update" }
   | TurnCorrectedLike
   | WatchdogRescuedLike
   | WatchdogResolvedStaleLike;
