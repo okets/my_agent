@@ -176,13 +176,56 @@ export interface TranscriptMetaUpdate {
 }
 
 /**
+ * Emitted when a CFR orchestrator retroactively corrects a user turn
+ * (e.g. STT failure recovered — corrected transcription replaces the placeholder).
+ * Appended via ConversationManager.appendEvent(). Consumed by the abbreviation
+ * queue in S5 to prefer correctedContent over the original user turn.
+ * Defined in M9.6-S1 as a shared contract; consumer wiring is part of S5.
+ */
+export interface TurnCorrectedEvent {
+  type: "turn_corrected";
+  turnNumber: number;
+  correctedContent: string;
+  correctedBy: "cfr-orchestrator";
+  cfrFailureId: string;
+  timestamp: string; // ISO8601
+}
+
+/**
+ * Emitted by the orphan watchdog (M9.6-S5) when it rescues an orphaned user
+ * turn that never received an assistant reply. Presence of this event for a
+ * given turnNumber makes the sweep idempotent — re-runs skip already-rescued
+ * turns.
+ */
+export interface WatchdogRescuedEvent {
+  type: "watchdog_rescued";
+  turnNumber: number;
+  initiatedAt: string; // ISO8601
+}
+
+/**
+ * Emitted by the orphan watchdog (M9.6-S5) when it observes an orphan that is
+ * older than the stale threshold and chooses to skip rescue rather than prompt
+ * the brain to reply long after the fact. Idempotent marker for the sweep.
+ */
+export interface WatchdogResolvedStaleEvent {
+  type: "watchdog_resolved_stale";
+  turnNumber: number;
+  ageMs: number;
+  resolvedAt: string; // ISO8601
+}
+
+/**
  * Any line in a JSONL transcript
  */
 export type TranscriptLine =
   | TranscriptMeta
   | TranscriptTurn
   | TranscriptEvent
-  | TranscriptMetaUpdate;
+  | TranscriptMetaUpdate
+  | TurnCorrectedEvent
+  | WatchdogRescuedEvent
+  | WatchdogResolvedStaleEvent;
 
 /**
  * Options for listing conversations
