@@ -476,8 +476,14 @@ export class ChannelMessageHandler {
       }
     }
 
-    // Persist raw media for CFR recovery (M9.6-S1).
-    // Saves the primary media buffer to disk before STT or any downstream processing.
+    // RawMediaStore writes happen here (framework layer), NOT in plugins.
+    // Plugins are transport-only; they download buffers and fire incoming events.
+    // The framework is responsible for disk persistence before any downstream
+    // processing. See docs/design/capability-resilience.md §Red-Team Resolutions B2.
+    //
+    // For multi-attachment messages, all buffers are saved. rawMediaPath captures
+    // the first for the CFR TriggeringInput artifact; S4's re-verifier can find
+    // siblings via directory listing under conversations/<convId>/raw/.
     let rawMediaPath: string | undefined;
     try {
       if (first.isVoiceNote && first.audioAttachment) {
@@ -488,13 +494,16 @@ export class ChannelMessageHandler {
           first.audioAttachment.buffer,
         );
       } else if (first.attachments?.length) {
-        const firstAtt = first.attachments[0];
-        rawMediaPath = await this.deps.app.rawMediaStore.save(
-          conversation.id,
-          `${first.id}-${firstAtt.filename}`,
-          firstAtt.mimeType,
-          firstAtt.data,
-        );
+        for (let i = 0; i < first.attachments.length; i++) {
+          const att = first.attachments[i];
+          const savedPath = await this.deps.app.rawMediaStore.save(
+            conversation.id,
+            `${first.id}-${att.filename}`,
+            att.mimeType,
+            att.data,
+          );
+          if (i === 0) rawMediaPath = savedPath;
+        }
       }
     } catch (err) {
       console.warn("[ChannelMessageHandler] Failed to persist raw media:", err);
