@@ -106,39 +106,64 @@ Each milestone builds on the previous. Minimal rework, natural progression.
 
 ---
 
-## M10: Channel SDK + Transports (4 sprints)
+## M10: Channel SDK (8 sprints, S0 done)
 
-**Goal:** Mature the transport plugin interface into a proper SDK. Prove it with two very different transports: email (async/polling) and Discord (real-time/websocket).
+**Goal:** Perfect the transport/channels system with clean decoupling and easy extensibility. Ship 4 production channels pre-launch (WhatsApp + Telegram + Discord + Line). End with Nina authoring a channel solo as proof of SDK usability.
 
-**Inspiration:** OpenClaw connector patterns for design reference.
+**Core principle:** Transport (wire: connect/send/receive/auth) and Channel (owner-identity binding on top) are separate contracts. A transport without a channel is still useful — M11 layers external communications + email-as-capability on top without forcing every transport through the channel abstraction.
 
-| Sprint | Name | Scope |
-|--------|------|-------|
-| S1 | Transport SDK | Audit existing transport/channel interface (M3-S6), study OpenClaw connector patterns, define the mature Transport SDK (lifecycle hooks, auth flows, message normalization, rich content mapping, health monitoring). Migration of WhatsApp transport to new SDK. |
-| S2 | Email Transport (MS365) | MS365 transport via Microsoft Graph API. OAuth flow, inbound polling, outbound sending, attachments, threading. Proves SDK works for async polling-based transports. |
-| S3 | Discord Transport | Discord.js transport. Bot auth, real-time websocket, rich embeds, reactions, threads. Proves SDK works for real-time event-based transports. |
-| S4 | Transport Documentation | SDK docs, "build your own transport" guide, transport template/scaffold. Community-ready. |
+**Non-scope:** email, external communications, per-contact rulesets. Those are M11. M10-S1 designs forward-compat for them without implementing.
 
-**Key design questions (resolve during spec):**
-- How much to borrow from OpenClaw's connector design vs. build our own?
-- Message normalization: unified message format across all transports?
-- Auth pattern: each transport handles its own, or shared OAuth/token framework?
+**Inspiration:** OpenClaw connector patterns; Anthropic's Claude Code "Channels" MCP model (envelope + sender gating + capability declaration patterns, adapted for our multi-user case — they couple transport+channel because Claude Code is single-user; we don't).
+
+| Sprint | Name | Mode | Scope |
+|--------|------|------|-------|
+| S0 | Routing Simplification | Done | Eliminated `sourceChannel` tagging and routing hardcodes. Presence rule at delivery. Merged 2026-04-13. |
+| S1 | Transport + Channel SDK Design | Design, no code | Spec deliverable: transport/channel decoupling, auth primitives (QR/OAuth/token/custom), sender gating enforcement point, lifecycle hooks, health/status surface, capability declarations (inbound/outbound/richContent/groupChat), protocol-expressibility, M11 forward-compat analysis. |
+| S2 | WhatsApp Migration — Gold Bar | Implementation | Refactor WhatsApp onto new SDK. Becomes the reference implementation. |
+| S3 | Telegram Channel | Implementation | Framework-built. Simplest bot-API shape. First non-WhatsApp validation. |
+| S4 | Discord Channel | Implementation | Framework-built. Real-time WebSocket. Tests SDK's range. |
+| S5 | SDK Docs + Scaffold + Skill | Docs + tooling | Public SDK docs, `create-channel` scaffold, `channel-brainstorming` skill + `channel-builder` agent, `skills/channel-templates/` (webhook-bot, long-poll-bot, websocket-bot). |
+| S6 | Line Channel — Co-Build with Nina | Co-build | Nina drives, we pair. Each friction surfaced becomes an SDK/docs fix. |
+| S7 | Agent-Authored Channel — Proof | Autonomy test | Nina builds a new channel solo from a user request. Validates SDK usability. |
+
+**Key design decisions (locked):**
+- Transport ≠ channel — separate contracts. Transport is infrastructure; channel is owner-identity binding.
+- Pre-launch channels: WhatsApp + Telegram + Discord + Line.
+- Three authorship tiers: framework-shipped, community-built, agent-authored. Manifest declares tier.
+- Sender gating enforced in framework, not plugin. Plugin reports `fromIdentity`; framework decides channel binding.
+- SDK expressed as message protocol, not TS-interface-only. Enables future subprocess/multi-language runtimes.
+- Post-generation content adaptation (markdown stripping, message splitting) stays in plugin. Tone/length shaping stays in brain.
+
+**Milestone exit criteria:**
+- 4 channels shipped (WA migrated + TG + Discord + Line)
+- SDK + scaffold + `channel-brainstorming` skill public
+- One agent-authored channel exists (S7)
+- M11 forward-compat analysis in S1 spec
+
+**Key design questions (resolve in S1):**
+- Protocol shape: message-schema-based (future-proof for subprocess runtimes) vs. TS-module-native (simpler now). S1 must pick a shape that makes both possible.
+- Auth UX primitives: how does the plugin declare what it needs (QR/OAuth/token) without each plugin reinventing the flow?
+- How M11's working-Nina-outbound + stranger-inbound layers on the same transport a channel is bound to — without the channel's owner binding leaking into other conversation scopes.
+- Sender-gating-by-framework: which layer actually enforces it, and how does the plugin report `fromIdentity` in a way that can't be spoofed from inside the plugin?
 
 ---
 
-## M11: External Communications (2 sprints)
+## M11: External Communications (3 sprints)
 
-**Goal:** The agent communicates with people other than the owner, across all transports, via Working Agents.
+**Goal:** The agent communicates with people other than the owner, across all transports, via Working Agents. Adds email as a capability (not a channel) — nobody has conversations with their agent over email; email is a tool the agent *uses* on the owner's behalf against external contacts.
 
 | Sprint | Name | Scope |
 |--------|------|-------|
-| S1 | External Contact Routing | Working Agent spawned per external contact/conversation. Contact registry (markdown-first). Routing rules: which contacts get responses, which get queued for approval. Inbound routing across WhatsApp + email + Discord. |
-| S2 | Ruleset + Approval Flow | Cross-channel ruleset model (auto-reply, queue, block per contact/group). Approval UI in dashboard (pending messages, approve/edit/reject). Outbound message sending on behalf of owner. Notification to owner on escalation. |
+| S1 | Email Capability (MS365) | Email as a capability, not a channel. MS365 via Microsoft Graph API. OAuth flow, inbound polling, outbound sending, attachments, threading. Agent uses it as a tool. |
+| S2 | External Contact Routing | Working Agent spawned per external contact/conversation on the transports built in M10 (WhatsApp + Discord + Telegram + Line) + email capability. Contact registry (markdown-first). Inbound routing for non-owner senders. |
+| S3 | Ruleset + Approval Flow | Cross-channel ruleset model (auto-reply, queue, block per contact/group). Approval UI in dashboard (pending messages, approve/edit/reject). Outbound sending on behalf of owner. Notification to owner on escalation. |
 
 **Key design questions (resolve during spec):**
 - Contact identity across transports (same person on WhatsApp + email = one contact?)
 - Ruleset storage: per-contact YAML in notebook, or workspace-level config?
 - Approval UX: notification + quick-approve, or full review queue?
+- How working Ninas share a transport with conversation-Nina without stepping on each other's auth/rate limits (pre-resolved by M10-S1's forward-compat analysis).
 
 ---
 

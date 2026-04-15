@@ -31,8 +31,8 @@
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **In Progress** | 6 done (S1-S5 + S2.5) + S6 spec'd. S5 closed UX-1 (handoff continuity); S6 addresses UX-2 (progress counter cadence via methodical-worker prompting). |
 | **M9.5: Capability Framework v2** | **Done** | 7 sprints done. S7 shipped browser-control as the framework's first multi-instance capability type. |
-| **M10: Channel SDK + Transports** | In Progress | S0 merged. S1-S4 planned. |
-| **M11: External Communications** | Planned | 2 sprints (contact routing, ruleset + approval) |
+| **M10: Channel SDK** | In Progress | S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof. |
+| **M11: External Communications** | Planned | 3 sprints (email capability, contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
 | **M13: Platform Hardening**  | Planned | 3 sprints (auth, backup/restore, update) — S4/S5 absorbed by M9.5 |
 | **M14: Release**             | Planned | 2 sprints (security audit, documentation + launch) |
@@ -70,10 +70,10 @@ JUST DONE (M9.5-S7)
 ═══════════════════
 M9.5-S7 Browser Capability — browser-control shipped as framework's first multi-instance type. Per-browser folders + profiles, settings UI multi-instance card, agent-built browser-chrome verified end-to-end (real Chrome, fresh profile, screenshot navigation). All 4 follow-ups closed in-branch. New checklist doc for the next multi-instance type. 18 commits.
 
-FUTURE (M10–M14) — ~14 sprints to release
+FUTURE (M10–M14) — ~18 sprints to release
 ══════════════════════════════════════════
 M10 Channel SDK ──► M11 External Comms ──► M12 iOS ──► M13 Hardening ──► M14 Release
-  (4 sprints)          (2 sprints)           (3 sprints)   (3 sprints)       (2 sprints)
+  (7 sprints)          (3 sprints)           (3 sprints)   (3 sprints)       (2 sprints)
 ```
 
 ---
@@ -954,50 +954,68 @@ Extend the capability framework to support MCP-based capabilities alongside scri
 
 ---
 
-### M10: Channel SDK + Transports — PLANNED
+### M10: Channel SDK — PLANNED
 
-Mature the transport plugin interface into a proper SDK. Prove it with email (MS365) and Discord — two very different transport types (async polling vs. real-time websocket). If the SDK handles both cleanly, it handles anything.
+Perfect the transport/channels system with clean decoupling and easy extensibility. Ship 4 production channels pre-launch (WhatsApp + Telegram + Discord + Line). End with Nina authoring a channel solo as proof the SDK is usable without us.
 
 **Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M10
 
-**Inspiration:** OpenClaw connector patterns for design reference.
+**Core principle:** Transport (wire: connect/send/receive/auth) and Channel (owner-identity binding on top) are separate contracts. A transport without a channel is still useful — future milestones (external communications, email-as-capability) layer on top without forcing every transport through the channel abstraction.
+
+**Non-scope:** email, external communications (working-Nina-to-strangers), per-contact rulesets. Those are M11. M10-S1 designs forward-compat for them without implementing.
+
+**Inspiration:** OpenClaw connector patterns; Anthropic's Claude Code "Channels" MCP model (envelope + sender gating + capability declaration patterns, adapted for our multi-user case).
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
 | S0 | Routing Simplification | Done | **M10 blocker.** Eliminated `sourceChannel` tagging and all routing hardcodes. One presence rule at delivery: last user turn's channel if within 15 min, else preferred channel. Removes the class of WhatsApp-bleed bugs (#2/#3/#4). [Plan](sprints/m10-s0-routing-simplification/plan.md) · [Review](sprints/m10-s0-routing-simplification/review.md) · [Architect review](sprints/m10-s0-routing-simplification/architect-review.md) · [Decisions](sprints/m10-s0-routing-simplification/DECISIONS.md) · [Fix doc](fixes/whatsapp-bleed-issue-4.md) · 32 M10-S0 tests, 0 prod refs to `sourceChannel`. Task 6 (re-deliver lost April-13 research) pending post-merge. |
-| S1 | Transport SDK | Planned | Audit existing transport/channel interface (M3-S6), study OpenClaw connector patterns, define mature Transport SDK (lifecycle hooks, auth flows, message normalization, rich content mapping, health monitoring). Migrate WhatsApp transport to new SDK. |
-| S2 | Email Transport (MS365) | Planned | MS365 transport via Microsoft Graph API. OAuth flow, inbound polling, outbound sending, attachments, threading. Proves SDK works for async polling-based transports. |
-| S3 | Discord Transport | Planned | Discord.js transport. Bot auth, real-time websocket, rich embeds, reactions, threads. Proves SDK works for real-time event-based transports. |
-| S4 | Transport Documentation | Planned | SDK docs, "build your own transport" guide, transport template/scaffold. Community-ready. |
+| S1 | Transport + Channel SDK Design | Planned | **Pure design sprint — no implementation.** Spec deliverable covering: transport/channel decoupling, auth primitives (QR/OAuth/token/custom), sender gating enforcement point, lifecycle hooks, health/status surface, capability declarations (inbound/outbound/richContent/groupChat), protocol-expressibility for future subprocess runtimes, and forward-compat analysis for how M11 external-communications will layer working-Nina-outbound + stranger-inbound on the same transports without coupling to the channel layer. |
+| S2 | WhatsApp Migration — Gold Bar | Planned | Refactor `plugins/channel-whatsapp/` onto the new SDK. Becomes the reference implementation every future channel is measured against. |
+| S3 | Telegram Channel | Planned | Framework-built. Simplest bot-API-shaped channel. First validation that SDK works for non-WhatsApp. |
+| S4 | Discord Channel | Planned | Framework-built. Real-time WebSocket path. Tests SDK's range against event-based transports. |
+| S5 | SDK Docs + Scaffold + Skill | Planned | Public SDK docs, `create-channel` scaffold, `channel-brainstorming` skill + `channel-builder` agent, templates in `skills/channel-templates/` for webhook-bot, long-poll-bot, websocket-bot shapes. |
+| S6 | Line Channel — Co-Build with Nina | Planned | Nina drives, we pair. Every SDK/docs friction surfaced becomes a contract or instruction fix. Deliverable: Line channel + list of SDK refinements applied. |
+| S7 | Agent-Authored Channel — Proof | Planned | Nina builds a new channel solo from a user request (candidate: Slack, Mastodon, Signal, etc.). No pairing with us. Success = she ships it; failure reveals remaining SDK gaps. Either outcome is a valid milestone signal. |
 
-**Key design questions (resolve during spec):**
-- How much to borrow from OpenClaw connector design?
-- Message normalization: unified format across all transports?
-- Auth pattern: per-transport or shared framework?
+**Key design decisions (locked):**
+- **Transport ≠ channel.** Transport is infrastructure (wire). Channel is owner-identity binding on top. External communications + email-as-capability use transports without channel wrapping.
+- **Channels list (pre-launch):** WhatsApp + Telegram + Discord + Line. iMessage, Signal, Slack, Mastodon, etc. are community/agent-built candidates.
+- **Three tiers of authorship:** framework-shipped (WA/TG/Discord/Line), community-built (via scaffold + docs), agent-authored (via `channel-brainstorming` skill). Manifest declares tier.
+- **Sender gating in framework, not plugin.** Plugin reports `fromIdentity`; framework decides channel binding. Keeps prompt-injection surface out of plugin hands.
+- **Protocol-expressible contract.** SDK expressed as message protocol (inbound envelope + outbound call schema), not TS-interface-only. Enables future subprocess/multi-language runtimes without retrofit.
+- **Post-generation adaptation stays in plugin.** Tone/length shaping stays in brain (task + channel jointly decide).
 
-**Dependencies:** M9 (capability system — transports can leverage capability registry for media handling)
+**Milestone exit criteria:**
+- 4 channels shipped (WA migrated + TG + Discord + Line)
+- SDK + scaffold + `channel-brainstorming` skill public
+- One agent-authored channel exists (S7)
+- M11 forward-compat analysis complete in S1 spec
 
-**Supersedes:** Old M9 (Email Integration) and old M10 (External Communications). Email becomes a transport; external routing moves to M10.
+**Dependencies:** M9 (capability system — channels may use capabilities for media handling)
+
+**Supersedes:** Old M9 (Email Integration) and old M10 (External Communications). Email removed from M10; moves to M11 as a capability, not a channel.
 
 ---
 
 ### M11: External Communications — PLANNED
 
-The agent communicates with people other than the owner, across all transports, via Working Agents.
+The agent communicates with people other than the owner, across all transports, via Working Agents. Adds email as a capability (not a channel) since nobody has conversations with their agent over email — email is a tool the agent *uses*, on the owner's behalf, against external contacts.
 
 **Design spec:** [release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) §M11
 
 | Sprint | Name | Status | Scope |
 |--------|------|--------|-------|
-| S1 | External Contact Routing | Planned | Working Agent spawned per external contact/conversation. Contact registry (markdown-first). Routing rules. Inbound routing across WhatsApp + email + Discord. |
-| S2 | Ruleset + Approval Flow | Planned | Cross-channel ruleset model (auto-reply, queue, block per contact/group). Approval UI in dashboard. Outbound sending on behalf of owner. Notification on escalation. |
+| S1 | Email Capability (MS365) | Planned | Email as a capability, not a channel. MS365 via Microsoft Graph API. OAuth flow, inbound polling, outbound sending, attachments, threading. Agent uses it like any other tool. |
+| S2 | External Contact Routing | Planned | Working Agent spawned per external contact/conversation on the transports built in M10 (WhatsApp + Discord + Telegram + Line) + email capability. Contact registry (markdown-first). Inbound routing for non-owner senders. |
+| S3 | Ruleset + Approval Flow | Planned | Cross-channel ruleset model (auto-reply, queue, block per contact/group). Approval UI in dashboard. Outbound sending on behalf of owner. Notification on escalation. |
 
 **Key design questions (resolve during spec):**
 - Contact identity across transports (same person on WhatsApp + email = one contact?)
 - Ruleset storage: per-contact YAML or workspace-level config?
 - Approval UX: quick-approve vs. full review queue?
+- How working Ninas share a transport with conversation-Nina without stepping on each other's auth/rate limits (pre-resolved by M10-S1's forward-compat analysis).
 
-**Dependencies:** M10 (Channel SDK — transports must exist before routing external messages through them)
+**Dependencies:** M10 (Channel SDK — transports must exist before routing external messages through them; M10-S1 spec pre-designs how working-Nina outbound layers on)
 
 **⚠️ Stashed Code:** M3-S4 stashed code is almost certainly incompatible with M6.7 architecture. Evaluate before attempting recovery — likely discard.
 
@@ -1155,7 +1173,7 @@ M14 Release
 
 **Future path:** M9 → M10 → M11 → M12 → M13 → M14. ~20 sprints. Each milestone builds on the previous. Minimal rework, natural progression.
 
-**Release definition:** Anyone can hatch their own agent. Self-extending capabilities. Full multimodal communication. Owner + external contacts on WhatsApp, email, Discord. iOS app. Desktop automation. Persistent workspaces. Backup/restore/update. Secure and documented.
+**Release definition:** Anyone can hatch their own agent. Self-extending capabilities *and* channels. Full multimodal communication. Owner channels: WhatsApp, Telegram, Discord, Line (+ agent-authored). External contacts on any of them, plus email as a capability. iOS app. Desktop automation. Persistent workspaces. Backup/restore/update. Secure and documented.
 
 **Release roadmap spec:** [superpowers/specs/2026-03-21-release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md)
 
