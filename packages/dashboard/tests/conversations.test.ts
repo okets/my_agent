@@ -634,13 +634,9 @@ describe("IdleTimerManager", () => {
       enqueue: (id: string) => enqueuedIds.push(id),
     } as any;
 
-    const mockRegistry = {
-      getViewerCount: () => 0, // No viewers
-    } as any;
-
     const idleTimer = new IdleTimerManager(
       mockQueue,
-      mockRegistry,
+      () => 0, // No viewers
       50, // 50ms for fast testing
     );
 
@@ -659,13 +655,9 @@ describe("IdleTimerManager", () => {
       enqueue: (id: string) => enqueuedIds.push(id),
     } as any;
 
-    const mockRegistry = {
-      getViewerCount: () => 1, // Has viewers
-    } as any;
-
     const idleTimer = new IdleTimerManager(
       mockQueue,
-      mockRegistry,
+      () => 1, // Has viewers
       50, // 50ms for fast testing
     );
 
@@ -684,13 +676,9 @@ describe("IdleTimerManager", () => {
       enqueue: (id: string) => enqueuedIds.push(id),
     } as any;
 
-    const mockRegistry = {
-      getViewerCount: () => 0,
-    } as any;
-
     const idleTimer = new IdleTimerManager(
       mockQueue,
-      mockRegistry,
+      () => 0,
       80, // 80ms for testing
     );
 
@@ -717,11 +705,7 @@ describe("IdleTimerManager", () => {
       enqueue: (id: string) => enqueuedIds.push(id),
     } as any;
 
-    const mockRegistry = {
-      getViewerCount: () => 0,
-    } as any;
-
-    const idleTimer = new IdleTimerManager(mockQueue, mockRegistry, 50);
+    const idleTimer = new IdleTimerManager(mockQueue, () => 0, 50);
 
     idleTimer.touch("conv-1");
     idleTimer.clear("conv-1");
@@ -735,9 +719,8 @@ describe("IdleTimerManager", () => {
 
   it("shutdown clears all timers", () => {
     const mockQueue = { enqueue: () => {} } as any;
-    const mockRegistry = { getViewerCount: () => 0 } as any;
 
-    const idleTimer = new IdleTimerManager(mockQueue, mockRegistry, 5000);
+    const idleTimer = new IdleTimerManager(mockQueue, () => 0, 5000);
 
     idleTimer.touch("conv-1");
     idleTimer.touch("conv-2");
