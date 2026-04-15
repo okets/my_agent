@@ -535,8 +535,8 @@ need to the user in plain text instead of executing it.
 **Acceptance tests:**
 
 1. `packages/core/tests/capabilities/watcher.test.ts`:
-   - Create temp capability dir. Start watcher. Write `.enabled` file. Within 1s, assert `registry.isEnabled(type)` flips to true.
-   - Delete `CAPABILITY.md`. Within 1s, assert capability no longer in `registry.list()`.
+   - Create temp capability dir. Start watcher. Write `.enabled` file. Within 2.5s, assert `registry.isEnabled(type)` flips to true. (Amended from "1s" after S3: polling 500ms + debounce 500ms + fs/rescan/testAll makes sub-1s physically unreachable.)
+   - Delete `CAPABILITY.md`. Within 2.5s, assert capability no longer in `registry.list()`.
 2. `packages/core/tests/hooks/safety-restart-block.test.ts`: feed each blocked restart variant to the bash blocker, assert denied. Feed `systemctl restart unrelated-service`, assert allowed.
 3. `packages/core/tests/capabilities/get-health.test.ts`: mixed capabilities, assert only unhealthy ones appear in output with correct `issue` string.
 

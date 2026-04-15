@@ -123,6 +123,7 @@ missing, user confused). Do not do it.
 - Auth error → escalate: "key doesn't work"
 - Signup required → escalate: "you need an account"
 - Failed 3 times → escalate with findings`,
+    // Verified real by M9.6-S3: CapabilityWatcher wires registry.rescan() on CAPABILITY.md/.enabled/config.yaml/.mcp.json changes
     tools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
     model: 'opus',
   },

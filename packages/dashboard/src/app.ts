@@ -49,6 +49,7 @@ import {
   resolveEnvPath,
   FileWatcher,
   CfrEmitter,
+  CapabilityWatcher,
 } from "@my-agent/core";
 import { RawMediaStore } from "./media/raw-media-store.js";
 import type { ListSpacesFilter } from "@my-agent/core";
@@ -380,6 +381,9 @@ export class App extends EventEmitter {
   // Capabilities (M9-S1)
   capabilityRegistry: CapabilityRegistry | null = null;
 
+  // Capability hot-reload watcher (M9.6-S3)
+  capabilityWatcher: CapabilityWatcher | null = null;
+
   // CFR (M9.6-S1)
   cfr!: CfrEmitter;
   rawMediaStore!: RawMediaStore;
@@ -470,6 +474,13 @@ export class App extends EventEmitter {
               app.emit("capability:changed", registry.list());
               getPromptBuilder()?.invalidateCache();
             }
+            // Proactive health check: warn on enabled+broken or degraded capabilities (M9.6-S3)
+            const unhealthy = registry.getHealth().filter((r) => r.issue);
+            for (const r of unhealthy) {
+              console.warn(
+                `[Capabilities] WARN: ${r.name} (${r.type}) — ${r.issue}`,
+              );
+            }
           })
           .catch((err) => {
             console.warn(
@@ -507,49 +518,23 @@ export class App extends EventEmitter {
         }
       }
 
-      // File watcher for capability changes
-      const capWatcher = new FileWatcher({
-        watchDir: capabilitiesDir,
-        includePattern: "**/CAPABILITY.md",
-        debounceMs: 5000,
-        usePolling: true,
-        pollInterval: 5000,
-      });
-
-      const handleCapabilityChange = async () => {
-        try {
-          const caps = await scanCapabilities(capabilitiesDir, envPath);
-          registry.load(caps);
+      // Capability hot-reload watcher (M9.6-S3)
+      // Watches CAPABILITY.md, .enabled, config.yaml, .mcp.json — debounced 500ms.
+      // Replaces the old FileWatcher (CAPABILITY.md only, untracked local var).
+      app.capabilityWatcher = new CapabilityWatcher(
+        capabilitiesDir,
+        envPath,
+        registry,
+        (caps) => {
           app.emit("capability:changed", caps);
           getPromptBuilder()?.invalidateCache();
           console.log(`[Capabilities] Re-scanned: ${caps.length} capabilities`);
-
-          // Non-blocking: test newly available capabilities (D3)
-          registry
-            .testAll()
-            .then(() => {
-              const tested = registry
-                .list()
-                .filter((c) => c.health !== "untested");
-              if (tested.length > 0) {
-                app.emit("capability:changed", registry.list());
-                getPromptBuilder()?.invalidateCache();
-              }
-            })
-            .catch(() => {
-              /* logged inside testAll */
-            });
-        } catch (err) {
-          console.warn(
-            "[Capabilities] Re-scan failed:",
-            err instanceof Error ? err.message : String(err),
-          );
-        }
-      };
-
-      capWatcher.on("file:changed", handleCapabilityChange);
-      capWatcher.on("file:deleted", handleCapabilityChange);
-      capWatcher.start();
+          // Emit again after testAll (called inside rescanNow) refreshes health
+          app.emit("capability:changed", registry.list());
+          getPromptBuilder()?.invalidateCache();
+        },
+      );
+      await app.capabilityWatcher.start();
     }
 
     // ── SystemPromptBuilder (M6.6-S1) ──
@@ -1898,6 +1883,10 @@ export class App extends EventEmitter {
     if (this.spaceSyncService) {
       await this.spaceSyncService.stop();
       console.log("SpaceSyncService stopped.");
+    }
+    if (this.capabilityWatcher) {
+      await this.capabilityWatcher.stop();
+      console.log("CapabilityWatcher stopped.");
     }
     if (this.watchTriggerService) {
       await this.watchTriggerService.stop();

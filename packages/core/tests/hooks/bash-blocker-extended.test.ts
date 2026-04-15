@@ -74,9 +74,11 @@ describe('createBashBlocker — extended patterns (allowed)', () => {
     expect(result.decision).toBeUndefined()
   })
 
-  it('allows systemctl start nina-dashboard', async () => {
+  it('blocks systemctl start nina-dashboard (M9.6-S3: self-start = self-kill)', async () => {
+    // After M9.6-S3, start is also blocked alongside restart/reload.
+    // Use-case: capability hot-reload makes self-restart unnecessary and dangerous.
     const result = await blocker(makeInput('systemctl start nina-dashboard.service'), 'id11', undefined as never)
-    expect(result.decision).toBeUndefined()
+    expect(result.decision).toBe('block')
   })
 
   it('allows normal kill of a non-nina PID', async () => {

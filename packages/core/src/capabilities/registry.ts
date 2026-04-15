@@ -5,6 +5,15 @@ import { parseFrontmatterContent } from '../metadata/frontmatter.js'
 import { testCapability } from './test-harness.js'
 import type { Capability, CapabilityTestResult } from './types.js'
 
+export interface CapabilityHealthReport {
+  type: string
+  name: string
+  enabled: boolean
+  status: Capability['status']
+  health: Capability['health']
+  issue?: string
+}
+
 export class CapabilityRegistry extends EventEmitter {
   private capabilities: Map<string, Capability> = new Map()
   private projectRoot: string = ''
@@ -187,6 +196,35 @@ export class CapabilityRegistry extends EventEmitter {
   /** All capabilities */
   list(): Capability[] {
     return Array.from(this.capabilities.values())
+  }
+
+  /**
+   * Returns a health report for all capabilities, flagging unhealthy entries.
+   * Consumed proactively on boot by App (logs at WARN).
+   *
+   * A capability is considered unhealthy when:
+   *   - enabled && status === 'unavailable' (enabled but broken)
+   *   - status === 'available' && health === 'degraded' (available but failing tests)
+   */
+  getHealth(): CapabilityHealthReport[] {
+    const report: CapabilityHealthReport[] = []
+    for (const cap of this.capabilities.values()) {
+      let issue: string | undefined
+      if (cap.enabled && cap.status === 'unavailable') {
+        issue = `enabled but unavailable: ${cap.unavailableReason ?? 'unknown'}`
+      } else if (cap.status === 'available' && cap.health === 'degraded') {
+        issue = `degraded: ${cap.degradedReason ?? 'unknown'}`
+      }
+      report.push({
+        type: cap.provides ?? 'custom',
+        name: cap.name,
+        enabled: cap.enabled,
+        status: cap.status,
+        health: cap.health,
+        issue,
+      })
+    }
+    return report
   }
 
   /**

@@ -37,6 +37,12 @@ const CAPABILITY_ROUTING_PATTERNS = [
 
 /**
  * Dangerous bash patterns that should always be blocked.
+ *
+ * Self-restart / self-kill patterns (M9.6-S3): The framework uses
+ * `CapabilityWatcher` + `registry.rescan()` for hot-reload; no restart is
+ * ever needed from a tool call. Attempting to restart or kill the agent
+ * process would terminate the running session and leave capabilities in a
+ * broken state.
  */
 const BLOCKED_BASH_PATTERNS = [
   /rm\s+-rf\s+\//, // rm -rf /
@@ -49,6 +55,10 @@ const BLOCKED_BASH_PATTERNS = [
   /:\(\)\s*\{\s*:\|:\s*&\s*\}\s*;/, // fork bomb
   />\s*\/dev\/sd[a-z]/, // write to raw disk
   /systemctl\s+(stop|disable)\s+nina-/i, // stop/disable agent services
+  /systemctl\s+(restart|start|reload)\s+nina-/i, // (M9.6) self-restart = self-kill
+  /pkill\s+.*nina/i, // pkill already partially covered, make explicit
+  /kill\s+-?9?\s+.*(node|nina)/i, // raw kill on our processes
+  /service\s+nina-\S+\s+(restart|start|reload)/i, // legacy service syntax
   /kill(?:all)?\s+.*nina/i, // kill / killall agent process
   /chmod\s+000\s/i, // remove all permissions
   /chown\s+.*\/(brain|config|auth|\.env)/i, // chown on infrastructure paths
