@@ -31,7 +31,7 @@
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **In Progress** | 6 done (S1-S5 + S2.5) + S6 spec'd. S5 closed UX-1 (handoff continuity); S6 addresses UX-2 (progress counter cadence via methodical-worker prompting). |
 | **M9.5: Capability Framework v2** | **Done** | 7 sprints done. S7 shipped browser-control as the framework's first multi-instance capability type. |
-| **M9.6: Capability Resilience & Recovery** | **In Progress** | S1 done (raw-media persistence + CFR detector, 43 tests). S2 done (deps wiring at App boot, 6 tests). S3 done (capability hot-reload + restart gap closure, 26 tests). S4–S7 pending. **Blocks M10 and all downstream work.** [plan.md](sprints/m9.6-capability-resilience/plan.md) |
+| **M9.6: Capability Resilience & Recovery** | **In Progress** | S1 done (raw-media persistence + CFR detector, 43 tests). S2 done (deps wiring at App boot, 6 tests). S3 done (capability hot-reload + restart gap closure, 26 tests). S4 done (recovery orchestrator, 28 tests). S5–S7 pending. **Blocks M10 and all downstream work.** [plan.md](sprints/m9.6-capability-resilience/plan.md) |
 | **M10: Channel SDK** | Blocked by M9.6 | S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof. |
 | **M11: External Communications** | Planned | 3 sprints (email capability, contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
