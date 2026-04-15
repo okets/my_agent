@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-13 (M10-S0 Routing Simplification merged to master — presence rule live, sourceChannel deleted)
+> **Updated:** 2026-04-15 (M9.6 Capability Resilience & Recovery inserted as hard blocker before M10 — origin: 2026-04-15 voice-message incident)
 
 ---
 
@@ -31,7 +31,8 @@
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **In Progress** | 6 done (S1-S5 + S2.5) + S6 spec'd. S5 closed UX-1 (handoff continuity); S6 addresses UX-2 (progress counter cadence via methodical-worker prompting). |
 | **M9.5: Capability Framework v2** | **Done** | 7 sprints done. S7 shipped browser-control as the framework's first multi-instance capability type. |
-| **M10: Channel SDK** | In Progress | S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof. |
+| **M9.6: Capability Resilience & Recovery** | **Planned — BLOCKER** | 5 sprints. Generalizes 3-tries rule to runtime, fixes deps-wiring on boot, kills self-destructive restarts, adds orphaned-turn watchdog. **Blocks M10 and all downstream work.** |
+| **M10: Channel SDK** | Blocked by M9.6 | S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof. |
 | **M11: External Communications** | Planned | 3 sprints (email capability, contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
 | **M13: Platform Hardening**  | Planned | 3 sprints (auth, backup/restore, update) — S4/S5 absorbed by M9.5 |
@@ -69,6 +70,13 @@ M9.4 Conversation UX/UI — 7 sprints done (S6 = progress cadence prompt fix + p
 JUST DONE (M9.5-S7)
 ═══════════════════
 M9.5-S7 Browser Capability — browser-control shipped as framework's first multi-instance type. Per-browser folders + profiles, settings UI multi-instance card, agent-built browser-chrome verified end-to-end (real Chrome, fresh profile, screenshot navigation). All 4 follow-ups closed in-branch. New checklist doc for the next multi-instance type. 18 commits.
+
+NEXT — BLOCKER FOR EVERYTHING DOWNSTREAM
+════════════════════════════════════════
+M9.6 Capability Resilience & Recovery (5 sprints)
+  Generalizes the 3-tries rule to runtime. Fixes deps-on-first-WS wiring.
+  Kills self-destructive restarts. Orphaned-turn watchdog. User-facing
+  resilience messaging. No M10 work starts until M9.6 ships.
 
 FUTURE (M10–M14) — ~18 sprints to release
 ══════════════════════════════════════════
@@ -954,6 +962,49 @@ Extend the capability framework to support MCP-based capabilities alongside scri
 
 ---
 
+### M9.6: Capability Resilience & Recovery — PLANNED (BLOCKER)
+
+Make capability failures recoverable at runtime instead of silently breaking the conversation. Generalize the **3-tries rule** (currently scoped to agent-build-from-scratch testing) into a runtime protocol: when a user-facing capability fails during a turn, the brain auto-attempts up to 3 fixes before falling back — with the user kept in the loop, not left hanging.
+
+**Origin:** 2026-04-15 voice-message incident (conv-01KP3WPV3KGHWCRHD7VX8XVZFZ). Four distinct bugs compounded into "Nina received three voice messages and silently replied to none":
+
+1. **Registry activation** — `stt-deepgram/.enabled` was missing; capability was configured but inert. Registry skipped it. No user-visible signal.
+2. **Deps-on-first-WS wiring** — `AppChatService.setDeps()` is only called inside the WebSocket handler. WhatsApp voice notes processed before any browser connects silently bypass STT (no attachment save, no transcription).
+3. **Self-destructive restart** — Brain ran `systemctl --user restart nina-dashboard.service` mid-stream twice to activate its own fix, SIGTERMing itself and killing the in-flight user reply.
+4. **No orphaned-turn recovery** — Brain killed mid-stream leaves user's turn in JSONL with no assistant reply. Nothing detects or re-drives it.
+
+**The deeper gap:** The 3-tries rule exists ([m9.5-s7 plan.md:272-273](sprints/m9.5-s7-browser-capability/plan.md), [adding-a-multi-instance-capability-type.md:44](design/adding-a-multi-instance-capability-type.md)) but only as an agent-build acceptance gate. At runtime, the brain has no protocol for "capability failed on this user message." So the user had to say "fix it" instead of Nina auto-triggering the fix automation on voice #1.
+
+**Milestone exit criteria:**
+- Voice #1 scenario: transcription fails → Nina acknowledges to user ("voice isn't working, fixing") → fix automation fires → verifies against the actual failing audio → replies transcribed. No "fix it" prompt required.
+- Iteration 3 still fails → user sees "I tried 3 fixes, please resend as text" — graceful, not silent.
+- Dashboard restart required to activate a capability → deferred until idle, or hot-reload via registry rescan. Never SIGTERMs an active turn.
+- Brain killed mid-stream → startup watchdog scans latest conversation, detects unanswered user turns, re-drives them.
+- Capability works on WhatsApp voice note even with no browser ever connected.
+
+| Sprint | Name | Status | Scope |
+|--------|------|--------|-------|
+| S1 | Runtime 3-Tries Protocol | Planned | Generalize the 3-tries rule from build-from-scratch to runtime. Structured `CapabilityFailure` event raised by chat-service/message-handler when expected capability output is missing (STT placeholder unchanged, TTS error, image-gen fail, etc.). Brain detects event, spawns `fix-<capability>` automation, iterates max 3 with structured reflection between attempts. Each iteration verifies against the **actual failing input**, not a synthetic test. User acknowledged on iteration 1 ("fixing now"); graceful fallback on iteration 3 ("tried 3 fixes, please resend as text"). Follow-up filed on every 3-fail event. |
+| S2 | Deps Wiring on Boot | Planned | Move `app.chat.setDeps({ attachmentService, ... })` from `ws/chat-handler.ts:61` (first-WS) to `app.ts:1827` (App construction). AttachmentService becomes an App-level singleton. Voice notes transcribe whether or not a browser is connected. Integration test: fresh dashboard, no browser, WhatsApp voice note arrives, transcription lands in conversation. |
+| S3 | No Self-Destructive Restart | Planned | Hot-reload via `capabilityRegistry.rescan()` replaces `systemctl restart` for capability activation. Where a full restart is genuinely required, defer via `setTimeout` past the active turn OR refuse and surface "restart needed, ask user." Generalizes M9.5-S7 FU3's browser-specific fix to all capabilities. Hook in Claude Code PreToolUse denies `systemctl restart nina-dashboard.service` while a session is streaming. |
+| S4 | Orphaned-Turn Watchdog | Planned | Startup sweep: scan latest N conversations' JSONL, detect unanswered user turns (user entry with no following assistant turn within a reasonable window), re-drive them via `initiate()` with "[SYSTEM: picking up from where I was interrupted — the user's last message was: ...]". Idempotent (won't re-drive already-handled). Logs the recovery to the conversation. |
+| S5 | User-Facing Resilience Messaging | Planned | Standard phrases and placement for capability-failure UX: acknowledge on attempt 1, status on attempt 2 if it's slow, graceful surrender on attempt 3. Both dashboard and WhatsApp. Decision log captures the exact copy. Integration test with a deliberately broken capability fixture: user sees each expected message at the right step. |
+
+**Key design decisions:**
+- 3-tries is a **conversation-level protocol**, not a build-phase gate. Runtime failures trigger it; the agent-build flow is one special case (build counts as iteration 1).
+- Fallback message is **always user-visible**. Silent failure is the bug we're fixing.
+- `.enabled` file is not a hidden gate — missing `.enabled` must raise a capability-health warning on registry scan (surfaces in Settings UI).
+- Hot-reload > restart. If a capability genuinely requires process restart (rare), surface it to the user rather than self-kill.
+- Orphaned-turn watchdog is **startup-only**, not periodic. Periodic re-driving is a loop risk; startup is bounded.
+
+**Dependencies:** M9 (capability system), M9.5 (resilience lives in the capability framework)
+
+**Blocks:** M10 and everything downstream. No new channel work starts until capability failures can no longer dead-drop a conversation — every channel added before M9.6 inherits the same fragility.
+
+**Design spec:** [capability-resilience.md](design/capability-resilience.md) — draft, awaiting red-team review. Incident reference: `conv-01KP3WPV3KGHWCRHD7VX8XVZFZ`.
+
+---
+
 ### M10: Channel SDK — PLANNED
 
 Perfect the transport/channels system with clean decoupling and easy extensibility. Ship 4 production channels pre-launch (WhatsApp + Telegram + Discord + Line). End with Nina authoring a channel solo as proof the SDK is usable without us.
@@ -991,7 +1042,7 @@ Perfect the transport/channels system with clean decoupling and easy extensibili
 - One agent-authored channel exists (S7)
 - M11 forward-compat analysis complete in S1 spec
 
-**Dependencies:** M9 (capability system — channels may use capabilities for media handling)
+**Dependencies:** M9.6 (capability resilience — hard blocker; every channel built before M9.6 inherits silent-failure fragility), M9 (capability system — channels may use capabilities for media handling)
 
 **Supersedes:** Old M9 (Email Integration) and old M10 (External Communications). Email removed from M10; moves to M11 as a capability, not a channel.
 
@@ -1122,6 +1173,8 @@ Design specs define architecture before implementation. Each spec should be comp
 | Release Roadmap      | Approved | M8–M13      | [superpowers/specs/2026-03-21-release-roadmap-design.md](superpowers/specs/2026-03-21-release-roadmap-design.md) |
 | Visual & Desktop Automation | Complete | M8 | [superpowers/specs/2026-03-29-m8-desktop-automation-design.md](superpowers/specs/2026-03-29-m8-desktop-automation-design.md) |
 | Capability System    | Approved | M9          | [design/capability-system.md](design/capability-system.md) |
+| Capability Framework v2 | Approved | M9.5      | [design/capability-framework-v2.md](design/capability-framework-v2.md) |
+| Capability Resilience | Draft (red-team pending) | M9.6 | [design/capability-resilience.md](design/capability-resilience.md) |
 | Universal Paper Trail | Approved | M9 (S7-S8)  | [design/paper-trail.md](design/paper-trail.md) |
 | ~~Multimodal~~       | Absorbed | ~~M9~~ → M9 Capability System | Voice/audio covered by M9; rich I/O covered by M8-S4 |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
@@ -1154,6 +1207,9 @@ FUTURE (linear chain to release)
 M9 Capability System
   │
   ▼
+M9.6 Capability Resilience & Recovery  ◄── BLOCKS M10+
+  │
+  ▼
 M10 Channel SDK + Transports
   │
   ▼
@@ -1171,7 +1227,7 @@ M14 Release
 
 **Completed critical path:** M1 → M2 → M3 → M4 → M4.5 → M5 → M6 → M6.5 → M6.7 → M6.6 → M6.9 → M6.8 → M6.10 → M7 → M8. All complete. 935 tests (896 passing, 31 failing, 8 skipped).
 
-**Future path:** M9 → M10 → M11 → M12 → M13 → M14. ~20 sprints. Each milestone builds on the previous. Minimal rework, natural progression.
+**Future path:** M9 → **M9.6 (blocker)** → M10 → M11 → M12 → M13 → M14. ~25 sprints. Each milestone builds on the previous. Minimal rework, natural progression.
 
 **Release definition:** Anyone can hatch their own agent. Self-extending capabilities *and* channels. Full multimodal communication. Owner channels: WhatsApp, Telegram, Discord, Line (+ agent-authored). External contacts on any of them, plus email as a capability. iOS app. Desktop automation. Persistent workspaces. Backup/restore/update. Secure and documented.
 
