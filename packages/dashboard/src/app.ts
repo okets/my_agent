@@ -474,6 +474,13 @@ export class App extends EventEmitter {
               app.emit("capability:changed", registry.list());
               getPromptBuilder()?.invalidateCache();
             }
+            // Proactive health check: warn on enabled+broken or degraded capabilities (M9.6-S3)
+            const unhealthy = registry.getHealth().filter((r) => r.issue);
+            for (const r of unhealthy) {
+              console.warn(
+                `[Capabilities] WARN: ${r.name} (${r.type}) — ${r.issue}`,
+              );
+            }
           })
           .catch((err) => {
             console.warn(
