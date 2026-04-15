@@ -14,6 +14,8 @@ export type {
 export { CfrEmitter } from './cfr-emitter.js'
 export { classifySttError, classifyEmptyStt } from './failure-symptoms.js'
 export { CapabilityRegistry } from './registry.js'
+export type { CapabilityHealthReport } from './registry.js'
+export { CapabilityWatcher } from './watcher.js'
 export { scanCapabilities } from './scanner.js'
 export {
   WELL_KNOWN_TYPES,
