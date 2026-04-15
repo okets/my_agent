@@ -151,8 +151,20 @@ export class RecoveryOrchestrator {
 
   // ─── Private ───────────────────────────────────────────────────────────────
 
-  /** Returns true if there is any non-expired surrender scope for this capability type */
+  /**
+   * Returns true if there is any non-expired surrender scope for this capability type
+   * AND the capability is still unavailable in the registry.
+   *
+   * If the capability has been fixed externally (registry reports status=available),
+   * the scope is bypassed — the cooldown should not block recovery when the thing
+   * it was protecting against has already been resolved. (C1 fix, M9.6-S4 architect review)
+   */
   private isSurrendered(capabilityType: string): boolean {
+    // If the capability is now healthy, surrender scopes are stale — don't block.
+    if (this.deps.capabilityRegistry.get(capabilityType)?.status === "available") {
+      return false;
+    }
+
     const now = Date.now();
     for (const scope of this.surrendered.values()) {
       if (scope.capabilityType === capabilityType) {

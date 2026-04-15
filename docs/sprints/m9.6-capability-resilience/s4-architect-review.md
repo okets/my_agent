@@ -4,6 +4,7 @@
 **Branch:** `sprint/m9.6-s4-recovery-orchestrator`
 **Review date:** 2026-04-15
 **Plan reviewed against:** [`plan.md`](plan.md) §6
+**Plan reviewed against:** [`plan.md`](plan.md) §6
 
 ---
 

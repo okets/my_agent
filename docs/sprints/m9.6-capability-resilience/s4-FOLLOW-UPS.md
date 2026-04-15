@@ -40,3 +40,13 @@ Branch: sprint/m9.6-s4-recovery-orchestrator
 **Recommended action:** When S6 implements real ack delivery, widen the interface: `AckKind` → `{ kind: "surrender"; reason: "budget-exhausted" | "max-attempts" }` or similar.
 
 **Suggested sprint:** S6 (messaging implementation).
+
+---
+
+## FU5 — Unknown-type reverify structurally fails even when capability is healthy (architect review)
+
+**Observation:** `reverify.ts:66-72` — for capability types without a registered reverifier (anything other than `audio-to-text`), `reverifyResult.pass` is based on `registry.get(type)?.status === 'available'` but `recoveredContent` is always `undefined`. The orchestrator at `recovery-orchestrator.ts:208` checks `if (attemptResult.recovered && recoveredContent)` — unknown types always take the else branch and iterate to surrender, even when the capability is genuinely healthy. Fine for M9.6 (only `audio-to-text` ships).
+
+**When this matters:** Any sprint that adds `image-to-text`, `text-to-audio`, or any new well-known capability type must also add a corresponding reverifier branch in `reverify.ts`. Without it, the orchestrator will iterate all 3 attempts to surrender for that type, regardless of whether the fix worked.
+
+**Suggested sprint:** Whichever sprint adds the next capability type.

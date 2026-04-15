@@ -121,6 +121,37 @@ describe("cross-conversation surrender cooldown", () => {
     expect((deps.spawnAutomation as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(spawnBefore);
   });
 
+  it("surrender scope is bypassed when capability registry reports status=available (C1 fix)", async () => {
+    // Scenario: user manually fixes the capability after surrender.
+    // CapabilityWatcher picks it up → registry now reports status=available.
+    // The next CFR should start a new fix session, not surrender immediately.
+    const deps = makeDeps({
+      capabilityRegistry: {
+        // First call during conv-A's run: unavailable (causes surrender)
+        // Second call during conv-B's run: available (bypass the scope)
+        get: vi
+          .fn()
+          .mockReturnValueOnce(undefined)    // conv-A: not found → surrender
+          .mockReturnValue({ status: "available", provides: "audio-to-text" }),
+      } as unknown as CapabilityRegistry,
+    });
+    const orchestrator = new RecoveryOrchestrator(deps);
+
+    // conv-A exhausts all attempts — surrender scope recorded
+    await orchestrator.handle(makeFailure("conv-A", 5));
+    expect(orchestrator.listSurrendered()).toHaveLength(1);
+
+    // conv-B arrives while still within 10-min cooldown window,
+    // but capability is now healthy in registry
+    const spawnCallsBefore = (deps.spawnAutomation as ReturnType<typeof vi.fn>).mock.calls.length;
+    await orchestrator.handle(makeFailure("conv-B", 1));
+
+    // Should have attempted a new spawn (recovery started, not immediate surrender)
+    expect((deps.spawnAutomation as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(
+      spawnCallsBefore,
+    );
+  });
+
   it("surrender scope has expiresAt ~10 minutes in the future", async () => {
     const deps = makeDeps();
     const orchestrator = new RecoveryOrchestrator(deps);
