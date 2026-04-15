@@ -1232,7 +1232,8 @@ Features enabled by the architecture but explicitly out of scope for release.
 | **Mobile Dashboard (Phase 2)** | Advanced mobile features: bottom sheet chat, keyboard handling, accessibility | M2-S7 delivered foundation; remaining: peek/half/full chat, safe areas, a11y |
 | **Navigable Timeline**         | Hero timeline, infinite scroll, search                                        | Design exists: [navigable-timeline.md](design/navigable-timeline.md)         |
 | **Skill Registry**             | Curated, trust-tiered community skill marketplace                             | Community skill sharing and discovery                                         |
-| **Mid-session Intervention**   | Send input to running Claude Code sessions                                    | Depends on Claude Code supporting message injection (steer)                  |
+| **Mid-session Intervention**   | Send input to running Claude Code sessions                                    | Unblocked by Claude Code Channels (2026-04). Covered by the Nina CC Channel entry below. |
+| **Nina as Claude Code Channel** | Ship Nina as an MCP channel plugin for Claude Code: relay CC sessions running on the owner's machine to the owner via Nina (WhatsApp/dashboard), including tool-approval prompts. | Research preview landed 2026-04. Requires CC v2.1.80+, claude.ai login. Custom channels need `--dangerously-load-development-channels` until the plugin is allowlisted. Revisit once Anthropic starts approving third-party channel plugins. One plugin = all my-agent users benefit. See [Claude Code channels reference](https://code.claude.com/docs/en/channels-reference). |
 
 ---
 
