@@ -275,6 +275,14 @@ export type {
   AutomationResult,
   ReverifyResult,
 } from './capabilities/index.js'
+// User-facing messaging + ack delivery (M9.6-S6)
+export { defaultCopy, AckDelivery } from './capabilities/index.js'
+export type {
+  ResilienceCopy,
+  SurrenderReason,
+  TransportManagerLike,
+  ConnectionRegistryLike,
+} from './capabilities/index.js'
 
 // Orphaned-turn watchdog (M9.6-S5)
 export {
