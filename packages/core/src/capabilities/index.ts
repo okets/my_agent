@@ -67,3 +67,8 @@ export {
   type ResilienceCopy,
   type SurrenderReason,
 } from './resilience-messages.js'
+export {
+  AckDelivery,
+  type TransportManagerLike,
+  type ConnectionRegistryLike,
+} from './ack-delivery.js'
