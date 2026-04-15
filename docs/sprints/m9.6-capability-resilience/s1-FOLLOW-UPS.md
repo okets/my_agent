@@ -33,3 +33,37 @@ No action needed until S4.
 For images, the `attachmentId` used in `rawMediaStore.save()` is `${first.id}-${firstAtt.filename}`. This works but creates a slightly different key format than voice notes (which use `first.id` alone). A future cleanup could normalize to always use `first.id` for the base key.
 
 Out of scope for S1. Noting for the next media-related sprint.
+
+---
+
+## FU1: Dashboard-origin media never lands in `raw/`
+
+`options.rawMediaPath` is only set by message-handler (channel layer). Dashboard WS uploads go through `AttachmentService` only. If an S4 CFR fires for a dashboard-origin audio failure (unlikely post-S2 but possible for `empty-result`), `TriggeringInput.artifact.rawMediaPath` will be undefined.
+
+**Action in S4:** S4's re-verifier should include an `AttachmentService`-path fallback when `rawMediaPath` is absent but a saved attachment path exists.
+
+---
+
+## FU2: `makeTestApp` in CFR tests reaches live `.my_agent/` via SessionManager
+
+`cfr-emit-deps-missing.test.ts` uses a real `AppChatService` which initializes `SessionManager` against the live agent directory during the test. The test catches the resulting auth error, so it passes, but the implicit dependency on `findAgentDir` makes it fragile in CI.
+
+**Action in S5/S6:** Extract a lighter stub for the attachment/CFR path that stops before session management when writing similar tests.
+
+---
+
+## FU3: Plugin-layer download failure has no CFR path
+
+If Baileys `downloadMediaMessage` throws (network / auth), `audioBuffer` is undefined and the plugin emits `"[Voice note — failed to download audio]"`. No CFR fires because there is no capability involved — it's a transport failure.
+
+The CFR taxonomy covers capability failures; transport failures are a sibling concern not in scope for M9.6.
+
+**Action in M10:** When designing the Channel SDK, add a `transport-failure` event alongside CFR so users are not silently told "voice note download failed" with no recovery path.
+
+---
+
+## FU4: Debounced batches of multiple voice notes lose all but the first
+
+`ChannelMessageHandler.handleMessages` represents a debounced batch as `first` + `messages[]`. Only `first.audioAttachment` is threaded through to message-handler. If a user sends three consecutive voice notes within the debounce window, voices 2 and 3 are dropped at the channel layer — pre-existing behavior, not introduced by S1.
+
+**Action in S5:** Note this as a known limitation for the orphan-watchdog design. Voice notes 2/3 that never reach message-handler cannot be rescued on reboot.

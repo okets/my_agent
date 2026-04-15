@@ -156,4 +156,59 @@ describe("cfr-emit-deps-missing", () => {
     expect(depsMissing).toHaveLength(1);
     expect(depsMissing[0].capabilityType).toBe("attachment-handler");
   });
+
+  it("multi-image: all buffers saved to disk, CFR artifact.type is image", async () => {
+    // Simulate what message-handler does after the F1 fix:
+    // it iterates all attachments, saves each, keeps first path as rawMediaPath.
+    const convId = (await app.conversations.create()).id;
+    const attachments = [
+      { filename: "photo1.jpg", mimeType: "image/jpeg", data: Buffer.from("jpg1") },
+      { filename: "photo2.jpg", mimeType: "image/jpeg", data: Buffer.from("jpg2") },
+    ];
+
+    let rawMediaPath: string | undefined;
+    for (let i = 0; i < attachments.length; i++) {
+      const att = attachments[i];
+      const savedPath = await app.rawMediaStore.save(
+        convId,
+        `msg-multi-${att.filename}`,
+        att.mimeType,
+        att.data,
+      );
+      if (i === 0) rawMediaPath = savedPath;
+    }
+
+    // Both files must be on disk
+    const { existsSync } = await import("node:fs");
+    const path0 = app.rawMediaStore.pathFor(convId, "msg-multi-photo1.jpg", "image/jpeg");
+    const path1 = app.rawMediaStore.pathFor(convId, "msg-multi-photo2.jpg", "image/jpeg");
+    expect(existsSync(path0)).toBe(true);
+    expect(existsSync(path1)).toBe(true);
+
+    // CFR event should carry artifact.type === "image" when rawMediaPath is a jpg
+    const failures: CapabilityFailure[] = [];
+    app.cfr.on("failure", (f) => failures.push(f));
+
+    const gen = chatService.sendMessage(convId, "two images attached", 1, {
+      source: "channel",
+      channel: { transportId: "whatsapp", channelId: "whatsapp-main", sender: "+1555000002" },
+      attachments: attachments.map((a) => ({
+        filename: a.filename,
+        mimeType: a.mimeType,
+        base64Data: a.data.toString("base64"),
+      })),
+      rawMediaPath,
+    });
+
+    try {
+      await drain(gen);
+    } catch {
+      // expected — no SDK session
+    }
+
+    const depsMissing = failures.filter((f) => f.symptom === "deps-missing");
+    expect(depsMissing).toHaveLength(1);
+    expect(depsMissing[0].triggeringInput.artifact?.type).toBe("image");
+    expect(depsMissing[0].triggeringInput.artifact?.rawMediaPath).toBe(rawMediaPath);
+  });
 });
