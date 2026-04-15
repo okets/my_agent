@@ -32,8 +32,8 @@ export class CfrEmitter extends EventEmitter {
   }
 
   on(event: "failure", listener: (f: CapabilityFailure) => void): this;
-  on(event: string, listener: (...args: unknown[]) => void): this;
-  on(event: string, listener: (...args: unknown[]) => void): this {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  on(event: string | symbol, listener: (...args: any[]) => void): this {
     return super.on(event, listener);
   }
 }
