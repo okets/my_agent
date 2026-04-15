@@ -50,6 +50,8 @@ import {
   FileWatcher,
   CfrEmitter,
   CapabilityWatcher,
+  RecoveryOrchestrator,
+  loadModels,
 } from "@my-agent/core";
 import { RawMediaStore } from "./media/raw-media-store.js";
 import type { ListSpacesFilter } from "@my-agent/core";
@@ -384,6 +386,9 @@ export class App extends EventEmitter {
   // Capability hot-reload watcher (M9.6-S3)
   capabilityWatcher: CapabilityWatcher | null = null;
 
+  // Recovery Orchestrator (M9.6-S4)
+  recoveryOrchestrator: RecoveryOrchestrator | null = null;
+
   // CFR (M9.6-S1)
   cfr!: CfrEmitter;
   rawMediaStore!: RawMediaStore;
@@ -535,6 +540,96 @@ export class App extends EventEmitter {
         },
       );
       await app.capabilityWatcher.start();
+
+      // M9.6-S4: Recovery Orchestrator
+      const KNOWN_TERMINAL = new Set([
+        "done",
+        "failed",
+        "needs_review",
+        "interrupted",
+        "cancelled",
+      ]);
+
+      app.recoveryOrchestrator = new RecoveryOrchestrator({
+        spawnAutomation: async (spec) => {
+          const models = loadModels(agentDir);
+          const automation = app.automations.create({
+            name: spec.name,
+            instructions: spec.prompt,
+            manifest: {
+              name: spec.name,
+              model: spec.model === "sonnet" ? models.sonnet : models.opus,
+              autonomy: spec.autonomy === "cautious" ? "cautious" : "full",
+              trigger: [{ type: "manual" }],
+              once: true,
+              job_type: spec.jobType,
+            },
+          });
+          await app.automations.fire(automation.id);
+          const jobs = app.automations.listJobs({ automationId: automation.id });
+          const job = jobs[0];
+          return { jobId: job.id, automationId: automation.id };
+        },
+        awaitAutomation: async (jobId, timeoutMs) => {
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            const job = app.automationJobService?.getJob(jobId);
+            if (job && KNOWN_TERMINAL.has(job.status)) {
+              return {
+                status: job.status as
+                  | "done"
+                  | "failed"
+                  | "needs_review"
+                  | "interrupted"
+                  | "cancelled",
+              };
+            }
+            if (job && !KNOWN_TERMINAL.has(job.status) && job.status !== "running" && job.status !== "pending") {
+              console.warn(
+                `[RecoveryOrchestrator] Unknown terminal status: ${job.status}`,
+              );
+              return { status: "failed" };
+            }
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+          return { status: "failed" };
+        },
+        getJobRunDir: (jobId) =>
+          app.automationJobService?.getJob(jobId)?.run_dir ?? null,
+        capabilityRegistry: registry,
+        watcher: app.capabilityWatcher!,
+        emitAck: async (failure, kind) => {
+          // S4 stub: log only. S6 replaces with real channel delivery.
+          console.log(
+            `[CFR] ack(${kind}) for ${failure.capabilityType} — conv ${failure.triggeringInput.conversationId}`,
+          );
+        },
+        reprocessTurn: async (failure, recoveredContent) => {
+          const { conversationId, turnNumber } = failure.triggeringInput;
+          const prompt = `You are the conversation layer. The user's original turn #${turnNumber} failed to transcribe; it actually said: "${recoveredContent}". Answer their question directly — don't acknowledge this system message.`;
+          let response = "";
+          for await (const event of app.chat.sendSystemMessage(
+            conversationId,
+            prompt,
+            turnNumber,
+          )) {
+            if (event.type === "text_delta" && event.text) {
+              response += event.text;
+            }
+          }
+          if (response) {
+            const ci = app.conversationInitiator;
+            if (ci) await ci.forwardToChannel(response);
+          }
+        },
+        now: () => new Date().toISOString(),
+      });
+
+      app.cfr.on("failure", (f) => {
+        app.recoveryOrchestrator!.handle(f).catch((err) =>
+          console.error("[CFR] Orchestrator handle error:", err),
+        );
+      });
     }
 
     // ── SystemPromptBuilder (M6.6-S1) ──

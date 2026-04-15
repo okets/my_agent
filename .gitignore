@@ -42,3 +42,6 @@ prototypes/calendar/node_modules/
 
 # Superpowers brainstorm artifacts
 .superpowers/
+
+# CFR incident audio fixtures (local only, never committed)
+packages/core/tests/fixtures/cfr/.local/

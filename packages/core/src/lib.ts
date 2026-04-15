@@ -262,6 +262,19 @@ export type { CapabilityFailureSymptom, TriggeringInput, FixAttempt, CapabilityF
 // Capability hot-reload (M9.6-S3)
 export { CapabilityWatcher } from './capabilities/index.js'
 export type { CapabilityHealthReport } from './capabilities/index.js'
+// Recovery Orchestrator (M9.6-S4)
+export { RecoveryOrchestrator, nextAction, reverify } from './capabilities/index.js'
+export type {
+  OrchestratorState,
+  OrchestratorEvent,
+  FixSession,
+  Action,
+  OrchestratorDeps,
+  AckKind,
+  AutomationSpec,
+  AutomationResult,
+  ReverifyResult,
+} from './capabilities/index.js'
 
 // Memory system
 export {

@@ -47,3 +47,18 @@ export {
   type ToolSpec,
   type ValidationResult,
 } from './tool-contracts.js'
+export {
+  nextAction,
+  type OrchestratorState,
+  type OrchestratorEvent,
+  type FixSession,
+  type Action,
+} from './orchestrator-state-machine.js'
+export {
+  RecoveryOrchestrator,
+  type OrchestratorDeps,
+  type AckKind,
+  type AutomationSpec,
+  type AutomationResult,
+} from './recovery-orchestrator.js'
+export { reverify, type ReverifyResult } from './reverify.js'
