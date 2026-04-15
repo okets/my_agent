@@ -29,13 +29,17 @@ Use `ffmpeg` for transcoding if needed. The script is responsible for format det
 
 JSON on stdout, single line:
 ```json
-{ "text": "the transcribed text", "language": "en" }
+{ "text": "the transcribed text", "language": "en", "confidence": 0.92, "duration_ms": 3400 }
 ```
 
 - `text` (required): the transcribed text
 - `language` (optional): ISO 639-1 language code detected by the provider (e.g., "en", "he", "th"). If the provider supports language detection and `language: multi` is configured, include this field. The framework uses it to select the correct TTS voice for responses.
+- `confidence` (optional but recommended): provider-reported confidence score in `[0, 1]`. Used by the CFR resilience layer (M9.6) to tell silent/unintelligible input apart from a broken capability — without this, the orchestrator conservatively treats empty transcripts as valid user input.
+- `duration_ms` (optional but recommended): length of the audio in milliseconds. Pair with `confidence`: if `duration_ms > 500 && confidence > 0.2 && text === ""`, the framework treats the empty result as a capability failure and triggers recovery.
 
 On error, write a human-readable message to stderr and exit 1. Do NOT output JSON on error.
+
+**Migration note:** scripts that do not yet emit `confidence` and `duration_ms` remain valid — the framework falls back to conservative behavior (no false-positive CFR on silent input). New scripts should emit both fields.
 
 ### Environment
 
@@ -63,6 +67,7 @@ To validate this capability, the test harness will:
    - Exit code is 0
    - stdout is valid JSON
    - JSON has a `text` field that is a non-empty string
+   - If present, `confidence` is a number in `[0, 1]` and `duration_ms` is a positive integer
 4. **Format test:** If a real provider is configured, also test with an OGG file to verify transcoding works
 
 A sine wave won't produce meaningful text, but the script should still return valid JSON with a `text` field (even if empty or containing noise artifacts).
