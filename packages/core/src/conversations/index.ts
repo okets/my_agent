@@ -7,6 +7,7 @@ export {
   OrphanWatchdog,
   findOrphanedUserTurn,
   hasWatchdogEventFor,
+  hasSurrenderEventFor,
 } from "./orphan-watchdog.js";
 export type {
   OrphanWatchdogConfig,
@@ -17,5 +18,7 @@ export type {
   TranscriptTurnLike,
   TurnCorrectedLike,
   WatchdogRescuedLike,
+  WatchdogRescueCompletedLike,
   WatchdogResolvedStaleLike,
+  CapabilitySurrenderLike,
 } from "./orphan-watchdog.js";

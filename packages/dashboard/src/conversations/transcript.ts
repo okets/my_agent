@@ -21,6 +21,8 @@ export type {
   TurnCorrectedEvent,
   WatchdogRescuedEvent,
   WatchdogResolvedStaleEvent,
+  WatchdogRescueCompletedEvent,
+  CapabilitySurrenderEvent,
 } from "./types.js";
 
 /**

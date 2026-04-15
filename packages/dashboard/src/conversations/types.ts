@@ -204,6 +204,39 @@ export interface WatchdogRescuedEvent {
 }
 
 /**
+ * Emitted by the orphan watchdog (M9.6-S5) after the systemMessageInjector
+ * returns successfully — confirms the rescue prompt actually reached the brain.
+ * Paired with `watchdog_rescued` (which is written before injection for
+ * at-most-once idempotence). A conversation that has `watchdog_rescued` but
+ * not `watchdog_rescue_completed` was mid-rescue when the process died; the
+ * next boot treats it as already-rescued and does not re-drive.
+ */
+export interface WatchdogRescueCompletedEvent {
+  type: "watchdog_rescue_completed";
+  turnNumber: number;
+  completedAt: string; // ISO8601
+}
+
+/**
+ * Emitted by the CFR recovery orchestrator (M9.6-S6) when all 3 fix
+ * iterations are exhausted and the brain has sent the user a graceful
+ * surrender message. The orphan watchdog checks for this marker: a
+ * surrendered conversation must NOT be re-driven on next boot.
+ *
+ * Shape matches what S6's resilience-messages layer will write. Forward-
+ * compatible — the watchdog checks for it even before S6 lands (returns
+ * false while no events of this type exist).
+ */
+export interface CapabilitySurrenderEvent {
+  type: "capability_surrender";
+  capabilityType: string;
+  conversationId: string;
+  turnNumber: number;
+  reason: "budget-exhausted" | "max-attempts";
+  surrenderedAt: string; // ISO8601
+}
+
+/**
  * Emitted by the orphan watchdog (M9.6-S5) when it observes an orphan that is
  * older than the stale threshold and chooses to skip rescue rather than prompt
  * the brain to reply long after the fact. Idempotent marker for the sweep.
@@ -225,7 +258,9 @@ export type TranscriptLine =
   | TranscriptMetaUpdate
   | TurnCorrectedEvent
   | WatchdogRescuedEvent
-  | WatchdogResolvedStaleEvent;
+  | WatchdogResolvedStaleEvent
+  | WatchdogRescueCompletedEvent
+  | CapabilitySurrenderEvent;
 
 /**
  * Options for listing conversations

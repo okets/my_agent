@@ -55,7 +55,9 @@ export type TranscriptLineLike =
   | { type: "meta_update" }
   | TurnCorrectedLike
   | WatchdogRescuedLike
-  | WatchdogResolvedStaleLike;
+  | WatchdogRescueCompletedLike
+  | WatchdogResolvedStaleLike
+  | CapabilitySurrenderLike;
 
 export interface TranscriptTurnLike {
   type: "turn";
@@ -88,11 +90,28 @@ export interface WatchdogRescuedLike {
   initiatedAt: string;
 }
 
+export interface WatchdogRescueCompletedLike {
+  type: "watchdog_rescue_completed";
+  turnNumber: number;
+  completedAt: string;
+}
+
 export interface WatchdogResolvedStaleLike {
   type: "watchdog_resolved_stale";
   turnNumber: number;
   ageMs: number;
   resolvedAt: string;
+}
+
+/**
+ * Minimal shape for the surrender marker written by the CFR orchestrator
+ * (M9.6-S6). The watchdog checks for this: a surrendered conversation must
+ * not be re-driven. Returns false for any turn until S6 starts emitting
+ * these events — forward-compatible by design.
+ */
+export interface CapabilitySurrenderLike {
+  type: "capability_surrender";
+  turnNumber: number;
 }
 
 /**
@@ -270,6 +289,15 @@ export class OrphanWatchdog {
       return;
     }
 
+    // Surrender check: if the CFR orchestrator already surrendered on this
+    // turn's capability failure, do not re-drive — the user already received
+    // a graceful "tried 3 fixes, please resend as text" message (M9.6-S6).
+    // This check is forward-compatible: no surrender events exist until S6
+    // ships, so it is vacuously false until then.
+    if (hasSurrenderEventFor(transcript, orphan.turnNumber)) {
+      return;
+    }
+
     const now = Date.now();
     const turnTime = Date.parse(orphan.timestamp);
     if (Number.isNaN(turnTime)) {
@@ -330,6 +358,16 @@ export class OrphanWatchdog {
 
     try {
       await this.config.systemMessageInjector(conversationId, prompt);
+      // Write the completion marker AFTER successful injection. This paired
+      // event confirms the brain actually received the rescue prompt — distinct
+      // from `watchdog_rescued` (written before inject for idempotence).
+      // Observability: a turn with `watchdog_rescued` but no `watchdog_rescue_completed`
+      // means the process died between marker-write and inject.
+      await this.config.conversationManager.appendEvent(conversationId, {
+        type: "watchdog_rescue_completed",
+        turnNumber: orphan.turnNumber,
+        completedAt: new Date(now).toISOString(),
+      } satisfies WatchdogRescueCompletedLike);
       report.rescued.push({
         conversationId,
         turnNumber: orphan.turnNumber,
@@ -468,6 +506,30 @@ export function hasWatchdogEventFor(
     if (
       (line.type === "watchdog_rescued" ||
         line.type === "watchdog_resolved_stale") &&
+      (line as { turnNumber: number }).turnNumber === turnNumber
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Return true if the CFR recovery orchestrator has already surrendered on the
+ * given turn number's capability failure. A surrendered turn must not be
+ * re-driven — the user already received a graceful fallback message.
+ *
+ * Currently always returns false: no `capability_surrender` events exist
+ * until M9.6-S6 ships. The check is wired now so S6 just needs to start
+ * emitting the event and the watchdog will automatically respect it.
+ */
+export function hasSurrenderEventFor(
+  transcript: TranscriptLineLike[],
+  turnNumber: number,
+): boolean {
+  for (const line of transcript) {
+    if (
+      line.type === "capability_surrender" &&
       (line as { turnNumber: number }).turnNumber === turnNumber
     ) {
       return true;

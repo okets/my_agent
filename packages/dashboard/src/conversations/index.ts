@@ -28,6 +28,8 @@ export type {
   TurnCorrectedEvent,
   WatchdogRescuedEvent,
   WatchdogResolvedStaleEvent,
+  WatchdogRescueCompletedEvent,
+  CapabilitySurrenderEvent,
   ListConversationsOptions,
   GetTurnsOptions,
 } from "./types.js";
