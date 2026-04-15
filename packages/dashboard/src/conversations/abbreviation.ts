@@ -142,19 +142,39 @@ export class AbbreviationQueue {
     // Get turn count before abbreviation
     const turnCountBefore = conversation.turnCount;
 
-    // Load full transcript
-    const turns = await this.manager.getTurns(conversationId);
+    // Load full transcript (turns + events), so we can honor `turn_corrected`
+    // events appended retroactively by the CFR orchestrator (M9.6-S5).
+    const fullTranscript = await this.manager.getFullTranscript(conversationId);
+    const turns = fullTranscript.filter(
+      (line): line is import("./types.js").TranscriptTurn =>
+        line.type === "turn",
+    );
 
     if (turns.length === 0) {
       console.warn(`Conversation ${conversationId} has no turns, skipping`);
       return;
     }
 
-    // Build transcript text
+    // Build a map of turnNumber → correctedContent from `turn_corrected`
+    // events. When multiple corrections exist for the same turn (unlikely but
+    // possible), the last one wins.
+    const corrections = new Map<number, string>();
+    for (const line of fullTranscript) {
+      if (line.type === "turn_corrected") {
+        corrections.set(line.turnNumber, line.correctedContent);
+      }
+    }
+
+    // Build transcript text, substituting corrected content for user turns
+    // that were later corrected by the CFR orchestrator.
     const transcriptText = turns
       .map((turn) => {
         const role = turn.role === "user" ? "User" : "Assistant";
-        return `${role}: ${turn.content}`;
+        const content =
+          turn.role === "user" && corrections.has(turn.turnNumber)
+            ? corrections.get(turn.turnNumber)!
+            : turn.content;
+        return `${role}: ${content}`;
       })
       .join("\n\n");
 
