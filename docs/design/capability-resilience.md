@@ -1,10 +1,38 @@
 # Capability Resilience & Conversation Recovery — Design Spec
 
-> **Status:** Draft (awaiting red-team review)
+> **Status:** Approved (red-team resolved 2026-04-15)
 > **Created:** 2026-04-15
 > **Milestone:** M9.6 — Capability Resilience & Recovery (blocker for M10+)
 > **Scope:** Runtime protocol for capability failures during user interactions. Generalizes the 3-tries rule to conversation-level recovery. Orphaned-turn recovery. Self-preservation rules.
 > **Origin incident:** `.my_agent/conversations/conv-01KP3WPV3KGHWCRHD7VX8XVZFZ.jsonl` (2026-04-15)
+> **Red-team:** [`capability-resilience-redteam.md`](capability-resilience-redteam.md) — all findings accepted.
+> **Implementation plan:** [`../sprints/m9.6-capability-resilience/plan.md`](../sprints/m9.6-capability-resilience/plan.md)
+> **Architect:** review session that owns the plan, the red-team, and sprint-time deviation adjudication. Sonnet implementing agents route clarifications to the architect, not the CTO.
+
+---
+
+## Red-Team Resolutions (2026-04-15)
+
+All red-team findings are **accepted** and folded into the sprint plan. Summary of binding decisions:
+
+1. **Detection layer is chat-service, not message-handler** (B1). Primary CFR emitters live at `packages/dashboard/src/chat/chat-service.ts:587-616` and inside `transcribeAudio()` at `:938-958`. The `Detection Points` table below reflects this.
+2. **Channel layer persists raw media before any deps check** (B2). New `RawMediaStore` writes every inbound audio/image buffer to `.my_agent/conversations/<convId>/raw/` the moment a transport handler receives it. Re-verification always has the triggering artifact.
+3. **The `systemctl restart` block targets the conversation brain's Bash tool**, not just the fix automation (B3). `packages/core/src/hooks/safety.ts:51` is extended to block `systemctl restart nina-*` and `pkill -f nina*` unconditionally. The brain's identity-layer system prompt is updated.
+4. **`rescan()` is driven by a real filesystem watcher** (B4). New `CapabilityWatcher` (chokidar) watches `.my_agent/capabilities/**` and calls `registry.rescan()` on change, then triggers `testAll()` to update `status`. The false claim in `packages/core/src/agents/definitions.ts:110-114` is retracted or made true; after S3 it is true.
+5. **Open question 4 (ack channel) — closed.** CFR acks go to the conversation's channel (same-channel rule from M10-S0 routing simplification). No preferred-channel fallback; CFR is conversation-scoped.
+6. **Open question 5 (fixture fallback) — closed.** Committed-fixture fallback is build-time only. Runtime surrender is plain-language "please resend as text"; never a canned response.
+7. **Open question 7 (cascading failures) — bounded.** Max 1 level of nested CFR; a nested fix consumes the parent iteration's budget slot; total Claude job spawns per triggering user turn capped at 5.
+8. **Open question 6 (orphan watchdog stale window) — bounded.** Startup watchdog skips orphans older than 30 minutes; those become "resolved (stale)" events, not re-drives.
+9. **JSONL user turn mutation policy** (M4) — append-only preserved. A `turn_corrected` event references the placeholder turn's `turnNumber` with the transcribed content. Abbreviation queue honors `turn_corrected` when summarizing.
+10. **Surrender is scoped to `(capability, conversation, turnNumber)`** with a global 10-minute cross-conversation cooldown. A successful `testAll()` pass clears cooldown immediately (M5).
+11. **Per-phase model selection is specified** (M11): Opus for reflection/surrender-decision, Sonnet for the actual fix-execute phase. Declared in the orchestrator-emitted automation file.
+12. **`empty-result` disambiguation** (M7) — the capability contract grows `confidence` and `duration_ms` fields. STT scripts report them; `empty-result` is only raised when `duration_ms > 500 && confidence > 0.2` and the text is empty. Silent/short audio is never a CFR trigger.
+13. **Two placeholder strings stay distinct** (M2). Detection handles both:
+    - `"[Voice note — audio attached, pending transcription]"` (WhatsApp plugin, `plugins/channel-whatsapp/src/plugin.ts:518`) → symptom `deps-missing`.
+    - `"[Voice message — transcription failed: <error>]"` (chat-service, `:612`) → symptom parsed from the error (`not-installed | not-enabled | execution-error`).
+14. **Ack ownership is framework-first**. Deterministic acks for `not-installed | not-enabled | deps-missing | timeout` emitted by the framework with transport context carried in the CFR event. Brain-owned acks only for `empty-result | validation-failed` (needs judgment).
+15. **`status` vs `enabled` coupling specified** (M8). After `.enabled` creation the orchestrator MUST call `registry.rescan()` then `registry.testAll()` and wait for `status === 'available'` before re-verifying. `.enabled` alone is never a success signal.
+16. **Sprint count is 7**, not 5. Scope not reduced; honest estimate.
 
 ---
 
@@ -162,11 +190,11 @@ type CapabilityFailureSymptom =
 
 | Layer | File | What Must Raise CFR |
 |-------|------|---------------------|
-| Message ingest | `packages/dashboard/src/channels/message-handler.ts:460-522` | Audio attachment present but no transcription after full pipeline → `empty-result` or `deps-missing`. |
-| Chat service | `packages/dashboard/src/chat/chat-service.ts:587-616` | STT branch entered but returned `{error: "No audio-to-text capability available"}` → `not-installed` or `not-enabled`. |
-| Chat service deps guard | `packages/dashboard/src/chat/chat-service.ts:536` | Attachments present but `deps?.attachmentService` falsy → `deps-missing`. |
-| Capability registry | (future method) `capabilityRegistry.getHealth()` | Configured but not enabled, or env vars missing → `not-enabled` / `deps-missing` (proactive, not reactive). |
-| MCP tool invocation | Agent SDK middleware | Tool error response, timeout, unexpected schema → `execution-error` / `timeout` / `validation-failed`. |
+| Chat service STT branch | `packages/dashboard/src/chat/chat-service.ts:587-616` + `transcribeAudio()` at `:938-958` | **Primary emitter.** Parses `sttResult.error` into a symptom: no capability → `not-installed`/`not-enabled`; execFile threw → `execution-error`; timeout hit → `timeout`; text empty but `duration_ms > 500 && confidence > 0.2` → `empty-result`. |
+| Chat service deps guard | `packages/dashboard/src/chat/chat-service.ts:536` | `options.attachments?.length && !deps?.attachmentService` → `deps-missing`. Framework raises CFR *before* bypassing the save branch. |
+| Channel raw-media writer | `packages/dashboard/src/channels/message-handler.ts` (new `RawMediaStore` call near line 460) | Writes the buffer to `.my_agent/conversations/<convId>/raw/<attachmentId>.<ext>` unconditionally. Never raises CFR itself — provides the artifact for re-verification. |
+| Capability registry health | `registry.getHealth()` (new in S3) | After rescan: capabilities that are `status === 'unavailable'` or `enabled && health === 'degraded'` are reported proactively on App boot. |
+| MCP tool invocation | Agent SDK middleware hook (`PostToolUse` for well-known capability tools) | Tool error response, timeout, unexpected schema → `execution-error` / `timeout` / `validation-failed`. |
 
 **Design rule:** CFR detection lives in the framework, not in the brain's prompt. Prompts can miss things; code cannot.
 
@@ -325,20 +353,22 @@ Nina:                  "I tried three fixes and voice isn't working today.
 
 ---
 
-## Open Questions for Red-Team
+## Open Questions — Closed
 
-The following decisions are not yet locked. A new-session red-team should interrogate these specifically:
+All open questions from the draft have been resolved by red-team and are now binding. See [Red-Team Resolutions](#red-team-resolutions-2026-04-15) at the top of this doc and the corresponding rules in [`../sprints/m9.6-capability-resilience/plan.md`](../sprints/m9.6-capability-resilience/plan.md).
 
-1. **Ack latency budget.** Is "first user-visible feedback within 2s" the right SLO? What if the failure detector itself takes longer (e.g., a slow MCP timeout)?
-2. **CFR event ownership.** Should it fire from the framework (deterministic) or from the brain (smarter but fallible)? The current spec says framework — validate this is right for edge cases like "capability returned something but it's obviously bad" (needs brain judgment).
-3. **Re-verification input identity.** What if the triggering artifact is no longer available (e.g., audio file garbage-collected between iterations)? Rule needed for artifact retention during an active CFR session.
-4. **Ack channel.** Should the ack go to the same channel as the original message, or always the preferred channel? Current M10-S0 routing rule says "same channel within 15 min window" — does that interact correctly with CFR?
-5. **Surrender + fixture fallback interaction.** M9.5-S7 says on 3-fail, ship a committed fixture as a registered fallback. Does that apply to runtime failures too, or only build-time? Semantics of "committed fixture" for a runtime failure are unclear.
-6. **Orphan watchdog window.** 2 min feels right for a live conversation but what about a user who sent a voice note and went to sleep? Re-driving an 8-hour-old message feels wrong.
-7. **Cascading failures.** What if the fix job itself fails in a way that requires another capability (say, the fix tries to use a browser capability that's also broken)? Does CFR recurse? Budget shared across the recursion?
-8. **Race: two failures in the same conversation in rapid succession.** User sends voice #1, CFR starts; user sends voice #2 before iteration 1 completes. Do we batch, serialize, or spawn a second CFR session?
-9. **Brain's discretion vs protocol rigidity.** Should the brain be allowed to override the CFR protocol ("the user explicitly said don't bother fixing, just reply to what you can hear")? If so, how is that signaled to the orchestrator?
-10. **Deps-missing vs not-installed distinction at runtime.** From the user's perspective both feel the same. From the fix job's perspective they need different hypotheses. Is the symptom taxonomy granular enough?
+| # | Question | Resolution |
+|---|----------|-----------|
+| 1 | Ack latency | Framework ack within 2s of CFR emit. If detector (e.g. MCP timeout) is itself slow, the *transport-level* typing indicator keeps the user aware — then the real ack fires once detector resolves. |
+| 2 | Ack ownership | Framework for deterministic symptoms (`not-installed`, `not-enabled`, `deps-missing`, `timeout`). Brain for judgment symptoms (`empty-result`, `validation-failed`). |
+| 3 | Artifact retention | `RawMediaStore` persists every inbound buffer at channel layer before any deps/processing. Available for full CFR session lifetime. |
+| 4 | Ack channel | Same channel as the triggering message. Always. No preferred-channel escalation. |
+| 5 | Fixture fallback | Build-time only. Runtime surrender is plain-language "please resend as text". No canned data. |
+| 6 | Orphan watchdog window | Startup-only sweep. Skip orphans older than 30 min (log as `resolved-stale`). |
+| 7 | Cascading CFR | Max 1 level of nesting; nested fix consumes a parent-iteration slot; total Claude job spawns per triggering user turn capped at 5. |
+| 8 | Concurrent failures | Per-capability mutex. Second trigger for the same capability attaches to the in-flight fix loop; its turn gets the same outcome. |
+| 9 | Brain override | Allowed via explicit `user.intent.skipCFR=true` flag derived from phrases like "just reply to what you can hear". Orchestrator respects and logs. |
+| 10 | Symptom granularity | Taxonomy is sufficient. Mapping rules live in `packages/core/src/capabilities/failure-symptoms.ts`. |
 
 ---
 
