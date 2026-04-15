@@ -376,7 +376,7 @@ export class App extends EventEmitter {
 
   // CFR (M9.6-S1)
   cfr!: CfrEmitter;
-  rawMediaStore: RawMediaStore | null = null;
+  rawMediaStore!: RawMediaStore;
 
   playwrightBridge: PlaywrightScreenshotBridge | null = null;
 
