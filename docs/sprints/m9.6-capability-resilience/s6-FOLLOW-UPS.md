@@ -65,6 +65,16 @@ noisy.
 
 ---
 
+## FU5 — Dashboard WS ack has no frontend handler
+
+**Context:** `AckDelivery.deliver()` broadcasts `{ type: "system_message", ... }` for dashboard-channel CFRs. This type is not in the `ServerMessage` union in `packages/dashboard/src/ws/protocol.ts`, and the Alpine client has no handler for it. The ack is broadcast to the correct sockets but silently ignored — the user sees nothing in the browser conversation UI.
+
+**Impact:** WhatsApp channel delivery (the primary S7 E2E test case) works correctly. Dashboard-channel CFR acks are invisible to browser users only.
+
+**Suggested fix:** Add `"capability_ack"` (or reuse an existing variant like `conversation_updated` with a synthetic assistant turn) to the `ServerMessage` union, and add a `case` in `handleWebSocketMessage` that renders it as a system-styled turn. One-sprint scope — good candidate for M9.7 or the next dashboard-facing sprint.
+
+---
+
 ## FU4 — Status timer duration (20s) is a single magic constant
 
 **Context:** `STATUS_ACK_DELAY_MS` lives in `recovery-orchestrator.ts`
