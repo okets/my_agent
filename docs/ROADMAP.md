@@ -31,7 +31,7 @@
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **In Progress** | 6 done (S1-S5 + S2.5) + S6 spec'd. S5 closed UX-1 (handoff continuity); S6 addresses UX-2 (progress counter cadence via methodical-worker prompting). |
 | **M9.5: Capability Framework v2** | **Done** | 7 sprints done. S7 shipped browser-control as the framework's first multi-instance capability type. |
-| **M9.6: Capability Resilience & Recovery** | **In Progress** | S1 done (raw-media persistence + CFR detector, 43 tests). S2 done (deps wiring at App boot, 6 tests). S3 done (capability hot-reload + restart gap closure, 26 tests). S4 done (recovery orchestrator, 28 tests). S5 done (orphaned-turn watchdog + abbreviation turn_corrected ingestion, 11 tests). S6–S7 pending. **Blocks M10 and all downstream work.** [plan.md](sprints/m9.6-capability-resilience/plan.md) |
+| **M9.6: Capability Resilience & Recovery** | **In Progress** | S1 done (raw-media persistence + CFR detector, 43 tests). S2 done (deps wiring at App boot, 6 tests). S3 done (capability hot-reload + restart gap closure, 26 tests). S4 done (recovery orchestrator, 28 tests). S5 done (orphaned-turn watchdog + abbreviation turn_corrected ingestion, 11 tests). S6 done (user-facing messaging + capability confidence contract, 22 tests). S7 pending. **Blocks M10 and all downstream work.** [plan.md](sprints/m9.6-capability-resilience/plan.md) |
 | **M10: Channel SDK** | Blocked by M9.6 | S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof. |
 | **M11: External Communications** | Planned | 3 sprints (email capability, contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -67,16 +67,13 @@ IN PROGRESS (M9.4)
 ══════════════════
 M9.4 Conversation UX/UI — 7 sprints done (S6 = progress cadence prompt fix + progress card UX redesign)
 
-JUST DONE (M9.5-S7)
+JUST DONE (M9.6-S6)
 ═══════════════════
-M9.5-S7 Browser Capability — browser-control shipped as framework's first multi-instance type. Per-browser folders + profiles, settings UI multi-instance card, agent-built browser-chrome verified end-to-end (real Chrome, fresh profile, screenshot navigation). All 4 follow-ups closed in-branch. New checklist doc for the next multi-instance type. 18 commits.
+M9.6-S6 User-Facing Messaging + Capability Confidence Contract — real channel-aware ack/status/surrender messages delivered to the user during CFR recovery (WhatsApp path fully wired; dashboard WS handler deferred to FU5). 20s status timer replaces per-attempt emit. Capability scripts gain optional confidence + duration_ms fields for empty-result detection. FU4 reprocessTurn routing fixed. capability_surrender JSONL events now emitted so watchdog honors surrender state. 22 tests. [review](sprints/m9.6-capability-resilience/s6-review.md)
 
 NEXT — BLOCKER FOR EVERYTHING DOWNSTREAM
 ════════════════════════════════════════
-M9.6 Capability Resilience & Recovery (5 sprints)
-  Generalizes the 3-tries rule to runtime. Fixes deps-on-first-WS wiring.
-  Kills self-destructive restarts. Orphaned-turn watchdog. User-facing
-  resilience messaging. No M10 work starts until M9.6 ships.
+M9.6-S7 E2E Incident Replay (final sprint) — replay the original voice #1 incident against a fresh dashboard with .enabled absent. Assert: ack turn → fix run → recovered transcription → assistant reply. Zero manual intervention. Zero systemctl restart. Exit gate for M9.6.
 
 FUTURE (M10–M14) — ~18 sprints to release
 ══════════════════════════════════════════
