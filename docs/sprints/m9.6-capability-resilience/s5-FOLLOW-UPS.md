@@ -23,6 +23,16 @@ Branch: sprint/m9.6-s5-orphaned-turn-watchdog
 
 ---
 
+## FU4 — reprocessTurn has the same channel-routing bug (carried from S4)
+
+**Observation:** `app.ts:610-627` — `reprocessTurn` (S4's CFR re-drive path) also calls `ci.forwardToChannel(response)` without a `channelOverride`. `CapabilityFailure.triggeringInput.channel.channelId` is available and should be passed in, exactly like the C1 fix applied to the orphan watchdog injector.
+
+**Why not now:** S4 is merged. Out-of-sprint scope per plan §0.4.
+
+**Suggested sprint:** S6 (user-facing messaging). S6's `AckDelivery` work already explicitly uses `TriggeringInput.channel` — the `reprocessTurn` fix is a natural bundle. See architect review FU6.
+
+---
+
 ## FU3 — channel-unification.test.ts harness missing app.cfr mock (carried from S2)
 
 **Observation:** Three tests in `packages/dashboard/tests/integration/channel-unification.test.ts` fail because `AppChatService` is constructed in the test harness without `app.cfr` (the `CapabilityFailureReporter`) being wired. The `chat-service.ts:594` call to `this.app.cfr.emitFailure()` throws `TypeError: Cannot read properties of undefined`. These failures pre-date S5 (exist on master from S2).

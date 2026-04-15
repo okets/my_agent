@@ -946,8 +946,9 @@ export class App extends EventEmitter {
         systemMessageInjector: async (convId, prompt) => {
           // Mediator-framed injection — same pattern as reprocessTurn (M9.6-S4).
           // Drain the stream so the assistant turn lands in the transcript,
-          // then forward the response out through the preferred outbound
-          // channel if ConversationInitiator is wired.
+          // then forward the response back on the SAME CHANNEL the original
+          // user turn arrived on (routing rule: conversation replies stay on
+          // the conversation's channel, not the preferred outbound channel).
           const conv = await app.conversationManager.get(convId);
           const nextTurn = (conv?.turnCount ?? 0) + 1;
           let response = "";
@@ -962,7 +963,13 @@ export class App extends EventEmitter {
           }
           if (response) {
             const ci = app.conversationInitiator;
-            if (ci) await ci.forwardToChannel(response);
+            if (ci) {
+              // Pass the orphaned turn's original channel as the override so a
+              // WhatsApp voice note is rescued back to WhatsApp, not to the
+              // preferred outbound channel (which may be "web").
+              const lastUser = await app.conversationManager.getLastUserTurn(convId);
+              await ci.forwardToChannel(response, lastUser?.channel);
+            }
           }
         },
       });
