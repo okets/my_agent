@@ -76,6 +76,7 @@ A sprint is done when **all** of:
 6. A `DEVIATIONS.md` file lists any proposals filed (link to each).
 7. A `FOLLOW-UPS.md` file lists any clearly-out-of-scope bugs noticed (don't fix them; list them).
 8. The sprint's `review.md` is written by a separate reviewer agent — not the implementer.
+9. **The roadmap-done commit is the LAST commit on the sprint branch, landed AFTER the architect-review commit.** You (the implementer) do NOT author a `docs(roadmap): M9.6-SN done` commit before architect review. Either the architect commits it at approval time, or you commit it only after explicit approval in the review. This is not a style preference — it's because a premature "done" claim on the branch misrepresents state if the architect rejects.
 
 Commits: conventional-commit style, one commit per logical change, never batched. Never `--amend`. Never `--no-verify`.
 
@@ -615,10 +616,11 @@ Pure functions, no I/O, for the state transitions. Exports `nextAction(session, 
 Transitions:
 ```
 IDLE ──ack──► ACKED ──spawn(execute, sonnet)──► EXECUTING ──job done──► REFLECTING
-REFLECTING ──spawn(reflect, opus)──► REFLECTED ──re-verify──► VERIFIED ──reprocess──► DONE
-                                                          └──verify fail──► decide:
-                                                              attempts<3 → ACKED (status) + iterate
-                                                              attempts=3 → SURRENDER
+REFLECTING ──spawn(reflect, opus)──► REVERIFYING ──re-verify pass──► DONE (reprocess turn)
+                                                └──re-verify fail──► decide:
+                                                    attempts<3 → ACKED (status) + iterate
+                                                    attempts=3 → SURRENDER
+(State names use present participles — `REFLECTING`/`REVERIFYING`/`DONE`/`SURRENDER` — describing the work in progress, not a past event. Amended 2026-04-15 post-S4.)
 ```
 
 ### 6.3 The fix-automation prompt template
