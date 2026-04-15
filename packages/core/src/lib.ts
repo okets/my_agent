@@ -276,6 +276,24 @@ export type {
   ReverifyResult,
 } from './capabilities/index.js'
 
+// Orphaned-turn watchdog (M9.6-S5)
+export {
+  OrphanWatchdog,
+  findOrphanedUserTurn,
+  hasWatchdogEventFor,
+} from './conversations/index.js'
+export type {
+  OrphanWatchdogConfig,
+  OrphanSweepReport,
+  RawMediaStoreLike,
+  ConversationManagerLike,
+  TranscriptLineLike,
+  TranscriptTurnLike,
+  TurnCorrectedLike,
+  WatchdogRescuedLike,
+  WatchdogResolvedStaleLike,
+} from './conversations/index.js'
+
 // Memory system
 export {
   MemoryDb,
