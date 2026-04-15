@@ -25,6 +25,18 @@ export interface ReverifyResult {
   pass: boolean;
   recoveredContent?: string;
   failureMode?: string;
+  /**
+   * Capability-reported confidence in `[0, 1]`, when the script emits it.
+   * Populated by audio-to-text reverification starting in M9.6-S6. Consumed
+   * by the reflect-phase prompt — lets Opus tell "Deepgram really heard
+   * nothing" apart from "Deepgram is still broken".
+   */
+  confidence?: number;
+  /**
+   * Capability-reported audio duration in ms, when the script emits it.
+   * Populated by audio-to-text reverification starting in M9.6-S6.
+   */
+  durationMs?: number;
 }
 
 /**
@@ -152,7 +164,21 @@ async function reverifyAudioToText(
       };
     }
 
-    return { pass: true, recoveredContent: text };
+    // Optional fields added in M9.6-S6 (audio-to-text template). Script
+    // implementations may or may not emit them yet — `classifyEmptyStt`
+    // conservatively returns null when undefined, so missing values are safe.
+    const rawConfidence = parsed["confidence"];
+    const rawDuration = parsed["duration_ms"];
+    const confidence =
+      typeof rawConfidence === "number" && Number.isFinite(rawConfidence)
+        ? rawConfidence
+        : undefined;
+    const durationMs =
+      typeof rawDuration === "number" && Number.isFinite(rawDuration)
+        ? rawDuration
+        : undefined;
+
+    return { pass: true, recoveredContent: text, confidence, durationMs };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { pass: false, failureMode: `transcribe.sh execution error: ${message}` };
