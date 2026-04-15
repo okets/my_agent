@@ -476,6 +476,32 @@ export class ChannelMessageHandler {
       }
     }
 
+    // Persist raw media for CFR recovery (M9.6-S1).
+    // Saves the primary media buffer to disk before STT or any downstream processing.
+    let rawMediaPath: string | undefined;
+    if (this.deps.app.rawMediaStore) {
+      try {
+        if (first.isVoiceNote && first.audioAttachment) {
+          rawMediaPath = await this.deps.app.rawMediaStore.save(
+            conversation.id,
+            first.id,
+            first.audioAttachment.mimeType,
+            first.audioAttachment.buffer,
+          );
+        } else if (first.attachments?.length) {
+          const firstAtt = first.attachments[0];
+          rawMediaPath = await this.deps.app.rawMediaStore.save(
+            conversation.id,
+            `${first.id}-${firstAtt.filename}`,
+            firstAtt.mimeType,
+            firstAtt.data,
+          );
+        }
+      } catch (err) {
+        console.warn("[ChannelMessageHandler] Failed to persist raw media:", err);
+      }
+    }
+
     // Send typing indicator
     await this.deps.sendTypingIndicator(channelId, replyTo);
 
@@ -520,6 +546,7 @@ export class ChannelMessageHandler {
           source: "channel",
           attachments: chatAttachments.length > 0 ? chatAttachments : undefined,
           inputMedium: first.isVoiceNote && first.audioAttachment ? "audio" : undefined,
+          rawMediaPath,
         },
       )) {
         switch (event.type) {

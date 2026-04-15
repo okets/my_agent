@@ -18,7 +18,8 @@ import { NamingService } from "../conversations/naming.js";
 import type { SessionRegistry } from "../agent/session-registry.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
 import type { ConversationMeta, Turn } from "../ws/protocol.js";
-import { loadModels } from "@my-agent/core";
+import { loadModels, classifySttError, classifyEmptyStt } from "@my-agent/core";
+import type { TriggeringInput } from "@my-agent/core";
 import { expandSkillCommand } from "./skill-expander.js";
 import type {
   ChatEvent,
@@ -110,6 +111,61 @@ const CONVERSATION_ID_RE = /^conv-[A-Z0-9]{26}$/;
 export function isValidConversationId(id: string): boolean {
   return CONVERSATION_ID_RE.test(id);
 }
+
+// ── CFR helpers (M9.6-S1) ───────────────────────────────────────────────────
+
+/** Map the primary MIME type of an attachment list to a capability type string. */
+function detectCapabilityTypeFromMimes(
+  attachments: Array<{ mimeType: string }>,
+): string {
+  const first = attachments[0];
+  if (!first) return "attachment-handler";
+  if (first.mimeType.startsWith("audio/")) return "audio-to-text";
+  if (first.mimeType.startsWith("image/")) return "image-to-text";
+  return "attachment-handler";
+}
+
+/** Build a TriggeringInput from sendMessage's options and conversation context. */
+function buildTriggeringInput(
+  options: ChatMessageOptions | undefined,
+  convId: string,
+  turnNumber: number,
+  audioAttachment?: { mimeType: string } | null,
+): TriggeringInput {
+  const channel = options?.channel ?? {
+    transportId: "dashboard",
+    channelId: "dashboard",
+    sender: "user",
+  };
+  const input: TriggeringInput = {
+    channel: {
+      transportId: channel.transportId,
+      channelId: channel.channelId,
+      sender: channel.sender,
+      replyTo: channel.replyTo,
+      senderName: channel.senderName,
+      groupId: channel.groupId,
+    },
+    conversationId: convId,
+    turnNumber,
+  };
+  if (options?.rawMediaPath) {
+    const mimeType = audioAttachment?.mimeType ?? options.attachments?.[0]?.mimeType ?? "application/octet-stream";
+    const artifactType: "audio" | "image" | "document" = mimeType.startsWith("audio/")
+      ? "audio"
+      : mimeType.startsWith("image/")
+        ? "image"
+        : "document";
+    input.artifact = {
+      type: artifactType,
+      rawMediaPath: options.rawMediaPath,
+      mimeType,
+    };
+  }
+  return input;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 
 /**
  * Convert Conversation to ConversationMeta for protocol.
@@ -533,6 +589,16 @@ export class AppChatService {
       size: number;
     }> = [];
 
+    if (options?.attachments?.length && !deps?.attachmentService) {
+      // AttachmentService unavailable — emit CFR so recovery orchestrator can fix it (M9.6-S1)
+      this.app.cfr.emitFailure({
+        capabilityType: detectCapabilityTypeFromMimes(options.attachments),
+        symptom: "deps-missing",
+        detail: "AttachmentService unavailable at chat-service entry",
+        triggeringInput: buildTriggeringInput(options, convId!, turnNumber),
+      });
+    }
+
     if (options?.attachments?.length && deps?.attachmentService) {
       contentBlocks = [];
 
@@ -609,8 +675,36 @@ export class AppChatService {
             },
           ];
         } else if (sttResult.error) {
+          // Classify and emit CFR so recovery orchestrator can act (M9.6-S1)
+          const cap = this.app.capabilityRegistry?.get("audio-to-text");
+          const { symptom, detail } = classifySttError(
+            sttResult.error,
+            !!cap,
+            !!cap?.enabled,
+          );
+          this.app.cfr.emitFailure({
+            capabilityType: "audio-to-text",
+            capabilityName: cap?.name,
+            symptom,
+            detail,
+            triggeringInput: buildTriggeringInput(options, convId!, turnNumber, audioAttachment),
+          });
           transcribedContent = `[Voice message — transcription failed: ${sttResult.error}]`;
           contentBlocks = [{ type: "text", text: transcribedContent }];
+        } else {
+          // Empty transcription with no error — check if this looks like a broken capability
+          // (durationMs/confidence added in S6; returns null for S1 since script doesn't report them yet)
+          const emptySym = classifyEmptyStt(sttResult.text ?? "", undefined, undefined);
+          if (emptySym) {
+            const cap = this.app.capabilityRegistry?.get("audio-to-text");
+            this.app.cfr.emitFailure({
+              capabilityType: "audio-to-text",
+              capabilityName: cap?.name,
+              symptom: emptySym,
+              detail: "Script returned empty transcription",
+              triggeringInput: buildTriggeringInput(options, convId!, turnNumber, audioAttachment),
+            });
+          }
         }
       }
     }

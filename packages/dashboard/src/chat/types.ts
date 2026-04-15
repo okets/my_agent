@@ -80,6 +80,12 @@ export interface ChatMessageOptions {
   };
   /** Where this message originated — affects post-response hooks and channel routing */
   source?: "dashboard" | "channel";
+  /**
+   * Absolute path to the raw media file persisted by RawMediaStore (M9.6-S1).
+   * Set for voice-note and image messages from channel transports.
+   * Used by CFR emitter to record the triggering artifact path.
+   */
+  rawMediaPath?: string;
 }
 
 /**
