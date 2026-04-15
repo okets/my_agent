@@ -1886,6 +1886,8 @@ export class App extends EventEmitter {
     if (this.transportManager) {
       await this.transportManager.disconnectAll();
     }
+    // Stop idle timers before draining the queue to prevent late enqueues (M9.6-S2)
+    this.idleTimerManager?.shutdown();
     if (this.abbreviationQueue) {
       await this.abbreviationQueue.drain();
     }
