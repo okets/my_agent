@@ -478,6 +478,24 @@ export function loadCapabilityHints(capabilities: Capability[]): string | null {
 }
 
 /**
+ * Framework directive: never self-restart. (M9.6-S3)
+ *
+ * The framework hot-reloads capabilities via CapabilityWatcher. Agents must
+ * never restart or kill the running process to apply capability changes.
+ */
+export function formatNeverSelfRestartDirective(): string {
+  return [
+    '## Never self-restart',
+    '',
+    'You must NEVER run `systemctl restart nina-dashboard.service`, `pkill nina`, or any',
+    'command that kills or restarts the process you are running inside. Capability',
+    'changes hot-reload automatically via the framework\'s filesystem watcher — if a',
+    'fix requires a restart, you are looking at the wrong fix. Surface the restart',
+    'need to the user in plain text instead of executing it.',
+  ].join('\n')
+}
+
+/**
  * Framework directive: screenshot curation.
  *
  * The framework stores every screenshot returned by MCP tools and injects a URL
@@ -617,6 +635,10 @@ export async function assembleSystemPrompt(
       sections.push(capHints)
     }
   }
+
+  // Framework behavior: never self-restart (M9.6-S3)
+  // Capability changes hot-reload via CapabilityWatcher — agents must not restart the process.
+  sections.push(formatNeverSelfRestartDirective())
 
   // Framework behavior: screenshot curation (M9.5-S6)
   // The framework intercepts image-producing tool results, stores them, and injects
