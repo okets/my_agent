@@ -303,6 +303,73 @@ export class AppAutomationService {
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
+// ── Orphan rescue injector (M9.6-S5) ────────────────────────────────────────
+
+/**
+ * Deps shape for `makeOrphanRescueInjector`. Structural so the function is
+ * testable without importing App or ConversationManager concretely.
+ */
+export interface OrphanRescueDeps {
+  conversationManager: {
+    get(id: string): Promise<{ turnCount: number } | null | undefined>;
+    getLastUserTurn(
+      id: string,
+    ): Promise<{ channel: string | undefined; timestamp: string } | null>;
+  };
+  chat: {
+    sendSystemMessage(
+      convId: string,
+      prompt: string,
+      turnNumber: number,
+    ): AsyncIterable<{ type: string; text?: string }>;
+  };
+  conversationInitiator: {
+    forwardToChannel(
+      content: string,
+      channelOverride?: string,
+    ): Promise<{ delivered: boolean; reason?: string }>;
+  } | null | undefined;
+}
+
+/**
+ * Factory for the orphan-watchdog `systemMessageInjector`. Extracted so the
+ * routing behaviour (reply on original channel, not preferred outbound) can be
+ * tested directly against the real implementation instead of an inline copy.
+ *
+ * Mediator-framed: drains `sendSystemMessage`, then forwards the response on
+ * the SAME CHANNEL the orphaned user turn arrived on (C1 routing fix).
+ */
+export function makeOrphanRescueInjector(
+  deps: OrphanRescueDeps,
+): (convId: string, prompt: string) => Promise<void> {
+  return async (convId, prompt) => {
+    const conv = await deps.conversationManager.get(convId);
+    const nextTurn = (conv?.turnCount ?? 0) + 1;
+    let response = "";
+    for await (const event of deps.chat.sendSystemMessage(
+      convId,
+      prompt,
+      nextTurn,
+    )) {
+      if (event.type === "text_delta" && event.text) {
+        response += event.text;
+      }
+    }
+    if (response) {
+      const ci = deps.conversationInitiator;
+      if (ci) {
+        // Pass the orphaned turn's original channel as the override so a
+        // WhatsApp voice note is rescued back to WhatsApp, not to the
+        // preferred outbound channel (which may be "web").
+        const lastUser = await deps.conversationManager.getLastUserTurn(convId);
+        await ci.forwardToChannel(response, lastUser?.channel);
+      }
+    }
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface AppOptions {
   agentDir: string;
   /**
@@ -943,35 +1010,11 @@ export class App extends EventEmitter {
           ? (failure) =>
               reverify(failure, app.capabilityRegistry!, app.capabilityWatcher!)
           : undefined,
-        systemMessageInjector: async (convId, prompt) => {
-          // Mediator-framed injection — same pattern as reprocessTurn (M9.6-S4).
-          // Drain the stream so the assistant turn lands in the transcript,
-          // then forward the response back on the SAME CHANNEL the original
-          // user turn arrived on (routing rule: conversation replies stay on
-          // the conversation's channel, not the preferred outbound channel).
-          const conv = await app.conversationManager.get(convId);
-          const nextTurn = (conv?.turnCount ?? 0) + 1;
-          let response = "";
-          for await (const event of app.chat.sendSystemMessage(
-            convId,
-            prompt,
-            nextTurn,
-          )) {
-            if (event.type === "text_delta" && event.text) {
-              response += event.text;
-            }
-          }
-          if (response) {
-            const ci = app.conversationInitiator;
-            if (ci) {
-              // Pass the orphaned turn's original channel as the override so a
-              // WhatsApp voice note is rescued back to WhatsApp, not to the
-              // preferred outbound channel (which may be "web").
-              const lastUser = await app.conversationManager.getLastUserTurn(convId);
-              await ci.forwardToChannel(response, lastUser?.channel);
-            }
-          }
-        },
+        systemMessageInjector: makeOrphanRescueInjector({
+          conversationManager: app.conversationManager,
+          chat: app.chat,
+          conversationInitiator: app.conversationInitiator,
+        }),
       });
 
       // Run once at boot — cap at 10s so a slow sweep never blocks startup.

@@ -6,89 +6,60 @@
  * `forwardToChannel` must be called with the orphaned turn's channel as the
  * override, so a WhatsApp voice note rescued at boot reaches WhatsApp —
  * not the preferred outbound (e.g. "web").
+ *
+ * Uses the real `makeOrphanRescueInjector` from app.ts so this test cannot
+ * drift from the actual implementation.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
+import {
+  makeOrphanRescueInjector,
+  type OrphanRescueDeps,
+} from "../../src/app.js";
 
-// Reproduce the systemMessageInjector logic from app.ts so we can test it
-// without spinning up the full App. The logic is: drain sendSystemMessage,
-// look up the last user turn's channel, call forwardToChannel with that
-// channel as the override.
-async function makeInjector(opts: {
+function makeDeps(opts: {
   channel: string | undefined;
   responseText: string;
-}) {
-  const forwardToChannelCalls: Array<
-    [content: string, channelOverride: string | undefined]
-  > = [];
+}): {
+  deps: OrphanRescueDeps;
+  forwardToChannelCalls: Array<[string, string | undefined]>;
+} {
+  const forwardToChannelCalls: Array<[string, string | undefined]> = [];
 
-  const mockApp = {
+  const deps: OrphanRescueDeps = {
     conversationManager: {
-      async get(_id: string) {
+      async get(_id) {
         return { turnCount: 3 };
       },
-      async getLastUserTurn(_id: string) {
-        return opts.channel !== undefined
-          ? { channel: opts.channel, timestamp: new Date().toISOString() }
-          : { channel: undefined, timestamp: new Date().toISOString() };
+      async getLastUserTurn(_id) {
+        return { channel: opts.channel, timestamp: new Date().toISOString() };
       },
     },
     chat: {
-      async *sendSystemMessage(
-        _convId: string,
-        _prompt: string,
-        _turn: number,
-      ): AsyncIterable<{ type: string; text?: string }> {
+      async *sendSystemMessage(_convId, _prompt, _turn) {
         yield { type: "text_delta", text: opts.responseText };
       },
     },
     conversationInitiator: {
-      async forwardToChannel(
-        content: string,
-        channelOverride?: string,
-      ): Promise<{ delivered: boolean }> {
+      async forwardToChannel(content, channelOverride) {
         forwardToChannelCalls.push([content, channelOverride]);
         return { delivered: true };
       },
     },
   };
 
-  // The exact injector closure from app.ts (C1 fix)
-  const systemMessageInjector = async (
-    convId: string,
-    prompt: string,
-  ): Promise<void> => {
-    const conv = await mockApp.conversationManager.get(convId);
-    const nextTurn = (conv?.turnCount ?? 0) + 1;
-    let response = "";
-    for await (const event of mockApp.chat.sendSystemMessage(
-      convId,
-      prompt,
-      nextTurn,
-    )) {
-      if (event.type === "text_delta" && event.text) {
-        response += event.text;
-      }
-    }
-    if (response) {
-      const ci = mockApp.conversationInitiator;
-      if (ci) {
-        const lastUser =
-          await mockApp.conversationManager.getLastUserTurn(convId);
-        await ci.forwardToChannel(response, lastUser?.channel);
-      }
-    }
-  };
-
-  return { systemMessageInjector, forwardToChannelCalls };
+  return { deps, forwardToChannelCalls };
 }
 
-describe("Orphan rescue routing — C1 (M9.6-S5)", () => {
+describe("makeOrphanRescueInjector — channel routing (M9.6-S5 C1)", () => {
   it("routes rescue response to WhatsApp when the orphaned turn came from WhatsApp", async () => {
-    const { systemMessageInjector, forwardToChannelCalls } =
-      await makeInjector({ channel: "whatsapp", responseText: "you asked X" });
+    const { deps, forwardToChannelCalls } = makeDeps({
+      channel: "whatsapp",
+      responseText: "you asked X",
+    });
 
-    await systemMessageInjector("conv-wa-001", "[rescue prompt]");
+    const injector = makeOrphanRescueInjector(deps);
+    await injector("conv-wa-001", "[rescue prompt]");
 
     expect(forwardToChannelCalls).toHaveLength(1);
     const [content, channelOverride] = forwardToChannelCalls[0];
@@ -99,10 +70,13 @@ describe("Orphan rescue routing — C1 (M9.6-S5)", () => {
   });
 
   it("routes rescue response to undefined (web no-op) when the orphaned turn came from the web dashboard", async () => {
-    const { systemMessageInjector, forwardToChannelCalls } =
-      await makeInjector({ channel: undefined, responseText: "reply here" });
+    const { deps, forwardToChannelCalls } = makeDeps({
+      channel: undefined,
+      responseText: "reply here",
+    });
 
-    await systemMessageInjector("conv-web-001", "[rescue prompt]");
+    const injector = makeOrphanRescueInjector(deps);
+    await injector("conv-web-001", "[rescue prompt]");
 
     expect(forwardToChannelCalls).toHaveLength(1);
     const [, channelOverride] = forwardToChannelCalls[0];
