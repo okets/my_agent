@@ -64,10 +64,10 @@ export async function reverify(
   }
 
   // Unknown capability types: availability is the only check we can do
+  const cap = registry.get(failure.capabilityType);
   return {
-    pass: true,
-    failureMode: undefined,
-    recoveredContent: undefined,
+    pass: cap?.status === "available",
+    failureMode: cap?.status !== "available" ? "capability unavailable" : "no reverifier registered",
   };
 }
 
