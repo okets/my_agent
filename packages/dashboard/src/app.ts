@@ -60,7 +60,9 @@ import {
   AbbreviationQueue,
   ConversationSearchDB,
   ConversationSearchService,
+  IdleTimerManager,
 } from "./conversations/index.js";
+import { AttachmentService } from "./conversations/attachments.js";
 import {
   TransportManager,
   MockTransportPlugin,
@@ -347,6 +349,10 @@ export class App extends EventEmitter {
 
   // Post-processing
   postResponseHooks: PostResponseHooks | null = null;
+
+  // Deps wired at boot (M9.6-S2)
+  idleTimerManager: IdleTimerManager | null = null;
+  attachmentService: AttachmentService | null = null;
 
   // State publishing
   statePublisher: StatePublisher | null = null;
@@ -1835,6 +1841,25 @@ export class App extends EventEmitter {
     app.chat = new AppChatService(app);
     app.auth = new AppAuthService(app);
     app.debug = new AppDebugService(agentDir);
+
+    // ── Boot-time deps wiring (M9.6-S2) ──
+    // Wire chat-service deps at App construction so WhatsApp (and other channel
+    // plugins) can process media without waiting for a browser WS connection.
+    // The IdleTimerManager starts with a no-op viewer-count callback; the WS
+    // handler upgrades it to the real ConnectionRegistry on first connect.
+    app.attachmentService = new AttachmentService(agentDir);
+    app.idleTimerManager = app.abbreviationQueue
+      ? new IdleTimerManager(app.abbreviationQueue, () => 0)
+      : null;
+    app.chat.setDeps({
+      abbreviationQueue: app.abbreviationQueue,
+      idleTimerManager: app.idleTimerManager,
+      attachmentService: app.attachmentService,
+      conversationSearchService: app.conversationSearchService,
+      postResponseHooks: app.postResponseHooks,
+      log: (msg) => console.log(msg),
+      logError: (err, msg) => console.error(msg, err),
+    });
 
     // ── Legacy directory warnings ──
     const legacyDirs = ["tasks", "inbox"].filter((d) =>

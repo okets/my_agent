@@ -9,18 +9,12 @@
 
 import type { FastifyInstance } from "fastify";
 import { loadModels } from "@my-agent/core";
-import { IdleTimerManager } from "../conversations/idle-timer.js";
 import type { ConnectionRegistry } from "./connection-registry.js";
-import { AttachmentService } from "../conversations/attachments.js";
 import { ResponseTimer } from "../channels/response-timer.js";
 import { isValidConversationId } from "../chat/chat-service.js";
 import type { AuthSession } from "../auth/auth-service.js";
 import type { ChatEvent, StartEffects } from "../chat/types.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
-
-// Lazily initialized on first WS connection
-let idleTimerManager: IdleTimerManager | null = null;
-let attachmentService: AttachmentService | null = null;
 
 export async function registerChatWebSocket(
   fastify: FastifyInstance,
@@ -35,38 +29,26 @@ export async function registerChatWebSocket(
 
     const app = fastify.app!;
 
-    if (!attachmentService) {
-      attachmentService = new AttachmentService(fastify.agentDir);
-    }
+    // Upgrade IdleTimerManager to real viewer-count now that a WS connection
+    // exists. Deps were wired at App boot (M9.6-S2); this just replaces the
+    // no-op callback with the live ConnectionRegistry one.
+    app.idleTimerManager?.setViewerCountFn(
+      connectionRegistry.getViewerCount.bind(connectionRegistry),
+    );
 
-    if (!idleTimerManager && fastify.abbreviationQueue) {
-      idleTimerManager = new IdleTimerManager(
-        fastify.abbreviationQueue,
-        connectionRegistry,
-      );
-      if (!fastify.abbreviationQueue.onRenamed) {
-        fastify.abbreviationQueue.onRenamed = (conversationId, title) => {
-          // Emit App event (triggers StatePublisher conversation list refresh)
-          app.emit("conversation:updated", conversationId);
-          // Also send targeted rename message for instant sidebar update
-          connectionRegistry.broadcastToAll({
-            type: "conversation_renamed",
-            conversationId,
-            title,
-          });
-        };
-      }
+    // Wire the abbreviation-rename callback on first connect.
+    if (fastify.abbreviationQueue && !fastify.abbreviationQueue.onRenamed) {
+      fastify.abbreviationQueue.onRenamed = (conversationId, title) => {
+        // Emit App event (triggers StatePublisher conversation list refresh)
+        app.emit("conversation:updated", conversationId);
+        // Also send targeted rename message for instant sidebar update
+        connectionRegistry.broadcastToAll({
+          type: "conversation_renamed",
+          conversationId,
+          title,
+        });
+      };
     }
-
-    app.chat.setDeps({
-      abbreviationQueue: fastify.abbreviationQueue,
-      idleTimerManager,
-      attachmentService,
-      conversationSearchService: fastify.conversationSearchService,
-      postResponseHooks: fastify.postResponseHooks,
-      log: (msg) => fastify.log.info(msg),
-      logError: (err, msg) => fastify.log.error(err, msg),
-    });
 
     // Per-connection state
     let currentConversationId: string | null = null;
@@ -322,9 +304,9 @@ export async function registerChatWebSocket(
           try {
             await app.chat.deleteConversation(msg.conversationId, {
               cancelAbbreviation: (id) => fastify.abbreviationQueue?.cancel(id),
-              clearIdleTimer: (id) => idleTimerManager?.clear(id),
+              clearIdleTimer: (id) => app.idleTimerManager?.clear(id),
               deleteAttachments: (id) =>
-                attachmentService?.deleteConversationAttachments(id),
+                app.attachmentService?.deleteConversationAttachments(id),
               removeSearchEmbeddings: (id) =>
                 fastify.conversationSearchService?.removeConversation(id),
             });

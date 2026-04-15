@@ -5,25 +5,35 @@
  */
 
 import type { AbbreviationQueue } from "./abbreviation.js";
-import type { ConnectionRegistry } from "../ws/connection-registry.js";
 
 /**
  * Manages idle timers for conversations
  */
 export class IdleTimerManager {
   private queue: AbbreviationQueue;
-  private registry: ConnectionRegistry;
+  // Callback approach (M9.6-S2): App boots with a no-op; WS handler upgrades
+  // to the real ConnectionRegistry.getViewerCount on first connect.
+  private getViewerCount: (conversationId: string) => number;
   private idleMs: number;
   private timers = new Map<string, NodeJS.Timeout>();
 
   constructor(
     queue: AbbreviationQueue,
-    registry: ConnectionRegistry,
+    getViewerCount: (conversationId: string) => number = () => 0,
     idleMs: number = 10 * 60 * 1000, // 10 minutes default
   ) {
     this.queue = queue;
-    this.registry = registry;
+    this.getViewerCount = getViewerCount;
     this.idleMs = idleMs;
+  }
+
+  /**
+   * Upgrade the viewer-count callback after WS connects.
+   * Called by the WS handler on first connection so IdleTimerManager gains
+   * real viewer awareness without being coupled to ConnectionRegistry at boot.
+   */
+  setViewerCountFn(fn: (conversationId: string) => number): void {
+    this.getViewerCount = fn;
   }
 
   /**
@@ -63,7 +73,7 @@ export class IdleTimerManager {
     this.timers.delete(conversationId);
 
     // Safety check: only abbreviate if no viewers
-    const viewerCount = this.registry.getViewerCount(conversationId);
+    const viewerCount = this.getViewerCount(conversationId);
 
     if (viewerCount === 0) {
       // No active viewers - safe to abbreviate
