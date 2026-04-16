@@ -1,6 +1,6 @@
 # M9.6 Universal Coverage — Follow-up Plan (v2.3, two red-team passes + coverage-verification patch)
 
-**Status:** Draft v2.3 — two red-team passes incorporated; design↔sprint coverage verification passed with six focused sprint-scope patches (G1–G6); CTO-approved; ready to execute S9.25 onward
+**Status:** Draft v2.3 — two red-team passes incorporated; design↔sprint coverage verification passed with six focused sprint-scope patches (G1–G6); CTO-approved; ready to execute S9 onward
 **Milestone:** M9.6 — extension, not a new milestone
 **Origin:** [`HANDOFF-cfr-coverage-gap.md`](HANDOFF-cfr-coverage-gap.md) — CFR shipped STT-only; CTO correction 2026-04-16
 **Primary plan:** [`plan.md`](plan.md) — S1–S8 (merged). This doc adds S9+.
@@ -65,7 +65,7 @@ Future capability types inherit coverage through the two gates and the smoke-fix
 
 **Purpose:** the only sanctioned way to invoke a plug's shell script. Wraps `registry.get()` + script execution + error classification + `cfr.emitFailure()` in one call.
 
-**Invocation shape normalization:** the invoker runs scripts as `execFile(scriptPath, args, options)` — direct execution, not via a `bash` wrapper. The existing `reverify.ts` audio-to-text reverifier invokes via `execFile("bash", [scriptPath, ...])`; that form is inherited from S1 and is a latent fragility (breaks silently if the script lacks `chmod +x`). S9 adds scan-time executable-bit validation in the registry loader (`test-harness.ts`), ensuring every `scripts/*.sh` is executable before the plug is marked `available`. The invoker then runs the direct form. The `reverify.ts` audio reverifier refactors to use the invoker once the executable-bit validation is in place.
+**Invocation shape normalization:** the invoker runs scripts as `execFile(scriptPath, args, options)` — direct execution, not via a `bash` wrapper. The existing `reverify.ts` audio-to-text reverifier invokes via `execFile("bash", [scriptPath, ...])`; that form is inherited from S1 and is a latent fragility (breaks silently if the script lacks `chmod +x`). S10 adds scan-time executable-bit validation in the registry loader (`test-harness.ts`), ensuring every `scripts/*.sh` is executable before the plug is marked `available`. The invoker then runs the direct form. The `reverify.ts` audio reverifier refactors to use the invoker once the executable-bit validation is in place.
 
 **Interface sketch:**
 
@@ -110,7 +110,7 @@ All emits go through `cfr.emitFailure()` with the passed `triggeringInput`. Call
 
 **MCP-server-to-capability lookup:** there is no separate `mcp.server` field in `CAPABILITY.md` frontmatter (verified against `packages/core/src/capabilities/types.ts:54-64` and the `browser-control` template at line 36). The MCP server name *is* the capability's `name:` field — the tool name format is `mcp__<capability.name>__<tool>` (parsed by `parseMcpToolName` in `mcp-middleware.ts:20`). Rename v1's proposed `findByMcpServer` to `findByName(name: string): Capability | undefined` on `CapabilityRegistry` (if absent; confirm before editing).
 
-**triggeringInput for MCP failures:** the SDK hook input carries `session_id` (from `BaseHookInput`), not `conversationId`. The session manager holds a `view context` struct per session (`session-manager.ts` — confirm exact struct name in S10) that records which conversation/turn originated the SDK session. The detector reads that context at failure time. The `channel`, `conversationId`, `turnNumber` fields of `TriggeringInput` are populated from it. `artifact` stays undefined for MCP failures. `userUtterance` is the tool-call arguments serialized (best-effort trace evidence).
+**triggeringInput for MCP failures:** the SDK hook input carries `session_id` (from `BaseHookInput`), not `conversationId`. The session manager holds a `view context` struct per session (`session-manager.ts` — confirm exact struct name in S12) that records which conversation/turn originated the SDK session. The detector reads that context at failure time. The `channel`, `conversationId`, `turnNumber` fields of `TriggeringInput` are populated from it. `artifact` stays undefined for MCP failures. `userUtterance` is the tool-call arguments serialized (best-effort trace evidence).
 
 **Classifier sketch:**
 
@@ -185,9 +185,9 @@ manifest: {
 }
 ```
 
-This is required — without it, setting `targetPath` on the orchestrator spec is a no-op, the manifest has no `target_path`, and `writePaperTrail` at `automation-executor.ts:594-603` does nothing. The automation framework's auto-`job_type` inference at `automation-executor.ts:162-167` will trigger on a `.my_agent/capabilities/...` target path and set `job_type: capability_modify` — aligns with what the orchestrator also explicitly passes. Confirm no collision in S11.
+This is required — without it, setting `targetPath` on the orchestrator spec is a no-op, the manifest has no `target_path`, and `writePaperTrail` at `automation-executor.ts:594-603` does nothing. The automation framework's auto-`job_type` inference at `automation-executor.ts:162-167` will trigger on a `.my_agent/capabilities/...` target path and set `job_type: capability_modify` — aligns with what the orchestrator also explicitly passes. Confirm no collision in S16.
 
-**`.my_agent` write guard:** the post-M9.2 hook that blocks writes to `.my_agent/` must allow the `job_type === "capability_modify"` worker to write to `.my_agent/capabilities/<name>/`. Confirm the exemption exists (or add it) in S11.
+**`.my_agent` write guard:** the post-M9.2 hook that blocks writes to `.my_agent/` must allow the `job_type === "capability_modify"` worker to write to `.my_agent/capabilities/<name>/`. Confirm the exemption exists (or add it) in S16.
 
 **Escalation signals:** `ESCALATE: redesign-needed` or `ESCALATE: insufficient-context` at the top of `deliverable.md` → orchestrator treats the attempt as failed with a specific `surrenderReason`. Surrender copy for these reasons is distinct from the "I tried three times" generic path; see §4.5.
 
@@ -214,7 +214,7 @@ v1 presented the reflect collapse as a single-line state-machine change. It is n
 - Budget math:
   - With reflect gone, maximum jobs per recovery = 3 (one per attempt). The 5-job cap (`MAX_JOBS = 5`) is non-binding. Keep it as a safety ceiling against runaway nested spawns (even though fix-mode forbids nested spawns, defense in depth) but reduce to 4 to reflect reality + 1 margin.
 
-This is its own sprint (S11 in the sprint plan, once written). The state-machine diff lands in one commit; orchestrator behavior changes in a second; test updates in a third. Never ship behavior-first — the state-machine test-matrix must show green before the orchestrator changes.
+This is its own sprint (S13 in the sprint plan, once written). The state-machine diff lands in one commit; orchestrator behavior changes in a second; test updates in a third. Never ship behavior-first — the state-machine test-matrix must show green before the orchestrator changes.
 
 ### 4.4 Reverify dispatcher + smoke fixture contract
 
@@ -239,7 +239,7 @@ async function dispatchReverify(failure, registry, watcher): Promise<ReverifyRes
 
 **Per-type reverifiers:**
 
-- `reverifyAudioToText`: unchanged semantics. Runs STT script against `rawMediaPath`, expects non-empty `text`. Refactored to use `CapabilityInvoker` after S9's exec-bit validation lands. Returns `{pass, recoveredContent, confidence, durationMs}` (populating confidence/durationMs when script reports them).
+- `reverifyAudioToText`: unchanged semantics. Runs STT script against `rawMediaPath`, expects non-empty `text`. Refactored to use `CapabilityInvoker` after S10's exec-bit validation lands. Returns `{pass, recoveredContent, confidence, durationMs}` (populating confidence/durationMs when script reports them).
 - `reverifyTextToAudio`: runs `synthesize.sh` against a deterministic fixture prompt (from template), checks output file exists and has a valid audio header (Ogg magic bytes / WAV RIFF). Does NOT re-speak the user's assistant reply. Returns `{pass, recoveredContent: undefined}`.
 - `reverifyImageToText`: runs OCR script against a small stock test image (from template), expects non-empty text output. Returns `{pass, recoveredContent: undefined}` — re-running against the user's original image is deferred; fixture-only for this milestone.
 - `reverifyTextToImage`: runs generation against a deterministic prompt fixture, checks output image header. Returns `{pass, recoveredContent: undefined}`.
@@ -253,9 +253,9 @@ Every capability template (`skills/capability-templates/*.md`) gains a "Smoke fi
 
 1. A required `scripts/smoke.sh` at the plug folder root. Exit 0 = healthy, any non-zero = broken.
 2. The smoke script SHOULD exercise the plug's core tool(s) against a deterministic fixture that doesn't require external resources. If external resources are unavoidable (e.g., network for cloud STT), document the fallback behavior.
-3. For MCP plugs: `smoke.sh` spawns the MCP server, invokes the core required tool once, checks the response is well-formed, tears down. (Reference implementation lands in S12 against desktop-control and browser-control.)
+3. For MCP plugs: `smoke.sh` spawns the MCP server, invokes the core required tool once, checks the response is well-formed, tears down. (Reference implementation lands in S14 against desktop-control and browser-control.)
 
-**Adding smoke.sh to the six existing templates is a distinct sprint (S9.5).** Without it, the default reverifier has nothing to call. S9.5 ships alongside S9 (invoker) because S9's exec-bit validator needs to know smoke.sh is a well-known script.
+**Adding smoke.sh to the six existing templates is a distinct sprint (S11).** Without it, the default reverifier has nothing to call. S11 ships alongside S10 (invoker) because S10's exec-bit validator needs to know smoke.sh is a well-known script.
 
 **`verificationInputPath` field in `FixAttempt`:** currently `.triggeringInput.artifact?.rawMediaPath ?? ""`. New rule: write the real path used for verification — triggering artifact when the type-specific reverifier consumes it; otherwise `<capDir>/scripts/smoke.sh` (the probe path itself, not any fixture smoke.sh internally references). Never empty string. Readers of this field should treat it as "the path the reverifier probed" rather than "the input I replayed" — the two coincide only for STT-like reverifiers.
 
@@ -299,7 +299,7 @@ Both states are terminal for the recovery loop. Neither re-engages the fix loop.
 **`orphan-watchdog.ts`:**
 
 - `VOICE_PLACEHOLDERS` generalized to a dispatch table `FAILURE_PLACEHOLDERS` keyed by capability type.
-- **Scanner scope extension:** today the watchdog scans user-turn content for voice placeholders. TTS failure leaves a placeholder in *assistant* turn content (or more accurately, the *absence* of an audioUrl on an assistant turn). S13 extends the scanner to cover assistant turns with known assistant-side placeholder strings (or better: the app records a `failure_type` on the turn at write time). The exact shape depends on where the TTS failure gets recorded — likely a new field on `TranscriptTurn` for the assistant side, not a placeholder string. S13 decides.
+- **Scanner scope extension:** today the watchdog scans user-turn content for voice placeholders. TTS failure leaves a placeholder in *assistant* turn content (or more accurately, the *absence* of an audioUrl on an assistant turn). S15 extends the scanner to cover assistant turns with known assistant-side placeholder strings (or better: the app records a `failure_type` on the turn at write time). The exact shape depends on where the TTS failure gets recorded — likely a new field on `TranscriptTurn` for the assistant side, not a placeholder string. S15 decides.
 - A unit test asserts the `FAILURE_PLACEHOLDERS` table covers every placeholder string any invocation site writes.
 
 ### 4.6 Duplicate TTS path collapse — explicit per-path fallback
@@ -384,7 +384,7 @@ No persisted format break: `CapabilityFailure` and `FixAttempt` are held in-memo
 
 Steps 3–5 run sequentially in that order (automations first so the durable record lands before any user-facing ack fires). Failures inside steps 3 or 4 do not block subsequent steps — each origin gets its own try/catch.
 
-**CFR_RECOVERY.md reader:** the existing debrief-prep flow (at `packages/dashboard/src/scheduler/jobs/debrief-prep.ts` — confirm path at S10-time) currently reads `deliverable.md` per job. S10's scope includes extending debrief-prep to also read `CFR_RECOVERY.md` (when present) and include its summary in the debrief prompt. Without the reader extension, the writer is orphaned.
+**CFR_RECOVERY.md reader:** the existing debrief-prep flow (at `packages/dashboard/src/scheduler/jobs/debrief-prep.ts` — confirm path at S12-time) currently reads `deliverable.md` per job. S12's scope includes extending debrief-prep to also read `CFR_RECOVERY.md` (when present) and include its summary in the debrief prompt. Without the reader extension, the writer is orphaned.
 
 **Orphan watchdog stays conversation-scoped.** The automation-equivalent (a job that ran while its plug was broken, didn't recover, but the job completed without flagging it) is a different concern handled by the existing job-debrief mechanism — out of scope for this milestone. If it becomes a real problem, it gets its own sprint.
 
@@ -482,7 +482,7 @@ Pass = all assertions; any miss = milestone blocker.
 Setup:
 1. Install / confirm `audio-to-text` plug (STT) is present and healthy. Smoke green.
 2. Deliberately break the plug at the plug side — e.g., remove the API key from `config.yaml`, corrupt `transcribe.sh`, or break a dependency in `requires.env`. Record what was broken; do NOT restore it.
-3. Inject a voice message through **`AppHarness` extended with a mock transport** that records `send` calls. Rationale: the post-M9.8 "headless App" refactor is planned but not shipped; Playwright against a live dashboard would work but violates the "no live outreach during tests" rule if any channel transport (WhatsApp, email) is partially wired. A recording mock transport inside `AppHarness` is deterministic, inside-process, and lets the test assert against the transport's capture log. S16's scope includes the `AppHarness` extension if it isn't already in place. Audio content is something that can be meaningfully responded to, e.g., "What time is it?" so the reprocess step is visible.
+3. Inject a voice message through **`AppHarness` extended with a mock transport** that records `send` calls. Rationale: the post-M9.8 "headless App" refactor is planned but not shipped; Playwright against a live dashboard would work but violates the "no live outreach during tests" rule if any channel transport (WhatsApp, email) is partially wired. A recording mock transport inside `AppHarness` is deterministic, inside-process, and lets the test assert against the transport's capture log. S18's scope includes the `AppHarness` extension if it isn't already in place. Audio content is something that can be meaningfully responded to, e.g., "What time is it?" so the reprocess step is visible.
 
 Assertions:
 - `CapabilityInvoker` fires CFR with `origin.kind === "conversation"`.
@@ -524,17 +524,17 @@ v1 raised eight questions; the red-team resolved four and surfaced more. Current
 | 2 | MCP tool error hook | **Resolved** | Wire `PostToolUseFailure` with typed `error: string`. Incorporated in §4.2. |
 | 3 | `JOB_TIMEOUT_MS` with nested builder | **Resolved** | Fix-mode forbids nested builder spawn; timeout raised to 15min. Incorporated in §4.3. |
 | 4 | `spawnAutomation` `targetPath` support | **Resolved** | Two-edit change: `AutomationSpec` + dashboard closure. Incorporated in §4.3. Auto-`job_type` inference confirmed compatible. |
-| 5 | Reflect collapse blast radius | **Resolved** | Own sprint (S11); enumerated in §4.3.1. |
+| 5 | Reflect collapse blast radius | **Resolved** | Own sprint (S13); enumerated in §4.3.1. |
 | 6 | TTS collapse silent-drop risk | **Resolved** | Per-path fallback table in §4.6. |
 | 7 | Opus budget | **Accepted** | Per-attempt cost roughly equals today (1 Opus vs. Sonnet+Opus); wall time doubles. Non-issue at M9.6 volume. |
 | 8 | Fix-mode bypass of authoring discipline | **Resolved** | Hard-disable Steps 1-6 + `.enabled` write; retain DECISIONS.md context-write for narrative parity. `.my_agent/` guard exemption on `capability_modify` job_type. Incorporated in §4.3. |
 
 **Items 9-12 resolved via CTO approval (2026-04-16):**
 
-- **9 — Smoke fixture contract:** approved; S9.5 adds `scripts/smoke.sh` to the five existing templates.
+- **9 — Smoke fixture contract:** approved; S11 adds `scripts/smoke.sh` to the five existing templates.
 - **10 — Multi-instance name leakage:** approved with guardrail; capability-brainstorming skill gains a "neutral identifier" naming convention.
 - **11 — Parallel CFR UX:** ship N-aware coalescing, don't cap at 2.
-- **12 — Assistant-side orphan scanning:** structured `TranscriptTurn.failure_type` field (not placeholder string). S13.
+- **12 — Assistant-side orphan scanning:** structured `TranscriptTurn.failure_type` field (not placeholder string). S15.
 
 **v2.1 red-team (second pass) — all resolved in v2.2:**
 
@@ -542,13 +542,13 @@ v1 raised eight questions; the red-team resolved four and surfaced more. Current
 |---|---|---|
 | A1 | Automation-executor hosts in-process SDK sessions | **Confirmed sound.** §4.7's injection-point premise holds; `automation-executor.ts:418,426` are real. |
 | A2 | MCP child doesn't recover mid-session | §4.4 + §8 Test 1 now explicit: `runSmokeFixture` is out-of-session; in-session MCP child is abandoned; next invocation gets fresh session. |
-| A3 | `CFR_RECOVERY.md` writer/reader vapor | §4.7 now specifies writer location (terminal transition), ordering, reader (debrief-prep extension in S10). |
+| A3 | `CFR_RECOVERY.md` writer/reader vapor | §4.7 now specifies writer location (terminal transition), ordering, reader (debrief-prep extension in S12). |
 | A4 | `notifyMode` default undefined | Default = `"debrief"` per §4.7. |
 | A5 | Mutex terminal-drain race | §4.7 now has explicit 6-step ordering rule: persist → reverify → automations → conversations → system → release. |
 | A6 | Deserialization coercion dead code | Dropped. Nothing persisted; clean TypeScript break. §4.3.1, §4.7, §6, §7 updated. |
-| A7 | S10.5 touches consumers, not just emitters | Scope in §4.7 + §11 names ~5 consumer narrowings. |
-| A8 | S10 → S10.5 ordering backwards | Merged into single S10 with automation-origin wiring from day one. S9.25 type-landing split out. |
-| A9 | Test 2 execution vehicle vapor | Committed: `AppHarness` + recording mock transport. S16 scope. |
+| A7 | S12 touches consumers, not just emitters | Scope in §4.7 + §11 names ~5 consumer narrowings. |
+| A8 | S10 → S12 ordering backwards | Merged into single S12 with automation-origin wiring from day one. S9 type-landing split out. |
+| A9 | Test 2 execution vehicle vapor | Committed: `AppHarness` + recording mock transport. S18 scope. |
 | A10 | `verificationInputPath` for smoke unclear | §4.4 spec: `<capDir>/scripts/smoke.sh` (probe path). |
 
 **No open CTO decisions remaining.**
@@ -559,29 +559,29 @@ v1 raised eight questions; the red-team resolved four and surfaced more. Current
 
 Proposed sprint shape (for step 4, post-approval):
 
-- **S9 — `CapabilityInvoker` + exec-bit validation.** New class, migrate STT + TTS callsites. Exec-bit validator in `test-harness.ts`. Unit tests. Fold STT's `classifySttError` removal in once STT callsite is clean. Invoker is constructor-injected with a `TriggeringOrigin` factory so per-execution-context instances can populate origin automatically.
-- **S9.25 — `TriggeringOrigin` type landing (zero-behavior).** Land the discriminated union in `cfr-types.ts`. Add a `conversationOrigin(channel, convId, turn)` helper. Backfill all existing emit sites (chat-service.ts:594/685/700, orphan-watchdog.ts:422) and all consumer narrowings (recovery-orchestrator, ack-delivery, reverify, app.ts:749-760, orphan-watchdog re-processor). No new origin kinds wired yet; same behavior as today. Landing this separately lets S10 and S10.5 consume the type without a rewrite pass.
-- **S9.5 — Template smoke fixtures.** Add `scripts/smoke.sh` contract to the **five** existing templates (`audio-to-text`, `text-to-audio`, `text-to-image`, `browser-control`, `desktop-control`; `_bundles.md` is an index). Ship reference `smoke.sh` for each. Add `fallback_action` frontmatter field.
-- **S10 — `PostToolUseFailure` CFR hook + automation-origin wiring.** New detector class. Registry `findByName`. Session-context plumbing covers both brain sessions (conversation-origin) and automation-executor sessions (automation-origin) from day one — no two-pass rewrite. Automation-executor's `buildJobHooks` (at `automation-executor.ts:426`) appends the CFR detector. Origin populated via factory from S9.25. Ack-delivery gains automation + system branches: `CFR_RECOVERY.md` writer landing at terminal transition per §4.7's ordering rule; `notifyMode` default = `"debrief"`. Orchestrator mutex extension — attach-origin-to-in-flight-fix notify list with explicit terminal draining (§4.7). Debrief-prep reader extension so `CFR_RECOVERY.md` isn't orphaned. Unit + two integration tests (conversation-origin MCP failure; automation-origin MCP failure with `CFR_RECOVERY.md` assertion).
-- **S11 — Reflect-phase collapse.** State machine diff → orchestrator behavior → test updates. Two-commit sequence (no phase-coercion commit — nothing persisted).
-- **S12 — Reverify dispatcher + terminal-on-fix.** Per-type reverifiers. `runSmokeFixture` default (fresh out-of-session subprocess). `RESTORED_TERMINAL` state. Terminal routing origin-aware: conversation → terminal ack; automation → `CFR_RECOVERY.md` final update (coordinated with §4.7 ordering rule landed in S10); system → log.
-- **S13 — Ack coalescing + orphan-watchdog extension.** Friendly-name overhaul. Multi-instance copy. Conversation-origin coalescing layer (automation/system origins bypass — see §4.5). Assistant-turn orphan via structured `TranscriptTurn.failure_type` field.
-- **S14 — Fix-engine swap.** `capability-brainstorming` fix-mode gate. `targetPath` plumbing (AutomationSpec + dashboard closure at `app.ts:635-653`). `.my_agent/` guard exemption for `job_type === "capability_modify"`. `JOB_TIMEOUT_MS` raised to 15 minutes for fix-mode. Integration test.
-- **S15 — Duplicate TTS collapse.** `sendAudioUrlViaTransport` / `sendTextViaTransport` split. Per-path fallback table verification.
-- **S16 — Milestone exit gate.** Extend `AppHarness` with a recording mock transport (if not already present). Run the two CTO-defined definitive smoke tests (§8 Exit-gate Test 1 automation-origin browser; Test 2 conversation-origin voice). Abbreviated incident replay for every other registered plug type. Milestone done.
+- **S9 — `TriggeringOrigin` type landing (zero-behavior).** Land the discriminated union in `cfr-types.ts`. Add a `conversationOrigin(channel, convId, turn)` helper. Backfill all existing emit sites (chat-service.ts:594/685/700, orphan-watchdog.ts:422) and all consumer narrowings (recovery-orchestrator, ack-delivery, reverify, app.ts:749-760, orphan-watchdog re-processor). No new origin kinds wired yet; same behavior as today. Landing this separately lets S12 consume the type without a rewrite pass.
+- **S10 — `CapabilityInvoker` + exec-bit validation.** New class, migrate STT + TTS callsites. Exec-bit validator in `test-harness.ts`. Unit tests. Fold STT's `classifySttError` removal in once STT callsite is clean. Invoker is constructor-injected with a `TriggeringOrigin` factory so per-execution-context instances can populate origin automatically.
+- **S11 — Template smoke fixtures.** Add `scripts/smoke.sh` contract to the **five** existing templates (`audio-to-text`, `text-to-audio`, `text-to-image`, `browser-control`, `desktop-control`; `_bundles.md` is an index). Ship reference `smoke.sh` for each. Add `fallback_action` frontmatter field.
+- **S12 — `PostToolUseFailure` CFR hook + automation-origin wiring.** New detector class. Registry `findByName`. Session-context plumbing covers both brain sessions (conversation-origin) and automation-executor sessions (automation-origin) from day one — no two-pass rewrite. Automation-executor's `buildJobHooks` (at `automation-executor.ts:426`) appends the CFR detector. Origin populated via factory from S9. Ack-delivery gains automation + system branches: `CFR_RECOVERY.md` writer landing at terminal transition per §4.7's ordering rule; `notifyMode` default = `"debrief"`. Orchestrator mutex extension — attach-origin-to-in-flight-fix notify list with explicit terminal draining (§4.7). Debrief-prep reader extension so `CFR_RECOVERY.md` isn't orphaned. Unit + two integration tests (conversation-origin MCP failure; automation-origin MCP failure with `CFR_RECOVERY.md` assertion).
+- **S13 — Reflect-phase collapse.** State machine diff → orchestrator behavior → test updates. Two-commit sequence (no phase-coercion commit — nothing persisted).
+- **S14 — Reverify dispatcher + terminal-on-fix.** Per-type reverifiers. `runSmokeFixture` default (fresh out-of-session subprocess). `RESTORED_TERMINAL` state. Terminal routing origin-aware: conversation → terminal ack; automation → `CFR_RECOVERY.md` final update (coordinated with §4.7 ordering rule landed in S12); system → log.
+- **S15 — Ack coalescing + orphan-watchdog extension.** Friendly-name overhaul. Multi-instance copy. Conversation-origin coalescing layer (automation/system origins bypass — see §4.5). Assistant-turn orphan via structured `TranscriptTurn.failure_type` field.
+- **S16 — Fix-engine swap.** `capability-brainstorming` fix-mode gate. `targetPath` plumbing (AutomationSpec + dashboard closure at `app.ts:635-653`). `.my_agent/` guard exemption for `job_type === "capability_modify"`. `JOB_TIMEOUT_MS` raised to 15 minutes for fix-mode. Integration test.
+- **S17 — Duplicate TTS collapse.** `sendAudioUrlViaTransport` / `sendTextViaTransport` split. Per-path fallback table verification.
+- **S18 — Milestone exit gate.** Extend `AppHarness` with a recording mock transport (if not already present). Run the two CTO-defined definitive smoke tests (§8 Exit-gate Test 1 automation-origin browser; Test 2 conversation-origin voice). Abbreviated incident replay for every other registered plug type. Milestone done.
 
 Sprint order dependencies:
-- **S9.25 before S9** (type landing — invoker's constructor-injected origin factory needs `TriggeringOrigin` to exist).
-- S9 before S12 (invoker → reverifier).
-- S9.25 before S10 (type landing before the hook consumes it).
-- S9.5 before S12 (smoke.sh contract before `runSmokeFixture` references it).
-- S10 before S12 (automation-origin wiring → terminal routing needs it).
-- S11 before S14 (clean state machine before fix-engine swap).
-- Everything before S16.
+- S9 before S10 (type landing — invoker's constructor-injected origin factory needs `TriggeringOrigin` to exist).
+- S9 before S12 (type landing before the hook consumes it).
+- S10 before S14 (invoker → reverifier).
+- S11 before S14 (smoke.sh contract before `runSmokeFixture` references it).
+- S12 before S14 (automation-origin wiring → terminal routing needs it).
+- S13 before S16 (clean state machine before fix-engine swap).
+- Everything before S18.
 
-Execution order: **S9.25 → S9 → S9.5 → S10 → S11 → S12 → S13 → S14 → S15 → S16.**
+Execution order: **S9 → S10 → S11 → S12 → S13 → S14 → S15 → S16 → S17 → S18.**
 
-Net: **9 sprints** (S9, S9.25, S9.5, S10, S11, S12, S13, S14, S15) plus S16 exit gate = 10.
+Net: **10 sprints** (S9, S10, S11, S12, S13, S14, S15, S16, S17, S18).
 
 ---
 
@@ -589,7 +589,31 @@ Net: **9 sprints** (S9, S9.25, S9.5, S10, S11, S12, S13, S14, S15) plus S16 exit
 
 Each sprint follows the primary plan's discipline: Goal, Files-to-edit with concrete pointers, Acceptance tests, Verification commands, Deviation triggers. Design prose is in §4 — not repeated here. The Stop-On-Deviation rule in primary `plan.md` §0.1 applies in full; proposals land in `proposals/s<N>-<slug>.md`.
 
-### 12.1 Sprint 9 — CapabilityInvoker + exec-bit validation
+### 12.1 Sprint 9 — TriggeringOrigin type landing
+
+**Goal:** land the `TriggeringOrigin` discriminated union with zero behavior change. Prerequisite for S12. Design: §4.7.
+
+**Files:**
+- `packages/core/src/capabilities/cfr-types.ts` — widen `TriggeringInput` with `origin: TriggeringOrigin`. `FixAttempt.phase` stays as-is (S13 narrows).
+- `packages/core/src/capabilities/cfr-helpers.ts` *(new)* — `conversationOrigin(channel, conversationId, turnNumber): TriggeringOrigin` factory.
+- Emit-site rewraps: `chat-service.ts:594`, `chat-service.ts:685`, `chat-service.ts:700`, `orphan-watchdog.ts:422`.
+- Consumer-site narrowings (discriminated-union guards on field access): `recovery-orchestrator.ts` (every `failure.triggeringInput.conversationId`/`.channel`/`.turnNumber` read), `ack-delivery.ts` (routing — still only handles conversation kind, other kinds throw with `"unreachable in S9"` to be filled in S12), `reverify.ts`, `app.ts:749-760`, `orphan-watchdog.ts` re-processor.
+
+**Acceptance tests:**
+- `packages/core/tests/capabilities/cfr-types-origin.test.ts` — union narrowing works; helper produces correct shape.
+- Full CFR test suite passes unchanged (no behavior change).
+
+**Verification:**
+```bash
+cd packages/core && npx tsc --noEmit  # strict mode; exhaustiveness enforced at call sites
+cd packages/dashboard && npx tsc --noEmit
+cd packages/core && npx vitest run
+cd packages/dashboard && npx vitest run
+```
+
+**Deviation triggers:** any consumer reads a field not on all variants without a guard (TypeScript catches); union widening breaks a test fixture whose mock shape diverges.
+
+### 12.2 Sprint 10 — CapabilityInvoker + exec-bit validation
 
 **Goal:** single gate for script-plug invocation; every script-plug invocation emits CFR automatically. Design: §4.1.
 
@@ -614,33 +638,9 @@ cd packages/dashboard && npx tsc --noEmit && npx vitest run tests/cfr
 
 **Deviation triggers:** reverify.ts refactor changes its return shape; removing `classifySttError` breaks a caller outside chat-service.ts.
 
-### 12.2 Sprint 9.25 — TriggeringOrigin type landing
+### 12.3 Sprint 11 — Template smoke fixtures
 
-**Goal:** land the `TriggeringOrigin` discriminated union with zero behavior change. Prerequisite for S10. Design: §4.7.
-
-**Files:**
-- `packages/core/src/capabilities/cfr-types.ts` — widen `TriggeringInput` with `origin: TriggeringOrigin`. `FixAttempt.phase` stays as-is (S11 narrows).
-- `packages/core/src/capabilities/cfr-helpers.ts` *(new)* — `conversationOrigin(channel, conversationId, turnNumber): TriggeringOrigin` factory.
-- Emit-site rewraps: `chat-service.ts:594`, `chat-service.ts:685`, `chat-service.ts:700`, `orphan-watchdog.ts:422`.
-- Consumer-site narrowings (discriminated-union guards on field access): `recovery-orchestrator.ts` (every `failure.triggeringInput.conversationId`/`.channel`/`.turnNumber` read), `ack-delivery.ts` (routing — still only handles conversation kind, other kinds throw with `"unreachable in S9.25"` to be filled in S10), `reverify.ts`, `app.ts:749-760`, `orphan-watchdog.ts` re-processor.
-
-**Acceptance tests:**
-- `packages/core/tests/capabilities/cfr-types-origin.test.ts` — union narrowing works; helper produces correct shape.
-- Full CFR test suite passes unchanged (no behavior change).
-
-**Verification:**
-```bash
-cd packages/core && npx tsc --noEmit  # strict mode; exhaustiveness enforced at call sites
-cd packages/dashboard && npx tsc --noEmit
-cd packages/core && npx vitest run
-cd packages/dashboard && npx vitest run
-```
-
-**Deviation triggers:** any consumer reads a field not on all variants without a guard (TypeScript catches); union widening breaks a test fixture whose mock shape diverges.
-
-### 12.3 Sprint 9.5 — Template smoke fixtures
-
-**Goal:** every capability template declares a `scripts/smoke.sh` contract + `fallback_action` frontmatter field. Prerequisite for S12's `runSmokeFixture`. Design: §4.4.
+**Goal:** every capability template declares a `scripts/smoke.sh` contract + `fallback_action` frontmatter field. Prerequisite for S14's `runSmokeFixture`. Design: §4.4.
 
 **Files:**
 - `skills/capability-templates/audio-to-text.md` — add "Smoke fixture" section specifying `scripts/smoke.sh`; reference implementation runs transcribe on a 2s sine-wave fixture or templated test audio; exit 0 = healthy.
@@ -661,7 +661,7 @@ cd packages/dashboard && npx vitest run
 
 **Deviation triggers:** a template's plug fundamentally cannot run a self-contained smoke (e.g., requires paid API with no free smoke-path) — flag per template.
 
-### 12.4 Sprint 10 — PostToolUseFailure CFR hook + automation-origin wiring
+### 12.4 Sprint 12 — PostToolUseFailure CFR hook + automation-origin wiring
 
 **Goal:** universal MCP-plug detection; automation-origin routing works end-to-end. Design: §4.2, §4.7.
 
@@ -690,7 +690,7 @@ cd packages/dashboard && npx tsc --noEmit && npx vitest run tests/integration/cf
 
 **Deviation triggers:** `buildJobHooks` signature differs from session-manager's hook attachment contract; debrief-prep's actual path differs from the educated guess; MCP child failures don't route to `PostToolUseFailure` in practice (sanity-test first with a deliberately-broken MCP server).
 
-### 12.5 Sprint 11 — Reflect-phase collapse
+### 12.5 Sprint 13 — Reflect-phase collapse
 
 **Goal:** eliminate REFLECTING state; one job per attempt. Design: §4.3.1.
 
@@ -714,7 +714,7 @@ cd packages/core && npx tsc --noEmit && npx vitest run tests/capabilities/orches
 
 **Deviation triggers:** budget cap removal surfaces a test relying on 5-job headroom; `FixAttempt.phase` narrowing breaks a test fixture that can't be mechanically migrated.
 
-### 12.6 Sprint 12 — Reverify dispatcher + terminal-on-fix
+### 12.6 Sprint 14 — Reverify dispatcher + terminal-on-fix
 
 **Goal:** per-type reverifiers + smoke-fixture default + `RESTORED_TERMINAL` state for plugs without retriable input. Design: §4.4, §4.4.1.
 
@@ -733,16 +733,16 @@ cd packages/core && npx tsc --noEmit && npx vitest run tests/capabilities/orches
 cd packages/core && npx tsc --noEmit && npx vitest run tests/capabilities/reverify-dispatch tests/capabilities/reverify-tts tests/capabilities/orchestrator/terminal-routing
 ```
 
-**Deviation triggers:** a registered plug type has a smoke.sh with a non-standard shape (S9.5 failed to normalize).
+**Deviation triggers:** a registered plug type has a smoke.sh with a non-standard shape (S11 failed to normalize).
 
-### 12.7 Sprint 13 — Ack coalescing + orphan-watchdog extension
+### 12.7 Sprint 15 — Ack coalescing + orphan-watchdog extension
 
 **Goal:** friendly-name overhaul + multi-instance disambiguation + conversation-origin ack coalescing + assistant-turn orphan detection. Design: §4.5.
 
 **Files:**
 - `packages/core/src/capabilities/resilience-messages.ts` — extend `FRIENDLY_NAMES` for every registered type; multi-instance `capabilityName` injection; terminal copy; new surrender reasons (`redesign-needed`, `insufficient-context`); per-type `fallback_action` sourced from capability frontmatter.
-- `packages/core/src/capabilities/registry.ts` — add `isMultiInstance(type: string): boolean` helper. Source of truth: the capability template's `multi_instance: true` frontmatter flag (new field in S9.5 templates; defaults false for existing types). `resilience-messages` uses this to decide whether to append `capabilityName` to the ack copy.
-- `skills/capability-templates/browser-control.md` — set `multi_instance: true` in frontmatter. All other templates default false. (S9.5 lands the field shape; S13 sets values.)
+- `packages/core/src/capabilities/registry.ts` — add `isMultiInstance(type: string): boolean` helper. Source of truth: the capability template's `multi_instance: true` frontmatter flag (new field in S11 templates; defaults false for existing types). `resilience-messages` uses this to decide whether to append `capabilityName` to the ack copy.
+- `skills/capability-templates/browser-control.md` — set `multi_instance: true` in frontmatter. All other templates default false. (S11 lands the field shape; S15 sets values.)
 - `packages/core/src/capabilities/ack-delivery.ts` — per-conversation coalescing layer: 30s window, N-aware merge; automation/system origins bypass.
 - `packages/core/src/conversations/orphan-watchdog.ts` — `FAILURE_PLACEHOLDERS` table; assistant-turn scan using `TranscriptTurn.failure_type`.
 - `packages/core/src/conversations/types.ts` — `TranscriptTurn.failure_type?: string` structured field.
@@ -763,7 +763,7 @@ cd packages/dashboard && npx tsc --noEmit && npx vitest run
 
 **Deviation triggers:** `TranscriptTurn.failure_type` breaks WS protocol or search indexing (catch during sprint; propose shape change if needed).
 
-### 12.8 Sprint 14 — Fix-engine swap
+### 12.8 Sprint 16 — Fix-engine swap
 
 **Goal:** orchestrator fix engine = `capability-brainstorming` in fix-mode; DECISIONS.md paper trail via `writePaperTrail`. Design: §4.3.
 
@@ -773,9 +773,9 @@ cd packages/dashboard && npx tsc --noEmit && npx vitest run
   2. **Authoring-side neutral-identifier convention** (per §10 item 10 resolution): add a one-line rule in Step 5's "spawn builder" section — "capability `name:` must be a neutral identifier (provider/variant/model), never user-identifiable content (no real names, phone numbers, emails). The name surfaces in user-facing ack copy for multi-instance types."
 - `packages/core/src/capabilities/recovery-orchestrator.ts` —
   1. Replace `renderPrompt` with `buildFixModeInvocation`; add `targetPath` to `AutomationSpec`; set `targetPath: cap.path` on spec; raise `JOB_TIMEOUT_MS` to 15 min for fix-mode jobs.
-  2. **ESCALATE-marker parsing** per §4.3: on deliverable read, check if `deliverable.md` body starts with `ESCALATE: redesign-needed` or `ESCALATE: insufficient-context`. If so, set `session.surrenderReason = "redesign-needed"` (or `"insufficient-context"`) and transition directly to `SURRENDER` — skip reverify for that attempt, skip further attempts for this session. Surrender copy dispatched via §4.5's new reason branches (landed in S13; reference only here).
+  2. **ESCALATE-marker parsing** per §4.3: on deliverable read, check if `deliverable.md` body starts with `ESCALATE: redesign-needed` or `ESCALATE: insufficient-context`. If so, set `session.surrenderReason = "redesign-needed"` (or `"insufficient-context"`) and transition directly to `SURRENDER` — skip reverify for that attempt, skip further attempts for this session. Surrender copy dispatched via §4.5's new reason branches (landed in S15; reference only here).
 - `packages/dashboard/src/app.ts:635-653` — spawnAutomation closure copies `spec.targetPath` into `manifest.target_path`.
-- `packages/core/src/capabilities/prompts/fix-automation.md` — add deprecation notice atop the file; do not delete (removed in a cleanup sprint after S16 green for one sprint).
+- `packages/core/src/capabilities/prompts/fix-automation.md` — add deprecation notice atop the file; do not delete (removed in a cleanup sprint after S18 green for one sprint).
 - `.my_agent/` write-guard hook (location TBD at sprint-time; check `.claude/settings.json` and `scripts/pre-commit-check.sh`) — exempt `job_type === "capability_modify"` from the write-block, scoped to `.my_agent/capabilities/<name>/`.
 
 **Acceptance tests:**
@@ -792,7 +792,7 @@ cd packages/dashboard && npx tsc --noEmit
 
 **Deviation triggers:** `targetPath` plumbing requires touching more than the two named files; `.my_agent/` write-guard can't be exempted cleanly; capability-brainstorming's Step 0 gate interferes with authoring-mode invocation.
 
-### 12.9 Sprint 15 — Duplicate TTS path collapse
+### 12.9 Sprint 17 — Duplicate TTS path collapse
 
 **Goal:** `chat-service.synthesizeAudio` authoritative; per-path fallback table covers every TTS code path. Design: §4.6.
 
@@ -814,7 +814,7 @@ Manual: confirm live WhatsApp voice message replies with voice on the healthy pa
 
 **Deviation triggers:** Baileys plugin can't drop synthesis without breaking audio-format compatibility; audioUrl not reliably produced by `done` event in all streaming paths.
 
-### 12.10 Sprint 16 — Milestone exit gate
+### 12.10 Sprint 18 — Milestone exit gate
 
 **Goal:** run the two CTO-defined definitive smoke tests end-to-end on the dev machine with real plugs installed. Design: §8.
 
@@ -833,4 +833,4 @@ cd packages/dashboard && npx vitest run tests/e2e/cfr-exit-gate-automation tests
 
 Dev-machine preconditions: browser-control plug healthy; STT plug (Deepgram or local) healthy; any other plug under test healthy. The test setup deliberately breaks the plug, runs the full loop, and expects restoration — no manual intervention, no `systemctl restart`.
 
-**Deviation triggers:** infrastructure blocker (Playwright not installed; Deepgram not configured; MCP server startup races the test). Document in `proposals/s16-<slug>.md` and escalate — this sprint is the milestone gate.
+**Deviation triggers:** infrastructure blocker (Playwright not installed; Deepgram not configured; MCP server startup races the test). Document in `proposals/s18-<slug>.md` and escalate — this sprint is the milestone gate.
