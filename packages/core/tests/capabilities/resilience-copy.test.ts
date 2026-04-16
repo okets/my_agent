@@ -67,11 +67,11 @@ describe("defaultCopy — ack", () => {
 });
 
 describe("defaultCopy — status", () => {
-  it("returns the 20s status copy regardless of elapsed", () => {
-    expect(defaultCopy.status(failure("audio-to-text", "execution-error"), 25)).toBe(
+  it("returns the status copy", () => {
+    expect(defaultCopy.status(failure("audio-to-text", "execution-error"))).toBe(
       "still fixing — second attempt.",
     );
-    expect(defaultCopy.status(failure("image-to-text", "execution-error"), 40)).toBe(
+    expect(defaultCopy.status(failure("image-to-text", "execution-error"))).toBe(
       "still fixing — second attempt.",
     );
   });

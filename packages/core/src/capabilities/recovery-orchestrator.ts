@@ -25,7 +25,7 @@ import { parseFrontmatterContent } from "../metadata/frontmatter.js";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
-export type AckKind = "attempt" | "status" | "surrender" | "surrender-budget";
+export type AckKind = "attempt" | "status" | "surrender" | "surrender-budget" | "surrender-cooldown";
 
 export interface AutomationSpec {
   name: string;
@@ -104,7 +104,7 @@ export class RecoveryOrchestrator {
       console.log(
         `[RecoveryOrchestrator] ${capabilityType} in surrender cooldown — skipping recovery for conv ${conversationId}`,
       );
-      await this.deps.emitAck(failure, "surrender");
+      await this.deps.emitAck(failure, "surrender-cooldown");
       return;
     }
 

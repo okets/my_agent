@@ -71,7 +71,7 @@ export class AckDelivery {
     if (channel.transportId === DASHBOARD_TRANSPORT_ID) {
       try {
         this.connectionRegistry.broadcastToConversation(conversationId, {
-          type: "system_message",
+          type: "capability_ack",
           conversationId,
           content: text,
           timestamp: new Date().toISOString(),

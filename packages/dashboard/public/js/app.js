@@ -2005,6 +2005,31 @@ function chat() {
           // Handled by ws-client.js → Alpine store
           break;
 
+        case "capability_ack":
+          // CFR ack from recovery orchestrator — render as assistant-style turn
+          // so the user sees the "hold on, fixing now" message in the conversation.
+          if (data.conversationId === this.currentConversationId) {
+            this.messages.push({
+              id: ++this.messageIdCounter,
+              role: "assistant",
+              content: data.content,
+              renderedContent: this.renderMarkdown(data.content),
+              thinkingText: "",
+              thinkingExpanded: false,
+              timestamp: this.formatTime(new Date(data.timestamp)),
+              usage: null,
+              cost: null,
+              attachmentPreviews: [],
+              channel: null,
+              channelIcon: null,
+              channelName: null,
+            });
+            this.$nextTick(() => {
+              this.scrollToBottom();
+            });
+          }
+          break;
+
         default:
           console.warn("[App] Unknown message type:", data.type);
       }

@@ -13,7 +13,7 @@ export type SurrenderReason = "budget" | "iteration-3";
 
 export interface ResilienceCopy {
   ack(failure: CapabilityFailure): string;
-  status(failure: CapabilityFailure, elapsedSec: number): string;
+  status(failure: CapabilityFailure): string;
   surrender(failure: CapabilityFailure, reason: SurrenderReason): string;
 }
 
@@ -60,7 +60,7 @@ export const defaultCopy: ResilienceCopy = {
     return `hold on — ${friendlyName(capabilityType)} isn't working right, fixing now.`;
   },
 
-  status(_failure: CapabilityFailure, _elapsedSec: number): string {
+  status(_failure: CapabilityFailure): string {
     return "still fixing — second attempt.";
   },
 

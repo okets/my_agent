@@ -78,7 +78,7 @@ describe("cross-conversation surrender cooldown", () => {
     // Should have emitted a surrender ack for conv-B
     const emitAck = deps.emitAck as ReturnType<typeof vi.fn>;
     const convBSurrenders = emitAck.mock.calls.filter(
-      (c) => c[1] === "surrender" && c[0].triggeringInput.conversationId === "conv-B",
+      (c) => c[1] === "surrender-cooldown" && c[0].triggeringInput.conversationId === "conv-B",
     );
     expect(convBSurrenders).toHaveLength(1);
   });
