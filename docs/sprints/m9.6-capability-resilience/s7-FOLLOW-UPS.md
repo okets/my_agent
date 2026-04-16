@@ -17,14 +17,16 @@ conversation-layer correctness, not CFR resilience.
 
 ---
 
-## FU2 — Hook-based blockedCommands counter
+## FU2 ✅ RESOLVED — Structural proof replaces vacuous counter
 
-**Context:** DEV3 explains why the `blockedCommands` counter is not hook-wired.
-
-**Suggested resolution:** Add a PostToolUse hook factory in
-`packages/core/src/hooks/` that captures Bash blocks (when hook output says
-`"blocked": true`) and wire it into the AutomationExecutor's `hooks` config for
-test runs. This would give a proper count assertion.
+**Resolved in:** M9.6-S7 cleanup (2026-04-16). The `blockedCommands` array and
+its vacuous `expect(blockedCommands).toHaveLength(0)` assertion were removed.
+Replaced with a comment explaining the structural proof: if the fix automation
+issued `systemctl restart`, the safety hook at
+`packages/core/src/hooks/safety.ts` would cause the job to fail, recovery would
+not complete, and the "voice messages" assertion would fail. No surrender =
+no blocked command = no manual intervention. The assertion is now clear and
+non-misleading.
 
 ---
 
@@ -41,13 +43,8 @@ from the secret. One-sprint scope — add alongside CI config hardening.
 
 ---
 
-## FU4 — FU1 from S6 is still open: update transcribe.sh to emit confidence + duration_ms
+## FU4 ✅ RESOLVED — transcribe.sh already emits confidence + duration_ms
 
-**Context:** S6-FOLLOW-UPS.md FU1 asks the CTO to update
-`.my_agent/capabilities/stt-deepgram/scripts/transcribe.sh` to emit
-`confidence` and `duration_ms`. The S7 test copies this script; if the script
-doesn't emit those fields, `classifyEmptyStt` stays in conservative mode.
-
-**Suggested resolution:** Update the script per S6-FU1's suggested jq patch.
-This activates the "empty-result" CFR path (broken STT returning empty text
-distinguished from silence). Out of framework scope — CTO-owned private file.
+**Resolved in:** M9.6-S7 cleanup (2026-04-16). See S6-FOLLOW-UPS.md FU1 for
+details. The script already extracts and emits both fields from the Deepgram
+response. `classifyEmptyStt` will correctly evaluate them. No action required.

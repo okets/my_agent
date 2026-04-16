@@ -5,7 +5,13 @@ Branch: sprint/m9.6-s6-user-facing-messaging
 
 ---
 
-## FU1 — CTO: Update `.my_agent/capabilities/stt-deepgram/scripts/transcribe.sh` to emit `confidence` + `duration_ms`
+## FU1 ✅ RESOLVED — `transcribe.sh` already emits `confidence` + `duration_ms`
+
+**Resolved in:** M9.6-S7 cleanup (2026-04-16). Inspection of the actual script confirmed that lines 95–97 and 141–154 already extract `confidence` and `duration_ms` from the Deepgram response and emit them in all output paths. The `classifyEmptyStt` function will correctly evaluate these fields. No action required.
+
+---
+
+## FU1-original — CTO: Update `.my_agent/capabilities/stt-deepgram/scripts/transcribe.sh` to emit `confidence` + `duration_ms`
 
 **Context:** Plan §8.4 explicitly forbids editing `.my_agent/` from a
 framework sprint. The audio-to-text template at

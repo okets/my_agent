@@ -46,7 +46,7 @@ FU1 below.
 
 ---
 
-## DEV3 — blockedCommands counter has no hook wiring into automation executor
+## DEV3 ✅ RESOLVED — blockedCommands counter removed, structural proof documented
 
 **Plan says (§9.2):** "spin up a counter of tool calls that would have required
 CTO approval (e.g., via a hook) and assert count === 0."

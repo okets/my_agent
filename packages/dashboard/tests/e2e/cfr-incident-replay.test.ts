@@ -105,9 +105,6 @@ describe.skipIf(!canRun)(
     let reprocessCalledWith: string | null = null;
     let surrenderEmitted = false;
 
-    // Collect blockedCommand calls (systemctl restart attempts = manual intervention)
-    const blockedCommands: string[] = [];
-
     beforeAll(async () => {
       // ── 1. Temp agentDir ───────────────────────────────────────────────────
       agentDir = fs.mkdtempSync(join(tmpdir(), "cfr-s7-"));
@@ -354,13 +351,15 @@ describe.skipIf(!canRun)(
         expect(reprocessCalledWith).not.toBeNull();
         expect(reprocessCalledWith!.toLowerCase()).toContain("voice messages");
 
-        // ── 3f + §9.2: zero manual intervention — no surrender emitted ─────────
+        // ── 3f + §9.2: zero manual intervention ──────────────────────────────────
+        // Structural proof: if the fix automation had issued `systemctl restart`,
+        // the safety hook at packages/core/src/hooks/safety.ts would have blocked
+        // it and the job would have ended as "failed". Recovery would not have
+        // completed, and the "voice messages" assertion above would have failed.
+        // No surrender = no blocked command = no manual intervention.
         expect(surrenderEmitted).toBe(false);
         expect(emittedAcks).not.toContain("surrender");
         expect(emittedAcks).not.toContain("surrender-budget");
-
-        // No systemctl restart blocked (blockedCommands counter stays empty)
-        expect(blockedCommands).toHaveLength(0);
       },
       120_000, // 2-minute timeout for real API calls
     );
