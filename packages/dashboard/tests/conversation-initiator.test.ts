@@ -326,10 +326,16 @@ describe("ConversationInitiator", () => {
 
     it("channel switch honors presence-rule target, not preferred channel (architect fix 1)", async () => {
       // Preferred = "web". Conversation has no externalParty (web-origin).
-      // User's last turn was on WA 5 min ago → presence rule → WA.
-      // Pre-fix: alert() computes targetChannel=whatsapp then calls initiate()
-      // which resolves via getOutboundChannel()="web", so the new conversation
-      // lands on web. This test must FAIL before the fix.
+      // User's last turn was on WA 5 min ago → presence rule → targetChannel=WA.
+      //
+      // With the Issue-4 fix: isSameChannel is based on last turn's channel
+      // (whatsapp), not externalParty. Since last turn IS on WA and target IS WA,
+      // isSameChannel=true → CONTINUE current conversation and forward to WA.
+      // No new conversation created — the user was just on WA and can see context.
+      //
+      // Pre-Issue-4 the old externalParty check (externalParty=null → isSameChannel=false)
+      // created a new conversation. The new check is more correct: last turn channel
+      // is the authoritative signal for "which channel is active."
       const conv = await manager.create(); // externalParty=null (web-origin)
       const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
       await manager.appendTurn(
@@ -352,17 +358,18 @@ describe("ConversationInitiator", () => {
       const result = await initiator.alert("test");
       expect(result).toMatchObject({ status: "delivered" });
 
+      // With the Issue-4 fix: same channel (WA) → continues existing conversation.
+      // No new conversation is created.
       const allConversations = await manager.list({});
-      expect(allConversations.length).toBe(2);
-      const newConv = allConversations.find((c) => c.id !== conv.id);
-      expect(newConv).toBeDefined();
-      // New conversation must be bound to WA — the presence-rule target —
-      // NOT the preferred channel.
-      expect(newConv!.externalParty).toBe("1234567890@s.whatsapp.net");
+      expect(allConversations.length).toBe(1);
 
-      // Actual transport delivery must land on WA.
+      // Delivery must land on WA — the presence-rule target, NOT the preferred "web".
       expect(channelManager.sent).toHaveLength(1);
       expect(channelManager.sent[0].channelId).toBe("whatsapp");
+
+      // sendSystemMessage called on the SAME conversation with channel=whatsapp.
+      expect(chatService.calls).toHaveLength(1);
+      expect(chatService.calls[0].conversationId).toBe(conv.id);
     });
 
     it("recent WhatsApp turn → routes to WhatsApp (matches externalParty, same conversation)", async () => {
@@ -389,6 +396,115 @@ describe("ConversationInitiator", () => {
       // Stays on the same conversation, forwards to WA.
       expect(chatService.calls).toHaveLength(1);
       expect(chatService.calls[0].conversationId).toBe(conv.id);
+      expect(channelManager.sent).toHaveLength(1);
+      expect(channelManager.sent[0].channelId).toBe("whatsapp");
+    });
+
+    it("Issue 4: dual-channel conversation — web last turn → WA target triggers new conversation", async () => {
+      // The April 16 production bug scenario:
+      // A conversation that previously received WA messages has externalParty set,
+      // but the most recent user turn was on web (user switched to dashboard).
+      // The old externalParty check wrongly concluded "already on WA, continue."
+      // The fix: isSameChannel is now based on last turn's channel, not externalParty.
+      const conv = await manager.create({
+        externalParty: "1234567890@s.whatsapp.net",
+      });
+      const oldTime = new Date(Date.now() - 20 * 60 * 1000);
+      // Web turn (no channel field) — this is the last user turn, stale.
+      await manager.appendTurn(
+        conv.id,
+        makeTurn("user", 1, { timestamp: oldTime.toISOString() }), // no channel = web
+      );
+
+      const chatService = createMockChatService("Good morning!");
+      const channelManager = createMockChannelManager(true);
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager,
+        getOutboundChannel: () => "whatsapp",
+      });
+
+      const result = await initiator.alert("Morning brief.");
+      expect(result).toMatchObject({ status: "delivered" });
+
+      // A NEW conversation must have been created (channel switch detected).
+      const allConversations = await manager.list({});
+      expect(allConversations.length).toBe(2);
+      const newConv = allConversations.find((c) => c.id !== conv.id);
+      expect(newConv).toBeDefined();
+
+      // The new conversation is delivered on WA.
+      expect(channelManager.sent).toHaveLength(1);
+      expect(channelManager.sent[0].channelId).toBe("whatsapp");
+
+      // sendSystemMessage was called on the NEW conversation, not the original.
+      const lastCall = chatService.calls[chatService.calls.length - 1];
+      expect(lastCall.conversationId).not.toBe(conv.id);
+    });
+
+    it("Issue 4 regression guard: pure WA conversation continues without creating a new one", async () => {
+      // All user turns on WA → last turn channel matches target → isSameChannel=true
+      // → same conversation continued, no initiate().
+      const conv = await manager.create({
+        externalParty: "1234567890@s.whatsapp.net",
+      });
+      const oldTime = new Date(Date.now() - 20 * 60 * 1000);
+      await manager.appendTurn(
+        conv.id,
+        makeTurn("user", 1, {
+          channel: "whatsapp",
+          timestamp: oldTime.toISOString(),
+        }),
+      );
+
+      const chatService = createMockChatService("Continued on WA");
+      const channelManager = createMockChannelManager(true);
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager,
+        getOutboundChannel: () => "whatsapp",
+      });
+
+      const result = await initiator.alert("test");
+      expect(result).toMatchObject({ status: "delivered" });
+
+      // Same conversation — no new conversation created.
+      expect(chatService.calls).toHaveLength(1);
+      expect(chatService.calls[0].conversationId).toBe(conv.id);
+
+      // WA forward sent.
+      expect(channelManager.sent).toHaveLength(1);
+    });
+
+    it("Issue 4 edge case: no user turns at all → treated as web → new conversation on WA", async () => {
+      // Fresh conversation with no turns. last === null → lastTurnChannel undefined
+      // → isSameChannel = false → initiate() on WA target.
+      const conv = await manager.create({
+        externalParty: "1234567890@s.whatsapp.net",
+      });
+      // No turns appended.
+
+      const chatService = createMockChatService("First message");
+      const channelManager = createMockChannelManager(true);
+      const initiator = new ConversationInitiator({
+        conversationManager: manager,
+        chatService,
+        channelManager,
+        getOutboundChannel: () => "whatsapp",
+      });
+
+      const result = await initiator.alert("Proactive message.");
+      expect(result).toMatchObject({ status: "delivered" });
+
+      // A new conversation must have been created.
+      const allConversations = await manager.list({});
+      expect(allConversations.length).toBe(2);
+      const newConv = allConversations.find((c) => c.id !== conv.id);
+      expect(newConv).toBeDefined();
+
+      // Transport received the WA forward.
       expect(channelManager.sent).toHaveLength(1);
       expect(channelManager.sent[0].channelId).toBe("whatsapp");
     });

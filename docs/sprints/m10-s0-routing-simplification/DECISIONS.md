@@ -151,3 +151,54 @@ Heartbeat tick at 18:02:58 picked the notification up:
 Notification moved from `pending/` → `delivered/1776092559000-m10s0-redelivery-594f1962.json`. User's WhatsApp has the research findings.
 
 **Fix proven in production.** The class of bug (`sourceChannel="dashboard"` forcing web) is gone — on the same input payload the old code sent to web; the new code routed to WA via the presence rule.
+
+---
+
+## 2026-04-13 — Issue 4: isSameChannel fix (production bug, April 16)
+
+**Trigger:** Morning brief delivered into an existing web conversation as a WA continuation. Conversation `conv-01KP3WPV3KGHWCRHD7VX8XVZFZ` had `externalParty = '41433650172129@lid'` (set when WA messages arrived Apr 13-15), but the user's last turns (Apr 15, 19:57 UTC) were on the dashboard (no channel field). `isSameChannel` checked `externalParty === ownerJid` and matched → wrongly concluded "already on WA, continue."
+
+### What changed
+
+`conversation-initiator.ts:150-152` — replaced the `externalParty` identity check with a `last.channel` channel check:
+
+**Before:**
+```typescript
+const isSameChannel =
+  !!current.externalParty && current.externalParty === ownerJid;
+```
+
+**After:**
+```typescript
+const lastTurnChannel = last?.channel;
+const isSameChannel = !!lastTurnChannel && lastTurnChannel === targetChannel;
+```
+
+### Why `last.channel` is the correct signal
+
+`externalParty` records which external JID the conversation is _bound to_ — it is set at first WA message and never cleared. It cannot tell you which channel the user is _currently on_. It is a binding artifact, not a presence signal.
+
+`last.channel` (from `getLastUserTurn()`) records the channel of the user's most recent message. This is the authoritative answer to "where is the user now?" — if it is undefined/null the user's last activity was on the web dashboard; if it is `"whatsapp"` the user's last activity was on WA.
+
+The DB `channel` column is vestigial — it is always `'web'` (set at conversation creation, never updated). It must not be used as the fix signal.
+
+### The asymmetric rule: web→external = always new conversation
+
+Channel switching is asymmetric by design:
+
+- **Web → external channel:** The user cannot see dashboard history on WA or email. Delivering into an existing conversation gives Nina a reply with no visible context. Therefore: if the last user turn has no channel (web) and the target is an external channel → `isSameChannel = false` → `initiate()` → new conversation on the target channel.
+- **External channel → web:** The dashboard shows the full transcript. The user has all context. No new conversation needed.
+- **Same external channel → same external channel:** The conversation is already live on that channel. Continue.
+
+The code reaches the `isSameChannel` check only when `targetChannel` is a non-web channel (the web early-return at `:122-133` handles web delivery). So the check simplifies to: "was the user's last turn on this same external channel?" A null/undefined `lastTurnChannel` (web turn) or a different external channel both evaluate `isSameChannel = false`, triggering `initiate()`.
+
+### Updated test
+
+The existing "architect fix 1" test (`channel switch honors presence-rule target`) had assertions tied to the old `externalParty` behavior — it expected a new conversation when `externalParty=null`, even though the last user turn was already on WA. With the new check, `lastTurnChannel = "whatsapp" === targetChannel` → `isSameChannel = true` → conversation continues, no new conversation created. This is the correct behavior (user was just on WA, can see context), and the test was updated accordingly.
+
+### Tests added
+
+- **`conversation-initiator.test.ts`:** Three new tests for Issue 4 — dual-channel web-last (new conv), pure WA (continue), no turns (new conv).
+- **`routing-presence.test.ts`:** One integration test replicating the exact April 16 scenario (WA turns followed by stale web turn → job completion → new WA conversation).
+
+### M10-S0 scoped test count: 37/37 pass (20 initiator + 9 routing-presence + 7 get-last-user-turn + 1 updated).

@@ -449,6 +449,68 @@ describe("M10-S0: routing presence rule (integration)", () => {
     expect(channelManager.sent).toHaveLength(0);
   });
 
+  it("Issue 4 (April 16 production bug): dual-channel conversation triggers new conversation on WA", async () => {
+    // Reproduces the exact production scenario:
+    // 1. Conversation received WA messages (externalParty set).
+    // 2. User switched to dashboard — last user turns are on web (no channel).
+    // 3. Job completion fires when conversation is stale → preferred channel = WA.
+    // Old code: externalParty matches ownerJid → isSameChannel=true → wrong continuation.
+    // New code: last turn channel (web/undefined) ≠ targetChannel (WA) → new conversation.
+    await setup({ preferredChannel: "whatsapp" });
+
+    const conv = await harness.conversationManager.create({
+      externalParty: WA_OWNER_JID,
+    });
+    // Earlier WA turns (simulating the Apr 13-15 WA history)
+    await appendTurn(harness, conv.id, {
+      role: "user",
+      turnNumber: 1,
+      channel: "whatsapp",
+      ageMinutes: 600, // 10 hours ago
+    });
+    await appendTurn(harness, conv.id, {
+      role: "user",
+      turnNumber: 2,
+      channel: "whatsapp",
+      ageMinutes: 300, // 5 hours ago
+    });
+    // User switched to dashboard — last user turn is a web turn (stale, no channel).
+    await appendTurn(harness, conv.id, {
+      role: "user",
+      turnNumber: 3,
+      // no channel = web
+      ageMinutes: 60, // 1 hour ago (stale — past 15 min threshold)
+    });
+
+    // Enqueue the job_completed notification (the morning brief scenario).
+    notifQueue.enqueue(
+      makeNotification({
+        job_id: "job-apr16-001",
+        type: "job_completed",
+        summary: "Morning brief compiled.",
+      }),
+    );
+
+    await heartbeat.drainNow();
+
+    // A NEW conversation must have been created — original should NOT be continued.
+    const allConversations = await harness.conversationManager.list({});
+    expect(allConversations.length).toBe(2);
+    const newConv = allConversations.find((c) => c.id !== conv.id);
+    expect(newConv).toBeDefined();
+
+    // sendSystemMessage called on the NEW conversation (initiate path).
+    const lastCall = chatService.calls[chatService.calls.length - 1];
+    expect(lastCall.conversationId).not.toBe(conv.id);
+
+    // WA transport received the outbound on the new conversation.
+    expect(channelManager.sent).toHaveLength(1);
+    expect(channelManager.sent[0].transportId).toBe("whatsapp");
+
+    // Notification consumed.
+    expect(notifQueue.listPending()).toHaveLength(0);
+  });
+
   it("legacy on-disk notification with source_channel field deserializes cleanly", async () => {
     await setup({ preferredChannel: "whatsapp" });
 

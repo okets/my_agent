@@ -147,8 +147,11 @@ export class ConversationInitiator {
       };
     }
 
-    const isSameChannel =
-      !!current.externalParty && current.externalParty === ownerJid;
+    // Was the most recent user turn on this same external channel?
+    // A web turn (channel undefined) or no turns at all → NOT same channel → initiate().
+    // This enforces the asymmetric rule: web→external = always new conversation.
+    const lastTurnChannel = last?.channel;
+    const isSameChannel = !!lastTurnChannel && lastTurnChannel === targetChannel;
 
     if (!isSameChannel) {
       // Channel switch — new conversation on the presence-rule target, NOT
