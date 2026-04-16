@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-16 (M9.6 exit gate fixed — Tests: 2 passed. Pending architect independent re-run to close.)
+> **Updated:** 2026-04-16 (M9.6 S7 exit gate passed; S8 cleanup sprint remaining before milestone close)
 
 ---
 
@@ -31,7 +31,7 @@
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **In Progress** | 6 done (S1-S5 + S2.5) + S6 spec'd. S5 closed UX-1 (handoff continuity); S6 addresses UX-2 (progress counter cadence via methodical-worker prompting). |
 | **M9.5: Capability Framework v2** | **Done** | 7 sprints done. S7 shipped browser-control as the framework's first multi-instance capability type. |
-| **M9.6: Capability Resilience & Recovery** | **In Progress** | 7/7 sprints (S1-S7). Exit gate harness fixed (6 bugs), **Tests: 2 passed** (2026-04-16, 177s). Pending architect independent re-verification. [s7-test-report.md](sprints/m9.6-capability-resilience/s7-test-report.md) |
+| **M9.6: Capability Resilience & Recovery** | **In Progress** | 7/8 sprints (S1-S7 done). S8 cleanup remaining (S6-FU5 dashboard ack, FU3 cooldown noise, FU2 elapsedSec). Exit gate passed: [s7-test-report.md](sprints/m9.6-capability-resilience/s7-test-report.md) |
 | **M10: Channel SDK** | Planned | S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof. |
 | **M11: External Communications** | Planned | 3 sprints (email capability, contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
