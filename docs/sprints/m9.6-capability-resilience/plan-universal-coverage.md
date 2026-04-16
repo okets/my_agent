@@ -1,6 +1,6 @@
-# M9.6 Universal Coverage — Follow-up Plan (v2.2, two red-team passes)
+# M9.6 Universal Coverage — Follow-up Plan (v2.3, two red-team passes + coverage-verification patch)
 
-**Status:** Draft v2.2 — two red-team passes incorporated; CTO-approved scope (2026-04-16) including two definitive exit-gate smoke tests; awaiting sprint-breakdown green-light
+**Status:** Draft v2.3 — two red-team passes incorporated; design↔sprint coverage verification passed with six focused sprint-scope patches (G1–G6); CTO-approved; ready to execute S9.25 onward
 **Milestone:** M9.6 — extension, not a new milestone
 **Origin:** [`HANDOFF-cfr-coverage-gap.md`](HANDOFF-cfr-coverage-gap.md) — CFR shipped STT-only; CTO correction 2026-04-16
 **Primary plan:** [`plan.md`](plan.md) — S1–S8 (merged). This doc adds S9+.
@@ -571,12 +571,15 @@ Proposed sprint shape (for step 4, post-approval):
 - **S16 — Milestone exit gate.** Extend `AppHarness` with a recording mock transport (if not already present). Run the two CTO-defined definitive smoke tests (§8 Exit-gate Test 1 automation-origin browser; Test 2 conversation-origin voice). Abbreviated incident replay for every other registered plug type. Milestone done.
 
 Sprint order dependencies:
+- **S9.25 before S9** (type landing — invoker's constructor-injected origin factory needs `TriggeringOrigin` to exist).
 - S9 before S12 (invoker → reverifier).
 - S9.25 before S10 (type landing before the hook consumes it).
 - S9.5 before S12 (smoke.sh contract before `runSmokeFixture` references it).
 - S10 before S12 (automation-origin wiring → terminal routing needs it).
 - S11 before S14 (clean state machine before fix-engine swap).
 - Everything before S16.
+
+Execution order: **S9.25 → S9 → S9.5 → S10 → S11 → S12 → S13 → S14 → S15 → S16.**
 
 Net: **9 sprints** (S9, S9.25, S9.5, S10, S11, S12, S13, S14, S15) plus S16 exit gate = 10.
 
@@ -646,7 +649,7 @@ cd packages/dashboard && npx vitest run
 - `skills/capability-templates/browser-control.md` — smoke.sh spawns the MCP server, invokes `browser_navigate about:blank`, tears down.
 - `skills/capability-templates/desktop-control.md` — smoke.sh invokes `desktop_screenshot` against a headless buffer or confirms X11 availability.
 - `skills/capability-templates/_bundles.md` — update bundle references to mention smoke.sh.
-- Each template adds frontmatter field: `fallback_action: "could you resend as text"` (or per-type copy).
+- Each template adds frontmatter fields: `fallback_action: "could you resend as text"` (or per-type copy) **and** `multi_instance: boolean` (defaults false; set to true only on `browser-control`).
 
 **Acceptance:**
 - Manual review: each template has a "Smoke fixture" section with a concrete reference `smoke.sh` body.
@@ -663,7 +666,8 @@ cd packages/dashboard && npx vitest run
 **Goal:** universal MCP-plug detection; automation-origin routing works end-to-end. Design: §4.2, §4.7.
 
 **Files:**
-- `packages/core/src/capabilities/mcp-cfr-detector.ts` *(new)* — `createMcpCapabilityCfrDetector({cfr, registry, originFactory})` returning a `HookCallback` for `PostToolUseFailure`; secondary empty-content check for `PostToolUse` per §4.2. Uses `classifyMcpToolError(error: string)`.
+- `packages/core/src/capabilities/mcp-cfr-detector.ts` *(new)* — `createMcpCapabilityCfrDetector({cfr, registry, originFactory})` returning a `HookCallback` for `PostToolUseFailure`; secondary empty-content check for `PostToolUse` per §4.2. Calls `classifyMcpToolError`.
+- `packages/core/src/capabilities/failure-symptoms.ts` — add `classifyMcpToolError(error: string): CapabilityFailureSymptom` per §4.2 regex map (timeout / validation-failed / not-enabled / execution-error). Lives alongside `classifyEmptyStt`.
 - `packages/core/src/capabilities/registry.ts` — add `findByName(name: string): Capability | undefined`.
 - `packages/core/src/capabilities/session-manager.ts:~431-456` — attach detector alongside existing audit/screenshot hooks; origin factory reads brain-session view-context (conversation-origin).
 - `packages/dashboard/src/automations/automation-executor.ts:~426` (`buildJobHooks`) — attach detector; origin factory reads automation manifest → `kind: "automation"` with `notifyMode` default `"debrief"` per §4.7.
@@ -737,10 +741,14 @@ cd packages/core && npx tsc --noEmit && npx vitest run tests/capabilities/reveri
 
 **Files:**
 - `packages/core/src/capabilities/resilience-messages.ts` — extend `FRIENDLY_NAMES` for every registered type; multi-instance `capabilityName` injection; terminal copy; new surrender reasons (`redesign-needed`, `insufficient-context`); per-type `fallback_action` sourced from capability frontmatter.
+- `packages/core/src/capabilities/registry.ts` — add `isMultiInstance(type: string): boolean` helper. Source of truth: the capability template's `multi_instance: true` frontmatter flag (new field in S9.5 templates; defaults false for existing types). `resilience-messages` uses this to decide whether to append `capabilityName` to the ack copy.
+- `skills/capability-templates/browser-control.md` — set `multi_instance: true` in frontmatter. All other templates default false. (S9.5 lands the field shape; S13 sets values.)
 - `packages/core/src/capabilities/ack-delivery.ts` — per-conversation coalescing layer: 30s window, N-aware merge; automation/system origins bypass.
 - `packages/core/src/conversations/orphan-watchdog.ts` — `FAILURE_PLACEHOLDERS` table; assistant-turn scan using `TranscriptTurn.failure_type`.
 - `packages/core/src/conversations/types.ts` — `TranscriptTurn.failure_type?: string` structured field.
-- WS protocol + search indexer cross-check: confirm `failure_type` propagates through `packages/dashboard/src/ws/protocol.ts` and search indexing without breaking either.
+- `packages/dashboard/src/ws/protocol.ts` — extend turn message shape to carry `failure_type` through the wire (if not already transparent via existing pass-through).
+- `packages/dashboard/src/conversations/search.ts` (or whichever file indexes turns — confirm at sprint-time via `rg 'indexTurn|TranscriptTurn' packages/dashboard/src/conversations/`) — ensure indexing skips `failure_type` or handles it gracefully; no crash on a new field.
+- `packages/dashboard/public/js/app.js` + rendering — turns with `failure_type` render with a subtle inline marker ("voice reply unavailable — fixing…") rather than a blank assistant bubble; exact copy per §4.5 terminal table.
 
 **Acceptance tests:**
 - `packages/core/tests/capabilities/resilience-messages-coverage.test.ts` — every registered type has friendly name + `fallback_action`.
@@ -760,8 +768,12 @@ cd packages/dashboard && npx tsc --noEmit && npx vitest run
 **Goal:** orchestrator fix engine = `capability-brainstorming` in fix-mode; DECISIONS.md paper trail via `writePaperTrail`. Design: §4.3.
 
 **Files:**
-- `packages/core/skills/capability-brainstorming/SKILL.md` — Step 0 fix-mode gate per §4.3; hard-disable Steps 1-6 + `.enabled` write; forbid nested `create_automation`; retain DECISIONS.md "why" context write.
-- `packages/core/src/capabilities/recovery-orchestrator.ts` — replace `renderPrompt` with `buildFixModeInvocation`; add `targetPath` to `AutomationSpec`; set `targetPath: cap.path` on spec; raise `JOB_TIMEOUT_MS` to 15 min for fix-mode jobs.
+- `packages/core/skills/capability-brainstorming/SKILL.md` —
+  1. Step 0 fix-mode gate per §4.3; hard-disable Steps 1-6 + `.enabled` write; forbid nested `create_automation`; retain DECISIONS.md "why" context write.
+  2. **Authoring-side neutral-identifier convention** (per §10 item 10 resolution): add a one-line rule in Step 5's "spawn builder" section — "capability `name:` must be a neutral identifier (provider/variant/model), never user-identifiable content (no real names, phone numbers, emails). The name surfaces in user-facing ack copy for multi-instance types."
+- `packages/core/src/capabilities/recovery-orchestrator.ts` —
+  1. Replace `renderPrompt` with `buildFixModeInvocation`; add `targetPath` to `AutomationSpec`; set `targetPath: cap.path` on spec; raise `JOB_TIMEOUT_MS` to 15 min for fix-mode jobs.
+  2. **ESCALATE-marker parsing** per §4.3: on deliverable read, check if `deliverable.md` body starts with `ESCALATE: redesign-needed` or `ESCALATE: insufficient-context`. If so, set `session.surrenderReason = "redesign-needed"` (or `"insufficient-context"`) and transition directly to `SURRENDER` — skip reverify for that attempt, skip further attempts for this session. Surrender copy dispatched via §4.5's new reason branches (landed in S13; reference only here).
 - `packages/dashboard/src/app.ts:635-653` — spawnAutomation closure copies `spec.targetPath` into `manifest.target_path`.
 - `packages/core/src/capabilities/prompts/fix-automation.md` — add deprecation notice atop the file; do not delete (removed in a cleanup sprint after S16 green for one sprint).
 - `.my_agent/` write-guard hook (location TBD at sprint-time; check `.claude/settings.json` and `scripts/pre-commit-check.sh`) — exempt `job_type === "capability_modify"` from the write-block, scoped to `.my_agent/capabilities/<name>/`.
@@ -769,6 +781,7 @@ cd packages/dashboard && npx tsc --noEmit && npx vitest run
 **Acceptance tests:**
 - `packages/core/tests/capabilities/fix-mode-invocation.test.ts` — orchestrator spawns capability-brainstorming with `MODE: FIX` prompt; spec carries `targetPath`.
 - `packages/core/tests/capabilities/fix-mode-integration.test.ts` — stub plug folder → fix-mode reads folder + DECISIONS.md + patches + `writePaperTrail` appends; no nested `create_automation` call (assert via mock); `deliverable.md` written to run_dir.
+- `packages/core/tests/capabilities/fix-mode-escalate.test.ts` — orchestrator reads `ESCALATE: redesign-needed` marker in deliverable body → `session.surrenderReason === "redesign-needed"`, reverify skipped, state transitions to SURRENDER. Same for `ESCALATE: insufficient-context`.
 - `packages/core/tests/skills/capability-brainstorming-gate.test.ts` — authoring-mode prompt still runs full Steps 1-6; fix-mode prompt runs fix-only.
 
 **Verification:**
