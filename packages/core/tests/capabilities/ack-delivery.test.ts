@@ -83,7 +83,7 @@ describe("AckDelivery", () => {
     const [convId, payload] = broadcast.mock.calls[0];
     expect(convId).toBe("conv-A");
     expect(payload).toMatchObject({
-      type: "system_message",
+      type: "capability_ack",
       conversationId: "conv-A",
       content: "still fixing — second attempt.",
     });

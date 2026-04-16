@@ -689,8 +689,8 @@ export class App extends EventEmitter {
           if (kind === "attempt") {
             text = defaultCopy.ack(failure);
           } else if (kind === "status") {
-            text = defaultCopy.status(failure, 20);
-          } else if (kind === "surrender") {
+            text = defaultCopy.status(failure);
+          } else if (kind === "surrender" || kind === "surrender-cooldown") {
             text = defaultCopy.surrender(failure, "iteration-3");
           } else {
             // "surrender-budget"
@@ -711,6 +711,8 @@ export class App extends EventEmitter {
 
           // D4: on surrender, persist a marker event so the orphan watchdog
           // (M9.6-S5) does not re-drive this turn on the next boot.
+          // surrender-cooldown does NOT write a new event — the original surrender
+          // already wrote one. Writing again would be noise (S6-FU3).
           if (kind === "surrender" || kind === "surrender-budget") {
             const { conversationId, turnNumber } = failure.triggeringInput;
             try {
@@ -728,6 +730,10 @@ export class App extends EventEmitter {
                 err,
               );
             }
+          } else if (kind === "surrender-cooldown") {
+            console.info(
+              `[CFR] cooldown-hit surrender for ${failure.capabilityType} — ack delivered, no new event written`,
+            );
           }
         },
         reprocessTurn: async (failure, recoveredContent) => {

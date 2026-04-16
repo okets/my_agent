@@ -116,20 +116,32 @@ describe("reverify — incident audio integration", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it.skipIf(!fs.existsSync(audioPath))(
-    "re-transcribes incident audio and recovers content containing 'voice messages'",
+  // Auth skip guard: reverify calls transcribe.sh which requires DEEPGRAM_API_KEY
+  // in process.env. When invoked via plain `npx vitest`, process.env doesn't
+  // auto-load the .env file. The test-e2e npm script in the dashboard package
+  // loads it explicitly; this guard keeps the test from failing for the wrong
+  // reason when someone runs `npx vitest` from the core package without the key.
+  const canRun =
+    fs.existsSync(audioPath) && !!process.env.DEEPGRAM_API_KEY;
+
+  it.skipIf(!canRun)(
+    "re-transcribes incident audio and recovers content containing 'songkran'",
     async () => {
+      // Incident audio (conv-01KP3WPV3KGHWCRHD7VX8XVZFZ voice #1, the larger OGG)
+      // says "hey nina how is songkran in chiang mai..." — NOT "voice messages now"
+      // as the original M9.6 plan mis-cited from the incident JSONL narrative.
+      // Verified at S7 exit gate (2026-04-16) via live Deepgram transcription.
       const failure = makeAudioToTextFailure(audioPath);
       const result = await reverify(failure, registry, watcher);
 
       expect(result.pass).toBe(true);
       expect(result.recoveredContent).toBeDefined();
-      expect(result.recoveredContent?.toLowerCase()).toContain("voice messages");
+      expect(result.recoveredContent?.toLowerCase()).toContain("songkran");
     },
     30_000,
   );
 
-  it.skipIf(!fs.existsSync(audioPath))(
+  it.skipIf(!canRun)(
     "reverify returns a non-empty string for recoveredContent",
     async () => {
       const failure = makeAudioToTextFailure(audioPath);

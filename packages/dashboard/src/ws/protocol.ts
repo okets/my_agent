@@ -227,7 +227,8 @@ export type ServerMessage =
         unavailableReason?: string;
       }>;
     }
-  | { type: "model_changed"; model: string };
+  | { type: "model_changed"; model: string }
+  | { type: "capability_ack"; conversationId: string; content: string; timestamp: string };
 
 // ─── State Sync Messages ───────────────────────────────────────────────────
 //

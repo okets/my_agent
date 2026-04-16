@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-16 (M9.6 S7 exit gate passed; S8 cleanup sprint remaining before milestone close)
+> **Updated:** 2026-04-16 (M9.6 complete — all 8 sprints; S7 exit gate passed, S8 closed code-level follow-ups)
 
 ---
 
@@ -31,7 +31,7 @@
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **In Progress** | 6 done (S1-S5 + S2.5) + S6 spec'd. S5 closed UX-1 (handoff continuity); S6 addresses UX-2 (progress counter cadence via methodical-worker prompting). |
 | **M9.5: Capability Framework v2** | **Done** | 7 sprints done. S7 shipped browser-control as the framework's first multi-instance capability type. |
-| **M9.6: Capability Resilience & Recovery** | **In Progress** | 7/8 sprints (S1-S7 done). S8 cleanup remaining (S6-FU5 dashboard ack, FU3 cooldown noise, FU2 elapsedSec). Exit gate passed: [s7-test-report.md](sprints/m9.6-capability-resilience/s7-test-report.md) |
+| **M9.6: Capability Resilience & Recovery** | **Done** | 8 sprints (S1-S8). Exit gate passed (S7): [s7-architect-review.md](sprints/m9.6-capability-resilience/s7-architect-review.md). S8 closed code-level tech debt (dashboard ack render, cooldown-hit event noise, elapsedSec cleanup): [s8-architect-review.md](sprints/m9.6-capability-resilience/s8-architect-review.md). |
 | **M10: Channel SDK** | Planned | S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof. |
 | **M11: External Communications** | Planned | 3 sprints (email capability, contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -69,7 +69,7 @@ M9.4 Conversation UX/UI — 7 sprints done (S6 = progress cadence prompt fix + p
 
 JUST DONE (M9.6 — 2026-04-16)
 ═════════════════════════════
-M9.6 Capability Resilience & Recovery — COMPLETE. 7 sprints (S1-S7). Exit gate (S7): incident voice #1 replayed against fresh environment with .enabled absent. CFR loop closes autonomously: ack → Sonnet fix → .enabled created → watcher detects → Deepgram reverify → reprocessTurn with real transcript. Zero manual intervention. Zero systemctl restart. [s7-review](sprints/m9.6-capability-resilience/s7-review.md)
+M9.6 Capability Resilience & Recovery — COMPLETE. 8 sprints (S1-S8). Exit gate (S7): incident voice #1 replayed against fresh environment with .enabled absent. CFR loop closes autonomously: ack → Sonnet fix → .enabled created → watcher detects → Deepgram reverify → reprocessTurn with real transcript. Zero manual intervention. Zero systemctl restart. S8 closed code-level follow-ups so milestone exits with zero tech debt. [s7-architect-review](sprints/m9.6-capability-resilience/s7-architect-review.md) [s8-architect-review](sprints/m9.6-capability-resilience/s8-architect-review.md)
 
 NEXT — M10 UNBLOCKED
 ════════════════════

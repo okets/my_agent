@@ -145,7 +145,7 @@ describe("RecoveryOrchestrator — surrender scope", () => {
 
     // But a surrender ack was emitted for the second failure
     const newAcks = (deps.emitAck as ReturnType<typeof vi.fn>).mock.calls.slice(emitAckBefore);
-    const newSurrenders = newAcks.filter((c) => c[1] === "surrender");
+    const newSurrenders = newAcks.filter((c) => c[1] === "surrender-cooldown");
     expect(newSurrenders).toHaveLength(1);
   });
 
