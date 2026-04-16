@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-15 (M9.6 Capability Resilience & Recovery inserted as hard blocker before M10 — origin: 2026-04-15 voice-message incident)
+> **Updated:** 2026-04-16 (M9.6 Capability Resilience & Recovery done — exit gate passed. M10 unblocked.)
 
 ---
 
@@ -31,8 +31,8 @@
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **In Progress** | 6 done (S1-S5 + S2.5) + S6 spec'd. S5 closed UX-1 (handoff continuity); S6 addresses UX-2 (progress counter cadence via methodical-worker prompting). |
 | **M9.5: Capability Framework v2** | **Done** | 7 sprints done. S7 shipped browser-control as the framework's first multi-instance capability type. |
-| **M9.6: Capability Resilience & Recovery** | **In Progress** | S1 done (raw-media persistence + CFR detector, 43 tests). S2 done (deps wiring at App boot, 6 tests). S3 done (capability hot-reload + restart gap closure, 26 tests). S4 done (recovery orchestrator, 28 tests). S5 done (orphaned-turn watchdog + abbreviation turn_corrected ingestion, 11 tests). S6 done (user-facing messaging + capability confidence contract, 22 tests). S7 pending. **Blocks M10 and all downstream work.** [plan.md](sprints/m9.6-capability-resilience/plan.md) |
-| **M10: Channel SDK** | Blocked by M9.6 | S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof. |
+| **M9.6: Capability Resilience & Recovery** | **Done** (2026-04-16) | 7/7 sprints (S1-S7). Exit gate passed: incident voice #1 replayed, CFR loop closes autonomously. [s7-review.md](sprints/m9.6-capability-resilience/s7-review.md) |
+| **M10: Channel SDK** | Planned | S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof. |
 | **M11: External Communications** | Planned | 3 sprints (email capability, contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
 | **M13: Platform Hardening**  | Planned | 3 sprints (auth, backup/restore, update) — S4/S5 absorbed by M9.5 |
@@ -67,13 +67,13 @@ IN PROGRESS (M9.4)
 ══════════════════
 M9.4 Conversation UX/UI — 7 sprints done (S6 = progress cadence prompt fix + progress card UX redesign)
 
-JUST DONE (M9.6-S6)
-═══════════════════
-M9.6-S6 User-Facing Messaging + Capability Confidence Contract — real channel-aware ack/status/surrender messages delivered to the user during CFR recovery (WhatsApp path fully wired; dashboard WS handler deferred to FU5). 20s status timer replaces per-attempt emit. Capability scripts gain optional confidence + duration_ms fields for empty-result detection. FU4 reprocessTurn routing fixed. capability_surrender JSONL events now emitted so watchdog honors surrender state. 22 tests. [review](sprints/m9.6-capability-resilience/s6-review.md)
+JUST DONE (M9.6 — 2026-04-16)
+═════════════════════════════
+M9.6 Capability Resilience & Recovery — COMPLETE. 7 sprints (S1-S7). Exit gate (S7): incident voice #1 replayed against fresh environment with .enabled absent. CFR loop closes autonomously: ack → Sonnet fix → .enabled created → watcher detects → Deepgram reverify → reprocessTurn with real transcript. Zero manual intervention. Zero systemctl restart. [s7-review](sprints/m9.6-capability-resilience/s7-review.md)
 
-NEXT — BLOCKER FOR EVERYTHING DOWNSTREAM
-════════════════════════════════════════
-M9.6-S7 E2E Incident Replay (final sprint) — replay the original voice #1 incident against a fresh dashboard with .enabled absent. Assert: ack turn → fix run → recovered transcription → assistant reply. Zero manual intervention. Zero systemctl restart. Exit gate for M9.6.
+NEXT — M10 UNBLOCKED
+════════════════════
+M10 Channel SDK — S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof.
 
 FUTURE (M10–M14) — ~18 sprints to release
 ══════════════════════════════════════════
@@ -959,7 +959,7 @@ Extend the capability framework to support MCP-based capabilities alongside scri
 
 ---
 
-### M9.6: Capability Resilience & Recovery — PLANNED (BLOCKER)
+### M9.6: Capability Resilience & Recovery — DONE (2026-04-16)
 
 Make capability failures recoverable at runtime instead of silently breaking the conversation. Generalize the **3-tries rule** (currently scoped to agent-build-from-scratch testing) into a runtime protocol: when a user-facing capability fails during a turn, the brain auto-attempts up to 3 fixes before falling back — with the user kept in the loop, not left hanging.
 
@@ -1173,7 +1173,7 @@ Design specs define architecture before implementation. Each spec should be comp
 | Visual & Desktop Automation | Complete | M8 | [superpowers/specs/2026-03-29-m8-desktop-automation-design.md](superpowers/specs/2026-03-29-m8-desktop-automation-design.md) |
 | Capability System    | Approved | M9          | [design/capability-system.md](design/capability-system.md) |
 | Capability Framework v2 | Approved | M9.5      | [design/capability-framework-v2.md](design/capability-framework-v2.md) |
-| Capability Resilience | Draft (red-team pending) | M9.6 | [design/capability-resilience.md](design/capability-resilience.md) |
+| Capability Resilience | Complete | M9.6 | [design/capability-resilience.md](design/capability-resilience.md) |
 | Universal Paper Trail | Approved | M9 (S7-S8)  | [design/paper-trail.md](design/paper-trail.md) |
 | ~~Multimodal~~       | Absorbed | ~~M9~~ → M9 Capability System | Voice/audio covered by M9; rich I/O covered by M8-S4 |
 | Agentic Lifecycle    | Approved | M6.6        | [superpowers/specs/2026-03-11-memory-perfection-design.md](superpowers/specs/2026-03-11-memory-perfection-design.md) |
