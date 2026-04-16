@@ -1,7 +1,7 @@
 # my_agent — Roadmap
 
 > **Source of truth** for project planning, milestones, and work breakdown.
-> **Updated:** 2026-04-16 (M9.6 complete — all 8 sprints; S7 exit gate passed, S8 closed code-level follow-ups)
+> **Updated:** 2026-04-16 (M9.6 re-opened — CTO course-correct after handoff flagged STT-only coverage gap; universal-coverage plan adds S9–S16)
 
 ---
 
@@ -31,7 +31,7 @@
 | **M9.3: Delegation Compliance** | **Done** | 4 sprints (S1-S3 + S2.5). Research delegation 0/3 → 2/3 (75%). S3.5 routing issues → M9.4. |
 | **M9.4: Conversation UX/UI** | **In Progress** | 6 done (S1-S5 + S2.5) + S6 spec'd. S5 closed UX-1 (handoff continuity); S6 addresses UX-2 (progress counter cadence via methodical-worker prompting). |
 | **M9.5: Capability Framework v2** | **Done** | 7 sprints done. S7 shipped browser-control as the framework's first multi-instance capability type. |
-| **M9.6: Capability Resilience & Recovery** | **Done** | 8 sprints (S1-S8). Exit gate passed (S7): [s7-architect-review.md](sprints/m9.6-capability-resilience/s7-architect-review.md). S8 closed code-level tech debt (dashboard ack render, cooldown-hit event noise, elapsedSec cleanup): [s8-architect-review.md](sprints/m9.6-capability-resilience/s8-architect-review.md). |
+| **M9.6: Capability Resilience & Recovery** | **Re-Opened** | Phase 1 (S1-S8) shipped STT-only CFR — handoff at [HANDOFF-cfr-coverage-gap.md](sprints/m9.6-capability-resilience/HANDOFF-cfr-coverage-gap.md) flagged the class failure. Phase 2 ([plan-universal-coverage.md](sprints/m9.6-capability-resilience/plan-universal-coverage.md) v2.2, two red-team passes) adds S9-S16: CapabilityInvoker + exec-bit + smoke.sh contract + PostToolUseFailure hook + origin widening (conversation/automation/system) + reflect-collapse + capability-brainstorming fix-mode + two definitive exit-gate smoke tests. |
 | **M10: Channel SDK** | Planned | S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof. |
 | **M11: External Communications** | Planned | 3 sprints (email capability, contact routing, ruleset + approval) |
 | **M12: iOS App**             | Planned | 3 sprints (foundation, full chat, native features) |
@@ -67,12 +67,12 @@ IN PROGRESS (M9.4)
 ══════════════════
 M9.4 Conversation UX/UI — 7 sprints done (S6 = progress cadence prompt fix + progress card UX redesign)
 
-JUST DONE (M9.6 — 2026-04-16)
-═════════════════════════════
-M9.6 Capability Resilience & Recovery — COMPLETE. 8 sprints (S1-S8). Exit gate (S7): incident voice #1 replayed against fresh environment with .enabled absent. CFR loop closes autonomously: ack → Sonnet fix → .enabled created → watcher detects → Deepgram reverify → reprocessTurn with real transcript. Zero manual intervention. Zero systemctl restart. S8 closed code-level follow-ups so milestone exits with zero tech debt. [s7-architect-review](sprints/m9.6-capability-resilience/s7-architect-review.md) [s8-architect-review](sprints/m9.6-capability-resilience/s8-architect-review.md)
+M9.6 RE-OPENED (2026-04-16 — Universal Coverage Phase)
+═══════════════════════════════════════════════════════
+Phase 1 (S1-S8) shipped STT-only. CTO handoff flagged class failure: every other plug type (TTS, image-to-text, text-to-image, desktop-control, browser-control) still fails silently; automation-origin failures were never in scope. Phase 2 plan: [plan-universal-coverage.md](sprints/m9.6-capability-resilience/plan-universal-coverage.md) v2.2 (two red-team passes). Ten sprints (S9 invoker, S9.25 origin types, S9.5 smoke.sh templates, S10 PostToolUseFailure + origin wiring, S11 reflect collapse, S12 reverify dispatcher, S13 ack coalescing, S14 fix-engine swap, S15 TTS collapse, S16 exit gate). Exit gate = two definitive smoke tests: (1) automation Nina takes a website screenshot after browser plug is broken; (2) conversation Nina understands a voice message after STT plug is broken.
 
-NEXT — M10 UNBLOCKED
-════════════════════
+BLOCKED UNTIL M9.6 CLOSES
+═════════════════════════
 M10 Channel SDK — S0 merged. S1-S7 planned (8 sprints). WA migrated + Telegram + Discord + Line + agent-authored channel proof.
 
 FUTURE (M10–M14) — ~18 sprints to release
@@ -959,9 +959,11 @@ Extend the capability framework to support MCP-based capabilities alongside scri
 
 ---
 
-### M9.6: Capability Resilience & Recovery — DONE (2026-04-16)
+### M9.6: Capability Resilience & Recovery — RE-OPENED (2026-04-16, Phase 2: Universal Coverage)
 
-Make capability failures recoverable at runtime instead of silently breaking the conversation. Generalize the **3-tries rule** (currently scoped to agent-build-from-scratch testing) into a runtime protocol: when a user-facing capability fails during a turn, the brain auto-attempts up to 3 fixes before falling back — with the user kept in the loop, not left hanging.
+Make capability failures recoverable at runtime — for **any plug type, from any origin (conversation, automation, system)**. Phase 1 shipped STT-only. Phase 2 makes coverage systemic so new plug types inherit recovery without per-type CFR code.
+
+**Phase 2 design:** [plan-universal-coverage.md](sprints/m9.6-capability-resilience/plan-universal-coverage.md) v2.2 · [HANDOFF](sprints/m9.6-capability-resilience/HANDOFF-cfr-coverage-gap.md) (the class failure Phase 1 left)
 
 **Origin:** 2026-04-15 voice-message incident (conv-01KP3WPV3KGHWCRHD7VX8XVZFZ). Four distinct bugs compounded into "Nina received three voice messages and silently replied to none":
 
@@ -986,8 +988,20 @@ Make capability failures recoverable at runtime instead of silently breaking the
 | S3 | Hot-Reload + Restart Gap Closure | Done | 26 tests. `CapabilityWatcher` (chokidar) drives `registry.rescan()` on fs change. Claude Code hook blocks `systemctl restart nina-*` unconditionally. Fix-automation prompts updated. [Review](sprints/m9.6-capability-resilience/s3-review.md) · [Architect](sprints/m9.6-capability-resilience/s3-architect-review.md) |
 | S4 | Recovery Orchestrator | Done | 28 tests. `RecoveryOrchestrator` + pure state machine: 3-iteration cap, structured reflection, per-type mutex, cross-conv surrender cooldown, reverify against actual artifact. `emitAck` stub (S6 replaces). [Review](sprints/m9.6-capability-resilience/s4-review.md) · [Architect](sprints/m9.6-capability-resilience/s4-architect-review.md) |
 | S5 | Orphaned-Turn Watchdog | Done | 11 tests. Boot-time sweep rescues unanswered user turns (< 30 min), re-transcribes audio orphans via reverify, marks stale turns resolved. Abbreviation queue honors `turn_corrected`. Surrender-marker check forward-compatible for S6. [Review](sprints/m9.6-capability-resilience/s5-review.md) · [Architect](sprints/m9.6-capability-resilience/s5-architect-review.md) |
-| S6 | User-Facing Resilience Messaging | Planned | `resilience-messages.ts` — ack / status / surrender copy, deterministic delivery on correct channel. Capability confidence contract (`confidence`, `duration_ms` fields). Replaces `emitAck` stub from S4. Fixes `reprocessTurn` channel-routing bug (FU4). |
-| S7 | E2E Incident Replay + Exit Gate | Planned | Replay `conv-01KP3WPV3KGHWCRHD7VX8XVZFZ` voice #1 against fresh dashboard (`.enabled` missing). Within 30s: ack → fix → transcription → reply. Zero manual intervention. Zero `systemctl restart`. |
+| S6 | User-Facing Resilience Messaging | Done | `resilience-messages.ts` — ack / status / surrender copy, deterministic delivery on correct channel. Capability confidence contract (`confidence`, `duration_ms` fields). Replaces `emitAck` stub from S4. [Review](sprints/m9.6-capability-resilience/s6-review.md) · [Architect](sprints/m9.6-capability-resilience/s6-architect-review.md) |
+| S7 | Phase 1 Exit Gate — STT only | Done | Voice #1 incident replayed end-to-end on STT. Passed. Did **not** cover other plug types. [Review](sprints/m9.6-capability-resilience/s7-review.md) · [Architect](sprints/m9.6-capability-resilience/s7-architect-review.md) |
+| S8 | Code-level cleanup | Done | Dashboard ack render, cooldown-hit event noise, elapsedSec cleanup. [Architect](sprints/m9.6-capability-resilience/s8-architect-review.md) |
+| — | **— Phase 2: Universal Coverage —** | — | [plan-universal-coverage.md](sprints/m9.6-capability-resilience/plan-universal-coverage.md) §12 has per-sprint detail |
+| S9 | CapabilityInvoker + exec-bit validation | Planned | Single gate for script-plug invocation. STT + TTS callsites route through it. Exec-bit validator in test-harness. `classifySttError` folded into invoker. [§12.1](sprints/m9.6-capability-resilience/plan-universal-coverage.md#121-sprint-9--capabilityinvoker--exec-bit-validation) |
+| S9.25 | TriggeringOrigin type landing | Planned | Zero-behavior type widening: `TriggeringInput.origin` discriminated union (conversation/automation/system). Backfills emit + consumer sites with conversation-origin default. Prerequisite for S10. [§12.2](sprints/m9.6-capability-resilience/plan-universal-coverage.md#122-sprint-925--triggeringorigin-type-landing) |
+| S9.5 | Template smoke fixtures | Planned | Every capability template (audio-to-text, text-to-audio, text-to-image, browser-control, desktop-control) ships a `scripts/smoke.sh` contract + `fallback_action` frontmatter. [§12.3](sprints/m9.6-capability-resilience/plan-universal-coverage.md#123-sprint-95--template-smoke-fixtures) |
+| S10 | PostToolUseFailure CFR hook + automation-origin wiring | Planned | MCP-plug detection via SDK's typed error hook. Registry `findByName`. Brain + automation-executor both attach detector. Ack-delivery gains automation/system branches; `CFR_RECOVERY.md` writer; debrief-prep reader extension. Orchestrator mutex attach-origin + terminal drain per §4.7. [§12.4](sprints/m9.6-capability-resilience/plan-universal-coverage.md#124-sprint-10--posttooluseFailure-cfr-hook--automation-origin-wiring) |
+| S11 | Reflect-phase collapse | Planned | Eliminate REFLECTING state; one job per attempt; budget cap 4 (safety ceiling). Two-commit sequence: state + types → orchestrator behavior. [§12.5](sprints/m9.6-capability-resilience/plan-universal-coverage.md#125-sprint-11--reflect-phase-collapse) |
+| S12 | Reverify dispatcher + terminal-on-fix | Planned | Per-type reverifiers (TTS, image-to-text, text-to-image) + `runSmokeFixture` default (out-of-session subprocess). New `RESTORED_TERMINAL` state for plugs without retriable input. Origin-aware terminal routing. [§12.6](sprints/m9.6-capability-resilience/plan-universal-coverage.md#126-sprint-12--reverify-dispatcher--terminal-on-fix) |
+| S13 | Ack coalescing + orphan-watchdog extension | Planned | Friendly-name + multi-instance disambiguation + N-aware conversation-origin coalescing (30s window). Assistant-turn orphan via structured `TranscriptTurn.failure_type` field. [§12.7](sprints/m9.6-capability-resilience/plan-universal-coverage.md#127-sprint-13--ack-coalescing--orphan-watchdog-extension) |
+| S14 | Fix-engine swap (capability-brainstorming fix-mode) | Planned | Orchestrator invokes Nina's own authoring skill in a hard-gated fix-mode; skill reads plug folder + DECISIONS.md; `writePaperTrail` appends. `targetPath` plumbing (AutomationSpec + dashboard closure). `.my_agent/` write-guard exemption. JOB_TIMEOUT → 15min. [§12.8](sprints/m9.6-capability-resilience/plan-universal-coverage.md#128-sprint-14--fix-engine-swap) |
+| S15 | Duplicate TTS path collapse | Planned | `chat-service.synthesizeAudio` becomes authoritative. Per-path fallback table covers error/split/empty cases. Delete Baileys `onSendVoiceReply` synthesis. [§12.9](sprints/m9.6-capability-resilience/plan-universal-coverage.md#129-sprint-15--duplicate-tts-path-collapse) |
+| S16 | Milestone exit gate — two definitive smoke tests | Planned | (1) Working Nina screenshots a website after browser plug deliberately broken. (2) Conversation Nina understands a voice message after STT plug deliberately broken. `AppHarness` + recording mock transport. Abbreviated replays for every other registered plug type. [§12.10](sprints/m9.6-capability-resilience/plan-universal-coverage.md#1210-sprint-16--milestone-exit-gate) |
 
 **Key design decisions:**
 - 3-tries is a **conversation-level protocol**, not a build-phase gate. Runtime failures trigger it; the agent-build flow is one special case (build counts as iteration 1).
