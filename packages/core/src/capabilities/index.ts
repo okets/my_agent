@@ -62,3 +62,13 @@ export {
   type AutomationResult,
 } from './recovery-orchestrator.js'
 export { reverify, type ReverifyResult } from './reverify.js'
+export {
+  defaultCopy,
+  type ResilienceCopy,
+  type SurrenderReason,
+} from './resilience-messages.js'
+export {
+  AckDelivery,
+  type TransportManagerLike,
+  type ConnectionRegistryLike,
+} from './ack-delivery.js'

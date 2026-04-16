@@ -35,6 +35,13 @@ export interface FixSession {
   reflectJobId?: string;
   attempts: FixAttempt[];
   totalJobsSpawned: number;
+  /**
+   * When a surrender is about to be emitted, set to "budget" if the 5-job
+   * nesting cap forced an early bail, or "iteration-3" if all three attempts
+   * ran and reverify still failed. Consumed by RecoveryOrchestrator.surrender()
+   * to pick the right user-facing copy (M9.6-S6).
+   */
+  surrenderReason?: "budget" | "iteration-3";
 }
 
 export type Action =

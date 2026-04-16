@@ -25,7 +25,7 @@ import { parseFrontmatterContent } from "../metadata/frontmatter.js";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
-export type AckKind = "attempt" | "status" | "surrender";
+export type AckKind = "attempt" | "status" | "surrender" | "surrender-budget";
 
 export interface AutomationSpec {
   name: string;
@@ -59,6 +59,9 @@ const JOB_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** Surrender cooldown: 10 minutes in ms */
 const SURRENDER_COOLDOWN_MS = 10 * 60 * 1000;
+
+/** Emit a status ack if a fix attempt is still running after this many ms (M9.6-S6) */
+const STATUS_ACK_DELAY_MS = 20_000;
 
 interface DeliverableFrontmatter {
   change_type?: string;
@@ -194,6 +197,10 @@ export class RecoveryOrchestrator {
 
   /**
    * Main fix loop. Drives the state machine across up to 3 attempts.
+   *
+   * Status timing (M9.6-S6): after the initial "attempt" ack, start a 20s
+   * timer that fires a "status" ack if the session is still grinding away.
+   * The timer is cancelled as soon as the session reaches DONE or SURRENDER.
    */
   private async runFixLoop(session: FixSession, failure: CapabilityFailure): Promise<void> {
     // Transition: IDLE → ACKED
@@ -205,45 +212,64 @@ export class RecoveryOrchestrator {
     session.state = "ACKED";
     await this.deps.emitAck(failure, "attempt");
 
-    // Transition: ACKED → EXECUTING
-    const spawnAction = nextAction(session, { type: "ACK_SENT" });
-    if (spawnAction.action === "SURRENDER") {
-      await this.surrender(session, failure);
-      return;
-    }
-    session.state = "EXECUTING";
-
-    // Fix loop: up to 3 attempts
-    while (session.attemptNumber <= 3) {
-      const attemptResult = await this.runOneAttempt(session, failure);
-
-      if (attemptResult.recovered) {
-        // Reverify passed — re-process the original turn
-        const reprocessAction = nextAction(session, {
-          type: "REVERIFY_PASS",
-          recoveredContent: attemptResult.recoveredContent!,
+    // Arm the 20s status timer (M9.6-S6, D2). Fires once if we're still
+    // working after 20 seconds; cancelled on DONE or SURRENDER below.
+    const statusTimer: NodeJS.Timeout = setTimeout(() => {
+      if (session.state !== "DONE" && session.state !== "SURRENDER") {
+        this.deps.emitAck(failure, "status").catch((err) => {
+          console.error("[RecoveryOrchestrator] status ack failed:", err);
         });
-        if (reprocessAction.action === "REPROCESS_TURN") {
-          session.state = "DONE";
-          await this.deps.reprocessTurn(failure, reprocessAction.recoveredContent);
-          nextAction(session, { type: "REPROCESS_SENT" });
+      }
+    }, STATUS_ACK_DELAY_MS);
+    // Ensure the timer doesn't keep the process alive past shutdown.
+    if (typeof statusTimer.unref === "function") statusTimer.unref();
+
+    try {
+      // Transition: ACKED → EXECUTING
+      const spawnAction = nextAction(session, { type: "ACK_SENT" });
+      if (spawnAction.action === "SURRENDER") {
+        await this.surrender(session, failure);
+        return;
+      }
+      session.state = "EXECUTING";
+
+      // Fix loop: up to 3 attempts
+      while (session.attemptNumber <= 3) {
+        const attemptResult = await this.runOneAttempt(session, failure);
+
+        if (attemptResult.recovered) {
+          // Reverify passed — re-process the original turn
+          const reprocessAction = nextAction(session, {
+            type: "REVERIFY_PASS",
+            recoveredContent: attemptResult.recoveredContent!,
+          });
+          if (reprocessAction.action === "REPROCESS_TURN") {
+            session.state = "DONE";
+            await this.deps.reprocessTurn(failure, reprocessAction.recoveredContent);
+            nextAction(session, { type: "REPROCESS_SENT" });
+            return;
+          }
+        }
+
+        // Attempt failed — iterate or surrender.
+        // Per-attempt status ack has been replaced by the 20s timer above;
+        // no inline emitAck(..., "status") fires here.
+        if (session.attemptNumber < 3) {
+          const nextAttempt = (session.attemptNumber + 1) as 2 | 3;
+          session.attemptNumber = nextAttempt;
+          session.state = "EXECUTING";
+        } else {
+          session.surrenderReason = "iteration-3";
+          await this.surrender(session, failure);
           return;
         }
       }
 
-      // Attempt failed — iterate or surrender
-      if (session.attemptNumber < 3) {
-        const nextAttempt = (session.attemptNumber + 1) as 2 | 3;
-        session.attemptNumber = nextAttempt;
-        session.state = "EXECUTING";
-        await this.deps.emitAck(failure, "status");
-      } else {
-        await this.surrender(session, failure);
-        return;
-      }
+      session.surrenderReason = "iteration-3";
+      await this.surrender(session, failure);
+    } finally {
+      clearTimeout(statusTimer);
     }
-
-    await this.surrender(session, failure);
   }
 
   /**
@@ -259,8 +285,10 @@ export class RecoveryOrchestrator {
     // Build execute prompt from template
     const executePrompt = this.renderPrompt(failure, session);
 
-    // Budget check before spawning execute job
+    // Budget check before spawning execute job (M9.6-S6 D3: tag the session so
+    // surrender() knows this was a budget-exhaustion bail, not a 3-attempts bail).
     if (session.totalJobsSpawned >= 5) {
+      session.surrenderReason = "budget";
       return { recovered: false };
     }
 
@@ -338,8 +366,15 @@ export class RecoveryOrchestrator {
 
     // Budget check before spawning reflect job
     if (session.totalJobsSpawned >= 5) {
-      // Budget exhausted — still attempt reverify without reflect
-      return await this.doReverify(failure, session, executeAttempt);
+      // Budget exhausted — still attempt reverify without reflect. If the
+      // reverify passes, we recover normally; if it fails, runFixLoop will
+      // drop through to surrender — tag the reason here so surrender picks
+      // the "budget" copy rather than "iteration-3".
+      const result = await this.doReverify(failure, session, executeAttempt);
+      if (!result.recovered) {
+        session.surrenderReason = "budget";
+      }
+      return result;
     }
 
     // Spawn reflect-phase automation (Opus)
@@ -410,11 +445,17 @@ export class RecoveryOrchestrator {
     }
   }
 
-  /** Emit surrender ack and record the scope */
+  /**
+   * Emit surrender ack and record the scope.
+   * Uses `session.surrenderReason` to pick `"surrender-budget"` vs `"surrender"`
+   * so the user-facing copy matches the actual cause of surrender (M9.6-S6).
+   */
   private async surrender(session: FixSession, failure: CapabilityFailure): Promise<void> {
     session.state = "SURRENDER";
     this.recordSurrender(failure);
-    await this.deps.emitAck(failure, "surrender");
+    const kind: AckKind =
+      session.surrenderReason === "budget" ? "surrender-budget" : "surrender";
+    await this.deps.emitAck(failure, kind);
   }
 
   /**

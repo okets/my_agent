@@ -54,6 +54,8 @@ import {
   OrphanWatchdog,
   reverify,
   loadModels,
+  AckDelivery,
+  defaultCopy,
 } from "@my-agent/core";
 import type { OrphanSweepReport } from "@my-agent/core";
 import { RawMediaStore } from "./media/raw-media-store.js";
@@ -620,6 +622,15 @@ export class App extends EventEmitter {
         "cancelled",
       ]);
 
+      // M9.6-S6: framework-owned ack delivery. Requires a TransportManager
+      // (for channel-originated turns) and a ConnectionRegistry (for dashboard
+      // turns). If either is missing at this point in boot, AckDelivery
+      // falls back to console logging so the orchestrator never blocks.
+      const ackDelivery =
+        app.transportManager && connectionRegistry
+          ? new AckDelivery(app.transportManager, connectionRegistry)
+          : null;
+
       app.recoveryOrchestrator = new RecoveryOrchestrator({
         spawnAutomation: async (spec) => {
           const models = loadModels(agentDir);
@@ -669,10 +680,55 @@ export class App extends EventEmitter {
         capabilityRegistry: registry,
         watcher: app.capabilityWatcher!,
         emitAck: async (failure, kind) => {
-          // S4 stub: log only. S6 replaces with real channel delivery.
+          // M9.6-S6: resolve the user-facing copy and deliver on the same
+          // channel the triggering turn arrived on. Also append a
+          // `capability_surrender` event to the conversation on surrender
+          // kinds — the orphan watchdog uses this marker to avoid
+          // re-driving a conversation that Nina has already bailed on.
+          let text: string;
+          if (kind === "attempt") {
+            text = defaultCopy.ack(failure);
+          } else if (kind === "status") {
+            text = defaultCopy.status(failure, 20);
+          } else if (kind === "surrender") {
+            text = defaultCopy.surrender(failure, "iteration-3");
+          } else {
+            // "surrender-budget"
+            text = defaultCopy.surrender(failure, "budget");
+          }
+
           console.log(
             `[CFR] ack(${kind}) for ${failure.capabilityType} — conv ${failure.triggeringInput.conversationId}`,
           );
+
+          if (ackDelivery) {
+            await ackDelivery.deliver(failure, text);
+          } else {
+            console.warn(
+              "[CFR] AckDelivery unavailable (TransportManager or ConnectionRegistry missing) — ack not delivered",
+            );
+          }
+
+          // D4: on surrender, persist a marker event so the orphan watchdog
+          // (M9.6-S5) does not re-drive this turn on the next boot.
+          if (kind === "surrender" || kind === "surrender-budget") {
+            const { conversationId, turnNumber } = failure.triggeringInput;
+            try {
+              await app.conversationManager.appendEvent(conversationId, {
+                type: "capability_surrender",
+                capabilityType: failure.capabilityType,
+                conversationId,
+                turnNumber,
+                reason: kind === "surrender-budget" ? "budget-exhausted" : "max-attempts",
+                surrenderedAt: new Date().toISOString(),
+              });
+            } catch (err) {
+              console.error(
+                "[CFR] Failed to append capability_surrender event:",
+                err,
+              );
+            }
+          }
         },
         reprocessTurn: async (failure, recoveredContent) => {
           const { conversationId, turnNumber } = failure.triggeringInput;
@@ -689,7 +745,15 @@ export class App extends EventEmitter {
           }
           if (response) {
             const ci = app.conversationInitiator;
-            if (ci) await ci.forwardToChannel(response);
+            if (ci) {
+              // FU4 (M9.6-S6): route the re-processed response back to the
+              // original conversation's channel — not the preferred-outbound
+              // default — so a WhatsApp-triggered CFR doesn't answer on
+              // dashboard (or vice versa).
+              const originChannel =
+                failure.triggeringInput.channel.channelId || undefined;
+              await ci.forwardToChannel(response, originChannel);
+            }
           }
         },
         now: () => new Date().toISOString(),
