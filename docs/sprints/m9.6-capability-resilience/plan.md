@@ -106,8 +106,11 @@ Commits: conventional-commit style, one commit per logical change, never batched
 | S5 | Orphaned-turn watchdog | S1 (RawMediaStore), S4 (surrender markers) | — |
 | S6 | User-facing messaging + capability confidence contract | S1, S4 | — |
 | S7 | E2E incident replay + exit gate | S1–S6 | — |
+| S8 | Follow-up cleanup (close S6-FU5 / S6-FU3 / S6-FU2) | S7 | — |
 
 **Exit gate (S7):** Replay `conv-01KP3WPV3KGHWCRHD7VX8XVZFZ`'s voice #1 audio against a fresh dashboard where `.enabled` is missing for `stt-deepgram`. Within 30s, the conversation must contain: ack turn → fix run → recovered transcription → assistant reply to the actual content. Zero manual intervention. Zero `systemctl restart`.
+
+**Milestone exit (S8):** M9.6 closes with zero code-level follow-ups. Only data-driven or policy-gated items remain open (explicitly listed in S8's non-goals).
 
 **Review cadence:**
 - Architect does a focused code review after **S1** (foundation sprint — shared contracts, raw media, detector). If the architect signs off, sprints S2–S6 run in sequence with per-sprint review at the end of each.
@@ -933,7 +936,94 @@ At the M9.6 row and the `NEXT — BLOCKER FOR EVERYTHING DOWNSTREAM` block, mark
 
 ---
 
-## 10. Cross-sprint checklist
+## 10. Sprint 8 — Follow-up cleanup (close M9.6's tech debt)
+
+**Goal:** Close the three code-level follow-ups from S6 that accumulated while S7 was proving the exit gate. After S8, M9.6 exits with zero code-level tech debt. Remaining open items are data-driven or policy-gated only, and will be explicitly named as such.
+
+**Scope (exactly three items):**
+
+| FU | What | Files |
+|----|------|-------|
+| S6-FU5 | Dashboard WS `capability_ack` has no frontend handler — ack silently dropped in browser | `packages/dashboard/src/ws/protocol.ts`, `packages/core/src/capabilities/ack-delivery.ts`, `packages/dashboard/public/js/app.js` |
+| S6-FU3 | Cooldown-hit surrender emits `capability_surrender` event (noisy, should log-only) | `packages/core/src/capabilities/recovery-orchestrator.ts`, `packages/dashboard/src/app.ts` |
+| S6-FU2 | `elapsedSec` param on `ResilienceCopy.status()` is unused | `packages/core/src/capabilities/resilience-messages.ts` + two call sites |
+
+### 10.1 S6-FU5 — Dashboard WS ack render
+
+**The bug:** `AckDelivery.deliver()` broadcasts `{type: "system_message", ...}` to dashboard WS connections. `ServerMessage` union doesn't include that variant. The Alpine client has no handler. Result: dashboard users see nothing when a CFR ack fires on their channel.
+
+**Files to modify:**
+
+1. `packages/dashboard/src/ws/protocol.ts` — add to the `ServerMessage` union:
+   ```typescript
+   | { type: "capability_ack"; conversationId: string; content: string; timestamp: string }
+   ```
+
+2. `packages/core/src/capabilities/ack-delivery.ts:71-78` — change the broadcast payload's `type` from `"system_message"` to `"capability_ack"`. No other change in this file.
+
+3. `packages/dashboard/public/js/app.js` — add a `case "capability_ack":` to the WS message handler's switch. Render as an assistant-role system-styled turn in the conversation view. Match the existing pattern for system-style messages already present in the codebase (look for the current `interim_status` or equivalent handler — do not invent a new styling primitive).
+
+**Acceptance test:** `packages/dashboard/tests/browser/capability-ack-render.test.ts` (Playwright) — open a conversation, inject a `capability_ack` WS message via `page.evaluate`, assert the ack text appears in the transcript with the system-styled glass treatment per `packages/dashboard/CLAUDE.md`.
+
+### 10.2 S6-FU3 — Cooldown-hit surrender should not emit an event
+
+**The bug:** When a second CFR arrives during the post-surrender cooldown window, `handle()` at `recovery-orchestrator.ts:100-106` emits `emitAck(failure, "surrender")`. The `app.ts` emitAck callback then appends a `capability_surrender` event to the JSONL for every `surrender`/`surrender-budget` kind. A cooldown-hit doesn't need a new event — the original surrender already wrote one.
+
+**Files to modify:**
+
+1. `packages/core/src/capabilities/recovery-orchestrator.ts` — add `"surrender-cooldown"` to the `AckKind` type union. At line ~104 where `handle()` emits the surrender ack on cooldown-hit, emit `"surrender-cooldown"` instead of `"surrender"`.
+
+2. `packages/dashboard/src/app.ts:682-731` (emitAck callback) — add a branch for `kind === "surrender-cooldown"` that:
+   - Delivers the ack (same copy as `surrender` — the user still needs the "please resend" message).
+   - Does NOT append a `capability_surrender` event.
+   - Log the cooldown-hit at INFO level.
+
+**Acceptance test:** `packages/core/tests/capabilities/orchestrator/orchestrator-surrender-cooldown-ack.test.ts` — set a surrender scope, fire a new CFR within 10 min, assert `emitAck` was called with `"surrender-cooldown"` and the mock event-appender was called exactly once (from the original surrender, not a second time).
+
+### 10.3 S6-FU2 — Delete `elapsedSec` param
+
+**The bug:** `ResilienceCopy.status(failure, elapsedSec)` takes a number it doesn't use. The timer in `recovery-orchestrator.ts` passes the literal `20`. YAGNI — no plan to use it.
+
+**Files to modify:**
+
+1. `packages/core/src/capabilities/resilience-messages.ts` — change signature to `status(failure: CapabilityFailure): string`. Update `defaultCopy.status` impl.
+
+2. `packages/core/src/capabilities/recovery-orchestrator.ts` — at the status-timer call site, remove the second arg.
+
+3. `packages/dashboard/src/app.ts` — at line ~692 in the `emitAck` callback, remove the second arg.
+
+4. Update `packages/core/tests/capabilities/resilience-copy.test.ts` — remove any tests that pass `elapsedSec`. No new tests needed.
+
+### 10.4 Acceptance: full CFR suite still green
+
+Run after all three FUs land:
+```bash
+cd packages/core && npx vitest run tests/capabilities
+cd packages/dashboard && npx vitest run tests/cfr tests/conversations
+cd packages/core && npx tsc --noEmit && cd ../dashboard && npx tsc --noEmit
+```
+
+Existing 42 CFR + orchestrator + abbreviation tests must still pass. Three new tests added (one per FU).
+
+### 10.5 Non-goals for S8
+
+Explicitly deferred (no work in this sprint):
+
+- **S6-FU4** (20s status timer magic constant) — revisit if real fix-loop data says 20s is wrong. Exit gate measured 142s end-to-end; 20s for first status is defensible. No change.
+- **S7-FU3** (CI audio via secrets) — only matters if you decide to enforce the exit gate in CI. Policy decision, not a code item. No change.
+- **S4-FU3** (`parentFailureId` nested-CFR budget) — no nested producer exists; per-type mutex makes nesting unreachable in M9.6. No change.
+- **S4-FU4** (ack reason discriminator widening) — separate from S6-FU3's `surrender-cooldown` addition. `AckKind` grows by one variant in S8, not by a full reason struct. No change beyond the single addition.
+
+### 10.6 Escalate via deviation proposal if
+
+- Any test file needs more than ~15 lines added. The three new tests should each fit that budget.
+- The WS protocol type addition conflicts with any existing variant (unlikely; `capability_ack` is a new name).
+- `app.js` has no existing system-styled turn pattern to match — in which case, stop and file a deviation, don't invent a new styling system.
+- Total diff exceeds ~150 lines across more than 6 files. Out-of-scope work belongs in its own sprint.
+
+---
+
+## 11. Cross-sprint checklist
 
 Before declaring M9.6 complete, verify:
 
@@ -948,7 +1038,7 @@ Before declaring M9.6 complete, verify:
 
 ---
 
-## 11. Non-goals (do not do these)
+## 12. Non-goals (do not do these)
 
 - Redesign the capability registry. Use `getHealth()` + `rescan()` as specified.
 - Add a generic "retry on failure" to MCP tool invocations. MCP handling is out of scope for M9.6 beyond the existing middleware.
@@ -959,7 +1049,7 @@ Before declaring M9.6 complete, verify:
 
 ---
 
-## 12. References
+## 13. References
 
 - Design spec: `docs/design/capability-resilience.md`
 - Red-team: `docs/design/capability-resilience-redteam.md`

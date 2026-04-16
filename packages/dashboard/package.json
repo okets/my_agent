@@ -10,6 +10,7 @@
     "build:css": "tailwindcss -c tailwind.config.cjs -i ./public/css/tailwind.input.css -o ./public/css/tailwind.css --minify",
     "build:vendor": "node ./scripts/build-vendor-assets.mjs",
     "test": "vitest run",
+    "test:e2e": "env -u CLAUDECODE node --env-file=.env node_modules/.bin/vitest run tests/e2e/cfr-incident-replay",
     "test:watch": "vitest",
     "format": "prettier --write src/ public/",
     "format:check": "prettier --check src/ public/"
