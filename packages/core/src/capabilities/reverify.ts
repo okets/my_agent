@@ -8,12 +8,16 @@
  * M9.6-S10: reverifyAudioToText uses CapabilityInvoker; bash wrapper dropped.
  */
 
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { CapabilityFailure } from "./cfr-types.js";
 import type { CapabilityRegistry } from "./registry.js";
 import type { CapabilityWatcher } from "./watcher.js";
 import type { CapabilityInvoker } from "./invoker.js";
+
+const execFileAsync = promisify(execFile);
 
 /** Time to wait for capability to become available after rescan (ms) */
 const AVAILABILITY_POLL_MS = 500;
@@ -205,6 +209,52 @@ async function reverifyAudioToText(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { pass: false, failureMode: `transcribe.sh execution error: ${message}` };
+  }
+}
+
+/** Maximum time to wait for smoke.sh to complete */
+const SMOKE_TIMEOUT_MS = 30_000;
+
+/**
+ * Default reverifier for capability types without a per-type reverifier.
+ *
+ * Runs `<capDir>/scripts/smoke.sh` as a fresh out-of-session subprocess.
+ * Exit 0 = pass. Missing smoke.sh = falls back to availability check with
+ * a warning (this is a template-gap signal, not a normal path).
+ *
+ * Wired into the reverify dispatcher in S14. Exported here for unit testing.
+ */
+export async function runSmokeFixture(
+  capDir: string,
+  registry: CapabilityRegistry,
+  capabilityType: string,
+): Promise<ReverifyResult> {
+  const smokeScript = join(capDir, "scripts", "smoke.sh");
+
+  if (!existsSync(smokeScript)) {
+    const cap = registry.get(capabilityType);
+    if (cap?.status === "available") {
+      console.warn(
+        `[runSmokeFixture] no smoke.sh in ${capDir} — template gap; falling back to availability check`,
+      );
+      return { pass: true };
+    }
+    return {
+      pass: false,
+      failureMode: `no smoke.sh found and capability ${capabilityType} not available`,
+    };
+  }
+
+  try {
+    await execFileAsync(smokeScript, [], {
+      timeout: SMOKE_TIMEOUT_MS,
+      cwd: capDir,
+      env: { ...process.env },
+    });
+    return { pass: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { pass: false, failureMode: `smoke.sh failed: ${message}` };
   }
 }
 
