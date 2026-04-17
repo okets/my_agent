@@ -3,6 +3,7 @@ template_version: 2
 type: text-to-image
 provides: text-to-image
 fallback_action: "try again in a moment"
+multi_instance: false
 ---
 
 # Text-to-Image Capability Template

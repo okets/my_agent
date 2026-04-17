@@ -3,6 +3,7 @@ template_version: 2
 type: text-to-audio
 provides: text-to-audio
 fallback_action: "you can read my last reply above"
+multi_instance: false
 ---
 
 # Text-to-Audio Capability Template

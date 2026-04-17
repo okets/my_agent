@@ -4,6 +4,7 @@ type: desktop-control
 provides: desktop-control
 interface: mcp
 fallback_action: "try again in a moment"
+multi_instance: false
 ---
 
 # Desktop Control Capability Template

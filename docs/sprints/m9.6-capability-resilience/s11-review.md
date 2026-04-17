@@ -1,7 +1,8 @@
 ---
 sprint: m9.6-s11
 title: Template Smoke Fixtures — External Review
-verdict: APPROVED
+reviewer: External reviewer (dev-contracted)
+recommended: APPROVE
 ---
 
 # M9.6-S11 External Review
