@@ -36,3 +36,11 @@ Four templates now have `multi_instance: false` explicitly. This will matter whe
 **Sprint:** S14
 
 Both browser-control and desktop-control templates contain minimal smoke stubs (detect.sh + server startup check). These are explicitly marked "replace with full S14 implementation." S14 must update both templates with full MCP tool-invocation smoke scripts.
+
+---
+
+## FU-5 — `tts-edge-tts/scripts/synthesize.sh` may output MP3 instead of OGG
+
+**Sprint:** Plug maintenance (no specific sprint assigned)
+
+The `text-to-audio` script contract requires OGG output. The installed `tts-edge-tts/scripts/smoke.sh` was written to check MP3 magic bytes (`ff f3`/`ff fb`) because `edge-tts` outputs MPEG audio regardless of the output filename extension. If confirmed, `synthesize.sh` is non-compliant with the script contract (which mandates OGG, transcoding via ffmpeg if needed). The plug should be updated to transcode to OGG before returning.
