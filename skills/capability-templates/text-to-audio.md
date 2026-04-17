@@ -1,7 +1,8 @@
 ---
-template_version: 1
+template_version: 2
 type: text-to-audio
 provides: text-to-audio
+fallback_action: "you can read my last reply above"
 ---
 
 # Text-to-Audio Capability Template
@@ -74,3 +75,30 @@ To validate this capability, the test harness will:
 | Coqui TTS (local) | Good | ~5-10s | Free | Local | Better quality, heavier |
 
 The builder should research current pricing and availability — this table is a starting point, not authoritative.
+
+## Smoke Fixture
+
+Every text-to-audio capability MUST ship `scripts/smoke.sh`. The reverify dispatcher
+calls this as a fresh out-of-session subprocess (exit 0 = healthy, non-zero = broken).
+
+**Contract:**
+- Calls `synthesize.sh` with a deterministic phrase
+- Validates the JSON output has a `path` field
+- Validates the output file exists and exceeds 100 bytes
+- Cleans up temp files on exit
+
+**Reference implementation** (copy to `scripts/smoke.sh`, make executable):
+
+~~~bash
+#!/usr/bin/env bash
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+OUT="/tmp/smoke-tts-$$.ogg"
+trap 'rm -f "$OUT"' EXIT
+
+OUTPUT="$("$DIR/synthesize.sh" "smoke test" "$OUT")"
+echo "$OUTPUT" | jq -e '.path != null' > /dev/null
+
+[ -f "$OUT" ] && [ "$(wc -c < "$OUT")" -gt 100 ]
+~~~
