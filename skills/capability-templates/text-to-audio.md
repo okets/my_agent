@@ -102,3 +102,7 @@ echo "$OUTPUT" | jq -e '.path != null' > /dev/null
 
 [ -f "$OUT" ] && [ "$(wc -c < "$OUT")" -gt 100 ]
 ~~~
+
+A short deterministic phrase is used so providers can synthesize it quickly. The smoke
+script exits 0 if the output file is produced and non-trivially sized — it does not
+validate audio quality or voice accuracy.

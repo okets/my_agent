@@ -110,7 +110,7 @@ trap 'rm -f "$FIXTURE"' EXIT
 # Generate a 2-second test tone (requires ffmpeg — already a transcribe.sh dependency)
 ffmpeg -y -f lavfi -i "sine=frequency=440:duration=2" -ar 16000 -ac 1 "$FIXTURE" 2>/dev/null
 
-# Call the script; validate JSON has a 'text' field
+# Call the script; validate JSON has a 'text' field (liveness check — empty string passes)
 OUTPUT="$("$DIR/transcribe.sh" "$FIXTURE")"
 echo "$OUTPUT" | jq -e '.text != null' > /dev/null
 ~~~

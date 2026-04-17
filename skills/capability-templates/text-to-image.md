@@ -101,3 +101,7 @@ echo "$OUTPUT" | jq -e '.path != null' > /dev/null
 
 [ -f "$OUT" ] && [ "$(wc -c < "$OUT")" -gt 1000 ]
 ~~~
+
+A simple geometric prompt is used so providers respond quickly. The smoke script exits 0
+if the output file is produced and non-trivially sized — it does not validate image quality
+or prompt fidelity.
