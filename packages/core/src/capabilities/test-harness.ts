@@ -6,7 +6,7 @@
  */
 
 import { execFile } from 'node:child_process'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -379,6 +379,45 @@ function validateOutputFile(
   }
 
   return { status: 'ok', latencyMs }
+}
+
+/**
+ * Validate that every `scripts/*.sh` file in a capability folder has the
+ * executable bit set. Called by the scanner for script-interface capabilities.
+ *
+ * Returns `{ valid: true }` if all scripts are executable (or no scripts exist).
+ * Returns `{ valid: false, reason }` listing the non-executable filenames.
+ */
+export function validateScriptExecBits(capDir: string): { valid: boolean; reason?: string } {
+  const scriptsDir = join(capDir, 'scripts')
+  if (!existsSync(scriptsDir)) return { valid: true }
+
+  let entries: string[]
+  try {
+    entries = readdirSync(scriptsDir)
+  } catch {
+    return { valid: true } // unreadable scripts dir — skip; scanner already handles parse errors
+  }
+
+  const nonExecutable: string[] = []
+  for (const entry of entries) {
+    if (!entry.endsWith('.sh')) continue
+    try {
+      const mode = statSync(join(scriptsDir, entry)).mode
+      // Check any execute bit: owner, group, or other (0o111)
+      if ((mode & 0o111) === 0) {
+        nonExecutable.push(entry)
+      }
+    } catch {
+      // File disappeared between readdir and stat — skip
+    }
+  }
+
+  if (nonExecutable.length === 0) return { valid: true }
+  return {
+    valid: false,
+    reason: `scripts missing executable bit: ${nonExecutable.join(', ')}`,
+  }
 }
 
 /** Convert exec errors to test results */

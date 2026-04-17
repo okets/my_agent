@@ -15,7 +15,7 @@ export type {
 } from './cfr-types.js'
 export { conversationOrigin } from './cfr-helpers.js'
 export { CfrEmitter } from './cfr-emitter.js'
-export { classifySttError, classifyEmptyStt } from './failure-symptoms.js'
+export { classifyEmptyStt } from './failure-symptoms.js'
 export { CapabilityRegistry } from './registry.js'
 export type { CapabilityHealthReport } from './registry.js'
 export { CapabilityWatcher } from './watcher.js'
@@ -64,6 +64,12 @@ export {
   type AutomationSpec,
   type AutomationResult,
 } from './recovery-orchestrator.js'
+export {
+  CapabilityInvoker,
+  type InvokeOptions,
+  type InvokeResult,
+  type InvokerDeps,
+} from './invoker.js'
 export { reverify, type ReverifyResult } from './reverify.js'
 export {
   defaultCopy,

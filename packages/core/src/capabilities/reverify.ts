@@ -5,17 +5,15 @@
  * now works against the real input (not a synthetic fixture).
  *
  * Created in M9.6-S4.
+ * M9.6-S10: reverifyAudioToText uses CapabilityInvoker; bash wrapper dropped.
  */
 
-import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import type { CapabilityFailure } from "./cfr-types.js";
 import type { CapabilityRegistry } from "./registry.js";
 import type { CapabilityWatcher } from "./watcher.js";
-
-const execFileAsync = promisify(execFile);
+import type { CapabilityInvoker } from "./invoker.js";
 
 /** Time to wait for capability to become available after rescan (ms) */
 const AVAILABILITY_POLL_MS = 500;
@@ -46,11 +44,17 @@ export interface ReverifyResult {
  * 2. Waits up to 10s for the capability to become available.
  * 3. For audio-to-text: runs transcribe.sh against the raw media path from the failure.
  * 4. For unknown types: returns pass if capability is now available.
+ *
+ * M9.6-S10: invoker parameter added so reverifyAudioToText can route through
+ * CapabilityInvoker instead of calling execFile("bash", ...) directly.
+ * The invoker parameter is optional to preserve backwards compatibility with
+ * tests that don't wire the full App.
  */
 export async function reverify(
   failure: CapabilityFailure,
   registry: CapabilityRegistry,
   watcher: CapabilityWatcher,
+  invoker?: CapabilityInvoker,
 ): Promise<ReverifyResult> {
   // Force rescan + testAll
   await watcher.rescanNow();
@@ -72,7 +76,7 @@ export async function reverify(
 
   // Type-specific reverification
   if (failure.capabilityType === "audio-to-text") {
-    return reverifyAudioToText(failure, registry);
+    return reverifyAudioToText(failure, registry, invoker);
   }
 
   // Unknown capability types: availability is the only check we can do
@@ -105,6 +109,7 @@ async function waitForAvailability(
 async function reverifyAudioToText(
   failure: CapabilityFailure,
   registry: CapabilityRegistry,
+  invoker?: CapabilityInvoker,
 ): Promise<ReverifyResult> {
   const rawMediaPath = failure.triggeringInput.artifact?.rawMediaPath;
   if (!rawMediaPath) {
@@ -121,11 +126,47 @@ async function reverifyAudioToText(
     };
   }
 
+  // Route through invoker when available (M9.6-S10: drops the bash wrapper).
+  // The invoker runs the script directly as execFile(scriptPath, args) — exec-bit
+  // validation at scan time guarantees the script is executable.
+  if (invoker) {
+    const result = await invoker.run({
+      capabilityType: "audio-to-text",
+      scriptName: "transcribe.sh",
+      args: [rawMediaPath],
+      triggeringInput: failure.triggeringInput,
+      expectJson: true,
+    });
+
+    if (result.kind === "failure") {
+      return { pass: false, failureMode: `invoker: ${result.detail}` };
+    }
+
+    const parsed = result.parsed as Record<string, unknown>;
+    const text = parsed?.text;
+    if (typeof text !== "string" || text.trim() === "") {
+      return { pass: false, failureMode: `transcribe.sh JSON missing non-empty "text" field` };
+    }
+    const rawConfidence = parsed?.confidence;
+    const rawDuration = parsed?.duration_ms;
+    const confidence =
+      typeof rawConfidence === "number" && Number.isFinite(rawConfidence) ? rawConfidence : undefined;
+    const durationMs =
+      typeof rawDuration === "number" && Number.isFinite(rawDuration) ? rawDuration : undefined;
+    return { pass: true, recoveredContent: text, confidence, durationMs };
+  }
+
+  // Fallback path for tests that don't wire the invoker (e.g. legacy unit tests).
+  // Direct execFile call — preserved from pre-S10 for compatibility. When exec-bit
+  // validation is guaranteed (S10 wired), the bash wrapper can be dropped in S13.
   const cap = registry.get("audio-to-text");
   if (!cap) {
     return { pass: false, failureMode: "audio-to-text capability not available" };
   }
 
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execFileAsync = promisify(execFile);
   const scriptPath = join(cap.path, "scripts", "transcribe.sh");
   if (!existsSync(scriptPath)) {
     return { pass: false, failureMode: `transcribe.sh not found at ${scriptPath}` };
@@ -139,45 +180,27 @@ async function reverifyAudioToText(
 
     const trimmed = stdout.trim();
     if (!trimmed) {
-      const errMsg = stderr.trim();
-      return {
-        pass: false,
-        failureMode: errMsg || "transcribe.sh produced no output",
-      };
+      return { pass: false, failureMode: stderr.trim() || "transcribe.sh produced no output" };
     }
 
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(trimmed);
     } catch {
-      return {
-        pass: false,
-        failureMode: `transcribe.sh output is not valid JSON: ${trimmed.slice(0, 200)}`,
-      };
+      return { pass: false, failureMode: `transcribe.sh output is not valid JSON: ${trimmed.slice(0, 200)}` };
     }
 
     const text = parsed["text"];
     if (typeof text !== "string" || text.trim() === "") {
-      return {
-        pass: false,
-        failureMode: `transcribe.sh JSON missing non-empty "text" field`,
-      };
+      return { pass: false, failureMode: `transcribe.sh JSON missing non-empty "text" field` };
     }
 
-    // Optional fields added in M9.6-S6 (audio-to-text template). Script
-    // implementations may or may not emit them yet — `classifyEmptyStt`
-    // conservatively returns null when undefined, so missing values are safe.
     const rawConfidence = parsed["confidence"];
     const rawDuration = parsed["duration_ms"];
     const confidence =
-      typeof rawConfidence === "number" && Number.isFinite(rawConfidence)
-        ? rawConfidence
-        : undefined;
+      typeof rawConfidence === "number" && Number.isFinite(rawConfidence) ? rawConfidence : undefined;
     const durationMs =
-      typeof rawDuration === "number" && Number.isFinite(rawDuration)
-        ? rawDuration
-        : undefined;
-
+      typeof rawDuration === "number" && Number.isFinite(rawDuration) ? rawDuration : undefined;
     return { pass: true, recoveredContent: text, confidence, durationMs };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -56,6 +56,8 @@ import {
   loadModels,
   AckDelivery,
   defaultCopy,
+  CapabilityInvoker,
+  conversationOrigin,
 } from "@my-agent/core";
 import type { OrphanSweepReport } from "@my-agent/core";
 import { RawMediaStore } from "./media/raw-media-store.js";
@@ -455,6 +457,9 @@ export class App extends EventEmitter {
   // Capabilities (M9-S1)
   capabilityRegistry: CapabilityRegistry | null = null;
 
+  // Single gate for script-plug invocation (M9.6-S10)
+  capabilityInvoker: CapabilityInvoker | null = null;
+
   // Capability hot-reload watcher (M9.6-S3)
   capabilityWatcher: CapabilityWatcher | null = null;
 
@@ -527,6 +532,19 @@ export class App extends EventEmitter {
       const envPath = resolveEnvPath(agentDir);
       const registry = new CapabilityRegistry();
       app.capabilityRegistry = registry;
+
+      // M9.6-S10: CapabilityInvoker — single gate for script-plug invocations.
+      // originFactory is a placeholder for S10 (callers provide full TriggeringInput).
+      // S12 wires per-session context for automation-origin invocations.
+      app.capabilityInvoker = new CapabilityInvoker({
+        cfr: app.cfr,
+        registry,
+        originFactory: () => conversationOrigin(
+          { transportId: "dashboard", channelId: "dashboard", sender: "system" },
+          "",
+          0,
+        ),
+      });
 
       try {
         const { mkdirSync } = await import("node:fs");
@@ -679,6 +697,7 @@ export class App extends EventEmitter {
           app.automationJobService?.getJob(jobId)?.run_dir ?? null,
         capabilityRegistry: registry,
         watcher: app.capabilityWatcher!,
+        invoker: app.capabilityInvoker ?? undefined,
         emitAck: async (failure, kind) => {
           // M9.6-S6: resolve the user-facing copy and deliver on the same
           // channel the triggering turn arrived on. Also append a
@@ -1089,7 +1108,7 @@ export class App extends EventEmitter {
         conversationManager: app.conversationManager,
         reverify: app.capabilityRegistry && app.capabilityWatcher
           ? (failure) =>
-              reverify(failure, app.capabilityRegistry!, app.capabilityWatcher!)
+              reverify(failure, app.capabilityRegistry!, app.capabilityWatcher!, app.capabilityInvoker ?? undefined)
           : undefined,
         systemMessageInjector: makeOrphanRescueInjector({
           conversationManager: app.conversationManager,

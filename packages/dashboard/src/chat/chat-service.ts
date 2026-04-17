@@ -18,7 +18,7 @@ import { NamingService } from "../conversations/naming.js";
 import type { SessionRegistry } from "../agent/session-registry.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
 import type { ConversationMeta, Turn } from "../ws/protocol.js";
-import { loadModels, classifySttError, classifyEmptyStt, conversationOrigin } from "@my-agent/core";
+import { loadModels, classifyEmptyStt, conversationOrigin } from "@my-agent/core";
 import type { TriggeringInput } from "@my-agent/core";
 import { expandSkillCommand } from "./skill-expander.js";
 import type {
@@ -662,8 +662,13 @@ export class AppChatService {
         const absoluteAudioPath = deps?.attachmentService
           ? deps.attachmentService.getAbsolutePath(audioAttachment.localPath)
           : audioAttachment.localPath;
-        const sttResult = await this.transcribeAudio(absoluteAudioPath);
-        if (sttResult.text) {
+        const trigInput = buildTriggeringInput(options, convId!, turnNumber, audioAttachment);
+        const sttResult = await this.transcribeAudio(absoluteAudioPath, trigInput);
+        if (sttResult === null) {
+          // Invoker already emitted CFR — use placeholder text
+          transcribedContent = `[Voice message — transcription unavailable]`;
+          contentBlocks = [{ type: "text", text: transcribedContent }];
+        } else if (sttResult.text) {
           transcribedContent = `[Voice message] ${sttResult.text}`;
           detectedLanguage = sttResult.language;
           // Replace content blocks with transcribed text + voice mode hint
@@ -673,27 +678,10 @@ export class AppChatService {
               text: VOICE_MODE_HINT + "\n\n" + transcribedContent,
             },
           ];
-        } else if (sttResult.error) {
-          // Classify and emit CFR so recovery orchestrator can act (M9.6-S1)
-          const cap = this.app.capabilityRegistry?.get("audio-to-text");
-          const { symptom, detail } = classifySttError(
-            sttResult.error,
-            !!cap,
-            !!cap?.enabled,
-          );
-          this.app.cfr.emitFailure({
-            capabilityType: "audio-to-text",
-            capabilityName: cap?.name,
-            symptom,
-            detail,
-            triggeringInput: buildTriggeringInput(options, convId!, turnNumber, audioAttachment),
-          });
-          transcribedContent = `[Voice message — transcription failed: ${sttResult.error}]`;
-          contentBlocks = [{ type: "text", text: transcribedContent }];
         } else {
-          // Empty transcription with no error — check if this looks like a broken capability
+          // Empty transcription with no technical error — check if this looks like a broken capability
           // (durationMs/confidence added in S6; returns null for S1 since script doesn't report them yet)
-          const emptySym = classifyEmptyStt(sttResult.text ?? "", undefined, undefined);
+          const emptySym = classifyEmptyStt(sttResult.text, sttResult.durationMs, sttResult.confidence);
           if (emptySym) {
             const cap = this.app.capabilityRegistry?.get("audio-to-text");
             this.app.cfr.emitFailure({
@@ -701,9 +689,11 @@ export class AppChatService {
               capabilityName: cap?.name,
               symptom: emptySym,
               detail: "Script returned empty transcription",
-              triggeringInput: buildTriggeringInput(options, convId!, turnNumber, audioAttachment),
+              triggeringInput: trigInput,
             });
           }
+          transcribedContent = `[Voice message — could not transcribe audio]`;
+          contentBlocks = [{ type: "text", text: transcribedContent }];
         }
       }
     }
@@ -1025,34 +1015,64 @@ export class AppChatService {
   // ─── Private helpers ───────────────────────────────────────────────
 
   /**
-   * Transcribe audio via the STT capability script.
-   * Returns transcribed text or an error message.
+   * Transcribe audio via the STT capability script through CapabilityInvoker.
+   *
+   * Returns parsed transcription on success, or null when the invoker already
+   * emitted a CFR failure (caller should use a placeholder, not re-emit).
+   *
+   * Routing through the invoker (M9.6-S10) means no per-call-site CFR detection:
+   * not-installed / not-enabled / execution-error / timeout / validation-failed
+   * are all handled by the invoker.
    */
   private async transcribeAudio(
     audioPath: string,
-  ): Promise<{ text?: string; language?: string; error?: string }> {
-    const cap = this.app.capabilityRegistry?.get("audio-to-text");
-    if (!cap || cap.status !== "available") {
-      return { error: "No audio-to-text capability available" };
+    triggeringInput: TriggeringInput,
+  ): Promise<{ text: string; language?: string; confidence?: number; durationMs?: number } | null> {
+    if (!this.app.capabilityInvoker) {
+      // Invoker not wired (e.g. pre-hatch) — fall back to legacy direct call
+      const cap = this.app.capabilityRegistry?.get("audio-to-text");
+      if (!cap) return null;
+      const scriptPath = join(cap.path, "scripts", "transcribe.sh");
+      try {
+        const execFileAsync = promisify(execFile);
+        const { stdout } = await execFileAsync(scriptPath, [audioPath], { timeout: 30000 });
+        const result = JSON.parse(stdout.trim()) as Record<string, unknown>;
+        return { text: typeof result.text === "string" ? result.text : stdout.trim() };
+      } catch {
+        return null;
+      }
     }
 
-    const scriptPath = join(cap.path, "scripts", "transcribe.sh");
-    try {
-      const execFileAsync = promisify(execFile);
-      const { stdout, stderr } = await execFileAsync(scriptPath, [audioPath], {
-        timeout: 30000,
-      });
-      const result = JSON.parse(stdout.trim());
-      return { text: result.text || stdout.trim(), language: result.language };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { error: `Transcription failed: ${msg}` };
-    }
+    const result = await this.app.capabilityInvoker.run({
+      capabilityType: "audio-to-text",
+      scriptName: "transcribe.sh",
+      args: [audioPath],
+      triggeringInput,
+      expectJson: true,
+    });
+
+    if (result.kind === "failure") return null; // CFR already emitted
+
+    const parsed = result.parsed as Record<string, unknown>;
+    const rawText = parsed?.text;
+    const text = typeof rawText === "string" ? rawText : result.stdout.trim();
+    const language = typeof parsed?.language === "string" ? parsed.language : undefined;
+    const rawConfidence = parsed?.confidence;
+    const rawDuration = parsed?.duration_ms;
+    const confidence =
+      typeof rawConfidence === "number" && Number.isFinite(rawConfidence) ? rawConfidence : undefined;
+    const durationMs =
+      typeof rawDuration === "number" && Number.isFinite(rawDuration) ? rawDuration : undefined;
+    return { text, language, confidence, durationMs };
   }
 
   /**
    * Synthesize audio via the TTS capability script.
    * Returns the audio file path or null.
+   *
+   * TODO(S15/S18): route through CapabilityInvoker so TTS failures emit CFR.
+   * Deferred per plan-phase2-coverage.md §2.2 — S15 may pre-wire if exit gate
+   * needs it; S18 (Phase 3, "Duplicate TTS path collapse") formalizes.
    */
   private async synthesizeAudio(
     text: string,
