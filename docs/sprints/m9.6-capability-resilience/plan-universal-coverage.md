@@ -1,6 +1,21 @@
+> # SUPERSEDED — DO NOT IMPLEMENT FROM THIS DOCUMENT
+>
+> **Status:** Superseded 2026-04-17. **This document is irrelevant to the current implementation.**
+>
+> **Replaced by three documents — read these instead:**
+> - **Design:** [`../../design/capability-resilience-v2.md`](../../design/capability-resilience-v2.md)
+> - **Phase 2 plan (S9–S15, universal coverage):** [`plan-phase2-coverage.md`](plan-phase2-coverage.md)
+> - **Phase 3 plan (S16–S20, architecture refinements):** [`plan-phase3-refinements.md`](plan-phase3-refinements.md)
+>
+> **Why superseded:** Opus 4.7 audit (2026-04-17) found this plan ~2× oversized for the gap it claimed to close. Three orthogonal refactors (fix-engine swap, reflect-phase collapse, duplicate-TTS collapse) and two speculative features (parallel-CFR coalescing, system-origin routing) were bundled with the coverage work. The audit also caught two unverified assumptions (`PostToolUseFailure` runtime behavior; fix-mode wall-time), an inverted sprint ordering (S13 reflect-collapse before S16 fix-engine swap creates a quality regression window), and a §5 coverage-matrix inconsistency on `image-to-text`. Opus 4.6 (the original author of this document) acknowledged all five findings on direct questioning. The course-correct splits the same total scope into Phase 2 (universal coverage, M10 architecturally unblocks at exit) + Phase 3 (architecture refinements, M9.6 closes at exit) with a clear gate between phases, and adds a §0 universal-coverage rule that would have caught the original Phase 1 mistake.
+>
+> **Retained for historical reference only.** Reading the content below to understand current implementation state will mislead you. The sprint numbering, ordering, dependencies, file references, and exit-gate definitions in this document have all been revised. Use the three replacement documents above instead.
+
+---
+
 # M9.6 Universal Coverage — Follow-up Plan (v2.3, two red-team passes + coverage-verification patch)
 
-**Status:** Draft v2.3 — two red-team passes incorporated; design↔sprint coverage verification passed with six focused sprint-scope patches (G1–G6); CTO-approved; ready to execute S9 onward
+**Status:** SUPERSEDED 2026-04-17 (was: Draft v2.3 — CTO-approved 2026-04-16; ready to execute S9 onward)
 **Milestone:** M9.6 — extension, not a new milestone
 **Origin:** [`HANDOFF-cfr-coverage-gap.md`](HANDOFF-cfr-coverage-gap.md) — CFR shipped STT-only; CTO correction 2026-04-16
 **Primary plan:** [`plan.md`](plan.md) — S1–S8 (merged). This doc adds S9+.
