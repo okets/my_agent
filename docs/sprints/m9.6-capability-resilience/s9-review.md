@@ -1,12 +1,13 @@
 ---
 sprint: M9.6-S9
 title: TriggeringOrigin type landing + matrix correction
-reviewer: Architect (external)
+reviewer: External auditor (dev-contracted)
 review_date: 2026-04-17
-verdict: APPROVED
+recommended: APPROVE
+note: This is the dev-contracted external auditor's read. Informational only — the binding architect review is in s9-architect-review.md.
 ---
 
-# S9 Architect Review
+# S9 External Auditor Review
 
 **Sprint:** M9.6-S9 — `TriggeringOrigin` type landing + matrix correction
 **Branch:** `sprint/m9.6-s9-triggering-origin`
