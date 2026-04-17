@@ -97,7 +97,12 @@ export class RecoveryOrchestrator {
    */
   async handle(failure: CapabilityFailure): Promise<void> {
     const { capabilityType, triggeringInput } = failure;
-    const { conversationId, turnNumber } = triggeringInput;
+    const { origin } = triggeringInput;
+    if (origin.kind !== "conversation") {
+      // S12 wires automation and system origins. S9: unreachable.
+      throw new Error(`unreachable in S9 — wired in S12: origin.kind === "${origin.kind}"`);
+    }
+    const { conversationId, turnNumber } = origin;
 
     // 1. Check cross-conversation surrender cooldown
     if (this.isSurrendered(capabilityType)) {
@@ -181,7 +186,12 @@ export class RecoveryOrchestrator {
 
   /** Record a surrender scope for a given failure */
   private recordSurrender(failure: CapabilityFailure): void {
-    const { conversationId, turnNumber } = failure.triggeringInput;
+    const { origin } = failure.triggeringInput;
+    if (origin.kind !== "conversation") {
+      // S12 wires automation and system surrender routing. S9: unreachable.
+      throw new Error(`unreachable in S9 — wired in S12: origin.kind === "${origin.kind}"`);
+    }
+    const { conversationId, turnNumber } = origin;
     const key = `${failure.capabilityType}:${conversationId}:${turnNumber}`;
     const expiresAt = new Date(Date.now() + SURRENDER_COOLDOWN_MS).toISOString();
     this.surrendered.set(key, {

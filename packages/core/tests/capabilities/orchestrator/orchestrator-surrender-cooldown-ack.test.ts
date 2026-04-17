@@ -16,6 +16,7 @@ import { describe, it, expect, vi } from "vitest";
 import { RecoveryOrchestrator } from "../../../src/capabilities/recovery-orchestrator.js";
 import type { OrchestratorDeps, AutomationResult } from "../../../src/capabilities/recovery-orchestrator.js";
 import type { CapabilityFailure } from "../../../src/capabilities/cfr-types.js";
+import { conversationOrigin } from "../../../src/capabilities/cfr-helpers.js";
 import type { CapabilityRegistry } from "../../../src/capabilities/registry.js";
 import type { CapabilityWatcher } from "../../../src/capabilities/watcher.js";
 
@@ -26,9 +27,11 @@ function makeFailure(conversationId: string, turnNumber: number): CapabilityFail
     capabilityName: "stt-deepgram",
     symptom: "execution-error",
     triggeringInput: {
-      channel: { transportId: "whatsapp", channelId: "ch-1", sender: "+10000000001" },
-      conversationId,
-      turnNumber,
+      origin: conversationOrigin(
+        { transportId: "whatsapp", channelId: "ch-1", sender: "+10000000001" },
+        conversationId,
+        turnNumber,
+      ),
       artifact: { type: "audio", rawMediaPath: "/tmp/test.ogg", mimeType: "audio/ogg" },
     },
     attemptNumber: 1,

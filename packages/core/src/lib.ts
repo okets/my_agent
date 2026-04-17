@@ -258,8 +258,8 @@ export {
 } from './capabilities/index.js'
 export type { RateLimiter, AuditLogger, AuditEntry, ScreenshotInterceptor, StoreCallback, StoreAndInjectResult } from './capabilities/index.js'
 // CFR (M9.6)
-export { CfrEmitter, classifySttError, classifyEmptyStt } from './capabilities/index.js'
-export type { CapabilityFailureSymptom, TriggeringInput, FixAttempt, CapabilityFailure, SurrenderScope } from './capabilities/index.js'
+export { CfrEmitter, classifySttError, classifyEmptyStt, conversationOrigin } from './capabilities/index.js'
+export type { CapabilityFailureSymptom, ChannelContext, TriggeringOrigin, TriggeringInput, FixAttempt, CapabilityFailure, SurrenderScope } from './capabilities/index.js'
 // Capability hot-reload (M9.6-S3)
 export { CapabilityWatcher } from './capabilities/index.js'
 export type { CapabilityHealthReport } from './capabilities/index.js'

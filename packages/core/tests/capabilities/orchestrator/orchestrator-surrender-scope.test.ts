@@ -10,6 +10,7 @@ import { describe, it, expect, vi } from "vitest";
 import { RecoveryOrchestrator } from "../../../src/capabilities/recovery-orchestrator.js";
 import type { OrchestratorDeps, AutomationResult } from "../../../src/capabilities/recovery-orchestrator.js";
 import type { CapabilityFailure } from "../../../src/capabilities/cfr-types.js";
+import { conversationOrigin } from "../../../src/capabilities/cfr-helpers.js";
 import type { CapabilityRegistry } from "../../../src/capabilities/registry.js";
 import type { CapabilityWatcher } from "../../../src/capabilities/watcher.js";
 
@@ -26,9 +27,11 @@ function makeFailure(
     symptom: "execution-error",
     detail: "exit 1",
     triggeringInput: {
-      channel: { transportId: "whatsapp", channelId: "ch-1", sender: "+10000000001" },
-      conversationId,
-      turnNumber,
+      origin: conversationOrigin(
+        { transportId: "whatsapp", channelId: "ch-1", sender: "+10000000001" },
+        conversationId,
+        turnNumber,
+      ),
       artifact: {
         type: "audio",
         rawMediaPath: "/tmp/test-audio.ogg",
@@ -77,9 +80,10 @@ describe("cross-conversation surrender cooldown", () => {
 
     // Should have emitted a surrender ack for conv-B
     const emitAck = deps.emitAck as ReturnType<typeof vi.fn>;
-    const convBSurrenders = emitAck.mock.calls.filter(
-      (c) => c[1] === "surrender-cooldown" && c[0].triggeringInput.conversationId === "conv-B",
-    );
+    const convBSurrenders = emitAck.mock.calls.filter((c) => {
+      const origin = c[0].triggeringInput.origin;
+      return c[1] === "surrender-cooldown" && origin.kind === "conversation" && origin.conversationId === "conv-B";
+    });
     expect(convBSurrenders).toHaveLength(1);
   });
 

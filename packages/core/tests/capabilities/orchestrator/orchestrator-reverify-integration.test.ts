@@ -24,6 +24,7 @@ import { CapabilityRegistry } from "../../../src/capabilities/registry.js";
 import { CapabilityWatcher } from "../../../src/capabilities/watcher.js";
 import { scanCapabilities } from "../../../src/capabilities/scanner.js";
 import type { CapabilityFailure } from "../../../src/capabilities/cfr-types.js";
+import { conversationOrigin } from "../../../src/capabilities/cfr-helpers.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,13 +48,11 @@ function makeAudioToTextFailure(rawMediaPath: string): CapabilityFailure {
     symptom: "execution-error",
     detail: "test reverify",
     triggeringInput: {
-      channel: {
-        transportId: "whatsapp",
-        channelId: "ch-test",
-        sender: "+10000000001",
-      },
-      conversationId: "conv-test",
-      turnNumber: 1,
+      origin: conversationOrigin(
+        { transportId: "whatsapp", channelId: "ch-test", sender: "+10000000001" },
+        "conv-test",
+        1,
+      ),
       artifact: {
         type: "audio",
         rawMediaPath,

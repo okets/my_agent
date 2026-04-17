@@ -14,19 +14,16 @@ import type {
   TransportManagerLike,
   ConnectionRegistryLike,
 } from "../../src/capabilities/ack-delivery.js";
-import type { CapabilityFailure } from "../../src/capabilities/cfr-types.js";
+import type { CapabilityFailure, ChannelContext } from "../../src/capabilities/cfr-types.js";
+import { conversationOrigin } from "../../src/capabilities/cfr-helpers.js";
 
-function makeFailure(
-  channel: CapabilityFailure["triggeringInput"]["channel"],
-): CapabilityFailure {
+function makeFailure(channel: ChannelContext): CapabilityFailure {
   return {
     id: "f-1",
     capabilityType: "audio-to-text",
     symptom: "execution-error",
     triggeringInput: {
-      channel,
-      conversationId: "conv-A",
-      turnNumber: 1,
+      origin: conversationOrigin(channel, "conv-A", 1),
     },
     attemptNumber: 1,
     previousAttempts: [],

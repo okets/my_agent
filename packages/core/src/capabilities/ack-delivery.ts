@@ -65,7 +65,15 @@ export class AckDelivery {
   ) {}
 
   async deliver(failure: CapabilityFailure, text: string): Promise<void> {
-    const { channel, conversationId } = failure.triggeringInput;
+    const { origin } = failure.triggeringInput;
+
+    // S12 wires automation and system origins with their own routing branches.
+    if (origin.kind !== "conversation") {
+      // unreachable in S9 — wired in S12
+      throw new Error(`unreachable in S9 — wired in S12: origin.kind === "${origin.kind}"`);
+    }
+
+    const { channel, conversationId } = origin;
 
     // Dashboard channel: broadcast as an assistant-style system message over WS.
     if (channel.transportId === DASHBOARD_TRANSPORT_ID) {

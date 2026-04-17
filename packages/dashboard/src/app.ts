@@ -697,8 +697,10 @@ export class App extends EventEmitter {
             text = defaultCopy.surrender(failure, "budget");
           }
 
+          const _origin = failure.triggeringInput.origin;
+          const _convId = _origin.kind === "conversation" ? _origin.conversationId : "(non-conversation)";
           console.log(
-            `[CFR] ack(${kind}) for ${failure.capabilityType} — conv ${failure.triggeringInput.conversationId}`,
+            `[CFR] ack(${kind}) for ${failure.capabilityType} — conv ${_convId}`,
           );
 
           if (ackDelivery) {
@@ -714,7 +716,12 @@ export class App extends EventEmitter {
           // surrender-cooldown does NOT write a new event — the original surrender
           // already wrote one. Writing again would be noise (S6-FU3).
           if (kind === "surrender" || kind === "surrender-budget") {
-            const { conversationId, turnNumber } = failure.triggeringInput;
+            const _surrenderOrigin = failure.triggeringInput.origin;
+            // S12 wires automation and system surrender event routing. S9: conversation only.
+            if (_surrenderOrigin.kind !== "conversation") {
+              throw new Error(`unreachable in S9 — wired in S12: origin.kind === "${_surrenderOrigin.kind}"`);
+            }
+            const { conversationId, turnNumber } = _surrenderOrigin;
             try {
               await app.conversationManager.appendEvent(conversationId, {
                 type: "capability_surrender",
@@ -737,7 +744,12 @@ export class App extends EventEmitter {
           }
         },
         reprocessTurn: async (failure, recoveredContent) => {
-          const { conversationId, turnNumber } = failure.triggeringInput;
+          const { origin } = failure.triggeringInput;
+          // S12 wires automation and system reprocess routing. S9: unreachable.
+          if (origin.kind !== "conversation") {
+            throw new Error(`unreachable in S9 — wired in S12: origin.kind === "${origin.kind}"`);
+          }
+          const { conversationId, turnNumber, channel } = origin;
           const prompt = `You are the conversation layer. The user's original turn #${turnNumber} failed to transcribe; it actually said: "${recoveredContent}". Answer their question directly — don't acknowledge this system message.`;
           let response = "";
           for await (const event of app.chat.sendSystemMessage(
@@ -756,8 +768,7 @@ export class App extends EventEmitter {
               // original conversation's channel — not the preferred-outbound
               // default — so a WhatsApp-triggered CFR doesn't answer on
               // dashboard (or vice versa).
-              const originChannel =
-                failure.triggeringInput.channel.channelId || undefined;
+              const originChannel = channel.channelId || undefined;
               await ci.forwardToChannel(response, originChannel);
             }
           }
