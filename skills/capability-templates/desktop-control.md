@@ -379,14 +379,15 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Step 2: MCP server starts cleanly (wait 2s, then kill)
 cd "$DIR/.."
-timeout 10s npx tsx src/server.ts &>/dev/null &
+timeout 10s npx tsx src/server.ts &>/dev/null &  # suppress startup noise; exit code still propagates
 SERVER_PID=$!
-sleep 2
+sleep 3
 if ! kill -0 "$SERVER_PID" 2>/dev/null; then
   echo "MCP server exited immediately — check entrypoint or src/server.ts" >&2
   exit 1
 fi
 kill "$SERVER_PID" 2>/dev/null || true
+# Reap the server; ignore its exit code (killed by us, so always non-zero).
 wait "$SERVER_PID" 2>/dev/null || true
 ~~~
 
