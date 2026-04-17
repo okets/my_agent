@@ -223,6 +223,10 @@ const SMOKE_TIMEOUT_MS = 30_000;
  * a warning (this is a template-gap signal, not a normal path).
  *
  * Wired into the reverify dispatcher in S14. Exported here for unit testing.
+ *
+ * NOTE (S11 deviation): plan-universal-coverage.md §12.6 sketches runSmokeFixture(failure, registry).
+ * Shipped here as (capDir, registry, capabilityType) — caller resolves capDir before calling.
+ * S14 should adopt this signature; the plan sketch needs updating before S14 begins.
  */
 export async function runSmokeFixture(
   capDir: string,
