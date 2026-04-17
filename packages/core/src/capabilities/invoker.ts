@@ -74,7 +74,9 @@ export class CapabilityInvoker {
     if (allCaps.length === 0) {
       return emit("not-installed", `No ${capabilityType} capability installed`);
     }
-    const cap = allCaps[0];
+    // Prefer the first enabled+available instance; fall back to first-by-insertion
+    // so the granular checks below emit the correct symptom (not-enabled / execution-error).
+    const cap = allCaps.find(c => c.enabled && c.status === "available") ?? allCaps[0];
     if (!cap.enabled) {
       return emit("not-enabled", `${cap.name} is disabled`, cap.name);
     }

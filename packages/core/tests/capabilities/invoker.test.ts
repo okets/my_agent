@@ -237,4 +237,53 @@ describe("CapabilityInvoker — 6-symptom matrix", () => {
       expect(call.triggeringInput).toBe(input);
     });
   });
+
+  describe("multi-instance selection — prefers first enabled+available", () => {
+    it("uses the first enabled+available cap when multiple are registered", async () => {
+      const { capPath: capPath1 } = writeTempScript('#!/bin/bash\necho \'{"text":"from-cap2","language":"en"}\'');
+      const { cfr, emitted } = makeCfr();
+      const disabledCap: Capability = {
+        name: "cap-disabled",
+        provides: "audio-to-text",
+        interface: "script",
+        path: "/nonexistent-disabled",
+        status: "available",
+        enabled: false,
+        health: "healthy",
+        canDelete: false,
+      };
+      const enabledCap: Capability = {
+        name: "cap-enabled",
+        provides: "audio-to-text",
+        interface: "script",
+        path: capPath1,
+        status: "available",
+        enabled: true,
+        health: "healthy",
+        canDelete: false,
+      };
+      const registry = {
+        listByProvides: vi.fn(() => [disabledCap, enabledCap]),
+      } as unknown as CapabilityRegistry;
+      const deps: InvokerDeps & { cfr: CfrEmitter; emitted: unknown[] } = {
+        cfr,
+        emitted,
+        registry,
+        originFactory: () => conversationOrigin(
+          { transportId: "dashboard", channelId: "ch-1", sender: "system" },
+          "",
+          0,
+        ),
+      };
+
+      const invoker = new CapabilityInvoker(deps);
+      const result = await invoker.run({ ...baseOpts, triggeringInput, expectJson: true });
+
+      expect(result.kind).toBe("success");
+      if (result.kind === "success") {
+        expect((result.parsed as Record<string, unknown>)?.text).toBe("from-cap2");
+      }
+      expect(deps.cfr.emitFailure).not.toHaveBeenCalled();
+    });
+  });
 });

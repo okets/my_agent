@@ -23,6 +23,16 @@ The `execFile("bash", [scriptPath, ...])` path is kept for tests that don't wire
 
 ---
 
+## FU-4 — Named-instance selection parameter for CapabilityInvoker [S12/S14]
+
+**Background:** `CapabilityInvoker.run()` currently picks the first *enabled+available* instance of the requested capability type (changed from first-by-insertion in S10 per auditor C1). For single-instance types this is sufficient. For multi-instance types (`browser-control`, `desktop-control`) where multiple instances may be registered (e.g. two browser profiles), the "first enabled+available" policy will silently pick an arbitrary instance.
+
+S14 spec references multi-instance ack disambiguation, which implies the invoker must eventually select a specific named instance. The fix is to add an optional `capabilityName?: string` to `InvokeOptions` — when set, `listByProvides` results are filtered to the named instance before the enabled/available checks. When unset, current first-enabled+available behavior is preserved.
+
+This work should land in whichever sprint first wires a multi-instance capable caller.
+
+---
+
 ## FU-3 — Non-audio capability types need invoker wiring [S17+]
 
 Any future capability types (image generation, desktop control, etc.) that use the `script` interface MUST be wired through `CapabilityInvoker` from day one — not via ad-hoc `execFile` calls. The exec-bit validation and CFR emission are only effective for script plugs that go through the invoker. S17 (Phase 3 universal coverage) should include an audit of all script-interface call sites.
