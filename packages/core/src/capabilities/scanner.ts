@@ -17,6 +17,7 @@ import {
   type CapabilityFrontmatter,
   type CapabilityMcpConfig,
 } from './types.js'
+import { validateScriptExecBits } from './test-harness.js'
 
 /**
  * Recursively replace `${CAPABILITY_ROOT}` in all string values of an object.
@@ -172,6 +173,18 @@ export async function scanCapabilities(
         const mcpConfig = loadMcpConfig(capDir, envPath, requiredEnv)
         if (mcpConfig) {
           capability.mcpConfig = mcpConfig
+        }
+      }
+
+      // Exec-bit validation for script-interface capabilities (M9.6-S10).
+      // Any scripts/*.sh without the executable bit is an authoring error that
+      // will silently fail at invocation time. Mark the plug invalid so the
+      // registry drops it and the invoker emits not-installed (discoverable).
+      if (data.interface === 'script' && capability.status === 'available') {
+        const execCheck = validateScriptExecBits(capDir)
+        if (!execCheck.valid) {
+          capability.status = 'invalid'
+          capability.error = execCheck.reason
         }
       }
 

@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import type { CapabilityFailure, SurrenderScope, FixAttempt } from "./cfr-types.js";
 import type { CapabilityRegistry } from "./registry.js";
 import type { CapabilityWatcher } from "./watcher.js";
+import type { CapabilityInvoker } from "./invoker.js";
 import { nextAction, type FixSession } from "./orchestrator-state-machine.js";
 import { reverify } from "./reverify.js";
 import { parseFrontmatterContent } from "../metadata/frontmatter.js";
@@ -47,6 +48,7 @@ export interface OrchestratorDeps {
   getJobRunDir: (jobId: string) => string | null;
   capabilityRegistry: CapabilityRegistry;
   watcher: CapabilityWatcher;
+  invoker?: CapabilityInvoker;
   emitAck: (failure: CapabilityFailure, kind: AckKind) => Promise<void>;
   reprocessTurn: (failure: CapabilityFailure, recoveredContent: string) => Promise<void>;
   now: () => string;
@@ -434,7 +436,7 @@ export class RecoveryOrchestrator {
     executeAttempt: FixAttempt,
   ): Promise<{ recovered: boolean; recoveredContent?: string }> {
     try {
-      const result = await reverify(failure, this.deps.capabilityRegistry, this.deps.watcher);
+      const result = await reverify(failure, this.deps.capabilityRegistry, this.deps.watcher, this.deps.invoker);
 
       if (result.pass && result.recoveredContent) {
         executeAttempt.verificationResult = "pass";
