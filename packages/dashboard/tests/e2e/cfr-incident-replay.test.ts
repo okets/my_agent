@@ -39,6 +39,7 @@ import {
   CapabilityWatcher,
   scanCapabilities,
   RecoveryOrchestrator,
+  conversationOrigin,
 } from "@my-agent/core";
 import type { AckKind } from "@my-agent/core";
 import { ConversationManager } from "../../src/conversations/index.js";
@@ -363,13 +364,15 @@ describe.skipIf(!canRun)(
           detail:
             "stt-deepgram CAPABILITY.md present but .enabled absent — capability not activated",
           triggeringInput: {
-            channel: {
-              transportId: "whatsapp",
-              channelId: "ch-exit-gate",
-              sender: "+10000000001",
-            },
-            conversationId: TEST_CONV_ID,
-            turnNumber: TEST_TURN,
+            origin: conversationOrigin(
+              {
+                transportId: "whatsapp",
+                channelId: "ch-exit-gate",
+                sender: "+10000000001",
+              },
+              TEST_CONV_ID,
+              TEST_TURN,
+            ),
             artifact: {
               type: "audio",
               rawMediaPath: rawAudioPath,

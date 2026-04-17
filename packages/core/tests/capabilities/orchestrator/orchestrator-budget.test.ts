@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { RecoveryOrchestrator } from "../../../src/capabilities/recovery-orchestrator.js";
 import type { OrchestratorDeps, AutomationSpec, AutomationResult } from "../../../src/capabilities/recovery-orchestrator.js";
 import type { CapabilityFailure } from "../../../src/capabilities/cfr-types.js";
+import { conversationOrigin } from "../../../src/capabilities/cfr-helpers.js";
 import type { CapabilityRegistry } from "../../../src/capabilities/registry.js";
 import type { CapabilityWatcher } from "../../../src/capabilities/watcher.js";
 
@@ -22,9 +23,11 @@ function makeFailure(overrides: Partial<CapabilityFailure> = {}): CapabilityFail
     symptom: "execution-error",
     detail: "exit code 1",
     triggeringInput: {
-      channel: { transportId: "whatsapp", channelId: "ch-1", sender: "+10000000001" },
-      conversationId: "conv-A",
-      turnNumber: 1,
+      origin: conversationOrigin(
+        { transportId: "whatsapp", channelId: "ch-1", sender: "+10000000001" },
+        "conv-A",
+        1,
+      ),
       artifact: {
         type: "audio",
         rawMediaPath: "/tmp/test-audio.ogg",
@@ -128,9 +131,11 @@ describe("RecoveryOrchestrator — surrender scope", () => {
     const f2 = makeFailure({
       id: "fail-2",
       triggeringInput: {
-        channel: { transportId: "whatsapp", channelId: "ch-1", sender: "+10000000001" },
-        conversationId: "conv-B",
-        turnNumber: 5,
+        origin: conversationOrigin(
+          { transportId: "whatsapp", channelId: "ch-1", sender: "+10000000001" },
+          "conv-B",
+          5,
+        ),
         artifact: {
           type: "audio",
           rawMediaPath: "/tmp/test-audio.ogg",

@@ -103,8 +103,10 @@ describe("OrphanWatchdog — audio rescue (M9.6-S5)", () => {
     expect(reverify).toHaveBeenCalledTimes(1);
     const failureArg = reverify.mock.calls[0][0];
     expect(failureArg.capabilityType).toBe("audio-to-text");
-    expect(failureArg.triggeringInput.conversationId).toBe("conv-voice");
-    expect(failureArg.triggeringInput.turnNumber).toBe(3);
+    const failureOrigin = failureArg.triggeringInput.origin;
+    expect(failureOrigin.kind).toBe("conversation");
+    expect(failureOrigin.conversationId).toBe("conv-voice");
+    expect(failureOrigin.turnNumber).toBe(3);
     expect(failureArg.triggeringInput.artifact?.type).toBe("audio");
     expect(failureArg.triggeringInput.artifact?.rawMediaPath).toBe(
       expectedRawPath,

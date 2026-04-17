@@ -1,6 +1,8 @@
 /**
  * Shared data contracts for Capability Failure Recovery (CFR).
- * Created in M9.6-S1. Treated as immutable after S1 — subsequent sprints import, never modify.
+ * Created in M9.6-S1.
+ * M9.6-S9: TriggeringInput widened with origin: TriggeringOrigin discriminated union.
+ * FixAttempt.phase stays as-is (Phase 3 narrows in S17).
  */
 
 export type CapabilityFailureSymptom =
@@ -12,17 +14,27 @@ export type CapabilityFailureSymptom =
   | "timeout"
   | "validation-failed";
 
+/** Channel context carried by a conversation-origin TriggeringOrigin. */
+export interface ChannelContext {
+  transportId: string; // e.g. "whatsapp"
+  channelId: string;
+  sender: string;
+  replyTo?: string;
+  senderName?: string;
+  groupId?: string;
+}
+
+/**
+ * Discriminated union of the three contexts from which a capability failure can be triggered.
+ * S9 wires only "conversation". S12 wires "automation" and "system".
+ */
+export type TriggeringOrigin =
+  | { kind: "conversation"; channel: ChannelContext; conversationId: string; turnNumber: number }
+  | { kind: "automation"; automationId: string; jobId: string; runDir: string; notifyMode: "immediate" | "debrief" | "none" }
+  | { kind: "system"; component: string };
+
 export interface TriggeringInput {
-  channel: {
-    transportId: string; // e.g. "whatsapp"
-    channelId: string;
-    sender: string;
-    replyTo?: string;
-    senderName?: string;
-    groupId?: string;
-  };
-  conversationId: string;
-  turnNumber: number;
+  origin: TriggeringOrigin;
   artifact?: {
     type: "audio" | "image" | "document";
     rawMediaPath: string; // absolute; written by RawMediaStore in S1

@@ -18,7 +18,7 @@ import { NamingService } from "../conversations/naming.js";
 import type { SessionRegistry } from "../agent/session-registry.js";
 import type { Conversation, TranscriptTurn } from "../conversations/types.js";
 import type { ConversationMeta, Turn } from "../ws/protocol.js";
-import { loadModels, classifySttError, classifyEmptyStt } from "@my-agent/core";
+import { loadModels, classifySttError, classifyEmptyStt, conversationOrigin } from "@my-agent/core";
 import type { TriggeringInput } from "@my-agent/core";
 import { expandSkillCommand } from "./skill-expander.js";
 import type {
@@ -132,22 +132,21 @@ function buildTriggeringInput(
   turnNumber: number,
   audioAttachment?: { mimeType: string } | null,
 ): TriggeringInput {
-  const channel = options?.channel ?? {
+  const ch = options?.channel ?? {
     transportId: "dashboard",
     channelId: "dashboard",
     sender: "user",
   };
+  const channel = {
+    transportId: ch.transportId,
+    channelId: ch.channelId,
+    sender: ch.sender,
+    replyTo: ch.replyTo,
+    senderName: ch.senderName,
+    groupId: ch.groupId,
+  };
   const input: TriggeringInput = {
-    channel: {
-      transportId: channel.transportId,
-      channelId: channel.channelId,
-      sender: channel.sender,
-      replyTo: channel.replyTo,
-      senderName: channel.senderName,
-      groupId: channel.groupId,
-    },
-    conversationId: convId,
-    turnNumber,
+    origin: conversationOrigin(channel, convId, turnNumber),
   };
   if (options?.rawMediaPath) {
     const mimeType = audioAttachment?.mimeType ?? options.attachments?.[0]?.mimeType ?? "application/octet-stream";

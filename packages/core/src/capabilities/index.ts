@@ -6,11 +6,14 @@ export type {
 } from './types.js'
 export type {
   CapabilityFailureSymptom,
+  ChannelContext,
+  TriggeringOrigin,
   TriggeringInput,
   FixAttempt,
   CapabilityFailure,
   SurrenderScope,
 } from './cfr-types.js'
+export { conversationOrigin } from './cfr-helpers.js'
 export { CfrEmitter } from './cfr-emitter.js'
 export { classifySttError, classifyEmptyStt } from './failure-symptoms.js'
 export { CapabilityRegistry } from './registry.js'

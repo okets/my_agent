@@ -17,6 +17,7 @@ import type {
   AutomationResult,
 } from "../../../src/capabilities/recovery-orchestrator.js";
 import type { CapabilityFailure } from "../../../src/capabilities/cfr-types.js";
+import { conversationOrigin } from "../../../src/capabilities/cfr-helpers.js";
 import type { CapabilityRegistry } from "../../../src/capabilities/registry.js";
 import type { CapabilityWatcher } from "../../../src/capabilities/watcher.js";
 
@@ -26,9 +27,11 @@ function makeFailure(): CapabilityFailure {
     capabilityType: "audio-to-text",
     symptom: "execution-error",
     triggeringInput: {
-      channel: { transportId: "whatsapp", channelId: "whatsapp", sender: "+1" },
-      conversationId: "conv-A",
-      turnNumber: 1,
+      origin: conversationOrigin(
+        { transportId: "whatsapp", channelId: "whatsapp", sender: "+1" },
+        "conv-A",
+        1,
+      ),
       artifact: {
         type: "audio",
         rawMediaPath: "/tmp/x.ogg",

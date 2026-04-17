@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { defaultCopy } from "../../src/capabilities/resilience-messages.js";
 import type { CapabilityFailure } from "../../src/capabilities/cfr-types.js";
+import { conversationOrigin } from "../../src/capabilities/cfr-helpers.js";
 
 function failure(
   capabilityType: string,
@@ -18,9 +19,11 @@ function failure(
     capabilityType,
     symptom,
     triggeringInput: {
-      channel: { transportId: "whatsapp", channelId: "ch-1", sender: "+100" },
-      conversationId: "conv-A",
-      turnNumber: 1,
+      origin: conversationOrigin(
+        { transportId: "whatsapp", channelId: "ch-1", sender: "+100" },
+        "conv-A",
+        1,
+      ),
     },
     attemptNumber: 1,
     previousAttempts: [],

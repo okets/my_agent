@@ -25,6 +25,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CapabilityFailure } from "../capabilities/cfr-types.js";
+import { conversationOrigin } from "../capabilities/cfr-helpers.js";
 import type { ReverifyResult } from "../capabilities/reverify.js";
 
 // ─── Structural types (no cross-package imports) ─────────────────────────────
@@ -420,13 +421,15 @@ export class OrphanWatchdog {
       symptom: "empty-result",
       detail: "orphan-watchdog reverify",
       triggeringInput: {
-        channel: {
-          transportId: orphan.channel ?? "unknown",
-          channelId: conversationId,
-          sender: "unknown",
-        },
-        conversationId,
-        turnNumber: orphan.turnNumber,
+        origin: conversationOrigin(
+          {
+            transportId: orphan.channel ?? "unknown",
+            channelId: conversationId,
+            sender: "unknown",
+          },
+          conversationId,
+          orphan.turnNumber,
+        ),
         artifact: {
           type: "audio",
           rawMediaPath: rawPath,
