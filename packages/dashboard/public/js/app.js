@@ -412,11 +412,11 @@ function chat() {
       return `${date}, ${time}`;
     },
 
-    modelOptions: [
-      { id: "claude-sonnet-4-6", name: "Sonnet" },
-      { id: "claude-haiku-4-5", name: "Haiku" },
-      { id: "claude-opus-4-6", name: "Opus" },
-    ],
+    // Populated by loadPreferences() → GET /api/settings/models, which
+    // returns IDs resolved from (1) config.yaml override → (2) SDK-discovered
+    // latest → (3) hardcoded default. Kept empty here so new model releases
+    // surface automatically after an SDK dep bump, with no client-side edit.
+    modelOptions: [],
 
     // ─────────────────────────────────────────────────────────────────
     // Memory state (M6-S3)
@@ -446,12 +446,9 @@ function chat() {
     preferencesStatus: null, // null | "saved" | "error"
     availableChannels: [], // populated from /api/transports
 
-    // Model configuration
-    configuredModels: {
-      sonnet: "claude-sonnet-4-6",
-      haiku: "claude-haiku-4-5",
-      opus: "claude-opus-4-6",
-    },
+    // Model configuration — populated by loadPreferences() from server.
+    // Empty until the first /api/settings/models response.
+    configuredModels: { sonnet: "", haiku: "", opus: "" },
     availableModels: [],
     savingModels: false,
     modelsStatus: null, // "saved" | "error"

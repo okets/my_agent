@@ -22,6 +22,7 @@ import { parse, stringify } from "yaml";
 import {
   loadPreferences,
   loadModels,
+  discoverLatestModels,
   resolveEnvPath,
   getEnvValue,
   setEnvValue,
@@ -469,59 +470,61 @@ export async function registerSettingsRoutes(
   /**
    * GET /api/settings/available-models
    *
-   * Lists models available on the Anthropic API (cached 10 min).
+   * Lists models available to the dashboard. Primary source is the installed
+   * @anthropic-ai/sdk's Model type union (works without any API key — suits
+   * OAuth/Max-subscription users). If ANTHROPIC_API_KEY is set, the live
+   * /v1/models list is merged in for freshness (cached 10 min).
    */
   fastify.get<{ Reply: { models: string[] } }>(
     "/api/settings/available-models",
     async (_request, reply) => {
+      const sdkIds = discoverLatestModels()?.all ?? [];
+      const merged = new Set<string>(sdkIds);
+
       const now = Date.now();
-      if (cachedAvailableModels && now - cacheTimestamp < CACHE_TTL_MS) {
-        return { models: cachedAvailableModels };
-      }
-
       const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        return { models: [] };
-      }
 
-      try {
-        const res = await fetch("https://api.anthropic.com/v1/models", {
-          headers: {
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-          },
-        });
-
-        if (!res.ok) {
-          fastify.log.warn(
-            "[Settings] Failed to fetch models from API: %s",
-            res.status,
-          );
-          return { models: cachedAvailableModels ?? [] };
+      if (apiKey) {
+        if (cachedAvailableModels && now - cacheTimestamp < CACHE_TTL_MS) {
+          for (const id of cachedAvailableModels) merged.add(id);
+        } else {
+          try {
+            const res = await fetch("https://api.anthropic.com/v1/models", {
+              headers: {
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01",
+              },
+            });
+            if (res.ok) {
+              const data = (await res.json()) as {
+                data?: Array<{ id: string }>;
+              };
+              const rawIds = (data.data ?? []).map((m) => m.id);
+              cachedAvailableModels = [...new Set(rawIds)].sort();
+              cacheTimestamp = now;
+              for (const id of cachedAvailableModels) merged.add(id);
+            } else {
+              fastify.log.warn(
+                "[Settings] Failed to fetch models from API: %s",
+                res.status,
+              );
+              if (cachedAvailableModels) {
+                for (const id of cachedAvailableModels) merged.add(id);
+              }
+            }
+          } catch (err) {
+            fastify.log.warn(
+              "[Settings] Failed to fetch models: %s",
+              err instanceof Error ? err.message : String(err),
+            );
+            if (cachedAvailableModels) {
+              for (const id of cachedAvailableModels) merged.add(id);
+            }
+          }
         }
-
-        const data = (await res.json()) as { data?: Array<{ id: string }> };
-        const rawIds = (data.data ?? []).map((m) => m.id);
-
-        // Don't synthesize undated aliases — the API already returns working
-        // undated IDs (e.g. claude-sonnet-4-6). Synthesizing from dated models
-        // creates phantom IDs (e.g. claude-sonnet-4-5) that the API silently
-        // accepts but returns empty responses for.
-        const idSet = new Set(rawIds);
-
-        const models = [...idSet].sort();
-
-        cachedAvailableModels = models;
-        cacheTimestamp = now;
-
-        return { models };
-      } catch (err) {
-        fastify.log.warn(
-          "[Settings] Failed to fetch models: %s",
-          err instanceof Error ? err.message : String(err),
-        );
-        return { models: cachedAvailableModels ?? [] };
       }
+
+      return { models: [...merged].sort() };
     },
   );
 

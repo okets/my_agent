@@ -56,6 +56,7 @@ export {
   isBrainModelTier,
 } from './config.js'
 export type { YamlEmbeddingsConfig, UserPreferences, DebriefPreferences, ModelDefaults, BrainModelTier } from './config.js'
+export { discoverLatestModels } from './models/discover.js'
 export { migrateConfig } from './config-migration.js'
 export { ConfigWriter } from './config-writer.js'
 export type { BrainConfig, HealthConfig } from './types.js'

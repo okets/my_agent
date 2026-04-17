@@ -5,6 +5,7 @@ import type { BrainConfig } from './types.js'
 import type { TransportConfig, ReconnectPolicy } from './transports/types.js'
 import { migrateConfig } from './config-migration.js'
 import { loadChannelBindings } from './channels/config.js'
+import { discoverLatestModels } from './models/discover.js'
 
 /**
  * Default model IDs — versionless, always resolve to latest.
@@ -400,18 +401,24 @@ export function loadPreferences(agentDir?: string): UserPreferences {
 }
 
 /**
- * Load model IDs from config.yaml, falling back to defaults.
- * Users override in config.yaml under `preferences.models`.
+ * Load model IDs from config.yaml, falling back to SDK-discovered latest,
+ * then to hardcoded DEFAULT_MODELS.
+ *
+ * Resolution order per family:
+ *   1. `preferences.models.<family>` in config.yaml (explicit user pin)
+ *   2. Latest undated alias from @anthropic-ai/sdk's Model type union
+ *   3. DEFAULT_MODELS hardcoded fallback (for standalone CLI / missing SDK)
  */
 export function loadModels(agentDir?: string): ModelDefaults {
   const dir = agentDir ?? process.env.MY_AGENT_DIR ?? DEFAULT_AGENT_DIR
   const yaml = loadYamlConfig(dir)
   const overrides = yaml?.preferences?.models
+  const discovered = discoverLatestModels()?.defaults
 
   return {
-    sonnet: overrides?.sonnet ?? DEFAULT_MODELS.sonnet,
-    haiku: overrides?.haiku ?? DEFAULT_MODELS.haiku,
-    opus: overrides?.opus ?? DEFAULT_MODELS.opus,
+    sonnet: overrides?.sonnet ?? discovered?.sonnet ?? DEFAULT_MODELS.sonnet,
+    haiku: overrides?.haiku ?? discovered?.haiku ?? DEFAULT_MODELS.haiku,
+    opus: overrides?.opus ?? discovered?.opus ?? DEFAULT_MODELS.opus,
   }
 }
 
