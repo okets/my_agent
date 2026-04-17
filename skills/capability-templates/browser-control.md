@@ -1,9 +1,10 @@
 ---
-template_version: 1
+template_version: 2
 type: browser-control
 provides: browser-control
 interface: mcp
 multi_instance: true
+fallback_action: "try again in a moment"
 ---
 
 # Browser Control Capability Template
@@ -340,3 +341,44 @@ A capability is not done until the harness passes all 3 stages.
 
 Chromium forks (Brave, Vivaldi, Arc) use `browser: chrome` + explicit
 `executablePath`. The framework does not special-case them.
+
+## Smoke Fixture
+
+Every browser-control capability MUST ship `scripts/smoke.sh`. The reverify dispatcher
+calls this as a fresh out-of-session subprocess (exit 0 = healthy, non-zero = broken).
+
+**Contract (full — reference implementation ships in S14):**
+1. Run `detect.sh` — confirms the browser binary is present.
+2. Spawn the MCP server (`npx tsx src/server.ts`).
+3. Connect an MCP client, call `browser_navigate` with `about:blank`, check the response is well-formed.
+4. Tear down the server cleanly.
+5. Exit 0 on success, non-zero on any failure.
+
+**Minimal stub for S11** (copy to `scripts/smoke.sh`, make executable — replace with full version in S14):
+
+~~~bash
+#!/usr/bin/env bash
+# Minimal smoke stub — full MCP tool-invocation version ships in S14.
+# Confirms: (1) environment healthy, (2) MCP server starts without crashing.
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Step 1: environment check (browser binary present)
+"$DIR/detect.sh"
+
+# Step 2: MCP server starts cleanly (wait 2s, then kill)
+cd "$DIR/.."
+timeout 10s npx tsx src/server.ts &>/dev/null &
+SERVER_PID=$!
+sleep 2
+if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+  echo "MCP server exited immediately — check entrypoint or config.yaml" >&2
+  exit 1
+fi
+kill "$SERVER_PID" 2>/dev/null || true
+wait "$SERVER_PID" 2>/dev/null || true
+~~~
+
+Replace this stub with the full S14 implementation once it ships. The stub provides
+meaningful liveness coverage (environment + server startup) but does not exercise any
+MCP tools.
