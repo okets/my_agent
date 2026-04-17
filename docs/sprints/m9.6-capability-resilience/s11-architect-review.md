@@ -3,7 +3,7 @@ sprint: M9.6-S11
 title: Template smoke fixtures + installed-plug backfill — architect review
 architect: Opus 4.7 (Phase 2 architect)
 review_date: 2026-04-17
-verdict: REJECTED — required dev fixes before merge
+verdict: APPROVED on re-review (was REJECTED on first pass; all 5 blocking items fixed)
 ---
 
 # S11 Architect Review
@@ -159,17 +159,22 @@ I'll re-emphasize both in the S12 advice block, after the dev fixes S11 and we c
 
 ---
 
-## 6. Re-review after dev fixes
+## 6. Re-review after dev fixes — APPROVED
 
-Once the dev has:
-- Backfilled `smoke.sh` into all 4 installed plugs (chmod +x, exit 0/2 verified)
-- Added `multi_instance: false` to 4 templates
-- Reverted `742dc47`
-- Created the 3 missing artifact files
-- Fixed `s11-review.md` frontmatter
-- Resolved the `s11-plan.md` ambiguity
+All 5 blocking items + the non-blocking item resolved. Verified:
 
-Re-notify CTO. Architect re-runs verification gates and either flips to APPROVED or files additional corrections.
+| Fix | Verification | Result |
+|---|---|---|
+| 1.1 Backfill | `ls -la .my_agent/capabilities/*/scripts/smoke.sh` → 4 files, all chmod +x. Exit-code check: browser-chrome 0, desktop-x11 0, stt-deepgram 2 (SMOKE_SKIPPED — DEEPGRAM_API_KEY absent on dev machine, correct per §6.4 hermeticity), tts-edge-tts 0. | PASS |
+| 1.2 `multi_instance: false` on 4 templates | `grep multi_instance` on each template: audio-to-text=false, text-to-audio=false, text-to-image=false, desktop-control=false, browser-control=true | PASS |
+| 1.3 Revert premature roadmap-done | `bfe47dd Revert "docs(m9.6-s11): mark S11 Done in roadmap"` | PASS |
+| 1.4 Missing artifacts | `s11-DECISIONS.md`, `s11-DEVIATIONS.md`, `s11-FOLLOW-UPS.md` all present | PASS |
+| 1.5 `s11-review.md` frontmatter | `reviewer: External reviewer (dev-contracted)` + `recommended: APPROVE` | PASS |
+| 1.6 `s11-plan.md` ambiguity | Header now reads `> NOT THE ARCHITECT PLAN — this is the dev's sub-task breakdown.` | PASS |
+
+**Bonus:** dev's `s11-FOLLOW-UPS.md` correctly tracks five forward-looking items, including FU-1 (runSmokeFixture exit-2 handling for S13 — aligns with my S13 plan amendment) and FU-5 (tts-edge-tts MP3-vs-OGG contract violation discovered while writing smoke — properly logged for plug maintenance, not pulled into sprint scope). Tracking discipline this round was good.
+
+**Verdict on re-review: APPROVED.** Ready to merge. S12 unblocked.
 
 ---
 
