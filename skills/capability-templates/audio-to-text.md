@@ -1,7 +1,9 @@
 ---
-template_version: 1
+template_version: 2
 type: audio-to-text
 provides: audio-to-text
+fallback_action: "could you resend as text"
+multi_instance: false
 ---
 
 # Audio-to-Text Capability Template
@@ -83,3 +85,37 @@ A sine wave won't produce meaningful text, but the script should still return va
 | Groq (Whisper) | Good | <1s | Free tier available | Cloud | Fastest, but rate-limited |
 
 The builder should research current pricing and availability — this table is a starting point, not authoritative.
+
+## Smoke Fixture
+
+Every audio-to-text capability MUST ship `scripts/smoke.sh`. The reverify dispatcher
+calls this as a fresh out-of-session subprocess (exit 0 = healthy, non-zero = broken).
+
+**Contract:**
+- Generates a deterministic audio fixture locally (no stored binary needed)
+- Calls `transcribe.sh` against the fixture
+- Validates the JSON output has a non-null `text` field
+- Cleans up temp files on exit
+- Network calls to the provider are unavoidable — document the fallback if offline behavior is needed
+
+**Reference implementation** (copy to `scripts/smoke.sh`, make executable):
+
+~~~bash
+#!/usr/bin/env bash
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+FIXTURE="/tmp/smoke-stt-$$.wav"
+trap 'rm -f "$FIXTURE"' EXIT
+
+# Generate a 2-second test tone (requires ffmpeg — already a transcribe.sh dependency)
+ffmpeg -y -f lavfi -i "sine=frequency=440:duration=2" -ar 16000 -ac 1 "$FIXTURE" 2>/dev/null
+
+# Call the script; validate JSON has a 'text' field (liveness check — empty string passes)
+OUTPUT="$("$DIR/transcribe.sh" "$FIXTURE")"
+echo "$OUTPUT" | jq -e '.text != null' > /dev/null
+~~~
+
+A sine wave won't produce meaningful transcription, but the script should return valid JSON
+with a `text` field (even if empty). If your provider returns empty text for silence, the smoke
+script still exits 0 — smoke checks capability health, not transcription quality.

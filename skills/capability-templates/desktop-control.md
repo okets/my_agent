@@ -1,8 +1,10 @@
 ---
-template_version: 1
+template_version: 2
 type: desktop-control
 provides: desktop-control
 interface: mcp
+fallback_action: "try again in a moment"
+multi_instance: false
 ---
 
 # Desktop Control Capability Template
@@ -351,3 +353,45 @@ A capability is not done until the harness passes all 3 stages.
 | macOS | cliclick, screencapture, osascript | Future |
 
 Each platform is a separate capability folder (e.g., `desktop-wayland`, `desktop-macos`). The framework discovers whichever is installed. Only one `desktop-control` provider should be active at a time.
+
+## Smoke Fixture
+
+Every desktop-control capability MUST ship `scripts/smoke.sh`. The reverify dispatcher
+calls this as a fresh out-of-session subprocess (exit 0 = healthy, non-zero = broken).
+
+**Contract (full — reference implementation ships in S14):**
+1. Run `detect.sh` — confirms display server and required tools are present.
+2. Spawn the MCP server (`npx tsx src/server.ts`).
+3. Connect an MCP client, call `desktop_screenshot`, check the response contains valid image content.
+4. Tear down the server cleanly.
+5. Exit 0 on success, non-zero on any failure.
+
+**Minimal stub for S11** (copy to `scripts/smoke.sh`, make executable — replace with full version in S14):
+
+~~~bash
+#!/usr/bin/env bash
+# Minimal smoke stub — full MCP tool-invocation version ships in S14.
+# Confirms: (1) environment healthy, (2) MCP server starts without crashing.
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Step 1: environment check (display server + system tools present)
+"$DIR/detect.sh"
+
+# Step 2: MCP server starts cleanly (wait 2s, then kill)
+cd "$DIR/.."
+timeout 10s npx tsx src/server.ts &>/dev/null &  # suppress startup noise; exit code still propagates
+SERVER_PID=$!
+sleep 3
+if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+  echo "MCP server exited immediately — check entrypoint or src/server.ts" >&2
+  exit 1
+fi
+kill "$SERVER_PID" 2>/dev/null || true
+# Reap the server; ignore its exit code (killed by us, so always non-zero).
+wait "$SERVER_PID" 2>/dev/null || true
+~~~
+
+Replace this stub with the full S14 implementation once it ships. The stub provides
+meaningful liveness coverage (environment + server startup) but does not exercise any
+MCP tools.

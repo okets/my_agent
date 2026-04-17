@@ -33,3 +33,4 @@ Build in order: audio-to-text, text-to-audio, text-to-image.
 - Each capability in a bundle is independent — they use different providers and API keys
 - If a user only wants one direction (e.g., "understand voice" but not "respond with voice"), build only what's requested
 - The brainstorming skill should check this file to expand composite requests before spawning the builder
+- Every capability in a bundle must ship `scripts/smoke.sh` per its type's template contract. The reverify dispatcher uses smoke.sh as the default health-check script for any type without a per-type reverifier.

@@ -1,7 +1,9 @@
 ---
-template_version: 1
+template_version: 2
 type: text-to-image
 provides: text-to-image
+fallback_action: "try again in a moment"
+multi_instance: false
 ---
 
 # Text-to-Image Capability Template
@@ -73,3 +75,34 @@ To validate this capability, the test harness will:
 | Stable Diffusion (local) | Good | ~15-60s | Free | Local | Needs GPU (8GB+ VRAM) |
 
 The builder should research current pricing and availability — this table is a starting point, not authoritative.
+
+## Smoke Fixture
+
+Every text-to-image capability MUST ship `scripts/smoke.sh`. The reverify dispatcher
+calls this as a fresh out-of-session subprocess (exit 0 = healthy, non-zero = broken).
+
+**Contract:**
+- Calls `generate.sh` with a deterministic prompt
+- Validates the JSON output has a `path` field
+- Validates the output file exists and exceeds 1000 bytes
+- Cleans up temp files on exit
+
+**Reference implementation** (copy to `scripts/smoke.sh`, make executable):
+
+~~~bash
+#!/usr/bin/env bash
+set -euo pipefail
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
+OUT="/tmp/smoke-image-$$.png"
+trap 'rm -f "$OUT"' EXIT
+
+OUTPUT="$("$DIR/generate.sh" "a solid red square" "$OUT")"
+echo "$OUTPUT" | jq -e '.path != null' > /dev/null
+
+[ -f "$OUT" ] && [ "$(wc -c < "$OUT")" -gt 1000 ]
+~~~
+
+A simple geometric prompt is used so providers respond quickly. The smoke script exits 0
+if the output file is produced and non-trivially sized — it does not validate image quality
+or prompt fidelity.
