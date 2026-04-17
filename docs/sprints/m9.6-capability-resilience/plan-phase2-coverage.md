@@ -30,6 +30,29 @@ Phase 1 wired detection per-call-site for STT only — that was the mistake. **I
 
 If you find yourself adding a `cfr.emitFailure(...)` call at a new call site that isn't one of these two gates, STOP and file a deviation proposal. The exception is socket-internal failures (deps wiring, AttachmentService missing) — those are emitted directly per existing Phase 1 patterns, not via the gates.
 
+### 0.3 Sprint approval flow — what the dev does and does not do
+
+Established after S9. These rules apply to every Phase 2 sprint.
+
+**The dev:**
+1. Implements the sprint per its §2.N section.
+2. Writes `s<N>-DECISIONS.md` (judgment calls + rationale), `s<N>-DEVIATIONS.md` (proposals filed, link to each), `s<N>-FOLLOW-UPS.md` (out-of-scope items noticed; per §0.1 every deferred plug type is named here with the receiving sprint).
+3. Optionally runs an external auditor for an independent technical read. If used, the auditor's artifact lands at `s<N>-review.md` with frontmatter `reviewer: External auditor (dev-contracted)` and `recommended: APPROVE | REJECT | CONDITIONAL`. **Never** `reviewer: Architect` and **never** `verdict: APPROVED` — those framings claim a role the dev does not hold.
+4. Writes `s<N>-test-report.md` with verification command output.
+5. Stops the trip-sprint and notifies the CTO that the sprint is done. **Does not commit `APPROVED` in any commit message.** Does not write `s<N>-architect-review.md` (that file is the architect's exclusively).
+
+**The CTO:**
+- Notifies the architect that the dev is done.
+
+**The architect:**
+- Reads the dev's artifacts + diff + runs verification gates independently.
+- Writes `s<N>-architect-review.md` with the binding verdict.
+- If APPROVED: commits review + any plan-text corrections; advises CTO on next sprint.
+- If REJECTED: commits review with required corrections; sprint goes back to dev.
+- If CONDITIONAL: commits review with conditions; dev addresses; architect re-reviews.
+
+**Phase 1 §0.3 carries over verbatim:** the roadmap-done commit (and any "approved" framing) is the LAST commit on the sprint branch, landed AFTER the architect-review commit. A premature "APPROVED" commit by the dev is the same anti-pattern as a premature roadmap-done commit, scoped to the sprint branch — it misrepresents state for hours and pre-empts the independent gate.
+
 ---
 
 ## 1. Phase overview
