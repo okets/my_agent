@@ -3208,6 +3208,14 @@ function chat() {
     },
 
     async loadPreferences() {
+      // Load channel options FIRST and flush Alpine's DOM with $nextTick
+      // so the <select>'s x-for has rendered every <option> before we set
+      // briefOutboundChannel. Otherwise x-model sets selectEl.value to a
+      // non-existent option, the browser silently resets it to the first
+      // ("web"), and the dropdown permanently shows "Web Interface" even
+      // though the config on disk is correct and briefs route properly.
+      await this.loadChannels();
+      if (this.$nextTick) await this.$nextTick();
       try {
         const res = await fetch("/api/settings/preferences");
         if (!res.ok) return;
@@ -3219,7 +3227,6 @@ function chat() {
       } catch (err) {
         console.error("[App] Failed to load preferences:", err);
       }
-      await this.loadChannels();
 
       // Load configured model IDs (may be user-overridden)
       try {
