@@ -3,6 +3,7 @@ import * as path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { parseFrontmatterContent } from '../metadata/frontmatter.js'
 import { testCapability } from './test-harness.js'
+import { WELL_KNOWN_MULTI_INSTANCE } from './types.js'
 import type { Capability, CapabilityTestResult } from './types.js'
 
 export interface CapabilityHealthReport {
@@ -191,6 +192,39 @@ export class CapabilityRegistry extends EventEmitter {
       wipedProfile: opts.wipeProfile === true,
     })
     return true
+  }
+
+  /**
+   * Whether a capability type supports multiple simultaneous instances.
+   * Sources from `multi_instance: true` in CAPABILITY.md frontmatter (S14).
+   * Falls back to the compile-time WELL_KNOWN_MULTI_INSTANCE set for
+   * capabilities loaded before the S14 scanner changes take effect.
+   */
+  isMultiInstance(type: string): boolean {
+    for (const cap of this.capabilities.values()) {
+      if (cap.provides === type) {
+        return cap.multiInstance ?? WELL_KNOWN_MULTI_INSTANCE.has(type)
+      }
+    }
+    return WELL_KNOWN_MULTI_INSTANCE.has(type)
+  }
+
+  /**
+   * Per-type user-facing fallback action (e.g. "could you resend as text").
+   * Sources from `fallback_action:` in CAPABILITY.md frontmatter (S14).
+   *
+   * Semantic: first-wins across all instances of the type. `fallback_action`
+   * is a TYPE-LEVEL property — all instances of the same type should declare
+   * the same value. Plug-level frontmatter may override template-level (D7).
+   *
+   * Returns "try again in a moment" when the type is not registered or no
+   * instance has the field set.
+   */
+  getFallbackAction(type: string): string {
+    for (const cap of this.capabilities.values()) {
+      if (cap.provides === type && cap.fallbackAction) return cap.fallbackAction
+    }
+    return "try again in a moment"
   }
 
   /**

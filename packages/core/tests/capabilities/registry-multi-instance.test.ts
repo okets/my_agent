@@ -194,6 +194,54 @@ describe('CapabilityRegistry — delete', () => {
   })
 })
 
+// ── S14: isMultiInstance + getFallbackAction ──────────────────────────────────
+
+describe('CapabilityRegistry.isMultiInstance (S14)', () => {
+  it("returns true for browser-control (WELL_KNOWN_MULTI_INSTANCE fallback)", () => {
+    const reg = new CapabilityRegistry()
+    reg.load([makeCap({ name: "browser-chrome", provides: "browser-control", canDelete: true })])
+    expect(reg.isMultiInstance("browser-control")).toBe(true)
+  })
+
+  it("returns true when multi_instance frontmatter is true", () => {
+    const reg = new CapabilityRegistry()
+    reg.load([makeCap({ name: "my-browser", provides: "browser-control", multiInstance: true, canDelete: true })])
+    expect(reg.isMultiInstance("browser-control")).toBe(true)
+  })
+
+  it("returns false for audio-to-text (not multi-instance)", () => {
+    const reg = new CapabilityRegistry()
+    reg.load([makeCap({ name: "stt-deepgram", provides: "audio-to-text" })])
+    expect(reg.isMultiInstance("audio-to-text")).toBe(false)
+  })
+
+  it("returns false for unknown type with no capabilities registered", () => {
+    const reg = new CapabilityRegistry()
+    reg.load([])
+    expect(reg.isMultiInstance("nonexistent-type")).toBe(false)
+  })
+})
+
+describe('CapabilityRegistry.getFallbackAction (S14)', () => {
+  it("returns fallbackAction from capability frontmatter when set", () => {
+    const reg = new CapabilityRegistry()
+    reg.load([makeCap({ name: "stt-deepgram", provides: "audio-to-text", fallbackAction: "could you resend as text" })])
+    expect(reg.getFallbackAction("audio-to-text")).toBe("could you resend as text")
+  })
+
+  it("returns default fallback when no capability has fallbackAction", () => {
+    const reg = new CapabilityRegistry()
+    reg.load([makeCap({ name: "stt-deepgram", provides: "audio-to-text" })])
+    expect(reg.getFallbackAction("audio-to-text")).toBe("try again in a moment")
+  })
+
+  it("returns default fallback for unknown type", () => {
+    const reg = new CapabilityRegistry()
+    reg.load([])
+    expect(reg.getFallbackAction("nonexistent-type")).toBe("try again in a moment")
+  })
+})
+
 describe('CapabilityRegistry — legacy semantics regression', () => {
   // These tests guarantee the existing first-match semantics of has/get/isEnabled/toggle
   // are preserved. They duplicate intent from registry-toggle.test.ts but specifically
