@@ -29,6 +29,8 @@ export interface Capability {
    * falls back to a generic icon when absent.
    */
   iconSlug?: string
+  fallbackAction?: string   // sourced from fallback_action frontmatter (S14)
+  multiInstance?: boolean   // sourced from multi_instance frontmatter (S14)
 }
 
 /**
@@ -61,4 +63,6 @@ export interface CapabilityFrontmatter {
     env?: string[]
     system?: string[] // CLI tools that must be present
   }
+  fallback_action?: string  // e.g. "could you resend as text" (S14)
+  multi_instance?: boolean  // true → instance name appended in ack copy (S14)
 }

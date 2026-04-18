@@ -157,6 +157,8 @@ export async function scanCapabilities(
         enabled,
         canDelete: data.provides ? WELL_KNOWN_MULTI_INSTANCE.has(data.provides) : false,
         iconSlug: data.icon,
+        fallbackAction: data.fallback_action,    // S14
+        multiInstance: data.multi_instance,      // S14
       }
 
       if (allMissing.length > 0) {
