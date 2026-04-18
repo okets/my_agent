@@ -46,6 +46,13 @@ export interface AutomationManifest {
   todos?: Array<{ text: string }>
   /** Job type — triggers template-based mandatory items for known types */
   job_type?: 'capability_build' | 'capability_modify' | 'generic' | 'research'
+  /** Optional health/liveness overrides for the heartbeat service.
+   *  When omitted, defaults from heartbeat config apply. */
+  health?: {
+    /** Override the stale-job threshold for this automation (milliseconds).
+     *  Use for legitimately long-running workers (research, multi-site fetch). */
+    stale_threshold_ms?: number
+  }
 }
 
 export interface Automation {
@@ -96,4 +103,11 @@ export interface CreateAutomationInput {
   todos?: Array<{ text: string }>
   /** Job type for template-based mandatory items */
   job_type?: 'capability_build' | 'capability_modify' | 'generic' | 'research'
+  /** Optional health/liveness overrides for the heartbeat service.
+   *  When omitted, defaults from heartbeat config apply. */
+  health?: {
+    /** Override the stale-job threshold for this automation (milliseconds).
+     *  Use for legitimately long-running workers (research, multi-site fetch). */
+    stale_threshold_ms?: number
+  }
 }

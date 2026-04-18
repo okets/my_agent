@@ -56,6 +56,7 @@ export class AutomationManager {
       target_path: input.manifest.target_path,
       todos: input.manifest.todos,
       job_type: input.manifest.job_type,
+      health: input.manifest.health,
     };
 
     // Ensure directory exists
@@ -302,6 +303,7 @@ export class AutomationManager {
     if (manifest.target_path) fm.target_path = manifest.target_path;
     if (manifest.todos?.length) fm.todos = manifest.todos;
     if (manifest.job_type) fm.job_type = manifest.job_type;
+    if (manifest.health) fm.health = manifest.health;
 
     return fm;
   }
@@ -327,6 +329,7 @@ export class AutomationManager {
       target_path: (data.target_path as string) ?? undefined,
       todos: data.todos as Array<{ text: string }> | undefined,
       job_type: data.job_type as AutomationManifest["job_type"],
+      health: data.health as AutomationManifest["health"],
     };
   }
 }
