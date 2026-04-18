@@ -13,6 +13,10 @@ import { readLastAuditTimestamp } from "./audit-liveness.js";
 import fs from "node:fs";
 import path from "node:path";
 
+/** Minimum age before a job_interrupted notification is delivered.
+ *  Gives the executor time to finish + write "completed" before we alert. 60s = 2 heartbeat ticks. */
+const INTERRUPTED_MIN_AGE_MS = 60 * 1000;
+
 /** Recursive mtime of the run dir — fallback signal for subagent file writes.
  *  Bounded to depth 4 to avoid pathological traversal. Best-effort, returns 0 on any error. */
 function readRunDirMtime(runDir: string | undefined, maxDepth = 4): number {
@@ -83,6 +87,7 @@ export class HeartbeatService {
   private lastCapabilityCheck = 0;
   private config: HeartbeatConfig;
   private draining = false;
+  public falsePositivesDropped = 0;
 
   constructor(config: HeartbeatConfig) {
     this.config = config;
@@ -226,6 +231,27 @@ export class HeartbeatService {
         );
         this.config.notificationQueue.markDelivered(notification._filename!);
         continue;
+      }
+
+      // M9.1-S9: For job_interrupted, two guards before delivery:
+      // (a) minimum-age gate — give the executor time to finish.
+      // (b) recheck — if status changed away from "interrupted", drop.
+      if (notification.type === "job_interrupted") {
+        const ageMs = Date.now() - new Date(notification.created).getTime();
+        if (ageMs < INTERRUPTED_MIN_AGE_MS) {
+          // Too fresh — leave in pending/ for the next tick.
+          continue;
+        }
+
+        const fresh = this.config.jobService.getJob(notification.job_id);
+        if (fresh && fresh.status !== "interrupted") {
+          this.falsePositivesDropped++;
+          console.log(
+            `[Heartbeat] Discarding stale job_interrupted for ${notification.job_id} — job is now "${fresh.status}" (drops=${this.falsePositivesDropped})`,
+          );
+          this.config.notificationQueue.markDelivered(notification._filename!);
+          continue;
+        }
       }
 
       // Stage 2 (M9.4-S5 B7): per-iteration refresh — refresh the active

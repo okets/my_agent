@@ -93,9 +93,10 @@ describe("HeartbeatService", () => {
       status: "interrupted",
     }));
 
-    // Notification was enqueued then delivered via initiate() fallback
-    expect(mockCi.initiate).toHaveBeenCalledTimes(1);
-    expect(queue.listPending()).toHaveLength(0);
+    // M9.1-S9: job_interrupted notifications are held by the minimum-age gate (60s)
+    // on the same tick they are enqueued — they will be delivered on the next tick.
+    expect(mockCi.initiate).not.toHaveBeenCalled();
+    expect(queue.listPending()).toHaveLength(1);
   });
 
   it("detects never-started job (empty todos, old created)", async () => {
@@ -255,6 +256,82 @@ describe("HeartbeatService", () => {
       expect.objectContaining({ status: "interrupted" }),
     );
     expect(queue.listPending()).toHaveLength(0);
+  });
+
+  it("delays delivering a fresh job_interrupted notification (minimum-age gate)", async () => {
+    // Notification created 10s ago — under the 60s gate
+    queue.enqueue({
+      job_id: "job-fresh-interrupt",
+      automation_id: "auto-1",
+      type: "job_interrupted",
+      summary: "Job interrupted. 0/3 items done.",
+      todos_completed: 0,
+      todos_total: 3,
+      incomplete_items: ["a", "b", "c"],
+      resumable: true,
+      created: new Date(Date.now() - 10 * 1000).toISOString(),
+      delivery_attempts: 0,
+    });
+    mockJobService.getJob.mockReturnValue(
+      makeJob({ id: "job-fresh-interrupt", status: "interrupted" }),
+    );
+
+    const hb = createHeartbeat();
+    await hb.tick();
+
+    expect(mockCi.alert).not.toHaveBeenCalled();
+    expect(queue.listPending()).toHaveLength(1);
+  });
+
+  it("delivers an aged job_interrupted notification when status is still interrupted", async () => {
+    queue.enqueue({
+      job_id: "job-truly-stuck",
+      automation_id: "auto-1",
+      type: "job_interrupted",
+      summary: "Job interrupted. 0/3 items done.",
+      todos_completed: 0,
+      todos_total: 3,
+      incomplete_items: ["a", "b", "c"],
+      resumable: true,
+      created: new Date(Date.now() - 90 * 1000).toISOString(),
+      delivery_attempts: 0,
+    });
+    mockJobService.getJob.mockReturnValue(
+      makeJob({ id: "job-truly-stuck", status: "interrupted" }),
+    );
+
+    const hb = createHeartbeat();
+    await hb.tick();
+
+    expect(mockCi.alert).toHaveBeenCalledTimes(1);
+    expect(queue.listPending()).toHaveLength(0);
+  });
+
+  it("discards an aged job_interrupted notification if the job has since recovered", async () => {
+    queue.enqueue({
+      job_id: "job-recovered",
+      automation_id: "auto-1",
+      type: "job_interrupted",
+      summary: "Job interrupted. 0/3 items done.",
+      todos_completed: 0,
+      todos_total: 3,
+      incomplete_items: ["a", "b", "c"],
+      resumable: true,
+      created: new Date(Date.now() - 90 * 1000).toISOString(),
+      delivery_attempts: 0,
+    });
+    mockJobService.getJob.mockReturnValue(
+      makeJob({ id: "job-recovered", status: "completed" }),
+    );
+
+    const hb = createHeartbeat();
+    await hb.tick();
+
+    expect(mockCi.alert).not.toHaveBeenCalled();
+    expect(queue.listPending()).toHaveLength(0);
+    // verify it was moved to delivered
+    const delivered = fs.readdirSync(path.join(notifDir, "delivered"));
+    expect(delivered).toHaveLength(1);
   });
 
   it("still triggers neverStarted even when audit log shows activity (intentional)", async () => {
