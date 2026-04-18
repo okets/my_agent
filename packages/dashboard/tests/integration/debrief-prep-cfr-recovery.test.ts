@@ -4,12 +4,26 @@
  * Verifies: when CFR_RECOVERY.md is present in a job's run directory,
  * formatCfrRecoverySection() extracts and formats the capability recovery
  * summary correctly; when absent or malformed it fails silently.
+ *
+ * Also verifies that runDebriefPrep() threads runDir through to the prompt
+ * (production call-site wiring, Task 7 spec gap fix).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+
+// Mock queryModel so runDebriefPrep can be called without a live SDK session.
+// The mock captures the user prompt so we can assert CFR content was injected.
+let capturedPrompt = "";
+vi.mock("../../src/scheduler/query-model.js", () => ({
+  queryModel: vi.fn(async (userPrompt: string) => {
+    capturedPrompt = userPrompt;
+    return "mocked debrief output";
+  }),
+}));
+
 import {
   formatCfrRecoverySection,
   runDebriefPrep,
@@ -186,10 +200,11 @@ describe("formatCfrRecoverySection", () => {
   });
 });
 
-describe("runDebriefPrep — runDir integration", () => {
+describe("runDebriefPrep — runDir integration (production call-site wiring)", () => {
   let runDir: string;
 
   beforeEach(() => {
+    capturedPrompt = "";
     runDir = mkdtempSync(join(tmpdir(), "debrief-run-test-"));
   });
 
@@ -197,7 +212,7 @@ describe("runDebriefPrep — runDir integration", () => {
     rmSync(runDir, { recursive: true, force: true });
   });
 
-  it("includes capability recovery section in assembled context when runDir provided", async () => {
+  it("injects CFR recovery section into the model prompt when runDir contains CFR_RECOVERY.md", async () => {
     writeFileSync(
       join(runDir, "CFR_RECOVERY.md"),
       [
@@ -214,26 +229,30 @@ describe("runDebriefPrep — runDir integration", () => {
       ].join("\n"),
     );
 
-    // We can't call the real queryModel (no SDK in tests), but we can verify
-    // that formatCfrRecoverySection is wired into the context by testing the
-    // helper directly — runDebriefPrep delegates to it.
-    const section = formatCfrRecoverySection(runDir);
-    expect(section).toContain("Capability recovery during this job:");
-    expect(section).toContain("browser-chrome");
-    expect(section).toContain("fixed");
+    await runDebriefPrep("some context", "sonnet", "", "", runDir);
+
+    // The CFR section must be present in the prompt that reaches the model.
+    expect(capturedPrompt).toContain("Capability recovery during this job:");
+    expect(capturedPrompt).toContain("- Plug: browser-chrome (browser-control)");
+    expect(capturedPrompt).toContain("- Outcome: fixed");
+    expect(capturedPrompt).toContain("- Attempts: 2");
+    expect(capturedPrompt).toContain(
+      "Browser restarted successfully after setting DISPLAY=:0.",
+    );
   });
 
-  it("produces no cfr section when runDir has no CFR_RECOVERY.md", async () => {
-    // No file in runDir
-    const section = formatCfrRecoverySection(runDir);
-    expect(section).toBe("");
+  it("does not inject CFR section when runDir has no CFR_RECOVERY.md", async () => {
+    // runDir exists but is empty — no CFR_RECOVERY.md
+    await runDebriefPrep("some context", "sonnet", "", "", runDir);
+
+    expect(capturedPrompt).not.toContain("Capability recovery during this job:");
   });
 
-  it("runDebriefPrep with undefined runDir skips cfr section entirely", () => {
-    // formatCfrRecoverySection should not be called when runDir is undefined.
-    // We verify by inspecting the exported formatCfrRecoverySection directly
-    // with a non-existent path — it should return "".
-    const section = formatCfrRecoverySection("/tmp/nonexistent-dir-xyz-abc-123");
-    expect(section).toBe("");
+  it("does not inject CFR section when runDir is undefined", async () => {
+    // Production call without runDir (e.g. inline call from debrief-reporter
+    // using a synthetic jobId and no run directory).
+    await runDebriefPrep("some context", "sonnet", "", "", undefined);
+
+    expect(capturedPrompt).not.toContain("Capability recovery during this job:");
   });
 });

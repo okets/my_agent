@@ -258,6 +258,7 @@ export class AutomationExecutor {
           agentDir: this.config.agentDir,
           db: this.config.db,
           jobId: job.id,
+          runDir: job.run_dir ?? undefined,
         });
 
         let handlerDeliverablePath: string | undefined;

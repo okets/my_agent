@@ -44,6 +44,14 @@ export type BuiltInHandler = (ctx: {
   agentDir: string;
   db?: ConversationDatabase;
   jobId: string;
+  /**
+   * The job's run directory, when created by the automation job service.
+   * Passed through from AutomationExecutor so handlers can read job-scoped
+   * artefacts (e.g. CFR_RECOVERY.md written by ack-delivery on terminal
+   * transition).  Absent when the handler is invoked outside the job service
+   * (e.g. the inline call from debrief-reporter uses a synthetic jobId).
+   */
+  runDir?: string;
 }) => Promise<{ success: boolean; work: string; deliverable: string | null }>;
 
 const handlers = new Map<string, BuiltInHandler>();
@@ -106,7 +114,7 @@ async function appendToDailyLog(
 // Not user-facing — the debrief-reporter handler delivers the daily brief.
 // Renamed from debrief-prep in M7-S8.
 
-registerHandler("debrief-context", async ({ agentDir }) => {
+registerHandler("debrief-context", async ({ agentDir, runDir }) => {
   const notebookDir = join(agentDir, "notebook");
   const sections: string[] = [];
 
@@ -244,6 +252,7 @@ registerHandler("debrief-context", async ({ agentDir }) => {
     model,
     stagedFactsSection,
     stalePropertiesSection,
+    runDir,
   );
 
   // Auto-increment attempts
