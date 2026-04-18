@@ -25,6 +25,22 @@ function nameToId(name: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/**
+ * Optional AutomationManifest fields that round-trip verbatim (no defaults,
+ * no transformation). Adding a new verbatim field only requires touching the
+ * type and this array — both serializer functions pick it up automatically.
+ */
+const OPTIONAL_VERBATIM_FIELDS = [
+  "spaces",
+  "model",
+  "target_path",
+  "todos",
+  "job_type",
+  "health",
+  "system",
+  "handler",
+] as const satisfies ReadonlyArray<keyof AutomationManifest>;
+
 export class AutomationManager {
   constructor(
     private automationsDir: string,
@@ -292,18 +308,18 @@ export class AutomationManager {
       created: manifest.created,
     };
 
-    if (manifest.spaces) fm.spaces = manifest.spaces;
-    if (manifest.model) fm.model = manifest.model;
+    // Verbatim optional fields — no transformation needed
+    for (const key of OPTIONAL_VERBATIM_FIELDS) {
+      if (manifest[key] != null) fm[key] = manifest[key];
+    }
+
+    // Fields with special defaults or conditions stay explicit
     if (manifest.notify && manifest.notify !== "debrief")
       fm.notify = manifest.notify;
     if (manifest.persist_session) fm.persist_session = manifest.persist_session;
     if (manifest.autonomy && manifest.autonomy !== "full")
       fm.autonomy = manifest.autonomy;
     if (manifest.once) fm.once = manifest.once;
-    if (manifest.target_path) fm.target_path = manifest.target_path;
-    if (manifest.todos?.length) fm.todos = manifest.todos;
-    if (manifest.job_type) fm.job_type = manifest.job_type;
-    if (manifest.health) fm.health = manifest.health;
 
     return fm;
   }
@@ -312,24 +328,24 @@ export class AutomationManager {
     data: Record<string, unknown>,
   ): AutomationManifest {
     return {
+      // Required fields with defaults
       name: (data.name as string) ?? "Untitled",
       status: (data.status as "active" | "disabled") ?? "active",
       trigger: (data.trigger as AutomationManifest["trigger"]) ?? [
         { type: "manual" },
       ],
-      spaces: data.spaces as string[] | undefined,
-      model: data.model as string | undefined,
       notify: (data.notify as "immediate" | "debrief" | "none") ?? "debrief",
       persist_session: (data.persist_session as boolean) ?? false,
       autonomy: (data.autonomy as "full" | "cautious" | "review") ?? "full",
       once: (data.once as boolean) ?? false,
       created: (data.created as string) ?? new Date().toISOString(),
-      system: (data.system as boolean) ?? undefined,
-      handler: (data.handler as string) ?? undefined,
-      target_path: (data.target_path as string) ?? undefined,
-      todos: data.todos as Array<{ text: string }> | undefined,
-      job_type: data.job_type as AutomationManifest["job_type"],
-      health: data.health as AutomationManifest["health"],
+
+      // Verbatim optional fields — spread from shared array
+      ...(Object.fromEntries(
+        OPTIONAL_VERBATIM_FIELDS
+          .filter((key) => data[key] !== undefined)
+          .map((key) => [key, data[key]]),
+      ) as Pick<AutomationManifest, (typeof OPTIONAL_VERBATIM_FIELDS)[number]>),
     };
   }
 }
