@@ -462,6 +462,14 @@ Dev-machine preconditions (document at sprint-start, not at run-time):
 
 **Universal coverage check:** **this sprint IS the coverage check for Phase 2.** Every plug type in `.my_agent/capabilities/` has its own E2E test file. If any plug is missing one, Phase 2 doesn't close.
 
+**Pre-flight: backfill `multi_instance` frontmatter into installed plugs (deferred from S14 — see s14-FOLLOW-UPS.md FU-2).** Add the explicit `multi_instance:` field to installed CAPABILITY.md frontmatter so the runtime no longer relies on the `WELL_KNOWN_MULTI_INSTANCE` compile-time fallback:
+- `.my_agent/capabilities/browser-chrome/CAPABILITY.md` — add `multi_instance: true`
+- `.my_agent/capabilities/stt-deepgram/CAPABILITY.md` — add `multi_instance: false`
+- `.my_agent/capabilities/tts-edge-tts/CAPABILITY.md` — add `multi_instance: false`
+- `.my_agent/capabilities/desktop-x11/CAPABILITY.md` — add `multi_instance: false`
+
+Verify with `grep multi_instance .my_agent/capabilities/*/CAPABILITY.md` — every installed plug should have an explicit value, no implicit fallbacks.
+
 **Phase 2 exit:** all four tests pass + S9–S14 acceptance gates green + architect approval. Roadmap commit lands AFTER architect approval per Phase 1 §0.3 rule. Phase 3 begins immediately; M10 waits per CTO decision.
 
 ---
