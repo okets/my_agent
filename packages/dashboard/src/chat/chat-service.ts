@@ -856,6 +856,7 @@ export class AppChatService {
                   (await this.synthesizeAudio(
                     assistantContent,
                     convId,
+                    buildTriggeringInput(options, convId, turnNumber),
                     detectedLanguage,
                   )) ?? undefined;
               }
@@ -889,6 +890,7 @@ export class AppChatService {
                 (await this.synthesizeAudio(
                   assistantContent,
                   convId,
+                  buildTriggeringInput(options, convId, turnNumber),
                   detectedLanguage,
                 )) ?? undefined;
             }
@@ -1096,15 +1098,21 @@ export class AppChatService {
    * Deferred per plan-phase2-coverage.md §2.2 — S15 may pre-wire if exit gate
    * needs it; S18 (Phase 3, "Duplicate TTS path collapse") formalizes.
    */
+  /**
+   * Synthesize audio via the TTS capability script.
+   * Returns the audio URL path or null.
+   *
+   * Routed through CapabilityInvoker (M9.6-S15) so TTS failures emit CFR
+   * automatically. Falls back to silent null return when capabilityInvoker
+   * is not wired (unit tests, hatching). S18 (Phase 3 "Duplicate TTS path
+   * collapse") will formalize the full authoritative path.
+   */
   private async synthesizeAudio(
     text: string,
     conversationId: string,
+    triggeringInput: TriggeringInput,
     language?: string,
   ): Promise<string | null> {
-    const cap = this.app.capabilityRegistry?.get("text-to-audio");
-    if (!cap || cap.status !== "available") return null;
-
-    const scriptPath = join(cap.path, "scripts", "synthesize.sh");
     const audioDir = join(this.app.agentDir, "audio");
     mkdirSync(audioDir, { recursive: true });
     const outputFile = join(audioDir, `tts-${randomUUID()}.ogg`);
@@ -1112,13 +1120,28 @@ export class AppChatService {
     const spokenText = prepareForSpeech(text);
     if (!spokenText.trim()) return null;
 
+    const args = [spokenText, outputFile];
+    if (language) args.push(language);
+
+    if (this.app.capabilityInvoker) {
+      const result = await this.app.capabilityInvoker.run({
+        capabilityType: "text-to-audio",
+        scriptName: "synthesize.sh",
+        args,
+        triggeringInput,
+        timeoutMs: 30_000,
+      });
+      if (result.kind === "failure") return null;
+      return `/api/assets/audio/${outputFile.split("/").pop()}`;
+    }
+
+    // No invoker: silent fallback (unit tests without capability wiring, hatching).
+    const cap = this.app.capabilityRegistry?.get("text-to-audio");
+    if (!cap || cap.status !== "available") return null;
+    const scriptPath = join(cap.path, "scripts", "synthesize.sh");
     try {
       const execFileAsync = promisify(execFile);
-      const args = [spokenText, outputFile];
-      if (language) args.push(language);
-      await execFileAsync(scriptPath, args, {
-        timeout: 30000,
-      });
+      await execFileAsync(scriptPath, args, { timeout: 30_000 });
       return `/api/assets/audio/${outputFile.split("/").pop()}`;
     } catch {
       return null;
