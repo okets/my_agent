@@ -33,9 +33,17 @@ function readRunDirMtime(runDir: string | undefined, maxDepth = 4): number {
         continue;
       }
       for (const entry of entries) {
-        // Skip todos.json — its content (last_activity) is already the primary signal;
-        // file mtime would give a false "fresh" reading whenever the job starts.
-        if (entry.name === "todos.json") continue;
+        // Skip executor-written artifacts — these are written at job start/completion
+        // and would give a false "fresh" reading, masking a genuinely stale worker.
+        // Only files written by the worker mid-run (scratch files, logs, data files)
+        // are valid liveness signals.
+        const EXECUTOR_FILES = new Set([
+          "todos.json",      // Primary signal — content-based via last_activity
+          "deliverable.md",  // Written at job completion by executor
+          "CLAUDE.md",       // Written at job start by executor
+          "task.md",         // Written at job start by executor
+        ]);
+        if (EXECUTOR_FILES.has(entry.name)) continue;
         const full = path.join(dir, entry.name);
         try {
           const stat = fs.statSync(full);
@@ -74,6 +82,9 @@ export interface HeartbeatConfig {
   staleThresholdMs: number; // default: 5 * 60 * 1000
   tickIntervalMs: number; // default: 30 * 1000
   capabilityHealthIntervalMs: number; // default: 60 * 60 * 1000
+  /** Override the minimum age a job_interrupted notification must reach before delivery.
+   *  Defaults to INTERRUPTED_MIN_AGE_MS (60 s). Set to 0 in tests that check single-tick delivery. */
+  interruptedMinAgeMs?: number;
   capabilityHealthCheck?: () => Promise<void>;
   /** WS broadcast (M9.4-S5 B7). Optional — heartbeat tolerates absence in tests. */
   registry?: ConnectionRegistry;
@@ -245,7 +256,8 @@ export class HeartbeatService {
       // (b) recheck — if status changed away from "interrupted", drop.
       if (notification.type === "job_interrupted") {
         const ageMs = Date.now() - new Date(notification.created).getTime();
-        if (ageMs < INTERRUPTED_MIN_AGE_MS) {
+        const minAge = this.config.interruptedMinAgeMs ?? INTERRUPTED_MIN_AGE_MS;
+        if (ageMs < minAge) {
           // Too fresh — leave in pending/ for the next tick.
           continue;
         }

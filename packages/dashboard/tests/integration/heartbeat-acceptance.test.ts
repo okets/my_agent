@@ -156,6 +156,8 @@ describe("S3 Acceptance: heartbeat stale detection + notification", () => {
       staleThresholdMs: 5 * 60 * 1000,
       tickIntervalMs: 999999,
       capabilityHealthIntervalMs: 999999,
+      // Single-tick test: bypass the 60s minimum-age gate (production guard only)
+      interruptedMinAgeMs: 0,
     });
 
     await heartbeat.tick();
