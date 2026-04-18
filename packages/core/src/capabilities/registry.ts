@@ -193,6 +193,23 @@ export class CapabilityRegistry extends EventEmitter {
     return true
   }
 
+  /**
+   * Look up a capability by its unique `name` field (the `name:` value from
+   * CAPABILITY.md frontmatter, e.g. "browser-chrome").
+   *
+   * Unlike `get()` (which queries by `provides` type and requires the capability
+   * to be available + enabled), `findByName` returns any capability in the
+   * registry regardless of status or enabled state. Returns undefined when no
+   * capability with that name exists.
+   *
+   * Used by the MCP CFR detector (S12) to resolve the capability that owns a
+   * failing MCP tool call, where the tool name encodes the capability name via
+   * the `mcp__<capability-name>__<tool>` convention.
+   */
+  findByName(name: string): Capability | undefined {
+    return this.capabilities.get(name)
+  }
+
   /** All capabilities */
   list(): Capability[] {
     return Array.from(this.capabilities.values())
