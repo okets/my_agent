@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { parse } from "yaml";
+import { readFileSync, writeFileSync } from "node:fs";
+import { parse, stringify } from "yaml";
 
 export interface FrontmatterResult<T = Record<string, unknown>> {
   data: T;
@@ -35,4 +35,33 @@ export function readFrontmatter<T = Record<string, unknown>>(
 ): FrontmatterResult<T> {
   const content = readFileSync(filePath, "utf-8");
   return parseFrontmatterContent<T>(content);
+}
+
+/**
+ * Write YAML frontmatter + markdown body to a file.
+ *
+ * Mirrors `packages/dashboard/src/metadata/frontmatter.ts:writeFrontmatter` — kept
+ * identical shape so either layer can round-trip via the same convention.
+ *
+ * If body is omitted and the file already exists, the existing body is preserved.
+ */
+export function writeFrontmatter(
+  filePath: string,
+  data: Record<string, unknown>,
+  body?: string,
+): void {
+  let finalBody = body ?? "";
+
+  if (body === undefined) {
+    try {
+      const existing = readFrontmatter(filePath);
+      finalBody = existing.body;
+    } catch {
+      // File doesn't exist yet — empty body is fine.
+    }
+  }
+
+  const yamlStr = stringify(data, { lineWidth: 120 });
+  const content = `---\n${yamlStr}---\n${finalBody ? `\n${finalBody}` : ""}`;
+  writeFileSync(filePath, content, "utf-8");
 }

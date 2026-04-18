@@ -209,7 +209,7 @@ export type {
   SpaceSyncPayload,
 } from './spaces/index.js'
 export { SpaceSyncService, isToolSpace } from './spaces/index.js'
-export { readFrontmatter, parseFrontmatterContent } from './metadata/frontmatter.js'
+export { readFrontmatter, parseFrontmatterContent, writeFrontmatter } from './metadata/frontmatter.js'
 export type { FrontmatterResult } from './metadata/frontmatter.js'
 export type {
   Automation, AutomationManifest, TriggerConfig,

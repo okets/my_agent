@@ -740,7 +740,12 @@ export class App extends EventEmitter {
           );
 
           if (ackDelivery) {
-            await ackDelivery.deliver(failure, text);
+            // M9.6-S12 Task 5: thread the ack kind through so automation-origin
+            // terminal kinds trigger CFR_RECOVERY.md writing. session info is
+            // not yet wired (Task 6 will pass it from the orchestrator's
+            // FixSession); the writer falls back to an empty attempts table
+            // when session is absent.
+            await ackDelivery.deliver(failure, text, { kind });
           } else {
             console.warn(
               "[CFR] AckDelivery unavailable (TransportManager or ConnectionRegistry missing) — ack not delivered",
