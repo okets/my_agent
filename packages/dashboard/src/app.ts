@@ -758,9 +758,14 @@ export class App extends EventEmitter {
           // already wrote one. Writing again would be noise (S6-FU3).
           if (kind === "surrender" || kind === "surrender-budget") {
             const _surrenderOrigin = failure.triggeringInput.origin;
-            // S12 wires automation and system surrender event routing. S9: conversation only.
+            // M9.6-S12 Task 6d: non-conversation origins have no conversation
+            // to attach a `capability_surrender` event to — their durable
+            // record lives in CFR_RECOVERY.md (automation; written by Task 5
+            // + Task 6b terminal drain) or console log (system). Early-return
+            // keeps the hot path non-crashing; the full RESTORED_TERMINAL
+            // surface is S13.
             if (_surrenderOrigin.kind !== "conversation") {
-              throw new Error(`unreachable in S9 — wired in S12: origin.kind === "${_surrenderOrigin.kind}"`);
+              return;
             }
             const { conversationId, turnNumber } = _surrenderOrigin;
             try {
@@ -786,9 +791,15 @@ export class App extends EventEmitter {
         },
         reprocessTurn: async (failure, recoveredContent) => {
           const { origin } = failure.triggeringInput;
-          // S12 wires automation and system reprocess routing. S9: unreachable.
+          // M9.6-S12 Task 6d: non-conversation origins have no user turn to
+          // re-process. The orchestrator's terminal drain (Task 6b) already
+          // routed the recovery:
+          //   - automation → CFR_RECOVERY.md via writeAutomationRecovery
+          //   - system     → console log
+          // Full RESTORED_TERMINAL state-machine wiring is S13; S12 just
+          // makes this path non-crashing.
           if (origin.kind !== "conversation") {
-            throw new Error(`unreachable in S9 — wired in S12: origin.kind === "${origin.kind}"`);
+            return;
           }
           const { conversationId, turnNumber, channel } = origin;
           const prompt = `You are the conversation layer. The user's original turn #${turnNumber} failed to transcribe; it actually said: "${recoveredContent}". Answer their question directly — don't acknowledge this system message.`;
@@ -814,6 +825,16 @@ export class App extends EventEmitter {
             }
           }
         },
+        // M9.6-S12 Task 6b: wire AckDelivery.writeAutomationRecovery so the
+        // terminal drain can land a CFR_RECOVERY.md record for every attached
+        // automation origin — including the `outcome: "fixed"` case, which
+        // doesn't flow through emitAck. Absent ackDelivery → the orchestrator
+        // logs a warning and continues with the remaining drain steps.
+        writeAutomationRecovery: ackDelivery
+          ? (args) => {
+              ackDelivery.writeAutomationRecovery(args);
+            }
+          : undefined,
         now: () => new Date().toISOString(),
       });
 

@@ -16,7 +16,13 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { CapabilityFailure, SurrenderScope, FixAttempt } from "./cfr-types.js";
+import type {
+  CapabilityFailure,
+  SurrenderScope,
+  FixAttempt,
+  TriggeringOrigin,
+  TriggeringInput,
+} from "./cfr-types.js";
 import type { CapabilityRegistry } from "./registry.js";
 import type { CapabilityWatcher } from "./watcher.js";
 import type { CapabilityInvoker } from "./invoker.js";
@@ -51,6 +57,20 @@ export interface OrchestratorDeps {
   invoker?: CapabilityInvoker;
   emitAck: (failure: CapabilityFailure, kind: AckKind) => Promise<void>;
   reprocessTurn: (failure: CapabilityFailure, recoveredContent: string) => Promise<void>;
+  /**
+   * Write `CFR_RECOVERY.md` for an automation-origin attached to this fix
+   * session. Called once per attached automation origin during the Task 6b
+   * terminal drain — independent of `emitAck` so `outcome: "fixed"` can land
+   * a durable record even when the user-facing ack path is a no-op for
+   * automations. Optional: when absent, the orchestrator logs a warning and
+   * continues with the remaining drain steps (per-origin failure isolation).
+   */
+  writeAutomationRecovery?: (args: {
+    failure: CapabilityFailure;
+    runDir: string;
+    outcome: "fixed" | "surrendered";
+    session: { attempts: FixAttempt[]; surrenderReason?: "budget" | "iteration-3" };
+  }) => void;
   now: () => string;
 }
 
@@ -100,25 +120,35 @@ export class RecoveryOrchestrator {
   async handle(failure: CapabilityFailure): Promise<void> {
     const { capabilityType, triggeringInput } = failure;
     const { origin } = triggeringInput;
-    if (origin.kind !== "conversation") {
-      // S12 wires automation and system origins. S9: unreachable.
-      throw new Error(`unreachable in S9 — wired in S12: origin.kind === "${origin.kind}"`);
-    }
-    const { conversationId, turnNumber } = origin;
 
-    // 1. Check cross-conversation surrender cooldown
+    // 1. Check cross-conversation surrender cooldown.
+    //    Only conversation origins participate in SurrenderScope (M9.6-S12 D6,
+    //    Option A). Automation/system origins bypass the cooldown — their
+    //    recovery record lives in CFR_RECOVERY.md / log, not a scope keyed by
+    //    conversationId.
     if (this.isSurrendered(capabilityType)) {
-      console.log(
-        `[RecoveryOrchestrator] ${capabilityType} in surrender cooldown — skipping recovery for conv ${conversationId}`,
-      );
-      await this.deps.emitAck(failure, "surrender-cooldown");
-      return;
+      if (origin.kind === "conversation") {
+        console.log(
+          `[RecoveryOrchestrator] ${capabilityType} in surrender cooldown — skipping recovery for conv ${origin.conversationId}`,
+        );
+        await this.deps.emitAck(failure, "surrender-cooldown");
+        return;
+      }
+      // Non-conversation origin during a conversation-scoped cooldown — proceed
+      // with recovery; the cooldown only protects conversation-origin turns.
     }
 
-    // 2. Dedup: if a fix is already in-flight for this capability type, attach silently
-    if (this.inFlight.has(capabilityType)) {
+    // 2. Dedup: if a fix is already in-flight for this capability type, attach
+    //    the new origin to the existing FixSession's attachedOrigins (M9.6-S12
+    //    Task 6a, D7). No second automation is spawned; no duplicate "hold on"
+    //    ack is sent. The terminal drain processes every attached origin.
+    const existing = this.inFlight.get(capabilityType);
+    if (existing) {
+      existing.attachedOrigins.push(origin);
       console.log(
-        `[RecoveryOrchestrator] ${capabilityType} fix already in-flight — attaching conv ${conversationId} turn ${turnNumber}`,
+        `[RecoveryOrchestrator] ${capabilityType} fix already in-flight — ` +
+          `attaching origin kind="${origin.kind}" ` +
+          `(attachedOrigins=${existing.attachedOrigins.length})`,
       );
       return;
     }
@@ -131,6 +161,7 @@ export class RecoveryOrchestrator {
       state: "IDLE",
       attempts: [],
       totalJobsSpawned: 0,
+      attachedOrigins: [origin],
     };
     this.inFlight.set(capabilityType, session);
 
@@ -186,24 +217,35 @@ export class RecoveryOrchestrator {
     return false;
   }
 
-  /** Record a surrender scope for a given failure */
-  private recordSurrender(failure: CapabilityFailure): void {
-    const { origin } = failure.triggeringInput;
+  /**
+   * Record a surrender scope for a given origin.
+   *
+   * M9.6-S12 Task 6c (Option A, D6): only conversation origins write a
+   * SurrenderScope. Automation/system origins skip this — their surrender
+   * info lives in `CFR_RECOVERY.md` (automation) or console log (system),
+   * written by the Task 6b terminal drain. `SurrenderScope` is conversation-
+   * scoped by shape (`{capabilityType, conversationId, turnNumber, expiresAt}`)
+   * and exists to suppress repeat "sorry, I can't fix this" ack messages to
+   * the same user — automations don't face users mid-run.
+   *
+   * Option B (widen `SurrenderScope` to a discriminated union) is deferred;
+   * see `s12-FOLLOW-UPS.md`.
+   */
+  private recordSurrender(origin: TriggeringOrigin, capabilityType: string): void {
     if (origin.kind !== "conversation") {
-      // S12 wires automation and system surrender routing. S9: unreachable.
-      throw new Error(`unreachable in S9 — wired in S12: origin.kind === "${origin.kind}"`);
+      return;
     }
     const { conversationId, turnNumber } = origin;
-    const key = `${failure.capabilityType}:${conversationId}:${turnNumber}`;
+    const key = `${capabilityType}:${conversationId}:${turnNumber}`;
     const expiresAt = new Date(Date.now() + SURRENDER_COOLDOWN_MS).toISOString();
     this.surrendered.set(key, {
-      capabilityType: failure.capabilityType,
+      capabilityType,
       conversationId,
       turnNumber,
       expiresAt,
     });
     console.warn(
-      `[RecoveryOrchestrator] SURRENDER ${failure.capabilityType} — conv ${conversationId} turn ${turnNumber} — cooldown until ${expiresAt}`,
+      `[RecoveryOrchestrator] SURRENDER ${capabilityType} — conv ${conversationId} turn ${turnNumber} — cooldown until ${expiresAt}`,
     );
   }
 
@@ -250,14 +292,17 @@ export class RecoveryOrchestrator {
         const attemptResult = await this.runOneAttempt(session, failure);
 
         if (attemptResult.recovered) {
-          // Reverify passed — re-process the original turn
+          // Reverify passed — drive the drain (M9.6-S12 Task 6b).
           const reprocessAction = nextAction(session, {
             type: "REVERIFY_PASS",
             recoveredContent: attemptResult.recoveredContent!,
           });
           if (reprocessAction.action === "REPROCESS_TURN") {
             session.state = "DONE";
-            await this.deps.reprocessTurn(failure, reprocessAction.recoveredContent);
+            await this.terminalDrain(failure, session, {
+              outcome: "fixed",
+              recoveredContent: reprocessAction.recoveredContent,
+            });
             nextAction(session, { type: "REPROCESS_SENT" });
             return;
           }
@@ -458,16 +503,160 @@ export class RecoveryOrchestrator {
   }
 
   /**
-   * Emit surrender ack and record the scope.
-   * Uses `session.surrenderReason` to pick `"surrender-budget"` vs `"surrender"`
-   * so the user-facing copy matches the actual cause of surrender (M9.6-S6).
+   * Terminal surrender path: run the 6-step terminal drain (Task 6b) with
+   * `outcome: "surrendered"`. The drain records SurrenderScope (conversation
+   * only, Option A), writes CFR_RECOVERY.md for automation origins, emits the
+   * terminal ack for conversation origins, and logs for system origins.
    */
   private async surrender(session: FixSession, failure: CapabilityFailure): Promise<void> {
     session.state = "SURRENDER";
-    this.recordSurrender(failure);
-    const kind: AckKind =
+    await this.terminalDrain(failure, session, { outcome: "surrendered" });
+  }
+
+  // ─── Terminal drain (M9.6-S12 Task 6b) ─────────────────────────────────────
+
+  /**
+   * Six-step terminal drain (design §3.4). Runs once per fix session on the
+   * terminal transition — reverify pass (`outcome: "fixed"`) or surrender
+   * (`outcome: "surrendered"`).
+   *
+   * Step order:
+   *   1. Fix job's deliverable.md already persisted by the job runner; the
+   *      framework's writePaperTrail already appended — no work here.
+   *   2. Caller has already determined the outcome (`fixed` vs `surrendered`).
+   *      For surrendered outcomes, record the SurrenderScope for any attached
+   *      conversation origins (Option A — D6: automation/system skip).
+   *   3. For every attached automation origin: write CFR_RECOVERY.md, then
+   *      emit the terminal ack (which may fire a notification for
+   *      `notifyMode === "immediate"`).
+   *   4. For every attached conversation origin: if `recoveredContent` is
+   *      defined → `reprocessTurn`; else → terminal `emitAck`.
+   *   5. For every attached system origin: console.log.
+   *   6. Release per-type mutex (handled by `handle()`'s `finally`).
+   *
+   * Each per-origin callback is wrapped in its own try/catch so a failure in
+   * one origin doesn't block processing for the rest (failure isolation is a
+   * spec requirement). Automations (step 3) run before conversations (step 4)
+   * so the durable record lands before any user-facing ack.
+   */
+  private async terminalDrain(
+    failure: CapabilityFailure,
+    session: FixSession,
+    args: { outcome: "fixed" | "surrendered"; recoveredContent?: string },
+  ): Promise<void> {
+    const { outcome, recoveredContent } = args;
+
+    // Step 2: record SurrenderScope for conversation origins (surrender only).
+    if (outcome === "surrendered") {
+      for (const origin of session.attachedOrigins) {
+        try {
+          this.recordSurrender(origin, session.capabilityType);
+        } catch (err) {
+          console.error(
+            `[RecoveryOrchestrator] recordSurrender threw for origin.kind="${origin.kind}":`,
+            err,
+          );
+        }
+      }
+    }
+
+    // Bucket origins by kind so we can guarantee the spec's ordering:
+    // automations → conversations → system.
+    const automationOrigins = session.attachedOrigins.filter(
+      (o): o is Extract<TriggeringOrigin, { kind: "automation" }> =>
+        o.kind === "automation",
+    );
+    const conversationOrigins = session.attachedOrigins.filter(
+      (o): o is Extract<TriggeringOrigin, { kind: "conversation" }> =>
+        o.kind === "conversation",
+    );
+    const systemOrigins = session.attachedOrigins.filter(
+      (o): o is Extract<TriggeringOrigin, { kind: "system" }> =>
+        o.kind === "system",
+    );
+
+    const terminalAckKind: AckKind =
       session.surrenderReason === "budget" ? "surrender-budget" : "surrender";
-    await this.deps.emitAck(failure, kind);
+
+    // Step 3: automation origins — durable record, then terminal ack.
+    for (const origin of automationOrigins) {
+      const perOriginFailure = withOrigin(failure, origin);
+      try {
+        if (this.deps.writeAutomationRecovery) {
+          this.deps.writeAutomationRecovery({
+            failure: perOriginFailure,
+            runDir: origin.runDir,
+            outcome,
+            session: {
+              attempts: session.attempts,
+              surrenderReason: session.surrenderReason,
+            },
+          });
+        } else {
+          console.warn(
+            `[RecoveryOrchestrator] No writeAutomationRecovery dep — ` +
+              `CFR_RECOVERY.md not written for automation ${origin.automationId}/${origin.jobId}`,
+          );
+        }
+      } catch (err) {
+        console.error(
+          `[RecoveryOrchestrator] writeAutomationRecovery threw for job ${origin.jobId}:`,
+          err,
+        );
+      }
+      // Emit terminal ack so the notifier path fires for immediate-mode
+      // automations. AckDelivery.deliver() will no-op for the "fixed" outcome
+      // path (kind is still surrender-shaped here only for surrender); for the
+      // "fixed" case we skip the ack entirely — debrief-prep (Task 7) reads
+      // CFR_RECOVERY.md and the notifyMode === "immediate" notifier for
+      // "fixed" outcomes is Phase-3 work (S19 FOLLOW-UP).
+      if (outcome === "surrendered") {
+        try {
+          await this.deps.emitAck(perOriginFailure, terminalAckKind);
+        } catch (err) {
+          console.error(
+            `[RecoveryOrchestrator] emitAck threw for automation ${origin.automationId}:`,
+            err,
+          );
+        }
+      }
+    }
+
+    // Step 4: conversation origins — reprocess on success, terminal ack on surrender.
+    for (const origin of conversationOrigins) {
+      const perOriginFailure = withOrigin(failure, origin);
+      try {
+        if (outcome === "fixed" && recoveredContent !== undefined) {
+          await this.deps.reprocessTurn(perOriginFailure, recoveredContent);
+        } else {
+          await this.deps.emitAck(perOriginFailure, terminalAckKind);
+        }
+      } catch (err) {
+        console.error(
+          `[RecoveryOrchestrator] conversation drain threw for conv ${origin.conversationId} turn ${origin.turnNumber}:`,
+          err,
+        );
+      }
+    }
+
+    // Step 5: system origins — log.
+    for (const origin of systemOrigins) {
+      try {
+        console.log(
+          `[RecoveryOrchestrator] terminal drain for system origin ` +
+            `component="${origin.component}" capability=${session.capabilityType} ` +
+            `outcome=${outcome}` +
+            (session.surrenderReason ? ` reason=${session.surrenderReason}` : ""),
+        );
+      } catch (err) {
+        console.error(
+          `[RecoveryOrchestrator] system drain threw for component="${origin.component}":`,
+          err,
+        );
+      }
+    }
+
+    // Step 6: release per-type mutex — handled by handle()'s finally block.
   }
 
   /**
@@ -588,4 +777,24 @@ summary: your assessment and next hypothesis in one line
 
 Body: reasoning about what the execute agent did and what should be tried next.`;
   }
+}
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Return a shallow copy of `failure` whose `triggeringInput.origin` is
+ * overridden with `origin`. Used inside the terminal drain to route each
+ * attached origin through consumers (`emitAck`, `reprocessTurn`,
+ * `writeAutomationRecovery`) that read `failure.triggeringInput.origin` to
+ * pick their behavior.
+ */
+function withOrigin(
+  failure: CapabilityFailure,
+  origin: TriggeringOrigin,
+): CapabilityFailure {
+  const nextInput: TriggeringInput = {
+    ...failure.triggeringInput,
+    origin,
+  };
+  return { ...failure, triggeringInput: nextInput };
 }

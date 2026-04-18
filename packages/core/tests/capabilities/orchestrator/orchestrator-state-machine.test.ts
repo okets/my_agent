@@ -19,6 +19,7 @@ function makeSession(overrides: Partial<FixSession> = {}): FixSession {
     state: "IDLE",
     attempts: [],
     totalJobsSpawned: 0,
+    attachedOrigins: [],
     ...overrides,
   };
 }

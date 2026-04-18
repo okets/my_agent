@@ -5,7 +5,7 @@
  * Created in M9.6-S4.
  */
 
-import type { FixAttempt } from "./cfr-types.js";
+import type { FixAttempt, TriggeringOrigin } from "./cfr-types.js";
 
 export type OrchestratorState =
   | "IDLE"
@@ -42,6 +42,15 @@ export interface FixSession {
    * to pick the right user-facing copy (M9.6-S6).
    */
   surrenderReason?: "budget" | "iteration-3";
+  /**
+   * All triggering origins that have coalesced onto this fix session (M9.6-S12
+   * Task 6a — D7). Initialized with the first CFR's origin; late-arriving CFRs
+   * for the same capability type append (N-aware, no second spawn, no duplicate
+   * ack). The terminal drain (§3.4) iterates this list so every attached origin
+   * gets its recovery delivery (automation → CFR_RECOVERY.md, conversation →
+   * reprocessTurn/emitAck, system → log) without dropping any.
+   */
+  attachedOrigins: TriggeringOrigin[];
 }
 
 export type Action =
