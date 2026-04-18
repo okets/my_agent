@@ -9,6 +9,8 @@ import type { AutomationJobService } from "./automation-job-service.js";
 import type { PersistentNotificationQueue, PersistentNotification } from "../notifications/persistent-queue.js";
 import type { ConnectionRegistry } from "../ws/connection-registry.js";
 import { readTodoFile } from "./todo-file.js";
+import { readLastAuditTimestamp } from "./audit-liveness.js";
+import fs from "node:fs";
 import path from "node:path";
 
 export interface HeartbeatConfig {
@@ -34,6 +36,9 @@ export interface HeartbeatConfig {
   capabilityHealthCheck?: () => Promise<void>;
   /** WS broadcast (M9.4-S5 B7). Optional — heartbeat tolerates absence in tests. */
   registry?: ConnectionRegistry;
+  /** Agent directory — used to read logs/audit.jsonl for per-session liveness.
+   *  When undefined, the audit-log signal is skipped and only todos.json activity is used. */
+  agentDir?: string;
 }
 
 export class HeartbeatService {
