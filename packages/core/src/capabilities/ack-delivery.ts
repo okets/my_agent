@@ -124,7 +124,7 @@ export interface DeliveryContext {
 
 /** Kinds that mark a terminal transition (end of the fix loop). */
 function isTerminalKind(kind: AckKind | undefined): boolean {
-  return kind === "surrender" || kind === "surrender-budget";
+  return kind === "surrender" || kind === "surrender-budget" || kind === "terminal-fixed";
 }
 
 /**
@@ -337,7 +337,7 @@ function buildRecoveryBody(args: {
   // Opening paragraph: pull from the final attempt's hypothesis (populated
   // from its deliverable.md summary), or fall back to a surrender explanation.
   let summaryParagraph: string;
-  if (outcome === "fixed") {
+  if (outcome === "fixed" || outcome === "terminal-fixed") {
     const last = attempts[attempts.length - 1];
     summaryParagraph =
       last?.hypothesis ??
