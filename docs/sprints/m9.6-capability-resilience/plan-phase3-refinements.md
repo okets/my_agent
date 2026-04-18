@@ -305,6 +305,14 @@ Manual: confirm live WhatsApp voice message replies with voice on the healthy pa
 - `packages/dashboard/public/js/app.js` (and any related rendering) — turns with `failure_type` render with a subtle inline marker ("voice reply unavailable — fixing…") rather than a blank assistant bubble. Copy per S14 terminal table.
 - `packages/core/tests/conversations/orphan-watchdog-assistant.test.ts` *(new)* — assistant turn with `failure_type: "text-to-audio"` detected + scheduled.
 
+**Files (automation notifier — `AutomationNotifierLike` impl + `fixed`-outcome immediate fan-out, deferred from S12):**
+
+S12's `AckDelivery` exposes a `notifier` dependency for automation-origin terminal acks but no concrete implementation is wired in `app.ts` — so `notifyMode === "immediate"` currently logs a warning and still writes `CFR_RECOVERY.md` (degraded but not broken). S12's terminal drain also skips the immediate-notification fan-out for the `"fixed"` outcome (writes the file only). Per S12 architect-review §6, both items land here:
+
+- `packages/dashboard/src/app.ts` — wire a concrete `AutomationNotifierLike` implementation. Hook into the existing notification layer used by debrief delivery so automation-origin CFR recoveries can fire real-time notifications when `notifyMode === "immediate"`. Coordinate with the system-origin UI work above so health events and CFR recovery events share one notification surface.
+- `packages/core/src/capabilities/ack-delivery.ts` — extend the automation-origin terminal branch: when `notifyMode === "immediate"` AND `outcome === "fixed"`, fire the notifier after `CFR_RECOVERY.md` is written (currently only the surrendered branch reaches the notifier). Per-origin try/catch still applies — notifier failure must not block other origins' draining.
+- `packages/dashboard/tests/integration/cfr-automation-notifier.test.ts` *(new)* — `notifyMode === "immediate"` + `outcome === "fixed"` → CFR_RECOVERY.md written THEN notifier called; missing notifier degrades gracefully (warn + write); `notifyMode === "debrief"` does not call notifier at terminal time (debrief-prep handles narrative).
+
 **Files (system-origin UI):**
 
 - `packages/dashboard/src/api/capabilities.ts` (or the route that serves `.my_agent/capabilities/` health — confirm at sprint-time) — extend the health endpoint to surface system-origin CFR events. Source: a new in-memory ring buffer in `ack-delivery.ts` or a small append-only log file under `.my_agent/.runtime/cfr-system.log`.
