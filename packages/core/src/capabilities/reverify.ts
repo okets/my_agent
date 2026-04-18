@@ -9,7 +9,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
@@ -95,7 +95,6 @@ export async function reverifyTextToAudio(
     return { pass: false, failureMode: "synthesize.sh exited 0 but no output file found", verificationInputPath: scriptPath };
   }
 
-  const { readFileSync } = await import("node:fs");
   const header = readFileSync(outputPath).slice(0, 4).toString("ascii");
   const validHeader = header.startsWith("OggS") || header.startsWith("RIFF");
   if (!validHeader) {
@@ -181,7 +180,6 @@ export async function reverifyTextToImage(
     return { pass: false, failureMode: "generate.sh exited 0 but no output file found", verificationInputPath: scriptPath };
   }
 
-  const { readFileSync } = await import("node:fs");
   const buf = readFileSync(outputPath);
   const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
   const isJpeg = buf[0] === 0xff && buf[1] === 0xd8;
@@ -198,82 +196,10 @@ export async function reverifyTextToImage(
   return { pass: true, recoveredContent: undefined, verificationInputPath: scriptPath };
 }
 
-const REVERIFIERS: Record<string, Reverifier> = {
-  "audio-to-text": reverifyAudioToText,
-  "text-to-audio": reverifyTextToAudio,
-  "image-to-text": reverifyImageToText,
-  "text-to-image": reverifyTextToImage,
-};
-
 /**
- * Top-level reverify entry point (M9.6-S13). Routes to per-type reverifier
- * via REVERIFIERS table, or falls through to runSmokeFixture for MCP plugs
- * and unknown types.
- *
- * Replaces the old reverify() monolith. The old export is kept as a deprecated
- * alias for backwards compatibility with existing tests.
+ * Reverifier for audio-to-text plugs. Runs transcribe.sh against the raw media
+ * file from the triggering input; expects JSON output with "text" field.
  */
-export async function dispatchReverify(
-  failure: CapabilityFailure,
-  registry: CapabilityRegistry,
-  watcher: CapabilityWatcher,
-  invoker?: CapabilityInvoker,
-): Promise<ReverifyResult> {
-  // Force rescan + testAll
-  await watcher.rescanNow();
-
-  // Wait for capability to be available
-  const available = await waitForAvailability(
-    registry,
-    failure.capabilityType,
-    AVAILABILITY_TIMEOUT_MS,
-    AVAILABILITY_POLL_MS,
-  );
-
-  if (!available) {
-    return {
-      pass: false,
-      failureMode: `capability ${failure.capabilityType} still unavailable after rescan`,
-    };
-  }
-
-  // Per-type reverifier
-  const specific = REVERIFIERS[failure.capabilityType];
-  if (specific) {
-    return specific(failure, registry, invoker);
-  }
-
-  // Smoke-fixture default for MCP plugs and unknown types.
-  // runSmokeFixture(capDir, registry, capabilityType) — resolve capDir first.
-  const cap = registry.get(failure.capabilityType);
-  if (!cap) {
-    return { pass: false, failureMode: `${failure.capabilityType} not found in registry` };
-  }
-  return runSmokeFixture(cap.path, registry, failure.capabilityType);
-}
-
-/** @deprecated Use dispatchReverify instead (M9.6-S13). */
-export const reverify = dispatchReverify;
-
-/** Wait up to timeoutMs for the capability to reach status=available */
-async function waitForAvailability(
-  registry: CapabilityRegistry,
-  capabilityType: string,
-  timeoutMs: number,
-  pollMs: number,
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const cap = registry.get(capabilityType);
-    if (cap?.status === "available") return true;
-    await sleep(pollMs);
-  }
-
-  // Final check
-  return registry.get(capabilityType)?.status === "available";
-}
-
 async function reverifyAudioToText(
   failure: CapabilityFailure,
   registry: CapabilityRegistry,
@@ -374,6 +300,82 @@ async function reverifyAudioToText(
     const message = err instanceof Error ? err.message : String(err);
     return { pass: false, failureMode: `transcribe.sh execution error: ${message}` };
   }
+}
+
+const REVERIFIERS: Record<string, Reverifier> = {
+  "audio-to-text": reverifyAudioToText,
+  "text-to-audio": reverifyTextToAudio,
+  "image-to-text": reverifyImageToText,
+  "text-to-image": reverifyTextToImage,
+};
+
+/**
+ * Top-level reverify entry point (M9.6-S13). Routes to per-type reverifier
+ * via REVERIFIERS table, or falls through to runSmokeFixture for MCP plugs
+ * and unknown types.
+ *
+ * Replaces the old reverify() monolith. The old export is kept as a deprecated
+ * alias for backwards compatibility with existing tests.
+ */
+export async function dispatchReverify(
+  failure: CapabilityFailure,
+  registry: CapabilityRegistry,
+  watcher: CapabilityWatcher,
+  invoker?: CapabilityInvoker,
+): Promise<ReverifyResult> {
+  // Force rescan + testAll
+  await watcher.rescanNow();
+
+  // Wait for capability to be available
+  const available = await waitForAvailability(
+    registry,
+    failure.capabilityType,
+    AVAILABILITY_TIMEOUT_MS,
+    AVAILABILITY_POLL_MS,
+  );
+
+  if (!available) {
+    return {
+      pass: false,
+      failureMode: `capability ${failure.capabilityType} still unavailable after rescan`,
+    };
+  }
+
+  // Per-type reverifier
+  const specific = REVERIFIERS[failure.capabilityType];
+  if (specific) {
+    return specific(failure, registry, invoker);
+  }
+
+  // Smoke-fixture default for MCP plugs and unknown types.
+  // runSmokeFixture(capDir, registry, capabilityType) — resolve capDir first.
+  const cap = registry.get(failure.capabilityType);
+  if (!cap) {
+    return { pass: false, failureMode: `${failure.capabilityType} not found in registry` };
+  }
+  return runSmokeFixture(cap.path, registry, failure.capabilityType);
+}
+
+/** @deprecated Use dispatchReverify instead (M9.6-S13). */
+export const reverify = dispatchReverify;
+
+/** Wait up to timeoutMs for the capability to reach status=available */
+async function waitForAvailability(
+  registry: CapabilityRegistry,
+  capabilityType: string,
+  timeoutMs: number,
+  pollMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const cap = registry.get(capabilityType);
+    if (cap?.status === "available") return true;
+    await sleep(pollMs);
+  }
+
+  // Final check
+  return registry.get(capabilityType)?.status === "available";
 }
 
 /** Maximum time to wait for smoke.sh to complete */
