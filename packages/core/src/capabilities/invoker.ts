@@ -27,6 +27,7 @@ const execFileAsync = promisify(execFile);
 
 export interface InvokeOptions {
   capabilityType: string;    // e.g. "audio-to-text"
+  capabilityName?: string;   // narrow to a named instance (FU-4)
   scriptName: string;        // e.g. "transcribe.sh"
   args: string[];
   triggeringInput: TriggeringInput;
@@ -51,6 +52,7 @@ export class CapabilityInvoker {
     const { cfr, registry } = this.deps;
     const {
       capabilityType,
+      capabilityName,
       scriptName,
       args,
       timeoutMs = 30_000,
@@ -74,9 +76,16 @@ export class CapabilityInvoker {
     if (allCaps.length === 0) {
       return emit("not-installed", `No ${capabilityType} capability installed`);
     }
+    // Named-instance selection (FU-4): narrow to specific instance when caller requests it.
+    const candidates = capabilityName
+      ? allCaps.filter(c => c.name === capabilityName)
+      : allCaps;
+    if (capabilityName && candidates.length === 0) {
+      return emit("not-installed", `No ${capabilityType} capability named '${capabilityName}' installed`);
+    }
     // Prefer the first enabled+available instance; fall back to first-by-insertion
     // so the granular checks below emit the correct symptom (not-enabled / execution-error).
-    const cap = allCaps.find(c => c.enabled && c.status === "available") ?? allCaps[0];
+    const cap = candidates.find(c => c.enabled && c.status === "available") ?? candidates[0];
     if (!cap.enabled) {
       return emit("not-enabled", `${cap.name} is disabled`, cap.name);
     }

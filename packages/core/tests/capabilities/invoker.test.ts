@@ -238,6 +238,94 @@ describe("CapabilityInvoker — 6-symptom matrix", () => {
     });
   });
 
+  describe("capabilityName — named-instance selection (FU-4)", () => {
+    it("invokes the named instance, not others of the same type", async () => {
+      const { capPath: chromePath } = writeTempScript('#!/bin/bash\necho "from-chrome"');
+      const { capPath: firefoxPath } = writeTempScript('#!/bin/bash\necho "from-firefox"');
+      const { cfr, emitted } = makeCfr();
+      const chromeCap: Capability = {
+        name: "browser-chrome",
+        provides: "browser-control",
+        interface: "script",
+        path: chromePath,
+        status: "available",
+        enabled: true,
+        health: "healthy",
+        canDelete: true,
+      };
+      const firefoxCap: Capability = {
+        name: "browser-firefox",
+        provides: "browser-control",
+        interface: "script",
+        path: firefoxPath,
+        status: "available",
+        enabled: true,
+        health: "healthy",
+        canDelete: true,
+      };
+      const registry = {
+        listByProvides: vi.fn(() => [chromeCap, firefoxCap]),
+      } as unknown as CapabilityRegistry;
+      const deps: InvokerDeps & { cfr: CfrEmitter; emitted: unknown[] } = {
+        cfr, emitted, registry,
+        originFactory: () => conversationOrigin(
+          { transportId: "dashboard", channelId: "ch-1", sender: "system" }, "", 0,
+        ),
+      };
+
+      const invoker = new CapabilityInvoker(deps);
+      const result = await invoker.run({
+        capabilityType: "browser-control",
+        capabilityName: "browser-firefox",
+        scriptName: "transcribe.sh",
+        args: [],
+        triggeringInput,
+      });
+
+      expect(result.kind).toBe("success");
+      if (result.kind === "success") expect(result.stdout.trim()).toBe("from-firefox");
+      expect(deps.cfr.emitFailure).not.toHaveBeenCalled();
+    });
+
+    it("emits not-installed when named instance does not exist", async () => {
+      const { cfr, emitted } = makeCfr();
+      const chromeCap: Capability = {
+        name: "browser-chrome",
+        provides: "browser-control",
+        interface: "script",
+        path: "/tmp/chrome",
+        status: "available",
+        enabled: true,
+        health: "healthy",
+        canDelete: true,
+      };
+      const registry = {
+        listByProvides: vi.fn(() => [chromeCap]),
+      } as unknown as CapabilityRegistry;
+      const deps: InvokerDeps & { cfr: CfrEmitter; emitted: unknown[] } = {
+        cfr, emitted, registry,
+        originFactory: () => conversationOrigin(
+          { transportId: "dashboard", channelId: "ch-1", sender: "system" }, "", 0,
+        ),
+      };
+
+      const invoker = new CapabilityInvoker(deps);
+      const result = await invoker.run({
+        capabilityType: "browser-control",
+        capabilityName: "browser-safari",
+        scriptName: "transcribe.sh",
+        args: [],
+        triggeringInput,
+      });
+
+      expect(result.kind).toBe("failure");
+      if (result.kind === "failure") {
+        expect(result.symptom).toBe("not-installed");
+        expect(result.detail).toContain("browser-safari");
+      }
+    });
+  });
+
   describe("multi-instance selection — prefers first enabled+available", () => {
     it("uses the first enabled+available cap when multiple are registered", async () => {
       const { capPath: capPath1 } = writeTempScript('#!/bin/bash\necho \'{"text":"from-cap2","language":"en"}\'');
