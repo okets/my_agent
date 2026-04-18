@@ -13,8 +13,9 @@
  *
  * Created in M9.6-S6.
  *
- * M9.6-S12 (Task 5): origin-aware routing. The S9 `unreachable in S9` throw is
- * replaced with three branches:
+ * M9.6-S12 (Task 5): origin-aware routing. The S9 placeholder throw (which
+ * existed for the non-conversation origins) has been replaced with three
+ * branches:
  *
  *   - conversation → existing transport-routing logic (unchanged).
  *   - automation   → write `CFR_RECOVERY.md` to `origin.runDir` on terminal
