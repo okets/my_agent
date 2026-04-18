@@ -351,7 +351,7 @@ export class HeartbeatService {
       case "job_failed":
         return `A background task failed.\n\nError: ${n.summary}\n\n${naturalFraming} If the error seems transient, suggest re-triggering.`;
       case "job_interrupted":
-        return `A background task was interrupted (stale — no activity for 5+ minutes).\n\nProgress: ${n.todos_completed ?? 0}/${n.todos_total ?? 0} items done.\nIncomplete: ${n.incomplete_items?.join(", ") || "unknown"}\nResumable: ${n.resumable ? "yes" : "no"}\n\n${naturalFraming}`;
+        return `A background task was interrupted (stale — no recent tool activity detected).\n\nProgress: ${n.todos_completed ?? 0}/${n.todos_total ?? 0} items done.\nIncomplete: ${n.incomplete_items?.join(", ") || "unknown"}\nResumable: ${n.resumable ? "yes" : "no"}\n\n${naturalFraming}`;
       case "job_needs_review":
         return `A background task needs your review.\n\n${n.summary}\n\n${naturalFraming}`;
       case "infra_alert":
