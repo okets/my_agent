@@ -1,6 +1,15 @@
 # S15 Deviations
 
-No formal deviation proposals filed. All scope within `plan-phase2-coverage.md §2.7` boundaries.
+## D-EXT — MockTransport / AppHarness recording pattern (§2.7 substitution)
+
+**Spec says:** §2.7 references a `MockTransport` recording approach in `app-harness.ts`.
+**What was done:** All 4 E2E tests use the direct `cfr.emitFailure()` pattern — same as the S7 exit gate — with `emitAck` and `reprocessTurn` callbacks as recorders. No `MockTransport` added to AppHarness.
+**Rationale (D2 in DECISIONS.md):** The direct-emit pattern tests recovery-loop correctness without requiring the full chat-service stack. It is the established pattern from S7 and is sufficient for the Phase 2 coverage bar. MockTransport would test the detection-trigger wiring, which is separately covered at the unit level (S10/S12/TTS unit tests).
+**Risk:** None — both approaches exercise the same orchestrator paths. The substitution is defensible and was noted by the self-audit.
+
+---
+
+No other deviation proposals filed. All other scope within `plan-phase2-coverage.md §2.7` boundaries.
 
 The following unplanned fixes were made but are within the spirit of the sprint (fixing pre-conditions for the exit gate to run):
 
