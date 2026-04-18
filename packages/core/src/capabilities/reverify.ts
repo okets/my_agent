@@ -39,6 +39,17 @@ export interface ReverifyResult {
    * Populated by audio-to-text reverification starting in M9.6-S6.
    */
   durationMs?: number;
+  /**
+   * Set to true when exit-2 (SMOKE_SKIPPED): external resource unavailable,
+   * capability health indeterminate. Dispatcher treats as "might be healthy".
+   */
+  inconclusive?: boolean;
+  /**
+   * The path used for verification: artifact path for per-type reverifiers,
+   * <capDir>/scripts/smoke.sh for smoke-fixture reverifier. Always populated
+   * after S13 so FixAttempt.verificationInputPath is never empty string.
+   */
+  verificationInputPath?: string;
 }
 
 /**
@@ -255,10 +266,19 @@ export async function runSmokeFixture(
       cwd: capDir,
       env: { ...process.env },
     });
-    return { pass: true };
-  } catch (err) {
+    return { pass: true, verificationInputPath: smokeScript };
+  } catch (err: unknown) {
+    // execFile rejects with err.code = exit code for non-zero exits.
+    // Exit 2 = SMOKE_SKIPPED: external resource unavailable, health indeterminate.
+    if (typeof err === "object" && err !== null && (err as Record<string, unknown>).code === 2) {
+      return {
+        pass: true,
+        inconclusive: true,
+        verificationInputPath: smokeScript,
+      };
+    }
     const message = err instanceof Error ? err.message : String(err);
-    return { pass: false, failureMode: `smoke.sh failed: ${message}` };
+    return { pass: false, failureMode: `smoke.sh failed: ${message}`, verificationInputPath: smokeScript };
   }
 }
 
