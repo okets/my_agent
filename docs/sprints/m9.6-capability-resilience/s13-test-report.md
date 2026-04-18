@@ -45,7 +45,7 @@ Installed capabilities in `.my_agent/capabilities/`:
 | browser-chrome | browser-control | yes | no (smoke fallback) |
 | desktop-x11 | desktop-control | yes | no (smoke fallback) |
 | smoke-test-cap | smoke-test | no (has process.sh) | no (smoke fallback) |
-| stt-deepgram | audio-to-text | yes | no (smoke.sh takes precedence) |
+| stt-deepgram | audio-to-text | yes | yes (`audio-to-text` → reverifyAudioToText) |
 | tts-edge | (no provides field) | no | no (smoke fallback) |
 | tts-edge-tts | text-to-audio | yes | `text-to-audio` → reverifyTextToAudio |
 
