@@ -1920,6 +1920,10 @@ export class App extends EventEmitter {
           capabilityHealthIntervalMs: 60 * 60 * 1000,
           registry: connectionRegistry, // M9.4-S5 B7: WS broadcast for handoff_pending
           agentDir, // M9.1-S9: audit-log liveness signal
+          resolveStaleThresholdMs: (automationId: string) => {
+            const automation = app.automationManager?.findById(automationId);
+            return automation?.manifest.health?.stale_threshold_ms ?? null;
+          },
         });
         // M9.4-S5 B2: wire heartbeat into processor for fast-path drain.
         // Must be set BEFORE start() so the first drainNow path is wired.

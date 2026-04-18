@@ -80,6 +80,9 @@ export interface HeartbeatConfig {
   /** Agent directory — used to read logs/audit.jsonl for per-session liveness.
    *  When undefined, the audit-log signal is skipped and only todos.json activity is used. */
   agentDir?: string;
+  /** Optional per-automation threshold resolver. Returns null/undefined to use the global default.
+   *  Source: AutomationManifest.health.stale_threshold_ms */
+  resolveStaleThresholdMs?: (automationId: string) => number | null | undefined;
 }
 
 export class HeartbeatService {
@@ -158,15 +161,19 @@ export class HeartbeatService {
           : 0;
       let lastActivity = Math.max(todoTime, auditTime);
 
+      const threshold =
+        this.config.resolveStaleThresholdMs?.(job.automationId) ??
+        this.config.staleThresholdMs;
+
       // Layer 2 (lazy): only walk run-dir if BOTH todo and audit signals are stale.
       // Catches subagent-delegation gaps where worker session is silent in audit log
       // but files are still being written.
-      if (now - lastActivity > this.config.staleThresholdMs) {
+      if (now - lastActivity > threshold) {
         const runDirTime = readRunDirMtime(job.run_dir);
         lastActivity = Math.max(lastActivity, runDirTime);
       }
 
-      const isStale = now - lastActivity > this.config.staleThresholdMs;
+      const isStale = now - lastActivity > threshold;
       const neverStarted =
         todoFile.items.length === 0 &&
         now - new Date(job.created).getTime() > 2 * 60 * 1000;

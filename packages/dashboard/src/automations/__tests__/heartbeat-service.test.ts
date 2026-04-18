@@ -334,6 +334,39 @@ describe("HeartbeatService", () => {
     expect(delivered).toHaveLength(1);
   });
 
+  it("respects per-automation stale_threshold_ms override", async () => {
+    const runDir = path.join(tmpDir, "run-long");
+    fs.mkdirSync(runDir, { recursive: true });
+
+    // Last activity 9 min ago — exceeds the 5-min global default,
+    // but UNDER the 15-min per-automation override.
+    writeTodoFile(path.join(runDir, "todos.json"), {
+      items: [{ id: "t1", text: "Long research", status: "in_progress", mandatory: false, created_by: "agent" }],
+      last_activity: new Date(Date.now() - 9 * 60 * 1000).toISOString(),
+    });
+
+    mockJobService.listJobs.mockReturnValue([
+      makeJob({
+        id: "job-long",
+        run_dir: runDir,
+        automationId: "research-worker",
+      }),
+    ]);
+
+    const resolveThreshold = vi.fn((automationId: string) =>
+      automationId === "research-worker" ? 15 * 60 * 1000 : null,
+    );
+
+    const hb = createHeartbeat({ resolveStaleThresholdMs: resolveThreshold });
+    await hb.tick();
+
+    expect(resolveThreshold).toHaveBeenCalledWith("research-worker");
+    expect(mockJobService.updateJob).not.toHaveBeenCalledWith(
+      "job-long",
+      expect.objectContaining({ status: "interrupted" }),
+    );
+  });
+
   it("still triggers neverStarted even when audit log shows activity (intentional)", async () => {
     const runDir = path.join(tmpDir, "run-no-todos");
     fs.mkdirSync(runDir, { recursive: true });
