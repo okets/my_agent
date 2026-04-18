@@ -95,10 +95,17 @@ export async function reverifyTextToAudio(
     return { pass: false, failureMode: "synthesize.sh exited 0 but no output file found", verificationInputPath: scriptPath };
   }
 
-  const header = readFileSync(outputPath).slice(0, 4).toString("ascii");
-  const validHeader = header.startsWith("OggS") || header.startsWith("RIFF");
+  const headerBytes = readFileSync(outputPath).slice(0, 4);
+  const headerAscii = headerBytes.toString("ascii");
+  // Accept Ogg, WAV/RIFF, MP3 (ID3 tag), and MP3 MPEG sync word (0xFF 0xE0–0xFF)
+  const isMpegSync = headerBytes[0] === 0xff && (headerBytes[1] & 0xe0) === 0xe0;
+  const validHeader =
+    headerAscii.startsWith("OggS") ||
+    headerAscii.startsWith("RIFF") ||
+    headerAscii.startsWith("ID3") ||
+    isMpegSync;
   if (!validHeader) {
-    return { pass: false, failureMode: `output file has invalid audio header: ${JSON.stringify(header)}`, verificationInputPath: scriptPath };
+    return { pass: false, failureMode: `output file has invalid audio header: ${JSON.stringify(headerAscii)}`, verificationInputPath: scriptPath };
   }
 
   return { pass: true, recoveredContent: undefined, verificationInputPath: scriptPath };
