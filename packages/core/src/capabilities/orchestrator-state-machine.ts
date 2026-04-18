@@ -13,7 +13,8 @@ export type OrchestratorState =
   | "EXECUTING"
   | "REFLECTING"
   | "REVERIFYING"
-  | "DONE"
+  | "RESTORED_WITH_REPROCESS"
+  | "RESTORED_TERMINAL"
   | "SURRENDER";
 
 export type OrchestratorEvent =
@@ -22,7 +23,8 @@ export type OrchestratorEvent =
   | { type: "EXECUTE_JOB_SPAWNED"; jobId: string }
   | { type: "EXECUTE_JOB_DONE"; success: boolean }
   | { type: "REFLECT_JOB_DONE"; nextHypothesis: string }
-  | { type: "REVERIFY_PASS"; recoveredContent: string }
+  | { type: "REVERIFY_PASS_RECOVERED"; recoveredContent: string }
+  | { type: "REVERIFY_PASS_TERMINAL" }
   | { type: "REVERIFY_FAIL" }
   | { type: "REPROCESS_SENT" };
 
@@ -59,6 +61,7 @@ export type Action =
   | { action: "SPAWN_REFLECT_JOB" }
   | { action: "REVERIFY" }
   | { action: "REPROCESS_TURN"; recoveredContent: string }
+  | { action: "TERMINAL_ACK" }
   | { action: "SURRENDER" }
   | { action: "ITERATE"; nextAttemptNumber: 2 | 3 }
   | { action: "NOOP" };
@@ -118,8 +121,11 @@ export function nextAction(session: FixSession, event: OrchestratorEvent): Actio
     }
 
     case "REVERIFYING": {
-      if (event.type === "REVERIFY_PASS") {
+      if (event.type === "REVERIFY_PASS_RECOVERED") {
         return { action: "REPROCESS_TURN", recoveredContent: event.recoveredContent };
+      }
+      if (event.type === "REVERIFY_PASS_TERMINAL") {
+        return { action: "TERMINAL_ACK" };
       }
       if (event.type === "REVERIFY_FAIL") {
         if (attemptNumber < 3) {
@@ -131,10 +137,15 @@ export function nextAction(session: FixSession, event: OrchestratorEvent): Actio
       break;
     }
 
-    case "DONE": {
+    case "RESTORED_WITH_REPROCESS": {
       if (event.type === "REPROCESS_SENT") {
         return { action: "NOOP" };
       }
+      break;
+    }
+
+    case "RESTORED_TERMINAL": {
+      // Terminal — no further transitions
       break;
     }
 

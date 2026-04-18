@@ -9,8 +9,9 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import type { CapabilityFailure } from "./cfr-types.js";
 import type { CapabilityRegistry } from "./registry.js";
@@ -18,6 +19,12 @@ import type { CapabilityWatcher } from "./watcher.js";
 import type { CapabilityInvoker } from "./invoker.js";
 
 const execFileAsync = promisify(execFile);
+
+type Reverifier = (
+  failure: CapabilityFailure,
+  registry: CapabilityRegistry,
+  invoker?: CapabilityInvoker,
+) => Promise<ReverifyResult>;
 
 /** Time to wait for capability to become available after rescan (ms) */
 const AVAILABILITY_POLL_MS = 500;
@@ -39,77 +46,160 @@ export interface ReverifyResult {
    * Populated by audio-to-text reverification starting in M9.6-S6.
    */
   durationMs?: number;
+  /**
+   * Set to true when exit-2 (SMOKE_SKIPPED): external resource unavailable,
+   * capability health indeterminate. Dispatcher treats as "might be healthy".
+   */
+  inconclusive?: boolean;
+  /**
+   * The path used for verification: artifact path for per-type reverifiers,
+   * <capDir>/scripts/smoke.sh for smoke-fixture reverifier. Always populated
+   * after S13 so FixAttempt.verificationInputPath is never empty string.
+   */
+  verificationInputPath?: string;
 }
 
 /**
- * Re-verify a capability fix against the user's actual triggering artifact.
- *
- * 1. Forces a watcher rescan (which also calls registry.testAll() internally).
- * 2. Waits up to 10s for the capability to become available.
- * 3. For audio-to-text: runs transcribe.sh against the raw media path from the failure.
- * 4. For unknown types: returns pass if capability is now available.
- *
- * M9.6-S10: invoker parameter added so reverifyAudioToText can route through
- * CapabilityInvoker instead of calling execFile("bash", ...) directly.
- * The invoker parameter is optional to preserve backwards compatibility with
- * tests that don't wire the full App.
+ * Reverifier for text-to-audio plugs. Runs synthesize.sh against a
+ * deterministic fixture phrase; checks output file has Ogg or WAV magic bytes.
+ * Returns recoveredContent: undefined — TTS has no retriable user input.
  */
-export async function reverify(
+export async function reverifyTextToAudio(
   failure: CapabilityFailure,
   registry: CapabilityRegistry,
-  watcher: CapabilityWatcher,
-  invoker?: CapabilityInvoker,
 ): Promise<ReverifyResult> {
-  // Force rescan + testAll
-  await watcher.rescanNow();
+  const cap = registry.get("text-to-audio");
+  if (!cap) {
+    return { pass: false, failureMode: "text-to-audio capability not in registry" };
+  }
 
-  // Wait for capability to be available
-  const available = await waitForAvailability(
-    registry,
-    failure.capabilityType,
-    AVAILABILITY_TIMEOUT_MS,
-    AVAILABILITY_POLL_MS,
-  );
+  const scriptPath = join(cap.path, "scripts", "synthesize.sh");
+  if (!existsSync(scriptPath)) {
+    return { pass: false, failureMode: `synthesize.sh not found at ${scriptPath}` };
+  }
 
-  if (!available) {
+  const outputPath = join(tmpdir(), `tts-reverify-${Date.now()}.audio`);
+
+  try {
+    await execFileAsync(scriptPath, [outputPath], {
+      timeout: 30_000,
+      cwd: cap.path,
+      env: { ...process.env, TTS_REVERIFY_PHRASE: "This is a smoke test." },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { pass: false, failureMode: `synthesize.sh failed: ${message}`, verificationInputPath: scriptPath };
+  }
+
+  if (!existsSync(outputPath)) {
+    return { pass: false, failureMode: "synthesize.sh exited 0 but no output file found", verificationInputPath: scriptPath };
+  }
+
+  const header = readFileSync(outputPath).slice(0, 4).toString("ascii");
+  const validHeader = header.startsWith("OggS") || header.startsWith("RIFF");
+  if (!validHeader) {
+    return { pass: false, failureMode: `output file has invalid audio header: ${JSON.stringify(header)}`, verificationInputPath: scriptPath };
+  }
+
+  return { pass: true, recoveredContent: undefined, verificationInputPath: scriptPath };
+}
+
+/**
+ * Reverifier for image-to-text plugs. Runs ocr.sh against a template-supplied
+ * stock test image; expects non-empty text on stdout.
+ * Returns recoveredContent: undefined per design §7 (real-artifact reverify deferred).
+ */
+export async function reverifyImageToText(
+  failure: CapabilityFailure,
+  registry: CapabilityRegistry,
+): Promise<ReverifyResult> {
+  const cap = registry.get("image-to-text");
+  if (!cap) {
+    return { pass: false, failureMode: "image-to-text capability not in registry" };
+  }
+
+  const scriptPath = join(cap.path, "scripts", "ocr.sh");
+  if (!existsSync(scriptPath)) {
+    // Fall through to smoke fixture
+    return runSmokeFixture(cap.path, registry, "image-to-text");
+  }
+
+  const testImagePath = join(cap.path, "scripts", "test-image.png");
+  const scriptArgs = existsSync(testImagePath) ? [testImagePath] : [];
+
+  try {
+    const { stdout } = await execFileAsync(scriptPath, scriptArgs, {
+      timeout: 30_000,
+      cwd: cap.path,
+      env: { ...process.env },
+    });
+    const text = stdout.trim();
+    if (!text) {
+      return { pass: false, failureMode: "ocr.sh produced empty output", verificationInputPath: scriptPath };
+    }
+    return { pass: true, recoveredContent: undefined, verificationInputPath: scriptPath };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { pass: false, failureMode: `ocr.sh failed: ${message}`, verificationInputPath: scriptPath };
+  }
+}
+
+/**
+ * Reverifier for text-to-image plugs. Runs generate.sh against a deterministic
+ * fixture prompt; checks output file has valid image header (PNG or JPEG).
+ * Returns recoveredContent: undefined — no retriable user input.
+ */
+export async function reverifyTextToImage(
+  failure: CapabilityFailure,
+  registry: CapabilityRegistry,
+): Promise<ReverifyResult> {
+  const cap = registry.get("text-to-image");
+  if (!cap) {
+    return { pass: false, failureMode: "text-to-image capability not in registry" };
+  }
+
+  const scriptPath = join(cap.path, "scripts", "generate.sh");
+  if (!existsSync(scriptPath)) {
+    return runSmokeFixture(cap.path, registry, "text-to-image");
+  }
+
+  const outputPath = join(tmpdir(), `t2i-reverify-${Date.now()}.image`);
+
+  try {
+    await execFileAsync(scriptPath, [outputPath], {
+      timeout: 60_000,
+      cwd: cap.path,
+      env: { ...process.env, T2I_REVERIFY_PROMPT: "A red circle on a white background." },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { pass: false, failureMode: `generate.sh failed: ${message}`, verificationInputPath: scriptPath };
+  }
+
+  if (!existsSync(outputPath)) {
+    return { pass: false, failureMode: "generate.sh exited 0 but no output file found", verificationInputPath: scriptPath };
+  }
+
+  const buf = readFileSync(outputPath);
+  const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+  const isJpeg = buf[0] === 0xff && buf[1] === 0xd8;
+  const isWebp = buf.slice(0, 4).toString("ascii") === "RIFF" && buf.slice(8, 12).toString("ascii") === "WEBP";
+
+  if (!isPng && !isJpeg && !isWebp) {
     return {
       pass: false,
-      failureMode: `capability ${failure.capabilityType} still unavailable after rescan`,
+      failureMode: `output file has invalid image header: ${buf.slice(0, 4).toString("hex")}`,
+      verificationInputPath: scriptPath,
     };
   }
 
-  // Type-specific reverification
-  if (failure.capabilityType === "audio-to-text") {
-    return reverifyAudioToText(failure, registry, invoker);
-  }
-
-  // Unknown capability types: availability is the only check we can do
-  const cap = registry.get(failure.capabilityType);
-  return {
-    pass: cap?.status === "available",
-    failureMode: cap?.status !== "available" ? "capability unavailable" : "no reverifier registered",
-  };
+  return { pass: true, recoveredContent: undefined, verificationInputPath: scriptPath };
 }
 
-/** Wait up to timeoutMs for the capability to reach status=available */
-async function waitForAvailability(
-  registry: CapabilityRegistry,
-  capabilityType: string,
-  timeoutMs: number,
-  pollMs: number,
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const cap = registry.get(capabilityType);
-    if (cap?.status === "available") return true;
-    await sleep(pollMs);
-  }
-
-  // Final check
-  return registry.get(capabilityType)?.status === "available";
-}
-
+/**
+ * Reverifier for audio-to-text plugs. Runs transcribe.sh against the raw media
+ * file from the triggering input; expects JSON output with "text" field.
+ */
 async function reverifyAudioToText(
   failure: CapabilityFailure,
   registry: CapabilityRegistry,
@@ -212,6 +302,82 @@ async function reverifyAudioToText(
   }
 }
 
+const REVERIFIERS: Record<string, Reverifier> = {
+  "audio-to-text": reverifyAudioToText,
+  "text-to-audio": reverifyTextToAudio,
+  "image-to-text": reverifyImageToText,
+  "text-to-image": reverifyTextToImage,
+};
+
+/**
+ * Top-level reverify entry point (M9.6-S13). Routes to per-type reverifier
+ * via REVERIFIERS table, or falls through to runSmokeFixture for MCP plugs
+ * and unknown types.
+ *
+ * Replaces the old reverify() monolith. The old export is kept as a deprecated
+ * alias for backwards compatibility with existing tests.
+ */
+export async function dispatchReverify(
+  failure: CapabilityFailure,
+  registry: CapabilityRegistry,
+  watcher: CapabilityWatcher,
+  invoker?: CapabilityInvoker,
+): Promise<ReverifyResult> {
+  // Force rescan + testAll
+  await watcher.rescanNow();
+
+  // Wait for capability to be available
+  const available = await waitForAvailability(
+    registry,
+    failure.capabilityType,
+    AVAILABILITY_TIMEOUT_MS,
+    AVAILABILITY_POLL_MS,
+  );
+
+  if (!available) {
+    return {
+      pass: false,
+      failureMode: `capability ${failure.capabilityType} still unavailable after rescan`,
+    };
+  }
+
+  // Per-type reverifier
+  const specific = REVERIFIERS[failure.capabilityType];
+  if (specific) {
+    return specific(failure, registry, invoker);
+  }
+
+  // Smoke-fixture default for MCP plugs and unknown types.
+  // runSmokeFixture(capDir, registry, capabilityType) — resolve capDir first.
+  const cap = registry.get(failure.capabilityType);
+  if (!cap) {
+    return { pass: false, failureMode: `${failure.capabilityType} not found in registry` };
+  }
+  return runSmokeFixture(cap.path, registry, failure.capabilityType);
+}
+
+/** @deprecated Use dispatchReverify instead (M9.6-S13). */
+export const reverify = dispatchReverify;
+
+/** Wait up to timeoutMs for the capability to reach status=available */
+async function waitForAvailability(
+  registry: CapabilityRegistry,
+  capabilityType: string,
+  timeoutMs: number,
+  pollMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const cap = registry.get(capabilityType);
+    if (cap?.status === "available") return true;
+    await sleep(pollMs);
+  }
+
+  // Final check
+  return registry.get(capabilityType)?.status === "available";
+}
+
 /** Maximum time to wait for smoke.sh to complete */
 const SMOKE_TIMEOUT_MS = 30_000;
 
@@ -255,10 +421,19 @@ export async function runSmokeFixture(
       cwd: capDir,
       env: { ...process.env },
     });
-    return { pass: true };
-  } catch (err) {
+    return { pass: true, verificationInputPath: smokeScript };
+  } catch (err: unknown) {
+    // execFile rejects with err.code = exit code for non-zero exits.
+    // Exit 2 = SMOKE_SKIPPED: external resource unavailable, health indeterminate.
+    if (typeof err === "object" && err !== null && (err as Record<string, unknown>).code === 2) {
+      return {
+        pass: true,
+        inconclusive: true,
+        verificationInputPath: smokeScript,
+      };
+    }
     const message = err instanceof Error ? err.message : String(err);
-    return { pass: false, failureMode: `smoke.sh failed: ${message}` };
+    return { pass: false, failureMode: `smoke.sh failed: ${message}`, verificationInputPath: smokeScript };
   }
 }
 

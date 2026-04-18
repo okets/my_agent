@@ -58,14 +58,14 @@ const transitions: TransitionCase[] = [
     expected: { action: "REVERIFY" },
   },
   {
-    label: "REVERIFYING + REVERIFY_PASS → REPROCESS_TURN",
+    label: "REVERIFYING + REVERIFY_PASS_RECOVERED → REPROCESS_TURN",
     session: { state: "REVERIFYING", attemptNumber: 1 },
-    event: { type: "REVERIFY_PASS", recoveredContent: "hello world" },
+    event: { type: "REVERIFY_PASS_RECOVERED", recoveredContent: "hello world" },
     expected: { action: "REPROCESS_TURN", recoveredContent: "hello world" },
   },
   {
-    label: "DONE + REPROCESS_SENT → NOOP",
-    session: { state: "DONE", attemptNumber: 1 },
+    label: "RESTORED_WITH_REPROCESS + REPROCESS_SENT → NOOP",
+    session: { state: "RESTORED_WITH_REPROCESS", attemptNumber: 1 },
     event: { type: "REPROCESS_SENT" },
     expected: { action: "NOOP" },
   },
@@ -152,6 +152,20 @@ const transitions: TransitionCase[] = [
   {
     label: "EXECUTING + unrelated event → NOOP",
     session: { state: "EXECUTING", attemptNumber: 1 },
+    event: { type: "CFR_RECEIVED" },
+    expected: { action: "NOOP" },
+  },
+
+  // ── Terminal-fix path (RESTORED_TERMINAL) ─────────────────────────────────
+  {
+    label: "REVERIFYING + REVERIFY_PASS_TERMINAL → TERMINAL_ACK",
+    session: { state: "REVERIFYING", attemptNumber: 1 },
+    event: { type: "REVERIFY_PASS_TERMINAL" },
+    expected: { action: "TERMINAL_ACK" },
+  },
+  {
+    label: "RESTORED_TERMINAL is terminal → NOOP",
+    session: { state: "RESTORED_TERMINAL", attemptNumber: 1 },
     event: { type: "CFR_RECEIVED" },
     expected: { action: "NOOP" },
   },

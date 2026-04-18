@@ -27,12 +27,12 @@ import type { CapabilityRegistry } from "./registry.js";
 import type { CapabilityWatcher } from "./watcher.js";
 import type { CapabilityInvoker } from "./invoker.js";
 import { nextAction, type FixSession } from "./orchestrator-state-machine.js";
-import { reverify } from "./reverify.js";
+import { dispatchReverify } from "./reverify.js";
 import { parseFrontmatterContent } from "../metadata/frontmatter.js";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
-export type AckKind = "attempt" | "status" | "surrender" | "surrender-budget" | "surrender-cooldown";
+export type AckKind = "attempt" | "status" | "surrender" | "surrender-budget" | "surrender-cooldown" | "terminal-fixed";
 
 export interface AutomationSpec {
   name: string;
@@ -68,7 +68,7 @@ export interface OrchestratorDeps {
   writeAutomationRecovery?: (args: {
     failure: CapabilityFailure;
     runDir: string;
-    outcome: "fixed" | "surrendered";
+    outcome: "fixed" | "terminal-fixed" | "surrendered";
     session: { attempts: FixAttempt[]; surrenderReason?: "budget" | "iteration-3" };
   }) => void;
   now: () => string;
@@ -269,7 +269,7 @@ export class RecoveryOrchestrator {
     // Arm the 20s status timer (M9.6-S6, D2). Fires once if we're still
     // working after 20 seconds; cancelled on DONE or SURRENDER below.
     const statusTimer: NodeJS.Timeout = setTimeout(() => {
-      if (session.state !== "DONE" && session.state !== "SURRENDER") {
+      if (session.state !== "RESTORED_WITH_REPROCESS" && session.state !== "RESTORED_TERMINAL" && session.state !== "SURRENDER") {
         this.deps.emitAck(failure, "status").catch((err) => {
           console.error("[RecoveryOrchestrator] status ack failed:", err);
         });
@@ -292,19 +292,29 @@ export class RecoveryOrchestrator {
         const attemptResult = await this.runOneAttempt(session, failure);
 
         if (attemptResult.recovered) {
-          // Reverify passed — drive the drain (M9.6-S12 Task 6b).
-          const reprocessAction = nextAction(session, {
-            type: "REVERIFY_PASS",
-            recoveredContent: attemptResult.recoveredContent!,
-          });
-          if (reprocessAction.action === "REPROCESS_TURN") {
-            session.state = "DONE";
-            await this.terminalDrain(failure, session, {
-              outcome: "fixed",
-              recoveredContent: reprocessAction.recoveredContent,
+          if (attemptResult.recoveredContent !== undefined) {
+            // Reprocess path (STT): re-run the user's turn with recovered content.
+            const reprocessAction = nextAction(session, {
+              type: "REVERIFY_PASS_RECOVERED",
+              recoveredContent: attemptResult.recoveredContent,
             });
-            nextAction(session, { type: "REPROCESS_SENT" });
-            return;
+            if (reprocessAction.action === "REPROCESS_TURN") {
+              session.state = "RESTORED_WITH_REPROCESS";
+              await this.terminalDrain(failure, session, {
+                outcome: "fixed",
+                recoveredContent: reprocessAction.recoveredContent,
+              });
+              nextAction(session, { type: "REPROCESS_SENT" });
+              return;
+            }
+          } else {
+            // Terminal path (TTS, text-to-image, MCP): capability healthy, no input to replay.
+            const terminalAction = nextAction(session, { type: "REVERIFY_PASS_TERMINAL" });
+            if (terminalAction.action === "TERMINAL_ACK") {
+              session.state = "RESTORED_TERMINAL";
+              await this.terminalDrain(failure, session, { outcome: "terminal-fixed" });
+              return;
+            }
           }
         }
 
@@ -481,12 +491,18 @@ export class RecoveryOrchestrator {
     executeAttempt: FixAttempt,
   ): Promise<{ recovered: boolean; recoveredContent?: string }> {
     try {
-      const result = await reverify(failure, this.deps.capabilityRegistry, this.deps.watcher, this.deps.invoker);
+      const result = await dispatchReverify(failure, this.deps.capabilityRegistry, this.deps.watcher, this.deps.invoker);
 
-      if (result.pass && result.recoveredContent) {
+      if (result.pass) {
+        if (result.verificationInputPath) {
+          executeAttempt.verificationInputPath = result.verificationInputPath;
+        }
         executeAttempt.verificationResult = "pass";
         return { recovered: true, recoveredContent: result.recoveredContent };
       } else {
+        if (result.verificationInputPath) {
+          executeAttempt.verificationInputPath = result.verificationInputPath;
+        }
         executeAttempt.verificationResult = "fail";
         executeAttempt.failureMode = result.failureMode;
         nextAction(session, { type: "REVERIFY_FAIL" });
@@ -542,7 +558,7 @@ export class RecoveryOrchestrator {
   private async terminalDrain(
     failure: CapabilityFailure,
     session: FixSession,
-    args: { outcome: "fixed" | "surrendered"; recoveredContent?: string },
+    args: { outcome: "fixed" | "terminal-fixed" | "surrendered"; recoveredContent?: string },
   ): Promise<void> {
     const { outcome, recoveredContent } = args;
 
@@ -628,6 +644,8 @@ export class RecoveryOrchestrator {
       try {
         if (outcome === "fixed" && recoveredContent !== undefined) {
           await this.deps.reprocessTurn(perOriginFailure, recoveredContent);
+        } else if (outcome === "terminal-fixed") {
+          await this.deps.emitAck(perOriginFailure, "terminal-fixed");
         } else {
           await this.deps.emitAck(perOriginFailure, terminalAckKind);
         }

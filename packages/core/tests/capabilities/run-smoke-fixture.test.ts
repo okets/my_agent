@@ -79,4 +79,12 @@ describe("runSmokeFixture", () => {
     expect(result.pass).toBe(false);
     expect(result.failureMode).toMatch(/not available/);
   });
+
+  it("returns pass:true inconclusive:true when smoke.sh exits 2 (SMOKE_SKIPPED)", async () => {
+    const capDir = makeCapDir(2);
+    const registry = makeRegistry("available");
+    const result = await runSmokeFixture(capDir, registry, "test-type");
+    expect(result.pass).toBe(true);
+    expect(result.inconclusive).toBe(true);
+  });
 });
