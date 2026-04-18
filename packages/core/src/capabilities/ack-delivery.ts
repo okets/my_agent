@@ -277,7 +277,7 @@ export class AckDelivery {
   writeAutomationRecovery(args: {
     failure: CapabilityFailure;
     runDir: string;
-    outcome: "fixed" | "surrendered";
+    outcome: "fixed" | "terminal-fixed" | "surrendered";
     session?: AckDeliverySessionInfo;
   }): string {
     const { failure, runDir, outcome, session } = args;
@@ -327,7 +327,7 @@ function escapeTableCell(raw: string): string {
 
 function buildRecoveryBody(args: {
   plugName: string;
-  outcome: "fixed" | "surrendered";
+  outcome: "fixed" | "terminal-fixed" | "surrendered";
   attempts: FixAttempt[];
   surrenderReason?: "budget" | "iteration-3";
   symptomDetail?: string;

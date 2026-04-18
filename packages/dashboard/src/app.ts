@@ -55,10 +55,10 @@ import {
   reverify,
   loadModels,
   AckDelivery,
-  defaultCopy,
+  createResilienceCopy,
   CapabilityInvoker,
 } from "@my-agent/core";
-import type { OrphanSweepReport } from "@my-agent/core";
+import type { OrphanSweepReport, ResilienceCopy } from "@my-agent/core";
 import { RawMediaStore } from "./media/raw-media-store.js";
 import type { ListSpacesFilter } from "@my-agent/core";
 import type { HealthChangedEvent } from "@my-agent/core";
@@ -460,6 +460,10 @@ export class App extends EventEmitter {
   // Single gate for script-plug invocation (M9.6-S10)
   capabilityInvoker: CapabilityInvoker | null = null;
 
+  // User-facing CFR copy, registry-aware (M9.6-S14). Replaced at boot with a
+  // registry-backed instance once the CapabilityRegistry is initialised.
+  resilienceCopy: ResilienceCopy = createResilienceCopy(new CapabilityRegistry());
+
   // Capability hot-reload watcher (M9.6-S3)
   capabilityWatcher: CapabilityWatcher | null = null;
 
@@ -532,6 +536,7 @@ export class App extends EventEmitter {
       const envPath = resolveEnvPath(agentDir);
       const registry = new CapabilityRegistry();
       app.capabilityRegistry = registry;
+      app.resilienceCopy = createResilienceCopy(registry);  // M9.6-S14
 
       // M9.6-S10 / S12: CapabilityInvoker — single gate for script-plug invocations.
       // S10 wired a placeholder originFactory; S12 replaces it with a live lookup
@@ -721,16 +726,23 @@ export class App extends EventEmitter {
           // `capability_surrender` event to the conversation on surrender
           // kinds — the orphan watchdog uses this marker to avoid
           // re-driving a conversation that Nina has already bailed on.
+          const rc = app.resilienceCopy;
           let text: string;
           if (kind === "attempt") {
-            text = defaultCopy.ack(failure);
+            text = rc.ack(failure);
           } else if (kind === "status") {
-            text = defaultCopy.status(failure);
-          } else if (kind === "surrender" || kind === "surrender-cooldown") {
-            text = defaultCopy.surrender(failure, "iteration-3");
+            text = rc.status(failure);
+          } else if (kind === "surrender") {
+            text = rc.surrender(failure, "iteration-3");
+          } else if (kind === "surrender-cooldown") {
+            text = rc.surrender(failure, "surrender-cooldown");
+          } else if (kind === "surrender-budget") {
+            text = rc.surrender(failure, "budget");
+          } else if (kind === "terminal-fixed") {
+            text = rc.terminalAck(failure);
           } else {
-            // "surrender-budget"
-            text = defaultCopy.surrender(failure, "budget");
+            console.warn(`[CFR] emitAck: unhandled AckKind '${kind as string}' — falling back to terminalAck`);
+            text = rc.terminalAck(failure);
           }
 
           const _origin = failure.triggeringInput.origin;
