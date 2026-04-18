@@ -283,7 +283,7 @@ export type {
   ReverifyResult,
 } from './capabilities/index.js'
 // User-facing messaging + ack delivery (M9.6-S6)
-export { defaultCopy, AckDelivery } from './capabilities/index.js'
+export { createResilienceCopy, AckDelivery } from './capabilities/index.js'
 export type {
   ResilienceCopy,
   SurrenderReason,

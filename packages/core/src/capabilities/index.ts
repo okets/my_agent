@@ -75,7 +75,8 @@ export {
 } from './invoker.js'
 export { reverify, type ReverifyResult } from './reverify.js'
 export {
-  defaultCopy,
+  createResilienceCopy,
+  FRIENDLY_NAMES,
   type ResilienceCopy,
   type SurrenderReason,
 } from './resilience-messages.js'
