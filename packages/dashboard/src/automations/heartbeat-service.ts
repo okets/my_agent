@@ -17,6 +17,16 @@ import path from "node:path";
  *  Gives the executor time to finish + write "completed" before we alert. 60s = 2 heartbeat ticks. */
 const INTERRUPTED_MIN_AGE_MS = 60 * 1000;
 
+/** Files written by the executor at job start/completion.
+ *  Skipped in readRunDirMtime to avoid false "fresh" readings that mask stale workers.
+ *  Only files written by the worker mid-run (scratch files, logs, data files) are valid liveness signals. */
+const EXECUTOR_FILES = new Set([
+  "todos.json",      // Primary signal — content-based via last_activity
+  "deliverable.md",  // Written at job completion by executor
+  "CLAUDE.md",       // Written at job start by executor
+  "task.md",         // Written at job start by executor
+]);
+
 /** Recursive mtime of the run dir — fallback signal for subagent file writes.
  *  Bounded to depth 4 to avoid pathological traversal. Best-effort, returns 0 on any error. */
 function readRunDirMtime(runDir: string | undefined, maxDepth = 4): number {
@@ -37,12 +47,6 @@ function readRunDirMtime(runDir: string | undefined, maxDepth = 4): number {
         // and would give a false "fresh" reading, masking a genuinely stale worker.
         // Only files written by the worker mid-run (scratch files, logs, data files)
         // are valid liveness signals.
-        const EXECUTOR_FILES = new Set([
-          "todos.json",      // Primary signal — content-based via last_activity
-          "deliverable.md",  // Written at job completion by executor
-          "CLAUDE.md",       // Written at job start by executor
-          "task.md",         // Written at job start by executor
-        ]);
         if (EXECUTOR_FILES.has(entry.name)) continue;
         const full = path.join(dir, entry.name);
         try {
