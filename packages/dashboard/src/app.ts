@@ -57,7 +57,6 @@ import {
   AckDelivery,
   defaultCopy,
   CapabilityInvoker,
-  conversationOrigin,
 } from "@my-agent/core";
 import type { OrphanSweepReport } from "@my-agent/core";
 import { RawMediaStore } from "./media/raw-media-store.js";
@@ -96,6 +95,7 @@ import {
   setPendingBriefingProvider,
   setConversationTodoProvider,
   setVasStoreCallback,
+  setCfrDetectorDeps,
 } from "./agent/session-manager.js";
 import { createSpaceToolsServer } from "./mcp/space-tools-server.js";
 import { createSkillServer } from "./mcp/skill-server.js";
@@ -533,18 +533,35 @@ export class App extends EventEmitter {
       const registry = new CapabilityRegistry();
       app.capabilityRegistry = registry;
 
-      // M9.6-S10: CapabilityInvoker — single gate for script-plug invocations.
-      // originFactory is a placeholder for S10 (callers provide full TriggeringInput).
-      // S12 wires per-session context for automation-origin invocations.
+      // M9.6-S10 / S12: CapabilityInvoker — single gate for script-plug invocations.
+      // S10 wired a placeholder originFactory; S12 replaces it with a live lookup
+      // into the currently-streaming SessionManager's context map. Each brain
+      // session populates `ConversationSessionContext` at turn-start (via
+      // `setTurnContext()`) and promotes it into the session map on `session_init`.
+      // The factory walks the SessionRegistry to find the one currently-active
+      // session and returns its origin. Throws when no session is active — a
+      // script-plug invocation outside a turn is a programming error (not a
+      // runtime path).
       app.capabilityInvoker = new CapabilityInvoker({
         cfr: app.cfr,
         registry,
-        originFactory: () => conversationOrigin(
-          { transportId: "dashboard", channelId: "dashboard", sender: "system" },
-          "",
-          0,
-        ),
+        originFactory: () => {
+          for (const session of app.sessionRegistry.getAll().values()) {
+            if (session.hasActiveSession()) {
+              const origin = session.getCurrentOrigin();
+              if (origin) return origin;
+            }
+          }
+          throw new Error(
+            "[CapabilityInvoker] originFactory called with no active brain session — " +
+              "script-plug invocations must occur inside a streamMessage turn (S12).",
+          );
+        },
       });
+
+      // M9.6-S12: wire CFR deps into SessionManager so each brain session
+      // attaches a McpCapabilityCfrDetector at init time.
+      setCfrDetectorDeps(app.cfr, registry);
 
       try {
         const { mkdirSync } = await import("node:fs");
@@ -1492,6 +1509,10 @@ export class App extends EventEmitter {
             }
           },
           capabilityRegistry: app.capabilityRegistry ?? undefined,
+          // M9.6-S12: when present, executor attaches a per-job
+          // McpCapabilityCfrDetector to the job's SDK hooks for MCP plug
+          // failure detection (automation-origin CFRs).
+          cfr: app.cfr,
         });
 
         // Persistent notification queue — heartbeat handles delivery

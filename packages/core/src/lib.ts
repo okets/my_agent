@@ -259,10 +259,13 @@ export {
 export type { RateLimiter, AuditLogger, AuditEntry, ScreenshotInterceptor, StoreCallback, StoreAndInjectResult } from './capabilities/index.js'
 // CFR (M9.6)
 export { CfrEmitter, classifyEmptyStt, conversationOrigin } from './capabilities/index.js'
-export type { CapabilityFailureSymptom, ChannelContext, TriggeringOrigin, TriggeringInput, FixAttempt, CapabilityFailure, SurrenderScope } from './capabilities/index.js'
+export type { CapabilityFailureSymptom, ChannelContext, TriggeringOrigin, TriggeringInput, FixAttempt, CapabilityFailure, SurrenderScope, SessionContext, ConversationSessionContext, AutomationSessionContext } from './capabilities/index.js'
 // CapabilityInvoker (M9.6-S10)
 export { CapabilityInvoker } from './capabilities/index.js'
 export type { InvokeOptions, InvokeResult, InvokerDeps } from './capabilities/index.js'
+// McpCapabilityCfrDetector (M9.6-S12)
+export { McpCapabilityCfrDetector } from './capabilities/index.js'
+export type { McpCapabilityCfrDetectorDeps } from './capabilities/index.js'
 // Capability hot-reload (M9.6-S3)
 export { CapabilityWatcher } from './capabilities/index.js'
 export type { CapabilityHealthReport } from './capabilities/index.js'

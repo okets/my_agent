@@ -77,3 +77,36 @@ export type SurrenderScope = {
   turnNumber: number;
   expiresAt: string; // ISO8601, +10min cross-conversation cooldown
 };
+
+/**
+ * SessionContext — captured at SDK session-open time; keyed by SDK `session_id`.
+ *
+ * S12 adds these so `McpCapabilityCfrDetector`'s `originFactory` (called at
+ * hook-fire time from the hook `session_id`) can resolve the origin that owns
+ * the session. Brain sessions (conversation) live in `SessionManager`; job
+ * sessions (automation) live in `AutomationExecutor`. There is no
+ * `SystemSessionContext` — `kind: "system"` origins come from background
+ * components that pass their own origin inline, not via SDK hooks.
+ *
+ * `SessionContext` maps 1:1 onto the corresponding `TriggeringOrigin` variants.
+ */
+export type SessionContext =
+  | ConversationSessionContext
+  | AutomationSessionContext;
+
+/** Brain/conversation session — one per active `streamMessage()` call. */
+export interface ConversationSessionContext {
+  kind: "conversation";
+  channel: ChannelContext;
+  conversationId: string;
+  turnNumber: number;
+}
+
+/** Automation/job session — one per `AutomationExecutor.run()` call. */
+export interface AutomationSessionContext {
+  kind: "automation";
+  automationId: string;
+  jobId: string;
+  runDir: string;
+  notifyMode: "immediate" | "debrief" | "none";
+}

@@ -15,6 +15,7 @@ import {
   createCapabilityAuditLogger,
   storeAndInject,
   parseMcpToolName,
+  McpCapabilityCfrDetector,
 } from "@my-agent/core";
 import type {
   Automation,
@@ -26,6 +27,8 @@ import type {
   StoreCallback,
   TodoItem,
   CapabilityRegistry,
+  CfrEmitter,
+  AutomationSessionContext,
 } from "@my-agent/core";
 import type { PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import fs from "node:fs";
@@ -70,6 +73,13 @@ export interface AutomationExecutorConfig {
   visualService?: import("../visual/visual-action-service.js").VisualActionService;
   onJobProgress?: (jobId: string, progress: TodoProgress) => void;
   capabilityRegistry?: CapabilityRegistry;
+  /**
+   * M9.6-S12 — CFR emitter wired to the recovery orchestrator. When present
+   * (with `capabilityRegistry`), the executor attaches a per-job
+   * McpCapabilityCfrDetector to the job's SDK hooks and calls
+   * `processSystemInit()` on the init frame of the for-await message loop.
+   */
+  cfr?: CfrEmitter;
 }
 
 export interface ExecutionResult {
@@ -82,6 +92,14 @@ export interface ExecutionResult {
 export class AutomationExecutor {
   private config: AutomationExecutorConfig;
   private abortControllers = new Map<string, AbortController>();
+
+  /**
+   * M9.6-S12 — per-job session context map, keyed by SDK `session_id`.
+   * Populated when the SDK's `system.init` event fires inside `run()`; cleared
+   * in `run()`'s `finally` block. Consumed by the McpCapabilityCfrDetector's
+   * originFactory for automation-origin plug failures.
+   */
+  private sessionContexts = new Map<string, AutomationSessionContext>();
 
   constructor(config: AutomationExecutorConfig) {
     this.config = config;
@@ -100,10 +118,23 @@ export class AutomationExecutor {
     return false;
   }
 
+  /**
+   * M9.6-S12 — look up the AutomationSessionContext for a given SDK session_id.
+   * Returns `undefined` when the session is not currently tracked. Used by the
+   * McpCapabilityCfrDetector's originFactory (which throws on `undefined`,
+   * per D1).
+   */
+  getSessionContext(
+    sessionId: string,
+  ): AutomationSessionContext | undefined {
+    return this.sessionContexts.get(sessionId);
+  }
+
   /** Merge per-job Stop + PostToolUse hooks into static config hooks */
   private buildJobHooks(
     todoPath: string | null,
     vasStore?: StoreCallback,
+    detector?: McpCapabilityCfrDetector,
   ): typeof this.config.hooks {
     const hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> = {
       ...(this.config.hooks ?? {}),
@@ -153,7 +184,37 @@ export class AutomationExecutor {
       ];
     }
 
+    // M9.6-S12 — MCP CFR detector hooks: PostToolUseFailure (Modes 1+2) +
+    // PostToolUse empty-result check. Merged with any existing hooks on the
+    // same events rather than overwriting. The Mode-3 `processSystemInit()`
+    // path is invoked from `run()`'s message loop, not from a hook.
+    if (detector) {
+      for (const [event, matchers] of Object.entries(detector.hooks) as [
+        HookEvent,
+        HookCallbackMatcher[] | undefined,
+      ][]) {
+        if (!matchers) continue;
+        hooks[event] = [...(hooks[event] ?? []), ...matchers];
+      }
+    }
+
     return hooks;
+  }
+
+  /**
+   * M9.6-S12 — resolve a manifest's notify mode for the AutomationSessionContext.
+   * Missing / invalid values default to `"debrief"` per D2.
+   *
+   * NOTE: the manifest field is `notify` (see AutomationManifest); the
+   * SessionContext field is `notifyMode` to disambiguate it from the runtime
+   * notification callback on the context object.
+   */
+  private resolveNotifyMode(
+    manifest: Automation["manifest"],
+  ): "immediate" | "debrief" | "none" {
+    const m = manifest.notify;
+    if (m === "immediate" || m === "debrief" || m === "none") return m;
+    return "debrief";
   }
 
   /** Auto-detect job type from manifest or target_path */
@@ -241,6 +302,11 @@ export class AutomationExecutor {
       this.config.agentDir,
       WORKER_TOOLS,
     );
+
+    // M9.6-S12 — track the session_id across the try/catch/finally so the
+    // cleanup block can remove the AutomationSessionContext regardless of
+    // which exit path fires.
+    let trackedSessionId: string | null = null;
 
     try {
       // 2. Build system prompt
@@ -393,6 +459,41 @@ export class AutomationExecutor {
           }
         : undefined;
 
+      // M9.6-S12 — per-job McpCapabilityCfrDetector. Instantiated only when
+      // both CFR emitter and capability registry are wired (e.g. not in some
+      // unit tests). The originFactory closes over `jobSessionId` captured
+      // when the SDK's init frame arrives (below).
+      let jobSessionId: string | null = null;
+      let detector: McpCapabilityCfrDetector | undefined;
+      if (this.config.cfr && this.config.capabilityRegistry) {
+        const sessionContexts = this.sessionContexts;
+        detector = new McpCapabilityCfrDetector({
+          cfr: this.config.cfr,
+          registry: this.config.capabilityRegistry,
+          originFactory: () => {
+            if (!jobSessionId) {
+              throw new Error(
+                "[McpCfrDetector] originFactory called with no active SDK session (automation)",
+              );
+            }
+            const ctx = sessionContexts.get(jobSessionId);
+            if (!ctx) {
+              throw new Error(
+                `[McpCfrDetector] No AutomationSessionContext for session_id "${jobSessionId}" — ` +
+                  "this is a programming error: originFactory called outside an active session",
+              );
+            }
+            return {
+              kind: "automation",
+              automationId: ctx.automationId,
+              jobId: ctx.jobId,
+              runDir: ctx.runDir,
+              notifyMode: ctx.notifyMode,
+            };
+          },
+        });
+      }
+
       // 6. Execute query (try session resumption if resume_from_job is specified)
       let resumeSessionId: string | undefined;
       const resumeMatch = automation.instructions.match(
@@ -423,7 +524,7 @@ export class AutomationExecutor {
         settingSources: ["project"],
         additionalDirectories: [this.config.agentDir],
         mcpServers: workerMcpServers,
-        hooks: this.buildJobHooks(todoPath, vasStore),
+        hooks: this.buildJobHooks(todoPath, vasStore, detector),
         ...(resumeSessionId ? { resume: resumeSessionId } : {}),
       });
 
@@ -432,6 +533,9 @@ export class AutomationExecutor {
       let sdkSessionId: string | null = null;
       const abortController = new AbortController();
       this.abortControllers.set(job.id, abortController);
+
+      // M9.6-S12 — snapshot the notify mode for this job's AutomationSessionContext.
+      const notifyMode = this.resolveNotifyMode(automation.manifest);
 
       for await (const msg of query) {
         if (abortController.signal.aborted) {
@@ -445,6 +549,21 @@ export class AutomationExecutor {
           (msg as any).session_id
         ) {
           sdkSessionId = (msg as any).session_id;
+          jobSessionId = sdkSessionId;
+          trackedSessionId = sdkSessionId;
+          // M9.6-S12 — populate the session context map so the detector's
+          // originFactory resolves to the correct AutomationSessionContext.
+          if (sdkSessionId) {
+            this.sessionContexts.set(sdkSessionId, {
+              kind: "automation",
+              automationId: automation.id,
+              jobId: job.id,
+              runDir: job.run_dir ?? "",
+              notifyMode,
+            });
+          }
+          // M9.6-S12 — Mode-3 MCP detection from the init frame.
+          detector?.processSystemInit(msg);
           // Persist immediately so auto-resume works if the server crashes mid-execution
           this.config.jobService.updateJob(job.id, { sdk_session_id: sdkSessionId ?? undefined });
         }
@@ -633,6 +752,11 @@ export class AutomationExecutor {
         error: errorMessage,
       };
     } finally {
+      // M9.6-S12 — clear AutomationSessionContext for this job's SDK session.
+      // Guaranteed to run on success, error, and abort.
+      if (trackedSessionId) {
+        this.sessionContexts.delete(trackedSessionId);
+      }
       if (disabledSkills.length > 0) {
         await cleanupSkillFilters(this.config.agentDir, disabledSkills);
       }
@@ -702,6 +826,42 @@ export class AutomationExecutor {
             });
           }
 
+          // M9.6-S12 — per-resume McpCapabilityCfrDetector (same shape as
+          // `run()`). Resumes from a needs_review checkpoint also need MCP
+          // plug-failure detection for any tool calls the resumed turn makes.
+          let resumeJobSessionId: string | null = null;
+          let resumeDetector: McpCapabilityCfrDetector | undefined;
+          if (this.config.cfr && this.config.capabilityRegistry && automation) {
+            const sessionContexts = this.sessionContexts;
+            resumeDetector = new McpCapabilityCfrDetector({
+              cfr: this.config.cfr,
+              registry: this.config.capabilityRegistry,
+              originFactory: () => {
+                if (!resumeJobSessionId) {
+                  throw new Error(
+                    "[McpCfrDetector] originFactory called with no active SDK session (automation resume)",
+                  );
+                }
+                const ctx = sessionContexts.get(resumeJobSessionId);
+                if (!ctx) {
+                  throw new Error(
+                    `[McpCfrDetector] No AutomationSessionContext for session_id "${resumeJobSessionId}"`,
+                  );
+                }
+                return {
+                  kind: "automation",
+                  automationId: ctx.automationId,
+                  jobId: ctx.jobId,
+                  runDir: ctx.runDir,
+                  notifyMode: ctx.notifyMode,
+                };
+              },
+            });
+          }
+          const resumeNotifyMode = automation
+            ? this.resolveNotifyMode(automation.manifest)
+            : "debrief";
+
           const query = createBrainQuery(userInput, {
             model,
             resume: effectiveSessionId,
@@ -721,6 +881,7 @@ export class AutomationExecutor {
                     return { id: ss.id, filename: ss.filename };
                   }
                 : undefined,
+              resumeDetector,
             ),
             includePartialMessages: false,
           });
@@ -728,32 +889,51 @@ export class AutomationExecutor {
           // Iterate and collect response
           let response = "";
           let newSessionId: string | null = null;
+          let trackedResumeSessionId: string | null = null;
           const resumeAbort = new AbortController();
           this.abortControllers.set(job.id, resumeAbort);
 
-          for await (const msg of query) {
-            if (resumeAbort.signal.aborted) {
-              console.log(`[AutomationExecutor] Job ${job.id} aborted by user (resume path)`);
-              break;
-            }
+          try {
+            for await (const msg of query) {
+              if (resumeAbort.signal.aborted) {
+                console.log(`[AutomationExecutor] Job ${job.id} aborted by user (resume path)`);
+                break;
+              }
 
-            if (
-              msg.type === "system" &&
-              (msg as any).subtype === "init" &&
-              (msg as any).session_id
-            ) {
-              newSessionId = (msg as any).session_id;
-            }
+              if (
+                msg.type === "system" &&
+                (msg as any).subtype === "init" &&
+                (msg as any).session_id
+              ) {
+                newSessionId = (msg as any).session_id;
+                resumeJobSessionId = newSessionId;
+                trackedResumeSessionId = newSessionId;
+                if (newSessionId) {
+                  this.sessionContexts.set(newSessionId, {
+                    kind: "automation",
+                    automationId: automation?.id ?? job.automationId,
+                    jobId: job.id,
+                    runDir: job.run_dir ?? "",
+                    notifyMode: resumeNotifyMode,
+                  });
+                }
+                resumeDetector?.processSystemInit(msg);
+              }
 
-            if (msg.type === "assistant") {
-              const textBlocks = (msg as any).message.content.filter(
-                (block: { type: string }) => block.type === "text",
-              );
-              for (const block of textBlocks) {
-                if ("text" in block) {
-                  response += block.text;
+              if (msg.type === "assistant") {
+                const textBlocks = (msg as any).message.content.filter(
+                  (block: { type: string }) => block.type === "text",
+                );
+                for (const block of textBlocks) {
+                  if ("text" in block) {
+                    response += block.text;
+                  }
                 }
               }
+            }
+          } finally {
+            if (trackedResumeSessionId) {
+              this.sessionContexts.delete(trackedResumeSessionId);
             }
           }
 

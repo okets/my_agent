@@ -11,6 +11,7 @@ import {
   createCapabilityAuditLogger,
   storeAndInject,
   parseMcpToolName,
+  McpCapabilityCfrDetector,
 } from "@my-agent/core";
 import type { DelegationEnforcer, AuditEntry, StoreCallback } from "@my-agent/core";
 import type {
@@ -22,6 +23,10 @@ import type {
   HookCallbackMatcher,
   SearchService,
   CapabilityRegistry,
+  CfrEmitter,
+  TriggeringOrigin,
+  ConversationSessionContext,
+  ChannelContext,
 } from "@my-agent/core";
 import type { Options, PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import { appendFile, mkdir } from "node:fs/promises";
@@ -92,6 +97,30 @@ let vasStoreCallback: StoreCallback | null = null;
  */
 export function setVasStoreCallback(store: StoreCallback): void {
   vasStoreCallback = store;
+}
+
+/**
+ * CFR wiring for the McpCapabilityCfrDetector (M9.6-S12).
+ * Set from app.ts once the CfrEmitter and CapabilityRegistry are available.
+ * When both are present, each SessionManager attaches a per-session
+ * McpCapabilityCfrDetector to its brain query hooks and calls
+ * `processSystemInit()` on the init frame of the message loop.
+ */
+let sharedCfrEmitter: CfrEmitter | null = null;
+let sharedCapabilityRegistry: CapabilityRegistry | null = null;
+
+/**
+ * Register CFR detector dependencies. Called from app.ts after CapabilityRegistry
+ * is scanned and CfrEmitter is wired. Without this, brain sessions do not detect
+ * MCP plug failures.
+ */
+export function setCfrDetectorDeps(
+  cfr: CfrEmitter,
+  registry: CapabilityRegistry,
+): void {
+  sharedCfrEmitter = cfr;
+  sharedCapabilityRegistry = registry;
+  console.log(`[SessionManager] CFR detector deps registered`);
 }
 
 /** Shared prompt builder — initialized once via initPromptBuilder(), shared across all sessions */
@@ -317,6 +346,30 @@ export class SessionManager {
   private pendingNotifications: string[] = [];
   private delegationEnforcer: DelegationEnforcer = createDelegationEnforcer(2);
 
+  /**
+   * M9.6-S12 — per-session context map, keyed by SDK `session_id`.
+   * Populated when the SDK's `system.init` event fires (captures `session_id`).
+   * Cleared at end of `streamMessage()` in the `finally` block.
+   * Consumed by the McpCapabilityCfrDetector's originFactory to resolve the
+   * TriggeringOrigin for MCP plug failures detected in this session.
+   */
+  private sessionContexts = new Map<string, ConversationSessionContext>();
+
+  /**
+   * M9.6-S12 — turn context captured from the caller before `streamMessage()`
+   * starts streaming. Promoted into `sessionContexts` once the SDK delivers a
+   * `session_id`. Null when no turn context is pending (e.g. injectSystemTurn
+   * without a preceding setTurnContext call).
+   */
+  private pendingTurnContext: ConversationSessionContext | null = null;
+
+  /**
+   * M9.6-S12 — per-session McpCapabilityCfrDetector. Instantiated lazily in
+   * `doInitialize()` when CFR deps are present; one instance per SessionManager
+   * so the Mode-3 idempotency `initEmitted` set is session-scoped.
+   */
+  private cfrDetector: McpCapabilityCfrDetector | null = null;
+
   constructor(conversationId: string, sdkSessionId?: string | null) {
     this.conversationId = conversationId;
     this.sdkSessionId = sdkSessionId ?? null;
@@ -325,6 +378,64 @@ export class SessionManager {
   /** Set the channel for the next query (per-message, not per-session) */
   setChannel(channel: string): void {
     this.channel = channel;
+  }
+
+  /**
+   * M9.6-S12 — record the full turn context that will seed
+   * `ConversationSessionContext` when the SDK session opens.
+   *
+   * Called by chat-service immediately before `streamMessage()` so the MCP CFR
+   * detector's originFactory can resolve the full origin (channel, conversation,
+   * turn number) for failures that fire mid-session. The struct must be fully
+   * populated per the S12 D3 ChannelContext-completeness constraint — empty
+   * defaults would produce an un-deliverable ack.
+   *
+   * If the caller does not invoke this before `streamMessage()`, the detector's
+   * originFactory will throw at hook-fire time (by design — a missing context
+   * is a programming error, not a runtime path).
+   */
+  setTurnContext(channel: ChannelContext, turnNumber: number): void {
+    this.pendingTurnContext = {
+      kind: "conversation",
+      channel,
+      conversationId: this.conversationId,
+      turnNumber,
+    };
+  }
+
+  /**
+   * M9.6-S12 — return the origin for a given SDK session_id, or `undefined`
+   * if no context is tracked. Used by the detector's originFactory (which
+   * throws on undefined, per D1) and by the app-level CapabilityInvoker
+   * factory (which needs to resolve "the currently active session").
+   */
+  getSessionContext(
+    sessionId: string,
+  ): ConversationSessionContext | undefined {
+    return this.sessionContexts.get(sessionId);
+  }
+
+  /**
+   * M9.6-S12 — return the origin for this SessionManager's current active
+   * SDK session, or `undefined` if no session is active. Consumers that need
+   * "throw-on-miss" behavior (the detector; the CapabilityInvoker) must
+   * handle the undefined case themselves.
+   */
+  getCurrentOrigin(): TriggeringOrigin | undefined {
+    if (!this.sdkSessionId) return undefined;
+    const ctx = this.sessionContexts.get(this.sdkSessionId);
+    if (!ctx) return undefined;
+    return {
+      kind: "conversation",
+      channel: ctx.channel,
+      conversationId: ctx.conversationId,
+      turnNumber: ctx.turnNumber,
+    };
+  }
+
+  /** True when this session is the currently-streaming brain session. */
+  hasActiveSession(): boolean {
+    return this.activeQuery !== null && this.sdkSessionId !== null;
   }
 
   /** Set view context for the next query (cleared after use) */
@@ -455,6 +566,55 @@ export class SessionManager {
       ],
     })
 
+    // M9.6-S12 — MCP CFR detector. One instance per SessionManager so the
+    // Mode-3 idempotency `initEmitted` set stays session-scoped. Hooks fire
+    // with `BaseHookInput.session_id`, which the originFactory uses to look up
+    // the owning ConversationSessionContext from this manager's `sessionContexts` map.
+    if (sharedCfrEmitter && sharedCapabilityRegistry) {
+      const detectorSessionContexts = this.sessionContexts;
+      this.cfrDetector = new McpCapabilityCfrDetector({
+        cfr: sharedCfrEmitter,
+        registry: sharedCapabilityRegistry,
+        originFactory: () => {
+          // The detector's hook callback captures `input.session_id` and calls
+          // originFactory synchronously. We read `this.sdkSessionId` which is
+          // current at the moment of the hook fire (single-threaded per session).
+          const sessionId = this.sdkSessionId;
+          if (!sessionId) {
+            throw new Error(
+              "[McpCfrDetector] originFactory called with no active SDK session",
+            );
+          }
+          const ctx = detectorSessionContexts.get(sessionId);
+          if (!ctx) {
+            throw new Error(
+              `[McpCfrDetector] No SessionContext for session_id "${sessionId}" — ` +
+                "this is a programming error: originFactory called outside an active session",
+            );
+          }
+          return {
+            kind: "conversation",
+            channel: ctx.channel,
+            conversationId: ctx.conversationId,
+            turnNumber: ctx.turnNumber,
+          };
+        },
+      });
+
+      // Attach detector's hooks alongside audit/screenshot hooks.
+      for (const [event, matchers] of Object.entries(this.cfrDetector.hooks) as [
+        HookEvent,
+        HookCallbackMatcher[] | undefined,
+      ][]) {
+        if (!matchers) continue;
+        if (!this.hooks![event]) this.hooks![event] = [];
+        this.hooks![event]!.push(...matchers);
+      }
+      console.log(
+        `[SessionManager] McpCapabilityCfrDetector attached to brain hooks`,
+      );
+    }
+
     console.log(
       `[SessionManager] Initialized (trust: brain, dir: ${agentDir})`,
     );
@@ -517,6 +677,10 @@ export class SessionManager {
 
     this.activeQuery = q;
     let assistantContent = "";
+    // M9.6-S12: track the session_id(s) promoted into sessionContexts during
+    // this call so the `finally` block can clean them up — both the originally
+    // captured session (resume case) and any fresh-fallback session.
+    const promotedSessionIds = new Set<string>();
 
     try {
       try {
@@ -526,6 +690,15 @@ export class SessionManager {
             console.log(
               `[SessionManager] Captured SDK session ID: ${this.sdkSessionId}`,
             );
+            // M9.6-S12: promote pending turn context into the session map.
+            if (this.pendingTurnContext) {
+              this.sessionContexts.set(event.sessionId, this.pendingTurnContext);
+              promotedSessionIds.add(event.sessionId);
+            }
+          }
+          if (event.type === "system_init_raw") {
+            // M9.6-S12: Mode-3 MCP detection — scan mcp_servers[] for failed plugs.
+            this.cfrDetector?.processSystemInit(event.message);
           }
 
           if (event.type === "text_delta") {
@@ -555,6 +728,14 @@ export class SessionManager {
             console.log(
               `[SessionManager] Captured SDK session ID (fresh fallback): ${this.sdkSessionId}`,
             );
+            // M9.6-S12: promote pending turn context into the session map.
+            if (this.pendingTurnContext) {
+              this.sessionContexts.set(event.sessionId, this.pendingTurnContext);
+              promotedSessionIds.add(event.sessionId);
+            }
+          }
+          if (event.type === "system_init_raw") {
+            this.cfrDetector?.processSystemInit(event.message);
           }
 
           if (event.type === "text_delta") {
@@ -565,6 +746,13 @@ export class SessionManager {
       }
     } finally {
       this.activeQuery = null;
+      // M9.6-S12: clear session contexts for sessions promoted in this call.
+      // `pendingTurnContext` is cleared regardless; a stale pending context
+      // would be threaded into the next turn otherwise.
+      for (const sid of promotedSessionIds) {
+        this.sessionContexts.delete(sid);
+      }
+      this.pendingTurnContext = null;
     }
   }
 

@@ -539,6 +539,28 @@ export class AppChatService {
       sessionManager.setChannel(options.channel.channelId);
     }
 
+    // M9.6-S12 — seed the session's ConversationSessionContext so the
+    // McpCapabilityCfrDetector can resolve a TriggeringOrigin for any MCP plug
+    // failure that fires during this turn. Channel struct must be fully
+    // populated (S12 D3 constraint); we reuse the exact same shape the S9
+    // attachment-failure emit path uses (see buildTriggeringInput).
+    const turnChannel = options?.channel ?? {
+      transportId: "dashboard",
+      channelId: "dashboard",
+      sender: "user",
+    };
+    sessionManager.setTurnContext(
+      {
+        transportId: turnChannel.transportId,
+        channelId: turnChannel.channelId,
+        sender: turnChannel.sender,
+        replyTo: turnChannel.replyTo,
+        senderName: turnChannel.senderName,
+        groupId: turnChannel.groupId,
+      },
+      turnNumber,
+    );
+
     // ── View context (generic) ────────────────────────────────────
     if (options?.context) {
       const ctx = options.context;

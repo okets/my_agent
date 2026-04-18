@@ -12,6 +12,9 @@ export type {
   FixAttempt,
   CapabilityFailure,
   SurrenderScope,
+  SessionContext,
+  ConversationSessionContext,
+  AutomationSessionContext,
 } from './cfr-types.js'
 export { conversationOrigin } from './cfr-helpers.js'
 export { CfrEmitter } from './cfr-emitter.js'

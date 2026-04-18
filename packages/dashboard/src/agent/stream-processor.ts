@@ -4,6 +4,13 @@ export type StreamEvent =
   | { type: "thinking_delta"; text: string }
   | { type: "thinking_end" }
   | { type: "session_init"; sessionId: string }
+  /**
+   * M9.6-S12 — the raw SDK system/init frame, surfaced so the MCP CFR detector
+   * can scan `mcp_servers[]` for Mode-3 (server-never-started) failures.
+   * Fired after `session_init` for the same frame. Consumers that don't care
+   * about MCP status can ignore this event.
+   */
+  | { type: "system_init_raw"; message: unknown }
   | {
       type: "done";
       cost?: number;
@@ -82,6 +89,13 @@ export async function* processStream(
         yield {
           type: "session_init",
           sessionId: (msg as any).session_id as string,
+        };
+        // M9.6-S12: forward the raw frame so the MCP CFR detector can scan
+        // `mcp_servers[]` for failed-to-start plugs (Mode 3 detection — not
+        // reachable via any SDK hook; must come from the init frame).
+        yield {
+          type: "system_init_raw",
+          message: msg,
         };
       } else if (subtype === "compact_boundary") {
         const meta = (msg as any).compact_metadata;
