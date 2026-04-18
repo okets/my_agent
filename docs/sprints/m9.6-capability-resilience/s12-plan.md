@@ -131,24 +131,61 @@ Tests: `registry-find-by-name.test.ts` (correct plug returned; missing name → 
 
 ### Task 3 — Create `mcp-cfr-detector.ts`
 
+**Spike outcome (locked 2026-04-18):** `PostToolUseFailure` covers Modes 1 (tool-level exception) and 2 (child crash mid-session). Mode 3 (server-never-started) does NOT fire any hook in either `query()` or `streamMessage` sessions; `SessionStart` has no `mcp_servers` field even when it does fire. Mode 3's signal lives only in the `type: "system", subtype: "init"` message frame (`mcp_servers: [{name, status: "failed", error}]`) and the `q.mcpServerStatus()` RPC. Detector therefore exposes a second, non-hook entry point — `processSystemInit()` — called from the message loop. This keeps detection at one gate (the detector class) per §0.2.
+
 `packages/core/src/capabilities/mcp-cfr-detector.ts` (new):
 
-- `createMcpCapabilityCfrDetector({ cfr, registry, originFactory }): { hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> }` — returns the hooks block to be merged into the SDK options.
-- For the spike-confirmed `PostToolUseFailure` hook (and any additional hooks the spike identified):
-  - Parse tool name `mcp__<name>__<tool>` via `parseMcpToolName`. If parse fails (non-MCP tool), do nothing — pass through.
-  - Look up the plug: `registry.findByName(name)`. If absent, do nothing (the failure isn't from a known capability).
+```typescript
+export interface McpCapabilityCfrDetector {
+  hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
+  processSystemInit(systemMessage: SDKSystemMessage): void;  // call from for-await message loop
+}
+
+export function createMcpCapabilityCfrDetector(deps: {
+  cfr: CfrEmitter;
+  registry: CapabilityRegistry;
+  originFactory: () => TriggeringOrigin;
+}): McpCapabilityCfrDetector;
+```
+
+**Hook entry (`PostToolUseFailure` + secondary `PostToolUse` empty check):**
+
+- Parse tool name `mcp__<name>__<tool>` via `parseMcpToolName`. If parse fails (non-MCP tool), do nothing — pass through.
+- Look up the plug: `registry.findByName(name)`. If absent, do nothing (the failure isn't from a known capability).
+- Build `TriggeringInput`:
+  - `origin: originFactory()` — pulls from SessionContext map per Task 0.
+  - `userUtterance: JSON.stringify(tool_input).slice(0, 1000)` — best-effort trace evidence; capped at 1000 chars to keep CFR events small (tool_input may be large for screenshot/image data).
+  - `artifact: undefined` — MCP failures don't have a triggering media artifact.
+- Classify: `symptom = classifyMcpToolError(error)`.
+- Emit: `cfr.emitFailure({ capabilityType: cap.provides, capabilityName: cap.name, symptom, detail: error, triggeringInput })`.
+
+Secondary `PostToolUse` (success-path) check for "success-shaped but empty" — emit `empty-result` only when the response is structurally empty (e.g., zero content blocks where one was expected per the SDK's `ContentBlock` shape). Conservative — when in doubt, do not emit.
+
+**`processSystemInit(systemMessage)` entry — Mode 3 detection:**
+
+- Guard: only act on `systemMessage.subtype === "init"` (other system subtypes are out of scope for this detector). Other shapes → no-op.
+- Iterate `systemMessage.mcp_servers`. For every entry where `status === "failed"`:
+  - Look up the plug: `registry.findByName(entry.name)`. If absent, log and skip (failure was likely from a non-capability MCP server like the framework's own todo/chart servers).
+  - Idempotency: track which `(sessionId, capability.name)` pairs have already emitted in this session. If already emitted, skip — `processSystemInit` is called once per init frame per session, but defensive against re-init flows.
   - Build `TriggeringInput`:
-    - `origin: originFactory()` — pulls from SessionContext map per Task 0.
-    - `userUtterance: JSON.stringify(tool_input).slice(0, 1000)` — best-effort trace evidence; capped at 1000 chars to keep CFR events small (tool_input may be large for screenshot/image data).
-    - `artifact: undefined` — MCP failures don't have a triggering media artifact.
-  - Classify: `symptom = classifyMcpToolError(error)`.
-  - Emit: `cfr.emitFailure({ capabilityType: cap.provides, capabilityName: cap.name, symptom, detail: error, triggeringInput })`.
-- Secondary `PostToolUse` (success-path) check for "success-shaped but empty" — emit `empty-result` only when the response is structurally empty (e.g., zero content blocks where one was expected per the SDK's `ContentBlock` shape). Conservative — when in doubt, do not emit.
+    - `origin: originFactory()` — same SessionContext lookup as the hook path.
+    - `userUtterance: undefined` — no tool call attempted; nothing to serialize.
+    - `artifact: undefined`.
+  - Symptom: `"execution-error"` (the plug failed to start; the exact reason lives in `entry.error`). Detail carries `entry.error`.
+  - Emit: `cfr.emitFailure({ capabilityType: cap.provides, capabilityName: cap.name, symptom: "execution-error", detail: entry.error ?? "MCP server failed to start", triggeringInput })`.
+
+The detector module exposes both `hooks` (mounted via SDK options) and `processSystemInit` (called from the message loop) — a single class, two ways to receive failures, one path to emit CFR.
 
 ### Task 4 — Wire detector into session-manager + automation-executor
 
-- `packages/dashboard/src/agent/session-manager.ts` — confirm location of hook attachment via `rg "hooks:" packages/dashboard/src/agent/session-manager.ts`. Attach `createMcpCapabilityCfrDetector(...)` alongside existing audit/screenshot hooks. The originFactory closes over the SessionContext map this file owns; populated at `streamMessage` start with `{ kind: "conversation", channel, conversationId, turnNumber }` from the originating turn.
-- `packages/dashboard/src/automations/automation-executor.ts:~104` (`buildJobHooks`) — append the CFR detector to the hooks list. The originFactory closes over the SessionContext map this file owns; populated when the job session is constructed with `{ kind: "automation", automationId, jobId, runDir, notifyMode }` from the manifest. Default `notifyMode = "debrief"` when manifest absent.
+Both call sites mount **two** integrations: the hooks block (PostToolUseFailure + PostToolUse secondary) AND a `processSystemInit()` call from the existing `for await (const msg of q)` message loop when `msg.type === "system" && msg.subtype === "init"` arrives.
+
+- `packages/dashboard/src/agent/session-manager.ts` — confirm location of hook attachment via `rg "hooks:" packages/dashboard/src/agent/session-manager.ts`. Two changes:
+  1. Attach `detector.hooks` alongside existing audit/screenshot hooks. The originFactory closes over the SessionContext map this file owns; populated at `streamMessage` start with `{ kind: "conversation", channel, conversationId, turnNumber }` from the originating turn.
+  2. In the for-await message loop, on `msg.type === "system" && msg.subtype === "init"`, call `detector.processSystemInit(msg)`. This is the Mode 3 (server-never-started) detection path.
+- `packages/dashboard/src/automations/automation-executor.ts:~104` (`buildJobHooks`) — same two changes:
+  1. Append `detector.hooks` to the hooks list. The originFactory closes over the SessionContext map this file owns; populated when the job session is constructed with `{ kind: "automation", automationId, jobId, runDir, notifyMode }` from the manifest. Default `notifyMode = "debrief"` when manifest absent.
+  2. In the job's for-await message loop, on `msg.type === "system" && msg.subtype === "init"`, call `detector.processSystemInit(msg)`.
 - `packages/dashboard/src/app.ts:~542-546` — **replace the S10 placeholder origin.** The placeholder factory `() => ({kind: "conversation", channel: ..., conversationId: "", turnNumber: 0})` must become a factory that reads from `app.sessionManager`'s SessionContext map. The brain holds a single `app.capabilityInvoker`; its originFactory looks up the *current* SDK session's context. Coordinate the lookup mechanism with the MCP detector — both gates source origin from the same map.
 
 ### Task 5 — `ack-delivery.ts` automation/system branches + `CFR_RECOVERY.md` writer
@@ -269,7 +306,9 @@ Must return zero hits. Any remaining throw means a non-conversation CFR will cra
 
 Unit:
 
-- `packages/core/tests/capabilities/mcp-cfr-detector.test.ts` — classifier matrix per spike findings (timeout / validation-failed / not-enabled / execution-error / empty-result); `findByName` lookup; `userUtterance` serialization (verify cap at 1000 chars); emit shape correct.
+- `packages/core/tests/capabilities/mcp-cfr-detector.test.ts` — must cover BOTH entry points:
+  - Hook entry: classifier matrix (timeout / validation-failed / not-enabled / execution-error / empty-result) for `PostToolUseFailure`; `findByName` lookup; `userUtterance` serialization (verify cap at 1000 chars); emit shape correct.
+  - `processSystemInit` entry: synthesizes CFR with `symptom: "execution-error"` for each `mcp_servers[].status === "failed"` entry; non-init system messages are no-ops; non-capability MCP server names (e.g. `todo`) are skipped (registry returns undefined); idempotency — calling twice for the same session+name doesn't double-emit.
 - `packages/core/tests/capabilities/registry-find-by-name.test.ts` — `findByName` returns correct plug; missing name returns undefined; multi-instance types resolve by name uniquely.
 - `packages/core/tests/capabilities/ack-delivery-origin.test.ts` — automation branch writes `CFR_RECOVERY.md` to `runDir` with the schema from Task 5; `notifyMode` default = `"debrief"`; `notifyMode: "immediate"` fires notification; `notifyMode: "none"` writes file but skips notification; system branch logs only; conversation branch unchanged from Phase 1.
 - `packages/core/tests/capabilities/orchestrator/mutex-origin-coalescing.test.ts` — late CFR for same plug attaches to `attachedOrigins`; **NO second `spawnAutomation` call** (mock-asserted); **NO duplicate "hold on" ack** (mock-asserted); terminal drain fires per-origin callbacks in §3.4 order; per-origin failures don't block siblings (use one origin's callback that throws, assert siblings still fire).
@@ -358,7 +397,9 @@ For audit traceability — every S12 feature in the design + architect plan maps
 | Design / plan feature | Source | Plan task |
 |---|---|---|
 | `McpCapabilityCfrDetector` class | v2 §3.1 | Task 3 |
-| `PostToolUseFailure` hook (+ secondary `PostToolUse` empty check) | v2 §3.1 | Task 3 (spike-driven) |
+| `PostToolUseFailure` hook (Modes 1+2 — tool-level exception, child crash) | v2 §3.1 + spike | Task 3 (hook entry) |
+| `processSystemInit()` non-hook entry (Mode 3 — server-never-started) | spike-driven scope expansion 2026-04-18 | Task 3 (`processSystemInit` entry) + Task 4 (message-loop wiring) |
+| Secondary `PostToolUse` empty check | v2 §3.1 | Task 3 |
 | `classifyMcpToolError` regex map | v2 §3.1 | Task 2 |
 | `registry.findByName` | v2 §3.1 | Task 2 |
 | MCP-server-to-capability lookup via `mcp__<name>__<tool>` parse | v2 §3.1 | Task 3 |
