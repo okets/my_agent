@@ -81,10 +81,10 @@ export async function reverifyTextToAudio(
   const outputPath = join(tmpdir(), `tts-reverify-${Date.now()}.audio`);
 
   try {
-    await execFileAsync(scriptPath, [outputPath], {
+    await execFileAsync(scriptPath, ["This is a smoke test.", outputPath], {
       timeout: 30_000,
       cwd: cap.path,
-      env: { ...process.env, TTS_REVERIFY_PHRASE: "This is a smoke test." },
+      env: { ...process.env },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

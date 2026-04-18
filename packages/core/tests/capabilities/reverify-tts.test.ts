@@ -44,7 +44,7 @@ function makeFailure(): CapabilityFailure {
 describe("reverifyTextToAudio", () => {
   it("returns pass:true when synthesize.sh produces valid Ogg output", async () => {
     const capDir = makeCapDir(`#!/usr/bin/env bash
-OUTPUT="$1"
+OUTPUT="$2"
 printf 'OggS\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' > "$OUTPUT"
 exit 0
 `);
@@ -62,7 +62,7 @@ exit 0
 
   it("returns pass:false when output file has invalid headers", async () => {
     const capDir = makeCapDir(`#!/usr/bin/env bash
-OUTPUT="$1"
+OUTPUT="$2"
 printf 'BADHEADER' > "$OUTPUT"
 exit 0
 `);
