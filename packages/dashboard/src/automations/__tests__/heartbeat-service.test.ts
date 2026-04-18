@@ -56,8 +56,16 @@ describe("HeartbeatService", () => {
       staleThresholdMs: 5 * 60 * 1000,
       tickIntervalMs: 999999,
       capabilityHealthIntervalMs: 999999,
+      agentDir: tmpDir,
       ...overrides,
     });
+  }
+
+  function writeAuditLog(agentDir: string, entries: Array<{ timestamp: string; session: string; tool?: string }>) {
+    const logsDir = path.join(agentDir, "logs");
+    fs.mkdirSync(logsDir, { recursive: true });
+    const lines = entries.map((e) => JSON.stringify({ tool: e.tool ?? "Bash", ...e }));
+    fs.writeFileSync(path.join(logsDir, "audit.jsonl"), lines.join("\n") + "\n");
   }
 
   it("detects stale job (old last_activity) and marks interrupted", async () => {
@@ -216,5 +224,64 @@ describe("HeartbeatService", () => {
 
     await hb.tick();
     expect(healthCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT mark interrupted when audit log shows recent tool activity", async () => {
+    const runDir = path.join(tmpDir, "run-busy");
+    fs.mkdirSync(runDir, { recursive: true });
+
+    // Stale todos — last touch 6 min ago
+    writeTodoFile(path.join(runDir, "todos.json"), {
+      items: [
+        { id: "t1", text: "Research", status: "in_progress", mandatory: false, created_by: "agent" },
+      ],
+      last_activity: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
+    });
+
+    // Audit log shows tool activity 90s ago — worker is alive
+    writeAuditLog(tmpDir, [
+      { timestamp: new Date(Date.now() - 90 * 1000).toISOString(), session: "sess-busy", tool: "WebFetch" },
+    ]);
+
+    mockJobService.listJobs.mockReturnValue([
+      makeJob({ id: "job-busy", run_dir: runDir, sdk_session_id: "sess-busy" }),
+    ]);
+
+    const hb = createHeartbeat();
+    await hb.tick();
+
+    expect(mockJobService.updateJob).not.toHaveBeenCalledWith(
+      "job-busy",
+      expect.objectContaining({ status: "interrupted" }),
+    );
+    expect(queue.listPending()).toHaveLength(0);
+  });
+
+  it("still triggers neverStarted even when audit log shows activity (intentional)", async () => {
+    const runDir = path.join(tmpDir, "run-no-todos");
+    fs.mkdirSync(runDir, { recursive: true });
+    writeTodoFile(path.join(runDir, "todos.json"), {
+      items: [],
+      last_activity: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+    });
+    writeAuditLog(tmpDir, [
+      { timestamp: new Date(Date.now() - 30 * 1000).toISOString(), session: "sess-x", tool: "WebFetch" },
+    ]);
+    mockJobService.listJobs.mockReturnValue([
+      makeJob({
+        id: "job-no-todos",
+        run_dir: runDir,
+        sdk_session_id: "sess-x",
+        created: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+      }),
+    ]);
+
+    const hb = createHeartbeat();
+    await hb.tick();
+
+    expect(mockJobService.updateJob).toHaveBeenCalledWith(
+      "job-no-todos",
+      expect.objectContaining({ status: "interrupted" }),
+    );
   });
 });

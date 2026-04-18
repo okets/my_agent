@@ -13,6 +13,43 @@ import { readLastAuditTimestamp } from "./audit-liveness.js";
 import fs from "node:fs";
 import path from "node:path";
 
+/** Recursive mtime of the run dir — fallback signal for subagent file writes.
+ *  Bounded to depth 4 to avoid pathological traversal. Best-effort, returns 0 on any error. */
+function readRunDirMtime(runDir: string | undefined, maxDepth = 4): number {
+  if (!runDir) return 0;
+  try {
+    let latest = 0;
+    const stack: Array<{ dir: string; depth: number }> = [{ dir: runDir, depth: 0 }];
+    while (stack.length > 0) {
+      const { dir, depth } = stack.pop()!;
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        // Skip todos.json — its content (last_activity) is already the primary signal;
+        // file mtime would give a false "fresh" reading whenever the job starts.
+        if (entry.name === "todos.json") continue;
+        const full = path.join(dir, entry.name);
+        try {
+          const stat = fs.statSync(full);
+          if (stat.mtimeMs > latest) latest = stat.mtimeMs;
+          if (entry.isDirectory() && depth < maxDepth) {
+            stack.push({ dir: full, depth: depth + 1 });
+          }
+        } catch {
+          // skip unreadable entries
+        }
+      }
+    }
+    return latest;
+  } catch {
+    return 0;
+  }
+}
+
 export interface HeartbeatConfig {
   jobService: AutomationJobService;
   notificationQueue: PersistentNotificationQueue;
@@ -109,7 +146,21 @@ export class HeartbeatService {
       const todoPath = path.join(job.run_dir, "todos.json");
       const todoFile = readTodoFile(todoPath);
 
-      const lastActivity = new Date(todoFile.last_activity).getTime();
+      const todoTime = new Date(todoFile.last_activity).getTime();
+      const auditTime =
+        this.config.agentDir && job.sdk_session_id
+          ? readLastAuditTimestamp(this.config.agentDir, job.sdk_session_id)
+          : 0;
+      let lastActivity = Math.max(todoTime, auditTime);
+
+      // Layer 2 (lazy): only walk run-dir if BOTH todo and audit signals are stale.
+      // Catches subagent-delegation gaps where worker session is silent in audit log
+      // but files are still being written.
+      if (now - lastActivity > this.config.staleThresholdMs) {
+        const runDirTime = readRunDirMtime(job.run_dir);
+        lastActivity = Math.max(lastActivity, runDirTime);
+      }
+
       const isStale = now - lastActivity > this.config.staleThresholdMs;
       const neverStarted =
         todoFile.items.length === 0 &&
