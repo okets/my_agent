@@ -93,6 +93,13 @@ describe.skipIf(skipDynamic)(
           detectedAt: new Date().toISOString(),
         };
         expect(copy.ack(f).length, `ack("${type}") must be non-empty`).toBeGreaterThan(0);
+        // Only enforce friendly-name substitution for types registered in FRIENDLY_NAMES.
+        // Unknown/custom types intentionally fall back to the raw type string.
+        if (type in FRIENDLY_NAMES) {
+          expect(copy.ack(f), `${type}: ack must not use the raw type string`).not.toMatch(
+            new RegExp(`hold on — ${type} isn't working right`),
+          );
+        }
         expect(copy.terminalAck(f).length, `terminalAck("${type}") must be non-empty`).toBeGreaterThan(0);
       }
     });
