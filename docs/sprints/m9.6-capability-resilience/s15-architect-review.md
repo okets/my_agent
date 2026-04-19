@@ -3,7 +3,7 @@ sprint: M9.6-S15
 title: Phase 2 exit gate — architect review
 architect: Opus 4.7 (Phase 2 architect)
 review_date: 2026-04-19
-verdict: REJECTED — required fixes before Phase 2 can close
+verdict: APPROVED on re-review (was REJECTED on first pass; all 3 blocking fixes landed in commit a6517e2)
 ---
 
 # S15 Architect Review
@@ -126,6 +126,28 @@ When the dev completes B1, B2, B3, notify CTO. I will:
 3. Confirm no premature "Done" / "APPROVED" framing.
 4. Flip verdict to APPROVED.
 5. Land the ROADMAP-Phase-2-close commit AFTER my approval, as the last commit on the branch.
+
+---
+
+## 7. Re-review verdict — APPROVED (2026-04-19)
+
+All three blocking fixes landed cleanly in commit `a6517e2`. Independent verification:
+
+| Blocker | Resolution | Verification |
+|---|---|---|
+| B1 — `setTurnContext` stub | Added to `MockSessionManager` (3-line no-op matching real signature) | `npx vitest run tests/cfr tests/integration` → 28 files, **214/214 PASS**, zero failures (was 197 + 17) |
+| B2 — Premature ROADMAP edit reverted | M9.6 row: "In Progress | Phase 1 + Phase 2 (S9-S14 done, S15 in progress). 5 Phase 3 sprints planned (S16-S20). M10 blocked until M9.6 closes at S20." S15 row: "In Progress" (not "Done"). No "Phase 2 closed" claim. | ROADMAP diff shows clean reversion |
+| B3 — ROADMAP S16-S20 numbering | All 5 rows match `plan-phase3-refinements.md §1`: S16=Fix-engine swap, S17=Reflect-collapse, S18=Duplicate-TTS, S19=Ack-coalescing+UI, S20=Phase 3 exit gate. Each row links to §2.N section. Phase 3 separator row added | ROADMAP diff verified line-by-line against §1 |
+
+The dev's fix commit message correctly attributes B1/B2/B3 to the architect review and uses no premature "APPROVED" framing.
+
+**Verdict: APPROVED.** Phase 2 is ready to close.
+
+The ROADMAP-Phase-2-close commit lands separately as the LAST commit on this branch per Phase 1 §0.3, authored by me.
+
+---
+
+*Architect: Opus 4.7 (1M context), Phase 2 architect for M9.6 course-correct*
 
 ---
 
