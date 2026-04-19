@@ -4,8 +4,8 @@
  * When the CfrEmitter fires a CapabilityFailure, the RecoveryOrchestrator:
  *   1. Checks surrender cooldown / in-flight deduplication.
  *   2. Uses orchestrator-state-machine.ts to drive a fix loop (up to 3 attempts).
- *   3. Spawns an execute-phase automation (Sonnet) per attempt.
- *   4. Spawns a reflect-phase automation (Opus) after each successful execute.
+ *   3. Spawns a fix-phase automation (Opus, MODE:FIX) per attempt via capability-brainstorming skill.
+ *   4. Reflect-phase automation removed (S16 fix-engine swap); dead code cleaned in S17.
  *   5. Reverifies the fix against the user's actual triggering artifact.
  *   6. On success: injects a mediator-framed system message to re-process the turn.
  *   7. On exhaustion: records a SurrenderScope with 10-min cooldown.
@@ -407,7 +407,7 @@ export class RecoveryOrchestrator {
         verificationResult: "fail",
         failureMode: `execute job ${executeResult.status}`,
         jobId: executeJobId,
-        modelUsed: "sonnet",
+        modelUsed: "opus",
         phase: "execute",
       };
       session.attempts.push(attempt);
@@ -426,7 +426,7 @@ export class RecoveryOrchestrator {
       verificationInputPath: failure.triggeringInput.artifact?.rawMediaPath ?? "",
       verificationResult: "pass",
       jobId: executeJobId,
-      modelUsed: "sonnet",
+      modelUsed: "opus",
       phase: "execute",
     };
     session.attempts.push(executeAttempt);
