@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { RecoveryOrchestrator } from "../../src/capabilities/recovery-orchestrator.js";
@@ -9,14 +9,21 @@ import { conversationOrigin } from "../../src/capabilities/cfr-helpers.js";
 import type { CapabilityRegistry } from "../../src/capabilities/registry.js";
 import type { CapabilityWatcher } from "../../src/capabilities/watcher.js";
 
+const createdDirs: string[] = [];
+
 function makeCapDir(): string {
   const capDir = mkdtempSync(join(tmpdir(), "stt-deepgram-"));
+  createdDirs.push(capDir);
   mkdirSync(join(capDir, "scripts"));
   writeFileSync(join(capDir, "CAPABILITY.md"), "---\nname: Test STT\nprovides: audio-to-text\n---\n");
   writeFileSync(join(capDir, "config.yaml"), "model: nova-2\n");
   writeFileSync(join(capDir, "DECISIONS.md"), "# Decisions\n\n");
   return capDir;
 }
+
+afterEach(() => {
+  for (const d of createdDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
 
 function makeFailure(): CapabilityFailure {
   return {
@@ -76,7 +83,7 @@ describe("fix-mode integration", () => {
     expect(captured[0].targetPath).toBe(capDir);
   });
 
-  it("no nested create_automation — spawnAutomation called at most 3 times across all attempts", async () => {
+  it("no nested create_automation — spawnAutomation called 1-3 times across all attempts", async () => {
     const capDir = makeCapDir();
     const spawnAutomation = vi.fn().mockResolvedValue({ jobId: "j-1", automationId: "a-1" });
     const deps = makeDeps(capDir, {
@@ -88,6 +95,7 @@ describe("fix-mode integration", () => {
 
     // Fix-mode: 1 spawn per attempt, max 3 attempts.
     // Old path: execute + reflect × 3 = 6 spawns. Exceeding 3 means the reflect path is still live.
+    expect(spawnAutomation.mock.calls.length).toBeGreaterThanOrEqual(1);
     expect(spawnAutomation.mock.calls.length).toBeLessThanOrEqual(3);
   });
 
@@ -104,6 +112,7 @@ describe("fix-mode integration", () => {
     const orch = new RecoveryOrchestrator(deps);
     await orch.handle(makeFailure());
 
+    expect(captured.length).toBeGreaterThan(0);
     expect(captured[0].prompt).toContain(capDir);
   });
 });
