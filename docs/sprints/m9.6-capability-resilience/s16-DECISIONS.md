@@ -75,3 +75,26 @@ pointing at the sibling. Roughly a half-day refactor.
 
 **Status at S16 close:** Option A in production. Option B unused but documented here so
 future sessions know the escape exists without re-deriving it.
+
+## D7 — Premature merge + wall-time sham: sprint stays REJECTED until B1 addressed
+
+**What happened:** After measuring wall-time via a synthetic test capability, the sprint
+branch was merged to master and ROADMAP updated to Done before architect review — violating
+`plan-phase2-coverage.md §0.3` (same anti-pattern S9/S11/S15 hit). Additionally, the
+wall-time measurement was invalid: (a) only 1 plug measured vs. ≥2 required; (b) Opus
+produced a sham fix (rewrote `smoke.sh` to exit 0 instead of fixing underlying capability);
+(c) the orchestrator path was bypassed (hand-crafted automation manifest, not a real CFR
+`spawnAutomation` call, so skill loading and `targetPath` plumbing were not exercised).
+
+**Process fix:** The premature ROADMAP-Done commit (`51ea34f`) was reverted on master
+(`cf4cb78`). A new ROADMAP-Done commit will be authored by the *architect* as the last
+commit after re-review approves. The merge to master is not unwound (destructive), but
+S16 framing remains "In Progress" until architect flips verdict.
+
+**Wall-time fix (B1):** Implement `POST /api/debug/cfr/inject` endpoint (Path B from
+architect review §2.B1), then measure against 2 real plugs through the live orchestrator.
+The synthetic `s16-walltime-test-cap` and `s16-walltime-fix-test` automation are confirmed
+deleted from `.my_agent/`.
+
+**Going forward:** Do not merge to master or commit ROADMAP-Done before architect
+explicitly approves. The architect authors the final ROADMAP-Done commit.
