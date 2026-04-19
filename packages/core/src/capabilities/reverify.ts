@@ -257,56 +257,12 @@ async function reverifyAudioToText(
     return { pass: true, recoveredContent: text, confidence, durationMs };
   }
 
-  // Fallback path for tests that don't wire the invoker (e.g. legacy unit tests).
-  // Direct execFile call — preserved from pre-S10 for compatibility. When exec-bit
-  // validation is guaranteed (S10 wired), the bash wrapper can be dropped in S13.
-  const cap = registry.get("audio-to-text");
-  if (!cap) {
-    return { pass: false, failureMode: "audio-to-text capability not available" };
-  }
-
-  const { execFile } = await import("node:child_process");
-  const { promisify } = await import("node:util");
-  const execFileAsync = promisify(execFile);
-  const scriptPath = join(cap.path, "scripts", "transcribe.sh");
-  if (!existsSync(scriptPath)) {
-    return { pass: false, failureMode: `transcribe.sh not found at ${scriptPath}` };
-  }
-
-  try {
-    const { stdout, stderr } = await execFileAsync("bash", [scriptPath, rawMediaPath], {
-      timeout: 30_000,
-      env: { ...process.env },
-    });
-
-    const trimmed = stdout.trim();
-    if (!trimmed) {
-      return { pass: false, failureMode: stderr.trim() || "transcribe.sh produced no output" };
-    }
-
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      return { pass: false, failureMode: `transcribe.sh output is not valid JSON: ${trimmed.slice(0, 200)}` };
-    }
-
-    const text = parsed["text"];
-    if (typeof text !== "string" || text.trim() === "") {
-      return { pass: false, failureMode: `transcribe.sh JSON missing non-empty "text" field` };
-    }
-
-    const rawConfidence = parsed["confidence"];
-    const rawDuration = parsed["duration_ms"];
-    const confidence =
-      typeof rawConfidence === "number" && Number.isFinite(rawConfidence) ? rawConfidence : undefined;
-    const durationMs =
-      typeof rawDuration === "number" && Number.isFinite(rawDuration) ? rawDuration : undefined;
-    return { pass: true, recoveredContent: text, confidence, durationMs };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { pass: false, failureMode: `transcribe.sh execution error: ${message}` };
-  }
+  // Invoker is required for audio-to-text reverification (S10-FU-2 / S13-FU-1 / S18).
+  // The legacy bash wrapper has been removed. If invoker is absent, fail fast.
+  return {
+    pass: false,
+    failureMode: "invoker required for audio-to-text reverification — bash wrapper removed in S18",
+  };
 }
 
 const REVERIFIERS: Record<string, Reverifier> = {

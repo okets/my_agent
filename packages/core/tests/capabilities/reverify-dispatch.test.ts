@@ -3,11 +3,13 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import { writeFileSync } from "node:fs";
 import { dispatchReverify } from "../../src/capabilities/reverify.js";
 import type { CapabilityFailure } from "../../src/capabilities/cfr-types.js";
 import { conversationOrigin } from "../../src/capabilities/cfr-helpers.js";
 import type { CapabilityRegistry } from "../../src/capabilities/registry.js";
 import type { CapabilityWatcher } from "../../src/capabilities/watcher.js";
+import type { CapabilityInvoker } from "../../src/capabilities/invoker.js";
 
 function makeWatcher(overrides = {}): CapabilityWatcher {
   return {
@@ -44,13 +46,23 @@ function makeFailure(capabilityType: string): CapabilityFailure {
 }
 
 describe("dispatchReverify — routing", () => {
-  it("routes audio-to-text to reverifyAudioToText (returns defined result)", async () => {
+  it("routes audio-to-text to reverifyAudioToText (returns pass:true via mock invoker)", async () => {
     const registry = makeRegistry("audio-to-text");
     const watcher = makeWatcher();
     const failure = makeFailure("audio-to-text");
-    const result = await dispatchReverify(failure, registry, watcher);
-    expect(result).toBeDefined();
-    expect(typeof result.pass).toBe("boolean");
+    // Provide a rawMediaPath so reverifyAudioToText doesn't bail early.
+    (failure.triggeringInput as { artifact?: { rawMediaPath: string } }).artifact = {
+      rawMediaPath: "/tmp/fake-dispatch-audio.ogg",
+    };
+    writeFileSync("/tmp/fake-dispatch-audio.ogg", Buffer.from("fake"));
+
+    const invoker: CapabilityInvoker = {
+      run: vi.fn().mockResolvedValue({ kind: "success", parsed: { text: "hello" } }),
+    } as unknown as CapabilityInvoker;
+
+    const result = await dispatchReverify(failure, registry, watcher, invoker);
+    expect(result.pass).toBe(true);
+    expect(result.recoveredContent).toBe("hello");
   });
 
   it("routes unknown type to runSmokeFixture (availability fallback when no smoke.sh)", async () => {
