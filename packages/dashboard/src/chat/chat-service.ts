@@ -773,6 +773,7 @@ export class AppChatService {
     let usage: { input: number; output: number } | undefined;
     let cost: number | undefined;
     let finalAudioUrl: string | undefined;
+    let ttsFailed = false; // S19: set when TTS fails on voice reply
     let hasSplit = false;
     const originalTurnNumber = turnNumber;
 
@@ -886,13 +887,17 @@ export class AppChatService {
             // TTS: synthesize audio response if input was voice + TTS available
             let audioUrl: string | undefined;
             if (isAudioInput && assistantContent.trim()) {
-              audioUrl =
-                (await this.synthesizeAudio(
-                  assistantContent,
-                  convId,
-                  buildTriggeringInput(options, convId, turnNumber),
-                  detectedLanguage,
-                )) ?? undefined;
+              const synthesisResult = await this.synthesizeAudio(
+                assistantContent,
+                convId,
+                buildTriggeringInput(options, convId, turnNumber),
+                detectedLanguage,
+              );
+              if (synthesisResult === null) {
+                ttsFailed = true;
+              } else {
+                audioUrl = synthesisResult;
+              }
             }
 
             finalAudioUrl = audioUrl;
@@ -926,6 +931,7 @@ export class AppChatService {
           cost,
           channel: options?.channel?.channelId,
           audioUrl: finalAudioUrl || undefined,
+          failure_type: ttsFailed ? "text-to-audio" : undefined,
         };
 
         await this.conversationManager.appendTurn(convId, assistantTurn);
