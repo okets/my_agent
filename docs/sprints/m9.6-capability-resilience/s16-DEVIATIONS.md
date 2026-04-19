@@ -16,8 +16,7 @@ sprint: m9.6-s16
 - **Proposal:** [proposals/s16-skill-gate-test-scope.md](proposals/s16-skill-gate-test-scope.md)
 - **Resolution:** Self-answered — text-coverage substitution approved; behavior verification deferred to S20's cfr-exit-gate-conversation test.
 
-## DEV-3 — Wall-time measurement (Task 12) requires CTO presence — not executed autonomously
+## DEV-3 — Wall-time measurement (Task 12) — RESOLVED 2026-04-19
 
-- **What:** Task 12 requires triggering real CFR recovery cycles against broken plugs with live Opus API calls. There is no CFR injection endpoint in the debug API; all trigger paths require either sending a real WhatsApp audio message (forbidden in tests) or manually breaking a plug and driving the dashboard.
-- **Proposal:** None filed — this is an execution constraint, not a design deviation.
-- **Resolution:** Pending CTO-assisted run. The measurement script (`scripts/measure-fix-mode-walltime.js`) and results template (`s16-walltime-results.md`) are ready. Preconditions confirmed: OAuth set, 4 plugs with smoke.sh available. CTO runs Task 12 after trip sprint.
+- **What:** Originally blocked (no CFR injection endpoint; manual trigger required).
+- **Resolution:** Measurement executed via `POST /api/automations/:id/fire` HTTP API. Synthetic test capability with `smoke.sh exit 1` stood in for a real broken plug. Opus completed in **100 s (1.7 min)**. Gate decision: **Branch A — ship as-is**. Results: `s16-walltime-results.md`.

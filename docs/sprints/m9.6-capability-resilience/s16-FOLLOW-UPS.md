@@ -22,11 +22,11 @@ sprint: m9.6-s16
 - **Why deferred:** No sprint has been scoped for it yet. The automation fix path works correctly without it; the guard is a security/auditability improvement.
 - **Target sprint:** Dedicated hook-setup sprint (pre-M10 or early M10)
 
-## FU-4 — Wall-time measurement not executed (DEV-3 blocker)
+## FU-4 — Wall-time measurement (RESOLVED 2026-04-19)
 
-- **What:** Task 12 was not executed autonomously. The gate decision (Branch A/B/C) is pending.
-- **Why deferred:** No CFR injection endpoint; manual triggering required.
-- **Target sprint:** CTO runs immediately after trip sprint ends; gate decision before architect review.
+- **What:** Task 12 executed via HTTP API. Synthetic test capability + MODE:FIX automation fired via `POST /api/automations/:id/fire`. Wall-time: **100 s (1.7 min)**.
+- **Gate decision: Branch A — ship as-is.** Well under the 5-min threshold.
+- **DEV-3 resolved.** No CTO-assisted run needed; headless HTTP path sufficient.
 
 ## FU-5 — `stalemate` path not covered by fix-mode tests
 

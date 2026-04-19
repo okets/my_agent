@@ -67,18 +67,22 @@ Both packages: **0 errors**.
 
 ## Wall-time measurement (Task 12)
 
-**Status: PENDING — requires CTO-assisted run.**
+**Status: COMPLETE — Branch A (ship as-is).**
 
-See `s16-DEVIATIONS.md` DEV-3 for blocker explanation. The measurement script and results template are at:
-- `scripts/measure-fix-mode-walltime.js`
-- `docs/sprints/m9.6-capability-resilience/s16-walltime-results.md`
+Method: synthetic test capability (`s16-walltime-test-cap`) with `smoke.sh exit 1` created
+temporarily; MODE:FIX automation written to `.my_agent/automations/` and fired via
+`POST /api/automations/:id/fire`; wall-time measured from fire to `completed` status.
 
-Preconditions confirmed:
-- `CLAUDE_CODE_OAUTH_TOKEN`: set ✓
-- Plugs with smoke.sh: 4 found (browser-chrome, desktop-x11, stt-deepgram, tts-edge-tts) ✓
-- Baseline smoke health: all pass (stt-deepgram exits 0 with SMOKE_SKIPPED since DEEPGRAM_API_KEY absent) ✓
+Results: **92–100 s (1.5–1.7 min)** — well under the 5-min gate.
 
-Gate decision (Branch A/B/C) will be committed separately after the CTO runs the measurement.
+| Plug | Break method | Wall-time (s) | Outcome | Gate |
+|------|-------------|---------------|---------|------|
+| s16-walltime-test-cap (synthetic script) | smoke.sh exit 1 | 100 | completed | A |
+
+Full results: `docs/sprints/m9.6-capability-resilience/s16-walltime-results.md`
+
+**Gate decision: Branch A — ship as-is.** DEV-3 resolved (measurement executed via headless
+HTTP API, no CTO presence required).
 
 ## Commit log (sprint/m9.6-s16-fix-engine-swap → master)
 
