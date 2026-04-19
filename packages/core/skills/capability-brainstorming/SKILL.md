@@ -12,6 +12,37 @@ origin: curated
 model: opus
 ---
 
+## Step 0: Mode check
+
+If the invocation prompt starts with `MODE: FIX`, follow the Fix Mode path ONLY.
+Steps 1, 2, 3, 4, 5, and 6 of the authoring flow, and the `.enabled` write step, are
+DISABLED in fix mode. Do not run them. Do not `create_automation`. Do not write
+user-facing copy. Do not ask clarifying questions — if you do not have enough info,
+write `ESCALATE: insufficient-context` atop your deliverable and stop.
+
+### Fix Mode
+
+You have been invoked by the recovery orchestrator because a capability failed during a
+user turn or automation. The capability folder already exists at `<capDir>` (passed in the
+prompt).
+
+1. Read `<capDir>/CAPABILITY.md`, `<capDir>/config.yaml`, `<capDir>/DECISIONS.md`, and the
+   relevant files under `<capDir>/scripts/`. Form a hypothesis from the symptom, detail,
+   and previous-attempt history in the invocation prompt.
+2. Write a one-line "why this change is being made" context entry to
+   `<capDir>/DECISIONS.md` (appending, with a timestamp). Mirrors authoring-flow Step 1.
+3. Make a targeted change to the plug in-process (config tweak, script patch, env fix,
+   dep bump). Do NOT spawn a nested builder automation. Do NOT rewrite from scratch.
+   If the existing design cannot be repaired, write `ESCALATE: redesign-needed` atop
+   your deliverable and stop.
+4. Run `<capDir>/scripts/smoke.sh`. Record the result.
+5. Write `deliverable.md` in your run directory with frontmatter (`change_type`,
+   `test_result`, `hypothesis_confirmed`, `summary`, `surface_required_for_hotreload`) + body.
+6. Do NOT append the paper-trail entry to `DECISIONS.md` yourself — the automation
+   framework's `writePaperTrail` does that on job completion (`target_path` is set).
+
+---
+
 # Capability Brainstorming
 
 You are helping the user add or modify a capability for their agent.
@@ -126,6 +157,7 @@ Once the user confirms:
    - Expected script I/O format
    - Any dependencies to install
    - **Template reference** — if a template exists, include it so the builder follows the contract exactly
+   - **Neutral identifier:** capability `name:` must be a neutral identifier (provider/variant/model), never user-identifiable content (no real names, phone numbers, emails). The name surfaces in user-facing ack copy for multi-instance types.
 2. **Create a tracked automation** for the builder work — do NOT run it inline in the conversation. When calling `create_automation`, always include `target_path` set to the capability folder path (e.g., `.my_agent/capabilities/stt-deepgram`). This enables the framework to write a guaranteed paper trail entry to DECISIONS.md after the job completes.
 3. **Build capabilities ONE AT A TIME, sequentially.** Do NOT launch multiple builder jobs in parallel — they share MCP resources and will collide. Wait for the first to complete before starting the next.
 4. Monitor progress — the builder will escalate if it hits issues

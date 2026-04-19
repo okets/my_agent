@@ -1,3 +1,8 @@
+> **DEPRECATED (M9.6-S16):** This template is no longer invoked by the recovery orchestrator.
+> The orchestrator now calls `capability-brainstorming` in `MODE: FIX` (see `buildFixModeInvocation`
+> in `recovery-orchestrator.ts`). This file is retained until S17 confirms one sprint of green
+> fix-mode operation, then deleted.
+
 # Fix Automation — {{capabilityType}} (Attempt {{attemptNumber}}/3)
 
 ## Failure Context

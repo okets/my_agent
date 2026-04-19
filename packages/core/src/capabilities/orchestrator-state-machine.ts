@@ -43,7 +43,7 @@ export interface FixSession {
    * ran and reverify still failed. Consumed by RecoveryOrchestrator.surrender()
    * to pick the right user-facing copy (M9.6-S6).
    */
-  surrenderReason?: "budget" | "iteration-3";
+  surrenderReason?: "budget" | "iteration-3" | "redesign-needed" | "insufficient-context";
   /**
    * All triggering origins that have coalesced onto this fix session (M9.6-S12
    * Task 6a — D7). Initialized with the first CFR's origin; late-arriving CFRs

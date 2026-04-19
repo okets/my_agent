@@ -232,7 +232,7 @@ export interface CapabilitySurrenderEvent {
   capabilityType: string;
   conversationId: string;
   turnNumber: number;
-  reason: "budget-exhausted" | "max-attempts";
+  reason: "budget-exhausted" | "max-attempts" | "redesign-needed" | "insufficient-context";
   surrenderedAt: string; // ISO8601
 }
 
