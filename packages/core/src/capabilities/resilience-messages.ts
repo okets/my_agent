@@ -14,7 +14,7 @@
 import type { CapabilityFailure } from "./cfr-types.js";
 import type { CapabilityRegistry } from "./registry.js";
 
-export type SurrenderReason = "budget" | "iteration-3" | "surrender-cooldown";
+export type SurrenderReason = "budget" | "iteration-3" | "surrender-cooldown" | "redesign-needed" | "insufficient-context";
 
 export interface ResilienceCopy {
   ack(failure: CapabilityFailure): string;

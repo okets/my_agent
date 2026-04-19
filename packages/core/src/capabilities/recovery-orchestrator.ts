@@ -32,7 +32,7 @@ import { parseFrontmatterContent } from "../metadata/frontmatter.js";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
-export type AckKind = "attempt" | "status" | "surrender" | "surrender-budget" | "surrender-cooldown" | "terminal-fixed";
+export type AckKind = "attempt" | "status" | "surrender" | "surrender-budget" | "surrender-cooldown" | "terminal-fixed" | "surrender-redesign-needed" | "surrender-insufficient-context";
 
 export interface AutomationSpec {
   name: string;
@@ -41,6 +41,7 @@ export interface AutomationSpec {
   prompt: string;
   jobType: "capability_modify";
   parent?: { jobId: string; iteration: number };
+  targetPath?: string;
 }
 
 export interface AutomationResult {
@@ -69,7 +70,7 @@ export interface OrchestratorDeps {
     failure: CapabilityFailure;
     runDir: string;
     outcome: "fixed" | "terminal-fixed" | "surrendered";
-    session: { attempts: FixAttempt[]; surrenderReason?: "budget" | "iteration-3" };
+    session: { attempts: FixAttempt[]; surrenderReason?: "budget" | "iteration-3" | "redesign-needed" | "insufficient-context" };
   }) => void;
   now: () => string;
 }
