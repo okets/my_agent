@@ -68,12 +68,35 @@ exit 0
 `);
     const result = await reverifyTextToAudio(makeFailure(), makeRegistry(capDir));
     expect(result.pass).toBe(false);
-    expect(result.failureMode).toMatch(/header/i);
+    expect(result.failureMode).toMatch(/not Ogg/i);
   });
 
   it("returns pass:false when capability not in registry", async () => {
     const registry = { get: () => undefined } as unknown as CapabilityRegistry;
     const result = await reverifyTextToAudio(makeFailure(), registry);
     expect(result.pass).toBe(false);
+  });
+
+  it("returns pass:false when synthesize.sh produces MP3 output (option a — strict Ogg)", async () => {
+    // MP3 MPEG sync word: ff fb
+    const capDir = makeCapDir(`#!/usr/bin/env bash
+OUTPUT="$2"
+printf '\\xff\\xfb\\x90\\x00' > "$OUTPUT"
+exit 0
+`);
+    const result = await reverifyTextToAudio(makeFailure(), makeRegistry(capDir));
+    expect(result.pass).toBe(false);
+    expect(result.failureMode).toMatch(/not Ogg/i);
+  });
+
+  it("returns pass:false when synthesize.sh produces WAV output (option a — strict Ogg)", async () => {
+    const capDir = makeCapDir(`#!/usr/bin/env bash
+OUTPUT="$2"
+printf 'RIFF\\x00\\x00\\x00\\x00' > "$OUTPUT"
+exit 0
+`);
+    const result = await reverifyTextToAudio(makeFailure(), makeRegistry(capDir));
+    expect(result.pass).toBe(false);
+    expect(result.failureMode).toMatch(/not Ogg/i);
   });
 });

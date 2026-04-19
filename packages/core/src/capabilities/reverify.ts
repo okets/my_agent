@@ -97,15 +97,13 @@ export async function reverifyTextToAudio(
 
   const headerBytes = readFileSync(outputPath).slice(0, 4);
   const headerAscii = headerBytes.toString("ascii");
-  // Accept Ogg, WAV/RIFF, MP3 (ID3 tag), and MP3 MPEG sync word (0xFF 0xE0–0xFF)
-  const isMpegSync = headerBytes[0] === 0xff && (headerBytes[1] & 0xe0) === 0xe0;
-  const validHeader =
-    headerAscii.startsWith("OggS") ||
-    headerAscii.startsWith("RIFF") ||
-    headerAscii.startsWith("ID3") ||
-    isMpegSync;
-  if (!validHeader) {
-    return { pass: false, failureMode: `output file has invalid audio header: ${JSON.stringify(headerAscii)}`, verificationInputPath: scriptPath };
+  // Strict Ogg-only (option a, S15-FU-4 / S18). Plugs must transcode to Ogg per template contract.
+  if (!headerAscii.startsWith("OggS")) {
+    return {
+      pass: false,
+      failureMode: `output file is not Ogg (magic: ${JSON.stringify(headerAscii)}); plug must transcode to Ogg per template contract`,
+      verificationInputPath: scriptPath,
+    };
   }
 
   return { pass: true, recoveredContent: undefined, verificationInputPath: scriptPath };
