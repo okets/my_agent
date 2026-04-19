@@ -193,6 +193,20 @@ export class ConversationAckCoalescer {
   }
 }
 
+// ─── System-origin ring buffer ───────────────────────────────────────────────
+
+/** Shape of a system-origin CFR event stored in the ring buffer. */
+export interface SystemCfrEvent {
+  component: string;
+  capabilityType: string;
+  capabilityName?: string;
+  symptom: string;
+  outcome: "in-progress" | "surrendered";
+  timestamp: string;
+}
+
+const SYSTEM_RING_BUFFER_MAX = 100;
+
 // ─── AckDelivery ─────────────────────────────────────────────────────────────
 
 /** Transport ID used by the dashboard (WS) channel. */
@@ -241,6 +255,7 @@ function isTerminalKind(kind: AckKind | undefined): boolean {
  */
 export class AckDelivery {
   private readonly coalescer = new ConversationAckCoalescer();
+  private systemEventLog: SystemCfrEvent[] = [];
 
   constructor(
     private transportManager: TransportManagerLike,
@@ -390,12 +405,28 @@ export class AckDelivery {
           `(${failure.capabilityType}): ${failure.symptom} → ${outcome} ` +
           `[component=${origin.component}]`,
       );
+      this.systemEventLog.push({
+        component: origin.component,
+        capabilityType: failure.capabilityType,
+        capabilityName: failure.capabilityName,
+        symptom: failure.symptom,
+        outcome,
+        timestamp: new Date().toISOString(),
+      });
+      if (this.systemEventLog.length > SYSTEM_RING_BUFFER_MAX) {
+        this.systemEventLog.shift();
+      }
       return;
     }
 
     // Exhaustiveness guard — unreachable under the current TriggeringOrigin union.
     const _exhaust: never = origin;
     void _exhaust;
+  }
+
+  /** Returns system-origin CFR events, most-recent-first. Max 100 entries. */
+  getSystemEvents(): SystemCfrEvent[] {
+    return [...this.systemEventLog].reverse();
   }
 
   /**

@@ -290,6 +290,7 @@ export type {
   TransportManagerLike,
   ConnectionRegistryLike,
   AutomationNotifierLike,
+  SystemCfrEvent,
 } from './capabilities/index.js'
 
 // Orphaned-turn watchdog (M9.6-S5)
