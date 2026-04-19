@@ -1501,6 +1501,9 @@ function chat() {
             this.currentAssistantMessage.autoplay = this.lastInputWasAudio || false;
             this.currentAssistantMessage.audioUrl = data.audioUrl;
           }
+          if (data.failure_type && this.currentAssistantMessage) {
+            this.currentAssistantMessage.failureType = data.failure_type;
+          }
           // Don't clear lastInputWasAudio here — split turns need it for subsequent messages.
           // It gets cleared when the user sends their next message.
           this.isResponding = false;
@@ -1596,6 +1599,7 @@ function chat() {
                 turn.attachments,
               ),
               audioUrl: turn.audioUrl || null,
+              failureType: turn.failure_type ?? null,
               channel: turn.channel || null,
               channelIcon: this.getChannelBadgeIcon(turn.channel),
               channelName: this.getChannelBadgeName(turn.channel),
@@ -1775,6 +1779,7 @@ function chat() {
                 turn.attachments,
               ),
               audioUrl: turn.audioUrl || null,
+              failureType: turn.failure_type ?? null,
               channel: turn.channel || null,
               channelIcon: this.getChannelBadgeIcon(turn.channel),
               channelName: this.getChannelBadgeName(turn.channel),
