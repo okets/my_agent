@@ -331,7 +331,8 @@ export class AckDelivery {
         return;
       }
 
-      const outcome: "fixed" | "surrendered" = "surrendered";
+      const outcome: "fixed" | "surrendered" =
+        context?.kind === "terminal-fixed" ? "fixed" : "surrendered";
       try {
         this.writeAutomationRecovery({
           failure,

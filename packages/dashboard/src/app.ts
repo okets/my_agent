@@ -54,7 +54,7 @@ import {
   createResilienceCopy,
   CapabilityInvoker,
 } from "@my-agent/core";
-import type { OrphanSweepReport, ResilienceCopy } from "@my-agent/core";
+import type { OrphanSweepReport, ResilienceCopy, AutomationNotifierLike } from "@my-agent/core";
 import { RawMediaStore } from "./media/raw-media-store.js";
 import type { ListSpacesFilter } from "@my-agent/core";
 import type { HealthChangedEvent } from "@my-agent/core";
@@ -466,6 +466,9 @@ export class App extends EventEmitter {
   // Recovery Orchestrator (M9.6-S4)
   recoveryOrchestrator: RecoveryOrchestrator | null = null;
 
+  // Ack delivery (M9.6-S6, exposed for capabilities health route in S19)
+  ackDelivery: AckDelivery | null = null;
+
   // CFR (M9.6-S1)
   cfr!: CfrEmitter;
   rawMediaStore!: RawMediaStore;
@@ -663,10 +666,36 @@ export class App extends EventEmitter {
       // (for channel-originated turns) and a ConnectionRegistry (for dashboard
       // turns). If either is missing at this point in boot, AckDelivery
       // falls back to console logging so the orchestrator never blocks.
+      // Concrete AutomationNotifierLike — lazy reads conversationInitiator at
+      // call time (CI is wired later in boot at ~line 1148).
+      const automationNotifier: AutomationNotifierLike = {
+        async notify({ automationId, jobId, outcome, message }) {
+          const ci = app.conversationInitiator;
+          if (!ci) {
+            console.warn("[AutomationNotifier] ConversationInitiator not ready — notification skipped");
+            return;
+          }
+          const prompt =
+            `A capability recovery finished for automation ${automationId} (job ${jobId}).\n\n` +
+            `Outcome: ${outcome}.\n\n${message}\n\n` +
+            `You are the conversation layer — let the user know briefly.`;
+          try {
+            const alerted = await ci.alert(prompt);
+            if (!alerted) {
+              await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+            }
+          } catch (err) {
+            console.error("[AutomationNotifier] Failed to notify user:", err);
+          }
+        },
+      };
+
       const ackDelivery =
         app.transportManager && connectionRegistry
-          ? new AckDelivery(app.transportManager, connectionRegistry)
+          ? new AckDelivery(app.transportManager, connectionRegistry, automationNotifier)
           : null;
+
+      app.ackDelivery = ackDelivery;
 
       app.recoveryOrchestrator = new RecoveryOrchestrator({
         spawnAutomation: async (spec) => {
