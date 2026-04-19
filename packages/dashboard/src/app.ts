@@ -978,23 +978,46 @@ export class App extends EventEmitter {
               app.transportManager!.send(transportId, to, message),
             sendTypingIndicator: (transportId, to) =>
               app.transportManager!.sendTypingIndicator(transportId, to),
-            sendAudioViaTransport: async (transportId, to, text, language) => {
-              // Get the plugin and check if it supports voice replies
+            sendAudioUrlViaTransport: async (
+              transportId: string,
+              to: string,
+              audioUrl: string,
+            ): Promise<boolean> => {
               const plugins = app.transportManager!.getPlugins();
               const plugin = plugins.find((p) => p.id === transportId);
-              if (
-                !plugin ||
-                !("onSendVoiceReply" in plugin) ||
-                !("sendAudio" in plugin)
-              ) {
+              if (!plugin || !("sendAudio" in plugin)) return false;
+              const bp = plugin as BaileysPlugin;
+
+              // audioUrl is "/api/assets/audio/<filename>" — resolve to agentDir/audio/<filename>
+              const filename = audioUrl.split("/").pop();
+              if (!filename) return false;
+              const filePath = join(agentDir, "audio", filename);
+              if (!existsSync(filePath)) {
+                console.warn(`[App] sendAudioUrlViaTransport: file not found: ${filePath}`);
                 return false;
               }
-              const bp = plugin as BaileysPlugin;
-              if (!bp.onSendVoiceReply) return false;
-              const audioBuffer = await bp.onSendVoiceReply(text, to, language);
-              if (!audioBuffer) return false;
-              await bp.sendAudio(to, audioBuffer);
-              return true;
+
+              try {
+                const audioBuffer = readFileSync(filePath);
+                await bp.sendAudio(to, audioBuffer);
+                return true;
+              } catch (err) {
+                console.warn("[App] sendAudioUrlViaTransport failed:", err instanceof Error ? err.message : String(err));
+                return false;
+              }
+            },
+            sendTextViaTransport: async (
+              transportId: string,
+              to: string,
+              text: string,
+            ): Promise<boolean> => {
+              try {
+                await app.transportManager!.send(transportId, to, { content: text });
+                return true;
+              } catch (err) {
+                console.warn("[App] sendTextViaTransport failed:", err instanceof Error ? err.message : String(err));
+                return false;
+              }
             },
             agentDir,
             app,

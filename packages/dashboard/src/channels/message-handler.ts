@@ -24,7 +24,7 @@ import { AuthorizationGate } from "../routing/authorization-gate.js";
 import { TokenManager } from "../routing/token-manager.js";
 import { MessageRouter, normalizeIdentity } from "../routing/message-router.js";
 
-interface MessageHandlerDeps {
+export interface MessageHandlerDeps {
   conversationManager: ConversationManager;
   connectionRegistry: ConnectionRegistry;
   sendViaTransport: (
@@ -33,12 +33,24 @@ interface MessageHandlerDeps {
     message: OutgoingMessage,
   ) => Promise<void>;
   sendTypingIndicator: (transportId: string, to: string) => Promise<void>;
-  /** Send a voice reply (audio buffer) via transport. Returns true if sent. */
-  sendAudioViaTransport?: (
+  /**
+   * Send an already-synthesized audio file via transport. Receives the `/api/assets/audio/`
+   * URL produced by chat-service.synthesizeAudio; reads from disk and calls bp.sendAudio.
+   * Returns true if sent successfully.
+   */
+  sendAudioUrlViaTransport?: (
+    transportId: string,
+    to: string,
+    audioUrl: string,
+  ) => Promise<boolean>;
+  /**
+   * Send a text reply via transport. Used as explicit fallback when TTS fails or
+   * for error messages on voice-input turns. Returns true if sent.
+   */
+  sendTextViaTransport?: (
     transportId: string,
     to: string,
     text: string,
-    language?: string,
   ) => Promise<boolean>;
   agentDir: string;
   /** App instance for event-emitting mutations */
