@@ -86,6 +86,7 @@ calls this as a fresh out-of-session subprocess (exit 0 = healthy, non-zero = br
 - Calls `synthesize.sh` with a deterministic phrase
 - Validates the JSON output has a `path` field
 - Validates the output file exists and exceeds 100 bytes
+- Validates the output file has OggS magic bytes (0x4f676753)
 - Cleans up temp files on exit
 
 **Reference implementation** (copy to `scripts/smoke.sh`, make executable):
@@ -102,8 +103,15 @@ OUTPUT="$("$DIR/synthesize.sh" "smoke test" "$OUT")"
 echo "$OUTPUT" | jq -e '.path != null' > /dev/null
 
 [ -f "$OUT" ] && [ "$(wc -c < "$OUT")" -gt 100 ]
+
+# Validate Ogg magic bytes (plug must output Ogg/Opus per template contract)
+MAGIC=$(od -A n -N 4 -t x1 "$OUT" | tr -d ' \n')
+if [ "$MAGIC" != "4f676753" ]; then
+  echo "Output is not a valid Ogg file (magic: $MAGIC, expected 4f676753 'OggS')" >&2
+  exit 1
+fi
 ~~~
 
 A short deterministic phrase is used so providers can synthesize it quickly. The smoke
-script exits 0 if the output file is produced and non-trivially sized — it does not
-validate audio quality or voice accuracy.
+script exits 0 if the output file is produced, non-trivially sized, and has valid Ogg
+magic bytes — it does not validate audio quality or voice accuracy.

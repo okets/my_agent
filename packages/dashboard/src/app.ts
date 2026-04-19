@@ -9,12 +9,8 @@
  */
 
 import { EventEmitter } from "node:events";
-import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import type { AppEventMap } from "./app-events.js";
 import { writeFrontmatter } from "./metadata/frontmatter.js";
 import { ensureDecisionsFile } from "./spaces/decisions.js";
@@ -962,9 +958,7 @@ export class App extends EventEmitter {
         return new MockTransportPlugin();
       });
       app.transportManager.registerPlugin("baileys", (cfg) => {
-        const plugin = createBaileysPlugin({ ...cfg, agentDir });
-        wireAudioCallbacks(plugin, app);
-        return plugin;
+        return createBaileysPlugin({ ...cfg, agentDir });
       });
 
       // ChannelMessageHandler needs connectionRegistry for WS broadcasts.
@@ -978,23 +972,46 @@ export class App extends EventEmitter {
               app.transportManager!.send(transportId, to, message),
             sendTypingIndicator: (transportId, to) =>
               app.transportManager!.sendTypingIndicator(transportId, to),
-            sendAudioViaTransport: async (transportId, to, text, language) => {
-              // Get the plugin and check if it supports voice replies
+            sendAudioUrlViaTransport: async (
+              transportId: string,
+              to: string,
+              audioUrl: string,
+            ): Promise<boolean> => {
               const plugins = app.transportManager!.getPlugins();
               const plugin = plugins.find((p) => p.id === transportId);
-              if (
-                !plugin ||
-                !("onSendVoiceReply" in plugin) ||
-                !("sendAudio" in plugin)
-              ) {
+              if (!plugin || !("sendAudio" in plugin)) return false;
+              const bp = plugin as BaileysPlugin;
+
+              // audioUrl is "/api/assets/audio/<filename>" — resolve to agentDir/audio/<filename>
+              const filename = audioUrl.split("/").pop();
+              if (!filename) return false;
+              const filePath = join(agentDir, "audio", filename);
+              if (!existsSync(filePath)) {
+                console.warn(`[App] sendAudioUrlViaTransport: file not found: ${filePath}`);
                 return false;
               }
-              const bp = plugin as BaileysPlugin;
-              if (!bp.onSendVoiceReply) return false;
-              const audioBuffer = await bp.onSendVoiceReply(text, to, language);
-              if (!audioBuffer) return false;
-              await bp.sendAudio(to, audioBuffer);
-              return true;
+
+              try {
+                const audioBuffer = readFileSync(filePath);
+                await bp.sendAudio(to, audioBuffer);
+                return true;
+              } catch (err) {
+                console.warn("[App] sendAudioUrlViaTransport failed:", err instanceof Error ? err.message : String(err));
+                return false;
+              }
+            },
+            sendTextViaTransport: async (
+              transportId: string,
+              to: string,
+              text: string,
+            ): Promise<boolean> => {
+              try {
+                await app.transportManager!.send(transportId, to, { content: text });
+                return true;
+              } catch (err) {
+                console.warn("[App] sendTextViaTransport failed:", err instanceof Error ? err.message : String(err));
+                return false;
+              }
             },
             agentDir,
             app,
@@ -2312,47 +2329,4 @@ export class App extends EventEmitter {
   ): this {
     return super.on(event as string, listener as (...args: unknown[]) => void);
   }
-}
-
-// ─────────────────────────────────────────────────────────────────
-// Audio callback wiring (WhatsApp voice notes ↔ capability registry)
-// ─────────────────────────────────────────────────────────────────
-
-const execFileAsync = promisify(execFile);
-
-function wireAudioCallbacks(plugin: BaileysPlugin, app: App): void {
-  // STT removed — transcription now happens in sendMessage() via capability
-  // onAudioMessage callback no longer needed
-
-  // TTS: synthesize voice replies
-  plugin.onSendVoiceReply = async (text: string, _jid: string, language?: string) => {
-    const cap = app.capabilityRegistry?.get("text-to-audio");
-    if (!cap || cap.status !== "available") return null;
-
-    const { prepareForSpeech } = await import("./chat/chat-service.js");
-    const spokenText = prepareForSpeech(text);
-    if (!spokenText.trim()) return null;
-
-    const scriptPath = join(cap.path, "scripts", "synthesize.sh");
-    const outputDir = join(tmpdir(), "wa-tts");
-    mkdirSync(outputDir, { recursive: true });
-    const outputFile = join(outputDir, `tts-${randomUUID()}.ogg`);
-
-    try {
-      const args = [spokenText, outputFile];
-      if (language) args.push(language);
-      await execFileAsync(scriptPath, args, { timeout: 30000 });
-      const buffer = readFileSync(outputFile);
-      try {
-        unlinkSync(outputFile);
-      } catch {}
-      return buffer;
-    } catch (err: unknown) {
-      console.warn(
-        "[WhatsApp] Voice reply synthesis failed:",
-        err instanceof Error ? err.message : String(err),
-      );
-      return null;
-    }
-  };
 }

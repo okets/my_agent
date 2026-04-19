@@ -24,7 +24,7 @@ import { AuthorizationGate } from "../routing/authorization-gate.js";
 import { TokenManager } from "../routing/token-manager.js";
 import { MessageRouter, normalizeIdentity } from "../routing/message-router.js";
 
-interface MessageHandlerDeps {
+export interface MessageHandlerDeps {
   conversationManager: ConversationManager;
   connectionRegistry: ConnectionRegistry;
   sendViaTransport: (
@@ -33,12 +33,24 @@ interface MessageHandlerDeps {
     message: OutgoingMessage,
   ) => Promise<void>;
   sendTypingIndicator: (transportId: string, to: string) => Promise<void>;
-  /** Send a voice reply (audio buffer) via transport. Returns true if sent. */
-  sendAudioViaTransport?: (
+  /**
+   * Send an already-synthesized audio file via transport. Receives the `/api/assets/audio/`
+   * URL produced by chat-service.synthesizeAudio; reads from disk and calls bp.sendAudio.
+   * Returns true if sent successfully.
+   */
+  sendAudioUrlViaTransport?: (
+    transportId: string,
+    to: string,
+    audioUrl: string,
+  ) => Promise<boolean>;
+  /**
+   * Send a text reply via transport. Used as explicit fallback when TTS fails or
+   * for error messages on voice-input turns. Returns true if sent.
+   */
+  sendTextViaTransport?: (
     transportId: string,
     to: string,
     text: string,
-    language?: string,
   ) => Promise<boolean>;
   agentDir: string;
   /** App instance for event-emitting mutations */
@@ -533,6 +545,7 @@ export class ChannelMessageHandler {
     let firstToken = true;
     let isFirstMessage = true;
     let detectedLanguage: string | undefined;
+    let capturedAudioUrl: string | undefined;
 
     try {
       for await (const event of this.deps.app.chat.sendMessage(
@@ -562,15 +575,21 @@ export class ChannelMessageHandler {
             currentText += event.text;
             break;
           case "turn_advanced":
-            if (currentText.trim()) {
+            if (first.isVoiceNote && capturedAudioUrl && this.deps.sendAudioUrlViaTransport) {
+              await this.deps.sendAudioUrlViaTransport(channelId, replyTo, capturedAudioUrl);
+            } else if (currentText.trim()) {
               await this.deps.sendViaTransport(channelId, replyTo, { content: currentText });
             }
+            capturedAudioUrl = undefined;
             currentText = "";
             isFirstMessage = false;
             break;
           case "done":
+            if ("audioUrl" in event && event.audioUrl) {
+              capturedAudioUrl = event.audioUrl as string;
+            }
             if ("detectedLanguage" in event && event.detectedLanguage) {
-              detectedLanguage = event.detectedLanguage;
+              detectedLanguage = event.detectedLanguage as string;
             }
             break;
         }
@@ -583,22 +602,23 @@ export class ChannelMessageHandler {
       responseTimer.cancel();
     }
 
-    // ── Send final response via channel ──────────────────────────────
-    if (currentText.trim() || isFirstMessage) {
-      let sentAsAudio = false;
-      if (first.isVoiceNote && this.deps.sendAudioViaTransport) {
-        try {
-          sentAsAudio = await this.deps.sendAudioViaTransport(
-            channelId, replyTo, currentText,
-            detectedLanguage ?? first.detectedLanguage,
-          );
-        } catch (err) {
-          console.warn("[ChannelMessageHandler] Voice reply failed, falling back to text:", err);
-        }
-      }
-      if (!sentAsAudio) {
+    // ── Send final response via channel (per-path fallback table, §2.3) ──
+    if (first.isVoiceNote && capturedAudioUrl && this.deps.sendAudioUrlViaTransport) {
+      // Voice input + synthesized audio ready — send as voice note
+      const sent = await this.deps.sendAudioUrlViaTransport(channelId, replyTo, capturedAudioUrl);
+      if (!sent) {
+        // Audio send failed — fall back to text
         await this.deps.sendViaTransport(channelId, replyTo, { content: currentText });
       }
+    } else if (first.isVoiceNote && !capturedAudioUrl && this.deps.sendTextViaTransport && currentText.trim()) {
+      // Voice input + TTS failed (no audioUrl) — explicit text fallback
+      await this.deps.sendTextViaTransport(channelId, replyTo, currentText);
+    } else if (currentText.trim() || isFirstMessage) {
+      // Text input, or voice input without TTS capability — normal text reply
+      await this.deps.sendViaTransport(channelId, replyTo, { content: currentText });
+    } else {
+      // Tool-only turn — empty assistant content, nothing to send
+      console.log("[ChannelMessageHandler] Tool-only turn — skipping send");
     }
 
     // Channel conversations are now streamed via App events (chat:text_delta, etc.)
