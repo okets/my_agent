@@ -656,6 +656,7 @@ export class App extends EventEmitter {
       // M9.6-S4: Recovery Orchestrator
       const KNOWN_TERMINAL = new Set([
         "done",
+        "completed", // automation-executor sets "completed" for success; normalised to "done" below
         "failed",
         "needs_review",
         "interrupted",
@@ -697,8 +698,10 @@ export class App extends EventEmitter {
           while (Date.now() < deadline) {
             const job = app.automationJobService?.getJob(jobId);
             if (job && KNOWN_TERMINAL.has(job.status)) {
+              const normalisedStatus =
+                job.status === "completed" ? "done" : job.status;
               return {
-                status: job.status as
+                status: normalisedStatus as
                   | "done"
                   | "failed"
                   | "needs_review"
