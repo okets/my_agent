@@ -31,6 +31,37 @@ This phase does not start until Phase 2's S15 exit gate is green and architect-a
 
 **CTO scheduling decision 2026-04-17:** M10 work does NOT start at Phase 2 close, even though Phase 2 architecturally unblocks it. Phase 3 runs first; M9.6 closes at S20 exit; M10 begins after.
 
+### 0.4 Operational rules learned in Phase 2
+
+These are non-negotiable for any sprint that runs scripts against real installed plugs (S16 wall-time measurement, S20 exit gate):
+
+**Env-mismatch protocol (mandatory).** When invoking a smoke or test script against a real plug that requires environment variables (`DEEPGRAM_API_KEY`, etc.), the dashboard service loads `packages/dashboard/.env` via `--env-file=.env` at process start, but a standalone shell does not. **Before reporting any "key not set" / `SMOKE_SKIPPED` result against a production plug:**
+
+1. Source the dashboard env: `set -a && . packages/dashboard/.env && set +a`
+2. Re-run the script with the env loaded.
+3. Only after step 2 still fails, report the result to the architect.
+
+Reporting `SMOKE_SKIPPED — key not on this machine` without first loading `.env` misleads the CTO into thinking the plug is unconfigured. The plug IS configured — your shell just doesn't see it. This rule was added to MEMORY.md after the S11 re-review (2026-04-17). See `feedback_env_mismatch_cto_notice.md`.
+
+**Cross-package dist rebuild (operational).** Dashboard E2E tests resolve `@my-agent/core` via the compiled `dist/` directory, not source. After any `packages/core/src/` change, run `cd packages/core && npx tsc` before `cd packages/dashboard && npx vitest run` for the dashboard tests to pick up the change. Recorded in S15 D9 — flag in CONTRIBUTING.md if it bites Phase 3 frequently.
+
+### 0.5 Inherited Phase 2 deferrals
+
+Phase 2 architect deferred the following items to specific Phase 3 sprints (CTO deferral rule). The receiving-sprint sections below name each item explicitly:
+
+| From | What | Receiving sprint |
+|---|---|---|
+| S10-FU-2 / S13-FU-1 | Remove legacy `bash` wrapper from `reverifyAudioToText`; make `invoker` required | S18 |
+| S11-FU-2 | Strengthen `text-to-audio.md` template smoke to validate Ogg magic bytes | S18 |
+| S11-FU-5 | Fix `tts-edge-tts/scripts/synthesize.sh` to transcode to Ogg per template contract (currently outputs MP3) | S18 |
+| S15-FU-4 | `reverifyTextToAudio` audio format coverage strategy (format-agnostic check OR per-plug frontmatter contract) | S18 |
+| S14-FU-1 / S15-FU-3 | `FRIENDLY_NAMES` → frontmatter migration (`registry.getFriendlyName(type)` reads from CAPABILITY.md) | S19 |
+| S15 architect §3 | Extract shared E2E test helpers from S15's 4 duplicated `cfr-phase2-*` test files | S20 |
+| S12 obs #1 | Multi-session `originFactory` "first active session wins" — track if parallel-conversation surfaces it | S20 |
+| S15-FU-2 | `image-to-text` / `text-to-image` installed-plug E2E (no plug installed today; rule applies if installed during M9.6) | S20 framing only |
+
+If any item ships earlier than its receiving sprint or doesn't ship at all by S20, the architect documents it in the closing review.
+
 ---
 
 ## 1. Phase overview
@@ -240,7 +271,18 @@ ls packages/core/src/capabilities/prompts/fix-automation.md 2>/dev/null  # expec
     - `sendTextViaTransport(transportId, to, text)` — fallback for text. Boolean return.
   - Delete or narrow `bp.onSendVoiceReply` synthesis path.
 - `plugins/channel-whatsapp/` (or wherever the Baileys plugin lives — confirm at sprint-time) — remove `onSendVoiceReply` synthesis. Keep any audio-format postprocessing (compression, format conversion) if needed.
-- `packages/dashboard/src/chat/chat-service.ts:~1058` (`synthesizeAudio()`) — formalize CFR emission via `app.capabilityInvoker.run({capabilityType: "text-to-audio", scriptName: "synthesize.sh", ...})`. This was deferred in S10 and possibly minimally wired in S15; finalize here. Remove the `// TODO(S13/S17): route through invoker` marker.
+- `packages/dashboard/src/chat/chat-service.ts:~1058` (`synthesizeAudio()`) — formalize CFR emission via `app.capabilityInvoker.run({capabilityType: "text-to-audio", scriptName: "synthesize.sh", ...})`. This was deferred in S10 and minimally wired in S15 (commit `3d3d321`); finalize here. Remove any remaining `// TODO(S13/S17)` (or `S15/S18`) marker.
+
+**Files (inherited Phase 2 deferrals — must land in this sprint per §0.5):**
+
+- `packages/core/src/capabilities/reverify.ts` — **remove the legacy `execFile("bash", scriptPath, ...)` fallback from `reverifyAudioToText`** (S10-FU-2 + S13-FU-1). Make `invoker` a required parameter on the `Reverifier` type and on `reverifyAudioToText`; assert/throw if not present. Migrate any remaining unit tests passing `undefined` invoker to use a mock invoker. Lines ~163–212 as of S13 — confirm at sprint-time via `grep -n 'execFile.*bash' packages/core/src/capabilities/reverify.ts`.
+- `skills/capability-templates/text-to-audio.md` — strengthen reference `smoke.sh` to validate Ogg magic bytes (`OggS`) in addition to file size > 100 (S11-FU-2). Bring template up to par with the installed-plug smoke contract.
+- `.my_agent/capabilities/tts-edge-tts/scripts/synthesize.sh` — **fix the plug's contract violation** (S11-FU-5). The `text-to-audio` template requires Ogg output; `edge-tts` outputs MPEG audio regardless of filename extension. Add an ffmpeg transcode step (`ffmpeg -i <mp3-temp> -c:a libopus -b:a 64k <ogg-out>`) so the script returns Ogg per the contract. Update the plug's `smoke.sh` to validate Ogg headers (revert the MP3 magic-byte check that S11-FU-5 documented as a workaround).
+- `packages/core/src/capabilities/reverify.ts` (`reverifyTextToAudio`) — **decide and document the audio format coverage strategy** (S15-FU-4). Two options:
+  - (a) **Strict + plug-side compliance** (recommended if S11-FU-5 fix above lands cleanly): remove MP3 magic-byte check from reverifier; rely on plug-side compliance with the Ogg-only template contract.
+  - (b) **Format-agnostic fallback**: keep current Ogg/WAV/MP3 detection plus add `file size > 0 + exit 0` final fallback for unknown formats. Document the implicit acceptance.
+
+  Choice goes in S18 `DECISIONS.md`. Default: (a). Pick (b) only if the plug fix in S11-FU-5 reveals format diversity beyond Ogg/MP3.
 
 **Per-path fallback table:**
 
@@ -313,6 +355,18 @@ S12's `AckDelivery` exposes a `notifier` dependency for automation-origin termin
 - `packages/core/src/capabilities/ack-delivery.ts` — extend the automation-origin terminal branch: when `notifyMode === "immediate"` AND `outcome === "fixed"`, fire the notifier after `CFR_RECOVERY.md` is written (currently only the surrendered branch reaches the notifier). Per-origin try/catch still applies — notifier failure must not block other origins' draining.
 - `packages/dashboard/tests/integration/cfr-automation-notifier.test.ts` *(new)* — `notifyMode === "immediate"` + `outcome === "fixed"` → CFR_RECOVERY.md written THEN notifier called; missing notifier degrades gracefully (warn + write); `notifyMode === "debrief"` does not call notifier at terminal time (debrief-prep handles narrative).
 
+**Files (FRIENDLY_NAMES → frontmatter migration — inherited from S14-FU-1 / S15-FU-3):**
+
+S14 hardcoded `FRIENDLY_NAMES` covers the six well-known types. The "Markdown is source of truth" principle (CLAUDE.md) calls for moving this into frontmatter so plug authors can override per-plug without code changes. Phase 2 architect deferred the migration to S19/S20.
+
+- `packages/core/src/capabilities/types.ts` — add `friendly_name?: string` to the loaded capability metadata (and to the template/CAPABILITY.md frontmatter spec).
+- `packages/core/src/capabilities/scanner.ts` — read `friendly_name` from frontmatter (template + plug-level; plug-level overrides template).
+- `packages/core/src/capabilities/registry.ts` — add `getFriendlyName(type: string): string` method. Looks up a registered plug of the requested type; returns its `friendly_name` if set, else falls back to the hardcoded `FRIENDLY_NAMES` table, else returns the raw type string.
+- `packages/core/src/capabilities/resilience-messages.ts` — `createResilienceCopy(registry)` uses `registry.getFriendlyName(type)` instead of the constant. Hardcoded table becomes the documented fallback for types not yet present in the registry.
+- `skills/capability-templates/audio-to-text.md`, `text-to-audio.md`, `image-to-text.md`, `text-to-image.md`, `browser-control.md`, `desktop-control.md` — add `friendly_name:` field to each template's frontmatter with the current value from the hardcoded table.
+- `packages/core/tests/capabilities/registry-friendly-name.test.ts` *(new)* — frontmatter override; missing-frontmatter fallback to hardcoded; missing-from-both fallback to raw type.
+- `packages/core/tests/capabilities/resilience-messages-frontmatter.test.ts` *(new)* — copy uses frontmatter when present; no regressions vs S14's coverage test.
+
 **Files (system-origin UI):**
 
 - `packages/dashboard/src/api/capabilities.ts` (or the route that serves `.my_agent/capabilities/` health — confirm at sprint-time) — extend the health endpoint to surface system-origin CFR events. Source: a new in-memory ring buffer in `ack-delivery.ts` or a small append-only log file under `.my_agent/.runtime/cfr-system.log`.
@@ -350,7 +404,8 @@ cd packages/dashboard && npx vitest run  # full dashboard suite, regression gate
 
 **Files:**
 
-- `packages/dashboard/tests/integration/app-harness.ts` — confirm the `MockTransport` from Phase 2 S15 is in place (a `MockTransport` that implements the transport interface and records every `send` call with args; injection point in `AppHarness`). Extend if needed for richer assertions.
+- `packages/dashboard/tests/e2e/cfr-exit-gate-helpers.ts` *(new — inherited from S15 architect §3, S15-FU code-duplication note)* — extract shared E2E helpers from S15's four `cfr-phase2-*-replay.test.ts` files (~200 lines duplicated each: agentDir setup, plug-break helpers, CFR-emit harness, recovery-loop assertions). DRY before S20 adds two more E2E tests. The helper API surface is a sprint-time call: target ~150 lines factored, ~50 lines per remaining test file. Don't over-abstract.
+- `packages/dashboard/tests/integration/app-harness.ts` — extend with the `MockTransport` recording shape: implements the transport interface and records every `send` call with args; injection point in `AppHarness`. **Note:** S15 deliberately substituted the direct-emit pattern (S15 D-EXT, D2). For S20, the recording mock is required for Exit-gate Test 2 — voice reply via the conversation's transport must be captured by the mock to assert "delivered, not silently dropped." The S15 substitution does not cover this assertion shape.
 - `packages/dashboard/tests/e2e/cfr-exit-gate-automation.test.ts` *(new — supersedes the synthetic browser test from S15)* — Exit-gate Test 1 per v2.3 §8:
   - Setup: install / confirm `browser-control` plug present and healthy (`scripts/smoke.sh` green). Create a test automation: "open `https://example.com`, take a screenshot, attach to debrief." Set `notifyMode: debrief`. Deliberately break the plug at the plug side — one surgical change to `config.yaml`, `CAPABILITY.md`, or a script under `scripts/`, chosen so the break is plausibly one Nina herself could have caused. Record what was broken; do NOT restore manually. Fire the automation.
   - Assertions:
@@ -386,12 +441,26 @@ cd packages/dashboard && npx vitest run tests/e2e/cfr-exit-gate-automation tests
 ```
 
 Dev-machine preconditions:
+- **Source `packages/dashboard/.env` before running smoke checks** (per §0.4 env-mismatch protocol). Without this, plugs that need API keys (`stt-deepgram` → `DEEPGRAM_API_KEY`) report `SMOKE_SKIPPED` falsely.
 - `browser-chrome` plug healthy (npx + playwright deps available).
-- `audio-to-text` plug healthy (`DEEPGRAM_API_KEY` set or local equivalent configured).
-- `text-to-audio` plug healthy.
-- `desktop-x11` plug healthy if testing.
-- All plugs' `smoke.sh` green at start (run `for s in .my_agent/capabilities/*/scripts/smoke.sh; do bash "$s" || echo "FAIL: $s"; done`).
+- `audio-to-text` plug healthy (`DEEPGRAM_API_KEY` set; verify with the env-loaded smoke).
+- `text-to-audio` plug healthy. **Note:** `tts-edge-tts/.enabled` may still be absent in production per S15 D6 / FU-0. If S20 includes TTS in abbreviated replays, either re-enable in production (CTO action — see `s15-FOLLOW-UPS.md` FU-0) or scaffold per the S15 test pattern (copy plug to test agentDir without `.enabled`, exercise the recovery loop).
+- `desktop-x11` plug healthy if testing (or expect SMOKE_SKIPPED on a headless test host — handled as inconclusive-pass per S11 hermeticity rule).
+- All plugs' `smoke.sh` green at start: `set -a && . packages/dashboard/.env && set +a && for s in .my_agent/capabilities/*/scripts/smoke.sh; do bash "$s" || echo "FAIL: $s"; done`
+- Core dist rebuilt before dashboard E2E (per §0.4): `cd packages/core && npx tsc`
 - Test setup deliberately breaks a plug and runs the full loop; expects automatic restoration. **No manual intervention. No `systemctl restart`.**
+
+**Multi-session originFactory observation (inherited from S12 architect obs #1):**
+
+`CapabilityInvoker.originFactory` at `app.ts:549-557` uses "first active session wins" — the brain's single-session-per-conversation assumption today. If S20's exit-gate tests run two parallel conversations (or set up such a scenario), this surfaces as a latent bug: a CFR from conversation B may be tagged with conversation A's origin. **S20's tests as-specified above do not exercise parallel conversations.** Either:
+- (a) Add a parallel-conversation assertion to `cfr-exit-gate-conversation.test.ts` (run two STT incidents back-to-back from different conversations; assert origin tagging is correct per conversation). This is the more rigorous gate.
+- (b) Document the deferral in S20 `DECISIONS.md`: parallel-conversation origin tagging untested in M9.6; surfaces in M10+ when channel concurrency lands. Track for whichever M10 sprint introduces multi-session.
+
+Default: (a) for higher exit-gate confidence. Pick (b) only if the parallel-conversation harness work overruns the sprint.
+
+**Image-plug coverage note (inherited from S15-FU-2):**
+
+No `image-to-text` or `text-to-image` plug is installed in `.my_agent/capabilities/` at S20 start. Per the §0.1 universal-coverage rule, this is **named non-coverage**, not omission. The per-type reverifiers (S13) and friendly-name copy (S14) are in place; an installed-plug E2E only gets exercised if a plug lands during M9.6. If one does, S20 picks it up; if not, the `S20 DECISIONS.md` records "no installed image plug at exit; rule satisfied via fixture-only reverify covered by `reverify-image-to-text.test.ts` and `reverify-text-to-image.test.ts`."
 
 **Deviation triggers:**
 
@@ -447,6 +516,10 @@ For audit traceability — every Phase 3 feature in `capability-resilience-v2.md
 | §3.6 | `sendAudioUrlViaTransport` / `sendTextViaTransport` split | S18 |
 | §3.6 | Baileys `onSendVoiceReply` synthesis removed | S18 |
 | §3.6 | TTS detection through CapabilityInvoker (formalize) | S18 |
+| Phase 2 deferral | S10-FU-2 / S13-FU-1: remove bash-wrapper from `reverifyAudioToText`; `invoker` required | S18 |
+| Phase 2 deferral | S11-FU-2: text-to-audio template smoke validates Ogg magic bytes | S18 |
+| Phase 2 deferral | S11-FU-5: tts-edge-tts plug transcodes to Ogg per template contract | S18 |
+| Phase 2 deferral | S15-FU-4: `reverifyTextToAudio` audio format coverage strategy | S18 |
 | §5.3 | Per-conversation 30s ack-coalescing | S19 |
 | §5.3 | N-aware coalescing | S19 |
 | §5.3 | Combined surrender for parallel CFRs | S19 |
@@ -454,10 +527,17 @@ For audit traceability — every Phase 3 feature in `capability-resilience-v2.md
 | §5.3 | Assistant-turn orphan watchdog scan | S19 |
 | §5.3 | `FAILURE_PLACEHOLDERS` dispatch table | S19 |
 | §5.3 | System-origin dashboard health UI | S19 |
+| Phase 2 deferral | S14-FU-1 / S15-FU-3: FRIENDLY_NAMES → frontmatter migration (`registry.getFriendlyName`) | S19 |
+| Phase 2 deferral | S12 obs: `AutomationNotifierLike` impl + `fixed`-outcome immediate fan-out | S19 |
 | v2.3 §8 / §5.3 | Exit-gate Test 1 (automation-origin browser) | S20 |
 | v2.3 §8 / §5.3 | Exit-gate Test 2 (conversation-origin voice) | S20 |
 | §5.3 | Abbreviated replays per plug type | S20 |
+| Phase 2 deferral | S15 architect §3: extract shared E2E helpers (`cfr-exit-gate-helpers.ts`) | S20 |
+| Phase 2 deferral | S12 obs #1: multi-session `originFactory` parallel-conversation verification (or named deferral) | S20 |
+| Phase 2 deferral | S15-FU-2: `image-to-text` / `text-to-image` installed-plug E2E (named non-coverage if no plug installed) | S20 |
 | §0 | Universal-coverage rule (every sprint review) | every sprint |
+| §0.4 | Env-mismatch protocol — source `packages/dashboard/.env` before real-plug smoke | S16, S20 |
+| §0.4 | Cross-package dist rebuild before dashboard E2E | every sprint touching `packages/core` source |
 
 ---
 
