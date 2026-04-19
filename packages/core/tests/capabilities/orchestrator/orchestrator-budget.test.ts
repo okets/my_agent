@@ -175,30 +175,24 @@ describe("RecoveryOrchestrator — surrender scope", () => {
 });
 
 describe("RecoveryOrchestrator — job budget", () => {
-  it("no more than 5 automation jobs are spawned across 3 attempts (execute + reflect = 2 per attempt)", async () => {
+  it("no more than 5 automation jobs are spawned across 3 attempts", async () => {
+    // State machine MAX_JOBS is now 4 (S17 reflects removed).
+    // The orchestrator's own budget guard (>= 5) will be updated to >= 4 in Task 5
+    // when the reflect block is deleted. Until then the combined ceiling is still 5.
+    // This test will be tightened to toBe(3) after Task 5.
     let spawnCount = 0;
     const spawnAutomation = vi.fn().mockImplementation(async (_spec: AutomationSpec) => {
       spawnCount++;
       return { jobId: `j-${spawnCount}`, automationId: `a-${spawnCount}` };
     });
 
-    const awaitAutomation = vi.fn().mockImplementation(async (jobId: string) => {
-      // execute jobs succeed, reflect jobs also succeed
-      return { status: "done" } as AutomationResult;
-    });
-
-    // Reverify always fails so we iterate
-    const mockRegistry = {
-      get: vi.fn().mockReturnValue({ status: "available", path: "/fake", provides: "audio-to-text" }),
-    } as unknown as CapabilityRegistry;
+    // All execute jobs succeed (status "done") but reverify always fails (nonexistent cap path).
+    const awaitAutomation = vi.fn().mockResolvedValue({ status: "done" } as AutomationResult);
 
     const mockWatcher = {
       rescanNow: vi.fn().mockResolvedValue([]),
     } as unknown as CapabilityWatcher;
 
-    // Patch: make reverify fail (capability unavailable from registry.get perspective for actual script)
-    // We'll mock the whole registry.get to return something that passes availability but fails script execution
-    // by pointing to a nonexistent script path
     const deps = makeDeps({
       spawnAutomation,
       awaitAutomation,

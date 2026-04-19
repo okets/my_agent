@@ -46,15 +46,9 @@ const transitions: TransitionCase[] = [
     expected: { action: "SPAWN_EXECUTE_JOB" },
   },
   {
-    label: "EXECUTING + EXECUTE_JOB_DONE(success=true) → SPAWN_REFLECT_JOB",
+    label: "EXECUTING + EXECUTE_JOB_DONE(success=true) → REVERIFY",
     session: { state: "EXECUTING", attemptNumber: 1 },
     event: { type: "EXECUTE_JOB_DONE", success: true },
-    expected: { action: "SPAWN_REFLECT_JOB" },
-  },
-  {
-    label: "REFLECTING + REFLECT_JOB_DONE → REVERIFY",
-    session: { state: "REFLECTING", attemptNumber: 1 },
-    event: { type: "REFLECT_JOB_DONE", nextHypothesis: "try reinstalling deps" },
     expected: { action: "REVERIFY" },
   },
   {
@@ -112,26 +106,20 @@ const transitions: TransitionCase[] = [
 
   // ── Budget exhaustion ──────────────────────────────────────────────────
   {
-    label: "ACKED + ACK_SENT with 5 jobs already spawned → SURRENDER",
-    session: { state: "ACKED", attemptNumber: 1, totalJobsSpawned: 5 },
+    label: "ACKED + ACK_SENT with 4 jobs already spawned → SURRENDER",
+    session: { state: "ACKED", attemptNumber: 1, totalJobsSpawned: 4 },
     event: { type: "ACK_SENT" },
     expected: { action: "SURRENDER" },
   },
   {
-    label: "EXECUTING + EXECUTE_JOB_DONE(success) with 5 jobs → SURRENDER",
-    session: { state: "EXECUTING", attemptNumber: 1, totalJobsSpawned: 5 },
+    label: "EXECUTING + EXECUTE_JOB_DONE(success) with 4 jobs → SURRENDER",
+    session: { state: "EXECUTING", attemptNumber: 1, totalJobsSpawned: 4 },
     event: { type: "EXECUTE_JOB_DONE", success: true },
     expected: { action: "SURRENDER" },
   },
   {
-    label: "REFLECTING + REFLECT_JOB_DONE with 5 jobs → SURRENDER",
-    session: { state: "REFLECTING", attemptNumber: 2, totalJobsSpawned: 5 },
-    event: { type: "REFLECT_JOB_DONE", nextHypothesis: "anything" },
-    expected: { action: "SURRENDER" },
-  },
-  {
-    label: "budget: totalJobsSpawned=6 (over) → SURRENDER regardless",
-    session: { state: "IDLE", attemptNumber: 1, totalJobsSpawned: 6 },
+    label: "budget: totalJobsSpawned=5 (over) → SURRENDER regardless",
+    session: { state: "IDLE", attemptNumber: 1, totalJobsSpawned: 5 },
     event: { type: "CFR_RECEIVED" },
     expected: { action: "SURRENDER" },
   },

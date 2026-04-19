@@ -11,7 +11,6 @@ export type OrchestratorState =
   | "IDLE"
   | "ACKED"
   | "EXECUTING"
-  | "REFLECTING"
   | "REVERIFYING"
   | "RESTORED_WITH_REPROCESS"
   | "RESTORED_TERMINAL"
@@ -22,7 +21,6 @@ export type OrchestratorEvent =
   | { type: "ACK_SENT" }
   | { type: "EXECUTE_JOB_SPAWNED"; jobId: string }
   | { type: "EXECUTE_JOB_DONE"; success: boolean }
-  | { type: "REFLECT_JOB_DONE"; nextHypothesis: string }
   | { type: "REVERIFY_PASS_RECOVERED"; recoveredContent: string }
   | { type: "REVERIFY_PASS_TERMINAL" }
   | { type: "REVERIFY_FAIL" }
@@ -34,7 +32,6 @@ export interface FixSession {
   attemptNumber: 1 | 2 | 3;
   state: OrchestratorState;
   executeJobId?: string;
-  reflectJobId?: string;
   attempts: FixAttempt[];
   totalJobsSpawned: number;
   /**
@@ -58,7 +55,6 @@ export interface FixSession {
 export type Action =
   | { action: "SEND_ACK"; kind: "attempt" | "status" | "surrender" }
   | { action: "SPAWN_EXECUTE_JOB" }
-  | { action: "SPAWN_REFLECT_JOB" }
   | { action: "REVERIFY" }
   | { action: "REPROCESS_TURN"; recoveredContent: string }
   | { action: "TERMINAL_ACK" }
@@ -66,7 +62,7 @@ export type Action =
   | { action: "ITERATE"; nextAttemptNumber: 2 | 3 }
   | { action: "NOOP" };
 
-const MAX_JOBS = 5;
+const MAX_JOBS = 4;
 
 /**
  * Compute the next action given the current session state and an incoming event.
@@ -100,7 +96,7 @@ export function nextAction(session: FixSession, event: OrchestratorEvent): Actio
     case "EXECUTING": {
       if (event.type === "EXECUTE_JOB_DONE") {
         if (event.success) {
-          return { action: "SPAWN_REFLECT_JOB" };
+          return { action: "REVERIFY" };
         } else {
           // Execute job failed — iterate or surrender
           if (attemptNumber < 3) {
@@ -109,13 +105,6 @@ export function nextAction(session: FixSession, event: OrchestratorEvent): Actio
             return { action: "SURRENDER" };
           }
         }
-      }
-      break;
-    }
-
-    case "REFLECTING": {
-      if (event.type === "REFLECT_JOB_DONE") {
-        return { action: "REVERIFY" };
       }
       break;
     }
