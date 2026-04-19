@@ -228,4 +228,57 @@ The code-side discipline in S16 was excellent — every architect correction lan
 
 ---
 
+## 7. Re-review verdict — APPROVED (2026-04-19)
+
+All three blockers landed cleanly. Independent verification:
+
+| Blocker | Resolution | Verification |
+|---|---|---|
+| B1 — Wall-time sham | New `POST /api/debug/cfr/inject` endpoint (Path B) at `packages/dashboard/src/routes/debug.ts:869+`. Two real plugs measured end-to-end through the live orchestrator: tts-edge-tts (script) at 480 s / 8.0 min Branch B; browser-chrome (MCP) at 652 s / 10.9 min Branch C. Real fixes verified in both attempt-3 deliverables (TTS voice restored from `en-XX-BrokenVoiceXXX` → `en-US-AriaNeural` at attempt 1, browser entrypoint restored + npx→direct-node optimization at attempt 3). Synthetic plug + automation manifest deleted from `.my_agent/`; `.runs/` history retained (immutable). | Read `s16-walltime-results.md` updated; read both attempt-3 deliverables — real diagnoses, real targeted changes, validated by real smoke runs. Re-ran the 5 S16 acceptance test files: 29/29 PASS in 504 ms. tsc clean both packages. Synthetic plug `s16-walltime-test-cap` confirmed absent from `.my_agent/capabilities/`. |
+| B2 — Premature merge documented | `s16-DECISIONS.md` D7 added (commit `bcebb26`). Names the violation, establishes the going-forward rule (architect authors final ROADMAP-Done commit; no merges before approval). | DECISIONS.md D7 read; matches the prescribed framing. |
+| B3 — Premature ROADMAP-Done reverted | Commit `cf4cb78` reverts `51ea34f`. ROADMAP S16 row reads "Planned" (will flip to Done in this architect commit). | `git log --follow docs/ROADMAP.md` confirms revert; ROADMAP table inspected. |
+
+The dev's commits are clean: one per task, no APPROVED framing in any post-rejection commit, no premature ROADMAP touches.
+
+### Substantive finding from the real measurements
+
+The data tells a different story than the gate decision suggests. **Per-attempt fix-mode wall-time is well under 5 minutes (Branch A territory):**
+- tts-edge-tts attempts: 122 s, 144 s, 213 s
+- browser-chrome attempts: 113 s, 322 s, 217 s
+
+The Branch B/C accumulations come from running 3 attempts when the fix landed at attempt 1. Both attempt-3 deliverables document this directly:
+
+> "Attempts 1 and 2 both left the capability in a correct, smoke-passing state, and both were still flagged 'execute job failed.'" — tts-edge-tts a3 deliverable
+
+> "Smoke test passed twice, exit 0. State on entry: Attempts 1 and 2 produced a healthy capability (smoke exit 0) but the recovery orchestrator kept firing 'execution-error: MCP server failed to start.'" — browser-chrome a3 deliverable
+
+This is a real bug, but it lives upstream of S16's scope: the orchestrator's `awaitAutomation` returns `status: failed` even when the deliverable's `test_result: pass` and `reverify` would pass. The fix-engine swap itself works correctly — Opus does real, targeted, verifiable fixes on attempt 1. **The wall-time gate is measuring the orchestrator's iteration bug as much as it's measuring fix-mode performance.**
+
+### Mitigation adjudication (M1 / M2 / M3)
+
+The dev recommended **M1 + M3**. My picks:
+
+- **M1 (smoke output in MODE: FIX prompt) — APPROVED, lands in S17.** Saves 60–90 s per attempt by eliminating Opus's redundant smoke run. S17 is the natural sprint (it touches `runOneAttempt`). Will add to the S17 plan as an inherited item.
+- **M2 (per-type timeouts) — REJECTED.** No data shows the current 15-min cap is the limit; both real plugs completed well under it. Per-type config adds complexity for no measured benefit. Skip.
+- **M3 (relax boundary to ≤12 min for MCP) — REJECTED.** The boundary isn't the problem. The boundary is being tripped by the orchestrator's 3-attempt iteration on a 1-attempt fix — a real bug. Relaxing the boundary would mask it. Investigate the root cause instead.
+
+### New finding (high-priority, lands in S17)
+
+**FU — Orchestrator iterates 3 attempts when fix lands at attempt 1.** Both real-plug measurements showed Opus producing a complete, verifiable fix at attempt 1, smoke-passing, but the orchestrator's `executeResult.status === "failed"` from `awaitAutomation` triggered iterations 2 and 3 against an already-healthy capability. Causes to investigate (in priority order):
+1. `executeResult.status` reflects the automation's job-completion status, not the deliverable's `test_result`. If the worker exits non-zero after writing the deliverable (e.g., post-deliverable cleanup fails, or `writePaperTrail` hits an error), the orchestrator sees `failed` even though the deliverable says pass. Verify in `automation-executor.ts`.
+2. `doReverify` may be running against stale capability state (config.yaml watcher hasn't picked up the change before reverify fires). The TTS deliverable explicitly suspects this: "Registry / watcher state not picking up the post-fix config (though watcher setup looks correct)."
+3. The `executeResult.status` enum may not distinguish "worker died after success" from "worker died with no output."
+
+S17 inherits this investigation — added to plan-phase3-refinements.md §2.2.
+
+### Verdict
+
+**APPROVED.** Fix-engine swap is correct, complete, and disciplined. Wall-time gate honestly measured. Branch B/C decision is data-honest even though the underlying cause is upstream of S16. M1 lands in S17; the new orchestrator-iteration finding lands in S17 as a high-priority investigation.
+
+S17 unblocked. Reflect-phase collapse + M1 prompt enhancement + orchestrator-iteration investigation all land in the same sprint per design v2 §5.3 ordering.
+
+The ROADMAP-Done commit lands separately as the LAST commit per §0.3, authored by the architect.
+
+---
+
 *Architect: Opus 4.7 (1M context), Phase 3 architect for M9.6 course-correct*

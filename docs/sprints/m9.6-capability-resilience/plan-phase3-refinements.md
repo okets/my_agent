@@ -251,6 +251,35 @@ ls packages/core/src/capabilities/prompts/fix-automation.md 2>/dev/null  # expec
 
 **Universal coverage check:** N/A — pure dead-code removal, no new layer added.
 
+### 2.2.1 Inherited from S16 architect review (2026-04-19)
+
+S17 also inherits two items from the S16 re-review (`s16-architect-review.md` §7):
+
+**Item A — M1 mitigation: pre-populate smoke output in MODE: FIX prompt (S16 wall-time mitigation)**
+
+The current `buildFixModeInvocation` carries `symptom` and `detail` from the failure record but not the actual smoke.sh stderr output. Opus spends ~60–90 s per attempt re-running diagnostics CFR already has. Since S17 touches `runOneAttempt`, fold this in.
+
+- `packages/core/src/capabilities/recovery-orchestrator.ts` —
+  - Extend `AutomationSpec` with `smokeOutput?: string`.
+  - In `runOneAttempt`, before `spawnAutomation`, capture the failure's smoke output (from the invoker's `failure.detail` if it carries it, or run smoke once to capture). Append to the prompt as a `## Smoke Output` section.
+  - Acceptance test: prompt contains the smoke stderr text when supplied.
+- Expected improvement per `proposals/s16-walltime-mitigation.md`: tts-edge-tts 8 min → ~7 min, browser-chrome 11 min → ~9.5 min (Branch C → B).
+
+**Item B (HIGH PRIORITY) — Investigate orchestrator's 3-attempt iteration on 1-attempt fixes**
+
+Both S16 wall-time runs showed Opus landing a real, verifiable fix at attempt 1 but the orchestrator iterating to attempts 2 and 3 because `executeResult.status === "failed"` from `awaitAutomation` despite `deliverable.test_result === "pass"`. This is a pre-existing orchestrator bug surfaced by the wall-time measurement, not introduced by S16.
+
+**Investigation questions:**
+1. Does `executeResult.status` reflect the automation worker's exit code, the deliverable's `test_result`, or `writePaperTrail`'s success? If the first, a worker that exits non-zero after writing a successful deliverable would trigger spurious iterations. Trace `automation-executor.ts` job-completion path.
+2. Is `doReverify` running against stale capability state? Confirm `CapabilityWatcher` (chokidar) actually picks up `config.yaml` writes from a fix-mode worker before the orchestrator's next read. The TTS deliverable suspects this directly.
+3. Does the `executeResult.status` enum distinguish "worker died after writing deliverable" from "worker died with no output"? The first should pass through the deliverable's verdict; the second should fail the attempt.
+
+**If the investigation finds a root cause:** fix it in S17 alongside the reflect-collapse work. If the root cause is non-trivial (e.g., requires changes to `automation-executor.ts` or `CapabilityWatcher`), file `proposals/s17-orchestrator-iteration-investigation.md` with findings + scope estimate; architect picks whether to fix in S17, defer to S18, or split into a dedicated sprint.
+
+**Why it matters:** the wall-time gate hit Branch B/C *only* because of the 3-attempt iteration. Per-attempt fix-mode wall-time was Branch A territory (122 s, 113 s). Fixing the iteration bug would bring wall-time well within the projection envelope and reduce overall fix-mode cost by ~3x.
+
+**Universal coverage check (added):** the orchestrator-iteration fix (if it lands here) must be exercised against both script-plug and MCP-plug paths — the same two plugs S16 measured. Re-run the S16 wall-time script after the fix; expected per-plug wall-time drops to single-attempt territory.
+
 ---
 
 ### 2.3 Sprint 18 — Duplicate TTS path collapse
@@ -512,6 +541,8 @@ For audit traceability — every Phase 3 feature in `capability-resilience-v2.md
 | §5.3 | Reflect-phase collapse (state machine) | S17 (commit 1) |
 | §5.3 | Reflect-phase collapse (orchestrator behavior) | S17 (commit 2) |
 | §5.3 | `fix-automation.md` deletion | S17 (commit 3) |
+| S16 inherit (M1) | Pre-populate smoke output in MODE: FIX prompt — `AutomationSpec.smokeOutput?: string` + render in `buildFixModeInvocation` | S17 §2.2.1 Item A |
+| S16 inherit (HIGH) | Investigate orchestrator's 3-attempt iteration on 1-attempt fixes (`executeResult.status` vs `deliverable.test_result` mismatch) | S17 §2.2.1 Item B |
 | §3.6 | TTS path collapse (synthesizeAudio authoritative) | S18 |
 | §3.6 | `sendAudioUrlViaTransport` / `sendTextViaTransport` split | S18 |
 | §3.6 | Baileys `onSendVoiceReply` synthesis removed | S18 |
