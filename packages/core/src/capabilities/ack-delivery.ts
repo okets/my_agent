@@ -138,7 +138,7 @@ export class ConversationAckCoalescer {
     existing.entries.set(capabilityType, { capabilityType, status: "fixing" });
 
     const allTypes = Array.from(existing.entries.keys());
-    return "still fixing — " + this.renderTypeList(allTypes);
+    return "still fixing — now also " + this.renderTypeList(allTypes.slice(1));
   }
 
   onTerminal(

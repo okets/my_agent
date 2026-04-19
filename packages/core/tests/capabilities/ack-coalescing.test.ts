@@ -22,13 +22,14 @@ describe("ConversationAckCoalescer", () => {
     const msg = coalescer.onAck(CONV, "text-to-audio", "attempt", NOW + 5000);
     expect(msg).toContain("voice reply");
     expect(msg).toMatch(/still fixing/i);
+    expect(msg).toContain("now also");
   });
 
   it("N-way merge: three types produce Oxford comma copy", () => {
     coalescer.onAck(CONV, "audio-to-text", "attempt", NOW);
     coalescer.onAck(CONV, "text-to-audio", "attempt", NOW + 1000);
     const msg = coalescer.onAck(CONV, "browser-control", "attempt", NOW + 2000);
-    expect(msg).toMatch(/voice transcription.*voice reply.*browser/);
+    expect(msg).toMatch(/still fixing — now also.*voice reply.*browser/i);
   });
 
   it("returns null when same type arrives again (idempotent re-attempt)", () => {
@@ -120,6 +121,6 @@ describe("AckDelivery — coalescer integration", () => {
     // Both go to dashboard broadcast (transportId: "dashboard")
     expect(broadcastMessages).toHaveLength(2);
     expect(broadcastMessages[0]).toContain("voice transcription");
-    expect(broadcastMessages[1]).toMatch(/still fixing.*voice transcription.*voice reply/i);
+    expect(broadcastMessages[1]).toMatch(/still fixing — now also.*voice reply/i);
   });
 });
