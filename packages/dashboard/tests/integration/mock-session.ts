@@ -61,6 +61,11 @@ class MockSessionManager {
     // No-op for mock
   }
 
+  /** Called by ChatService to populate origin context for CFR detection (S12) */
+  setTurnContext(_channel: unknown, _turnNumber: number): void {
+    // No-op for mock
+  }
+
   /**
    * Inject a synthetic system turn into the session.
    * Used by sendSystemMessage() for system-initiated brain invocations.

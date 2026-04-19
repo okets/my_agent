@@ -23,6 +23,7 @@ import {
   SyncService,
   SearchService,
   initNotebook,
+  CfrEmitter,
 } from "@my-agent/core";
 import type { ServerMessage } from "../../src/ws/protocol.js";
 import type { AppEventMap } from "../../src/app-events.js";
@@ -149,6 +150,7 @@ export class AppHarness {
       sessionRegistry: this.sessionRegistry,
       conversations: this.conversations,
       agentDir,
+      cfr: new CfrEmitter(),
     });
     this.chat = new AppChatService(appLike as any);
     this.debug = new AppDebugService(agentDir);
