@@ -12,6 +12,46 @@
 
 ---
 
+## §0.3 Compliance Rules (READ BEFORE STARTING) [ARCHITECT R2]
+
+These rules are non-negotiable. S16 had two violations (premature merge + premature ROADMAP-Done); S17 restored discipline; S18 must keep it.
+
+- **Do NOT merge to master.** All work stays on `sprint/m9.6-s18-tts-path-collapse` until the architect approves.
+- **Do NOT update `docs/ROADMAP.md`.** Architect authors the ROADMAP-Done commit as the LAST commit after approval.
+- **Do NOT write "APPROVED" or "all tasks complete" in any commit message.** The dev does not hold the role that decides "complete."
+- **File `docs/sprints/m9.6-capability-resilience/proposals/s18-<slug>.md` for any deviation** before changing course.
+
+---
+
+## ARCHITECT REVIEW (2026-04-19) — required corrections before start
+
+Phase 3 architect (Opus 4.7) reviewed v0 of this plan. Substantive scope coverage is strong (all four §0.5 inherited deferrals + the original §2.3 work named); D1/D2 are well-reasoned; task ordering sensible. Three required corrections + five suggestions before start. Inline edits below are marked `[ARCHITECT R#]` or `[ARCHITECT S#]`.
+
+| Tag | What was missing | Where it landed |
+|-----|------------------|-----------------|
+| **R1** | Plan was at `docs/sprints/m9.6-s18-tts-path-collapse/plan.md`, breaking the M9.6 sprint convention. S1–S17 all live in `m9.6-capability-resilience/` with `sN-` prefix. ROADMAP S18 row + Phase 3 plan §4 design map both link to that folder. | Architect moved file to `docs/sprints/m9.6-capability-resilience/s18-plan.md` before this review. Sprint artifacts (DECISIONS / DEVIATIONS / FOLLOW-UPS / test-report / architect-review) all use `s18-` prefix in the same folder. Task 2 / Task 9 commit paths updated below. |
+| **R2** | §0.3 compliance section absent at top of plan (S17 had it). Task 9 missed two required artifacts: `s18-DEVIATIONS.md` + `s18-test-report.md`. Same R1 gap S16/S17 plan reviews flagged. | New §0.3 section above; Task 9 expanded to cover all four artifacts. |
+| **R3** | `tts-paths.test.ts` covered only 3 of 5 fallback-table rows. Spec says "one test per row." Missing: split-done with `splitAudioUrl`, error-event catch path. | Task 6 — two new test bodies added (search for `[ARCHITECT R3]`). |
+| **S1** | ffmpeg precondition check was mid-task (Task 3 Step 1). If ffmpeg is absent, the dev has already done Tasks 1–2 work. | New Task 0 preflight step. |
+| **S2** | `cfr-tts-single-emit.test.ts` asserted `<= 1` — trivially satisfied even when 0 emits (which would silently break resilience). | Task 8 — change to `=== 1`. |
+| **S3** | `wireAudioCallbacks` deletion (Task 7) didn't verify the function had no other side effects. | Task 7 — added a verification step before deletion. |
+| **S4** | Test bodies in Task 6 were speculative ("if mock structure doesn't align..."). | Task 6 — added a verification gate before committing test code. |
+| **S5** | D2 (`Reverifier.invoker?` stays optional) is a smell with no target sprint for the type-system tightening. | Task 9 — D2 expanded with target sprint + interim safety guidance. |
+
+### Confirmed answer to dev's S15-FU-4 question
+
+**Option (a) — strict Ogg only.** S11-FU-5 (Task 3) makes `tts-edge-tts` actually emit Ogg via ffmpeg transcode, so the strict reverifier catches plug contract violations rather than masking them. We have no evidence of format diversity beyond Ogg/MP3 that would justify keeping the format-agnostic fallback. Defense-in-depth here is the wrong instinct — reverify is the contract gate. Plan now reflects this in Task 2.
+
+### Sprint-time verification items (grep before relying on)
+
+- **Confirm line numbers at sprint-start.** Plan references `app.ts:981–998`, `app.ts:2323–2358`, `message-handler.ts:560–602`, `reverify.ts:210–310`. May have drifted. `grep -n` first.
+- **`printf '\xff\xfb...'` test fixtures (Task 2 Step 1)** write non-ASCII bytes through bash printf. Verify they actually produce the intended bytes on your machine before committing the tests: `bash -c 'printf "\xff\xfb"' | od -A n -t x1` (expected: `ff fb`).
+- **Task 6 is the highest-risk task.** S15's `cfr-phase2-tts-replay.test.ts` is the regression gate — if it fails after Task 6, stop and investigate before continuing.
+- **`tts-edge-tts` is currently disabled in production** (per S15 D6 / FU-0). After Task 3's plug fix, the CTO chooses whether to re-enable. **Don't touch `.enabled` in this sprint.**
+- **Plan was moved by architect.** Original location `docs/sprints/m9.6-s18-tts-path-collapse/` is gone. All file paths in this plan use `docs/sprints/m9.6-capability-resilience/s18-*.md` for sprint artifacts and `docs/sprints/m9.6-capability-resilience/proposals/s18-*.md` for any proposals.
+
+---
+
 ## Before/After
 
 | Before | After |
@@ -43,6 +83,47 @@
 | `packages/dashboard/tests/integration/tts-paths.test.ts` | **New** — one test per fallback table row |
 | `packages/dashboard/tests/integration/voice-reply-regression.test.ts` | **New** — healthy voice path regression |
 | `packages/dashboard/tests/integration/cfr-tts-single-emit.test.ts` | **New** — CFR emits exactly once when TTS fails |
+
+---
+
+## Task 0 [ARCHITECT S1]: Preflight — ffmpeg + branch + S17 baseline
+
+Before starting any task, verify preconditions. ffmpeg is required by Task 3; if absent, install before Task 1 (not mid-sprint).
+
+- [ ] **Step 0.1: Confirm ffmpeg available**
+
+```bash
+which ffmpeg && ffmpeg -version 2>&1 | head -1
+```
+
+Expected: path + version line. If absent: `sudo apt-get install -y ffmpeg` (Debian/Ubuntu) before continuing.
+
+- [ ] **Step 0.2: Create sprint branch from master**
+
+```bash
+cd /home/nina/my_agent
+git checkout master
+git pull
+git checkout -b sprint/m9.6-s18-tts-path-collapse
+```
+
+- [ ] **Step 0.3: Confirm S17 baseline tests pass**
+
+```bash
+cd packages/core && npx tsc --noEmit
+cd packages/core && npx vitest run tests/capabilities/orchestrator tests/capabilities/fix-mode-invocation tests/capabilities/fix-mode-escalate 2>&1 | tail -5
+cd packages/dashboard && npx tsc --noEmit
+```
+
+Expected: zero tsc errors, all S17 tests pass. If anything regressed since S17, stop and file a proposal — something is wrong upstream.
+
+- [ ] **Step 0.4: Verify printf-bytes test infrastructure works on this machine (R3 + Task 2 prep)**
+
+```bash
+bash -c 'printf "\xff\xfb"' | od -A n -t x1
+```
+
+Expected: `ff fb`. If you get something else (e.g., literal `\xff` chars), bash's printf doesn't interpret hex escapes — switch tests to `printf '%b' '\\xff\\xfb'` or use `node -e 'process.stdout.write(Buffer.from([0xff,0xfb]))'`. Update Task 2 fixtures accordingly before writing them.
 
 ---
 
@@ -481,9 +562,9 @@ cd packages/core && npx tsc --noEmit 2>&1 | head -20
 
 Expected: zero errors.
 
-- [ ] **Step 6: Write DECISIONS.md entry**
+- [ ] **Step 6: Write DECISIONS.md entry [ARCHITECT R1 path corrected]**
 
-Create `docs/sprints/m9.6-s18-tts-path-collapse/DECISIONS.md`:
+Create `docs/sprints/m9.6-capability-resilience/s18-DECISIONS.md`:
 
 ```markdown
 # M9.6-S18 Decisions
@@ -492,7 +573,7 @@ Create `docs/sprints/m9.6-s18-tts-path-collapse/DECISIONS.md`:
 
 **Chose:** Option (a) — strict Ogg only. Removed MP3/WAV/ID3 checks from `reverifyTextToAudio`.
 
-**Why:** S11-FU-5 (Task 3 this sprint) fixes `tts-edge-tts/scripts/synthesize.sh` to transcode to real Ogg/Opus via ffmpeg. With the plug compliant, reverifier strictness is correct. If future plugs output other formats, they must transcode at the plug side — this is the template contract.
+**Why:** S11-FU-5 (Task 3 this sprint) fixes `tts-edge-tts/scripts/synthesize.sh` to transcode to real Ogg/Opus via ffmpeg. With the plug compliant, reverifier strictness is correct. If future plugs output other formats, they must transcode at the plug side — this is the template contract. Architect confirmed (a) over (b) at plan-review time.
 
 **Risk logged:** if ffmpeg is absent on a machine running tts-edge-tts, the transcode fails and the plug emits CFR. Acceptable — CFR is the correct response to a missing dependency.
 ```
@@ -503,7 +584,7 @@ Create `docs/sprints/m9.6-s18-tts-path-collapse/DECISIONS.md`:
 cd /home/nina/my_agent
 git add packages/core/src/capabilities/reverify.ts \
         packages/core/tests/capabilities/reverify-tts.test.ts \
-        docs/sprints/m9.6-s18-tts-path-collapse/DECISIONS.md
+        docs/sprints/m9.6-capability-resilience/s18-DECISIONS.md
 git commit -m "refactor(reverify): strict Ogg-only in reverifyTextToAudio (S15-FU-4)
 
 Option (a): remove MP3/WAV/ID3 checks; accept OggS only. Plug-side Ogg
@@ -957,9 +1038,25 @@ if (first.isVoiceNote && capturedAudioUrl && this.deps.sendAudioUrlViaTransport)
 }
 ```
 
+- [ ] **Step 1.5 [ARCHITECT S4]: Verify ChannelMessageHandler API matches the mock structure BEFORE writing tests**
+
+The Step 2 test file below assumes a specific mock shape (deps interface, `handleMessages(channelId, messages[])` signature, message field shape `{id, from, body, timestamp, isVoiceNote, audioPath, detectedLanguage}`). Before committing the test code, verify these against the actual class:
+
+```bash
+grep -n "class ChannelMessageHandler\|handleMessages\|isVoiceNote\|audioPath" packages/dashboard/src/channels/message-handler.ts | head -20
+```
+
+Specifically confirm:
+- `ChannelMessageHandler` class export name + constructor signature `(deps, channelConfigs)`.
+- `handleMessages(channelId: string, messages: SomeShape[]): Promise<void>` — name + signature.
+- The message-shape interface (verify field names: `isVoiceNote`, `audioPath`, `detectedLanguage`, `from`).
+- `MessageHandlerDeps` properties used in the mock (especially `app.chat.sendMessage` returning an `AsyncGenerator`).
+
+If any field name or signature differs, **adjust the mock structure in Step 2 before committing**. Don't write speculative tests then debug later — verify first, write once.
+
 - [ ] **Step 2: Replace the `tts-paths.test.ts` placeholder with actual tests**
 
-The file currently has just a placeholder from Task 5. Replace its entire contents with: These tests use a mock `App` that returns a pre-configured event stream from `chat.sendMessage`, and mock transport deps:
+The file currently has just a placeholder from Task 5. Replace its entire contents with: These tests use a mock `App` that returns a pre-configured event stream from `chat.sendMessage`, and mock transport deps. **One test per row of the per-path fallback table** (5 rows total per spec §2.3). Adjust the mock shape per Step 1.5 verification.
 
 ```typescript
 /**
@@ -1140,7 +1237,93 @@ describe("fallback table — tool-only turn (empty text)", () => {
     expect(deps.sendTextViaTransport).not.toHaveBeenCalled();
   });
 });
+
+// [ARCHITECT R3] Missing rows added to cover all 5 fallback-table cases per spec §2.3
+
+describe("fallback table — split done with splitAudioUrl (voice input)", () => {
+  it("turn_advanced sends audio via sendAudioUrlViaTransport when split-done has audioUrl + isVoiceNote", async () => {
+    const deps = makeDeps({
+      app: {
+        chat: {
+          sendMessage: vi.fn().mockReturnValue(makeStream([
+            { type: "text_delta", text: "First half" },
+            { type: "done", audioUrl: "/api/assets/audio/tts-split-1.ogg" },
+            { type: "turn_advanced" },
+            { type: "text_delta", text: "Second half" },
+            { type: "done", audioUrl: "/api/assets/audio/tts-final-2.ogg" },
+          ])),
+        },
+        emit: vi.fn(),
+        conversationManager: makeDeps().app.conversationManager,
+      } as unknown as MessageHandlerDeps["app"],
+    });
+
+    const handler = makeHandler(deps);
+    await handler.handleMessages("wa", makeVoiceMessage());
+
+    // Both split + final audio URLs sent via sendAudioUrlViaTransport
+    expect(deps.sendAudioUrlViaTransport).toHaveBeenNthCalledWith(1, "wa", "owner", "/api/assets/audio/tts-split-1.ogg");
+    expect(deps.sendAudioUrlViaTransport).toHaveBeenNthCalledWith(2, "wa", "owner", "/api/assets/audio/tts-final-2.ogg");
+    expect(deps.sendAudioUrlViaTransport).toHaveBeenCalledTimes(2);
+    expect(deps.sendTextViaTransport).not.toHaveBeenCalled();
+  });
+
+  it("turn_advanced sends text via sendViaTransport when split-done lacks audioUrl OR not voice input", async () => {
+    const deps = makeDeps({
+      app: {
+        chat: {
+          sendMessage: vi.fn().mockReturnValue(makeStream([
+            { type: "text_delta", text: "Split text" },
+            { type: "done" }, // no audioUrl
+            { type: "turn_advanced" },
+            { type: "text_delta", text: "Final" },
+            { type: "done" },
+          ])),
+        },
+        emit: vi.fn(),
+        conversationManager: makeDeps().app.conversationManager,
+      } as unknown as MessageHandlerDeps["app"],
+    });
+
+    const handler = makeHandler(deps);
+    await handler.handleMessages("wa", makeTextMessage()); // text input — not voice
+
+    // Split path uses sendViaTransport (text), no audio attempts
+    expect(deps.sendViaTransport).toHaveBeenCalledWith("wa", "owner", { content: "Split text" });
+    expect(deps.sendAudioUrlViaTransport).not.toHaveBeenCalled();
+  });
+});
+
+describe("fallback table — error event catch path", () => {
+  it("voice input + error event sends text via sendTextViaTransport (no audio invented for errors)", async () => {
+    const deps = makeDeps({
+      app: {
+        chat: {
+          sendMessage: vi.fn().mockReturnValue(makeStream([
+            { type: "text_delta", text: "Partial response..." },
+            { type: "error", error: "stream interrupted" },
+          ])),
+        },
+        emit: vi.fn(),
+        conversationManager: makeDeps().app.conversationManager,
+      } as unknown as MessageHandlerDeps["app"],
+    });
+
+    const handler = makeHandler(deps);
+    await handler.handleMessages("wa", makeVoiceMessage()); // voice input
+
+    // Error path: text fallback used, even for voice input — don't synthesize audio for error strings
+    expect(deps.sendTextViaTransport).toHaveBeenCalled();
+    const sendTextCall = (deps.sendTextViaTransport as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(sendTextCall?.[0]).toBe("wa");
+    expect(sendTextCall?.[1]).toBe("owner");
+    expect(String(sendTextCall?.[2])).toMatch(/error|interrupted|sorry|failed/i);
+    expect(deps.sendAudioUrlViaTransport).not.toHaveBeenCalled();
+  });
+});
 ```
+
+**Note:** the error-path test asserts the error message routes through `sendTextViaTransport` and matches a generic error-language regex. If the existing error-handling code in `message-handler.ts` produces a different error string format, adjust the regex — the key invariant is "error → text path, never audio." If the current `case "error"` doesn't route through `sendTextViaTransport` at all (i.e., uses `sendViaTransport` directly), change the test's expectation accordingly. The fallback-table row exists to formalize the "no audio for errors" rule; the implementation may already satisfy it via a different transport call.
 
 **Note:** If `MessageHandlerDeps` is not exported from `message-handler.ts`, add `export` to the interface declaration before running tests.
 
@@ -1205,6 +1388,21 @@ send block follows the per-path fallback table from §2.3:
 `wireAudioCallbacks()` (line 2323) assigns `plugin.onSendVoiceReply` — the second synthesis path. After Task 5 replaced `sendAudioViaTransport` with `sendAudioUrlViaTransport`, the old `sendAudioViaTransport` closure (which called `bp.onSendVoiceReply`) is already gone from the deps wiring. Now we delete the `wireAudioCallbacks` function itself and its call at line 966.
 
 `BaileysPlugin.onSendVoiceReply` (plugin.ts line 188) stays as `null` — nothing writes to it after this task. `BaileysPlugin.sendAudio` (plugin.ts line 816) stays — `sendAudioUrlViaTransport` now calls it directly via the buffer read.
+
+- [ ] **Step 0.5 [ARCHITECT S3]: Verify `wireAudioCallbacks` has no other side effects before deletion**
+
+Background asserts the function only assigns `plugin.onSendVoiceReply`. **Verify before deleting:**
+
+```bash
+sed -n '/^function wireAudioCallbacks/,/^}/p' packages/dashboard/src/app.ts | head -50
+```
+
+Read the full function body. Confirm it ONLY assigns `onSendVoiceReply`. If it also touches:
+- Logging / metrics / event emission → those move elsewhere or get logged in DEVIATIONS.md before deletion.
+- Plugin lifecycle hooks (init / teardown / state) → STOP and file `proposals/s18-wire-audio-side-effects.md`. Don't delete.
+- Other plugin properties → name them; decide whether to preserve elsewhere or document the removal as intentional.
+
+Document the verification in `s18-DECISIONS.md` D3 (new entry) — one line confirming the function's sole effect was `onSendVoiceReply` assignment, OR naming any additional effects + their disposition.
 
 - [ ] **Step 1: Delete `wireAudioCallbacks` function and its call site**
 
@@ -1481,16 +1679,18 @@ describe("TTS failure — CFR emits exactly once (S18)", () => {
       audioPath: "/tmp/audio.ogg",
     }]);
 
-    // The Baileys synthesis path is deleted — only chat-service fires CFR.
-    // Since synthesizeAudio fails silently (returns null), the CFR is emitted
-    // by the CapabilityInvoker inside chat-service. Count: exactly 1.
-    // (With old dual-path: the Baileys path would also fail → 2 CFRs.)
-    expect(cfrEmits.length).toBeLessThanOrEqual(1);
+    // [ARCHITECT S2] EXACTLY ONE — not <= 1. With Baileys path deleted,
+    // the chat-service path is the sole source of TTS CFR. If 0 emits fire,
+    // that means TTS failures aren't reaching the resilience layer at all —
+    // a real bug, not an expected outcome. The test catches both:
+    //   - 2+ emits → dual-path regression (Baileys path resurrected somehow)
+    //   - 0 emits  → TTS detection broken upstream (S15 wiring lost)
+    expect(cfrEmits.length).toBe(1);
   });
 });
 ```
 
-**Note:** The `cfr-tts-single-emit` test is structural — it verifies the architecture property (one path, one potential CFR) rather than counting exact CFR events (which depend on how `synthesizeAudio` failure bubbles up through the invoker). If the test structure needs adjustment based on how the App actually emits CFR, update the event name and mock accordingly. The key assertion: `cfrEmits.length <= 1`.
+**[ARCHITECT S2] note:** the assertion is `=== 1`, not `<= 1`. Trivially-satisfiable bounds (`<=`) accept the broken state where 0 CFR fires (TTS detection absent), which is exactly the silent-failure pattern M9.6 was created to fix. If the test legitimately produces 0 emits because of how the mocked event stream interacts with the real `synthesizeAudio` path, **stop and investigate** — the mock structure may not be exercising the CapabilityInvoker. File `proposals/s18-cfr-emit-test-structure.md` if so. Do not weaken the assertion to make it pass.
 
 - [ ] **Step 3: Run acceptance tests**
 
@@ -1523,15 +1723,19 @@ most one CFR (Baileys path deleted, only chat-service path remains)."
 
 ---
 
-## Task 9: Universal coverage check + FOLLOW-UPS
+## Task 9 [ARCHITECT R2 + S5]: Universal coverage check + sprint artifacts (all four)
 
-**Files:**
-- Modify: `docs/sprints/m9.6-s18-tts-path-collapse/DECISIONS.md`
-- Create: `docs/sprints/m9.6-s18-tts-path-collapse/FOLLOW-UPS.md` (if any)
+**Files [ARCHITECT R1 paths corrected + R2 artifacts complete]:**
+- Modify: `docs/sprints/m9.6-capability-resilience/s18-DECISIONS.md` (created in Task 2; expanded here)
+- Create: `docs/sprints/m9.6-capability-resilience/s18-DEVIATIONS.md` **[ARCHITECT R2]**
+- Create: `docs/sprints/m9.6-capability-resilience/s18-FOLLOW-UPS.md`
+- Create: `docs/sprints/m9.6-capability-resilience/s18-test-report.md` **[ARCHITECT R2]**
 
 ### Background
 
 Per §0.1 of plan-phase3-refinements.md: confirm TTS detection flows through the same CapabilityInvoker gate as STT. Confirm S15's TTS replay test still passes.
+
+Per §0.3 (carried into Phase 3): the dev MUST produce DECISIONS, DEVIATIONS, FOLLOW-UPS, and test-report. S16 originally missed two of these; S17 fixed the gap; S18 must keep it.
 
 - [ ] **Step 1: Run Phase 2 TTS replay test**
 
@@ -1561,34 +1765,124 @@ done
 
 Expected: all exit 0 (or SMOKE_SKIPPED exit 2 for plugs that need hardware).
 
-- [ ] **Step 4: Document Reverifier type note in DECISIONS.md**
+- [ ] **Step 4: Document Reverifier type note in DECISIONS.md [ARCHITECT S5 expanded]**
 
-Add to `DECISIONS.md`:
+Add to `docs/sprints/m9.6-capability-resilience/s18-DECISIONS.md`:
 
 ```markdown
-## D2 — Reverifier type: kept `invoker?` optional at the type level
+## D2 — Reverifier type: kept `invoker?` optional at the type level (interim)
 
 **Chose:** Keep `Reverifier` type and `dispatchReverify` signature with `invoker?: CapabilityInvoker` (optional). Only `reverifyAudioToText` adds a runtime guard (returns `pass: false` when absent).
 
 **Why:** Making the type fully required cascades to `dispatchReverify`, the orchestrator deps, and all existing tests. The runtime guard achieves the behavioral goal (no bash wrapper) without a broad refactor. The spec's "assert/throw if not present" is satisfied by the guard.
 
-**Follow-up (optional):** Full TypeScript enforcement can be done in S19/S20 as a no-behavior-change refactor if desired.
+**Interim safety guidance:** Until the type is tightened, every reverifier-call site MUST be code-reviewed for invoker presence. `dispatchReverify` is the gate — any new call site that goes through it gets the runtime guard, but new caller code that bypasses `dispatchReverify` and calls a per-type reverifier directly will not.
+
+**Target sprint for type tightening:** **S20** (final exit gate — natural place for a no-behavior-change refactor pass alongside the AppHarness mock-transport extension). If S20 is too crowded, escalate to a dedicated post-M9.6 cleanup. Don't leave this loose past M9.6 close.
+
+## D3 — wireAudioCallbacks side-effect verification (per ARCHITECT S3)
+
+**Verified:** `wireAudioCallbacks` in `app.ts` only assigns `plugin.onSendVoiceReply` and [add: any logging / metrics / lifecycle effects discovered, OR "no other side effects"]. Deletion is safe.
+
+**Evidence:** `sed -n '/^function wireAudioCallbacks/,/^}/p' packages/dashboard/src/app.ts` — function body inspected at sprint-time, [N] lines, [single-purpose | other effects: ...].
 ```
 
-- [ ] **Step 5: Write FOLLOW-UPS.md for any items that couldn't land**
+- [ ] **Step 5: Create `s18-DEVIATIONS.md` [ARCHITECT R2]**
 
-If all inherited items landed, write a brief confirmation. If anything couldn't land, document per §0.1 format:
+Index every `proposals/s18-*.md` file authored. If none filed, the file states that with one line.
+
 ```markdown
-# M9.6-S18 Follow-Ups
+---
+sprint: m9.6-s18
+---
 
+# S18 Deviations
+
+## (none filed) — confirm at sprint-end
+[OR list each: DEV-1 ... — title — link to proposal — resolution]
+```
+
+- [ ] **Step 6: Create `s18-FOLLOW-UPS.md`**
+
+Per §0.1 universal-coverage rule: S18 doesn't add a new generic layer (it removes a duplicate path), so the rule technically doesn't apply. Confirm in this file:
+
+```markdown
+---
+sprint: m9.6-s18
+---
+
+# S18 Follow-Ups
+
+## §0.1 universal-coverage rule
+S18 removes the duplicate Baileys synthesis path — no new generic layer added.
+The §0.1 rule technically N/A. The four §0.5 Phase 2 deferrals all apply
+uniformly to TTS plugs through the existing CapabilityInvoker gate.
+
+## Inherited deferrals — landing confirmation
 All §0.5 Phase 2 deferrals confirmed landed:
 - S10-FU-2 / S13-FU-1: bash wrapper removed ✓
-- S11-FU-2: template smoke validates OggS ✓  
+- S11-FU-2: template smoke validates OggS ✓
 - S11-FU-5: tts-edge-tts transcodes to Ogg ✓
-- S15-FU-4: reverifyTextToAudio Ogg-strict ✓
+- S15-FU-4: reverifyTextToAudio Ogg-strict ✓ (option a per architect confirmation)
+
+## Out-of-scope items noticed during the sprint (if any)
+[list per format: FU-N — title — why deferred — target sprint]
+
+## D2 follow-up (Reverifier type tightening)
+Target: S20 per D2. Watch for it in S19/S20 plan reviews.
 ```
 
-- [ ] **Step 6: Final type-check both packages**
+- [ ] **Step 7: Create `s18-test-report.md` [ARCHITECT R2]**
+
+Verification command output for every test added/touched in S18 + regression sweep + tsc both packages. Format per Phase 1 / Phase 2 / S17 reports. Capture command lines, test counts, and any noted variance.
+
+```markdown
+---
+sprint: M9.6-S18
+title: Test report
+date: 2026-04-19
+branch: sprint/m9.6-s18-tts-path-collapse
+---
+
+# S18 Test Report
+
+## New tests added
+| File | Tests | Result |
+|------|-------|--------|
+| `tests/capabilities/reverify-audio-to-text.test.ts` | 5 | ✓ |
+| `tests/capabilities/reverify-tts.test.ts` (new MP3/WAV-rejects cases) | +2 | ✓ |
+| `tests/integration/tts-paths.test.ts` (5 fallback rows) | 5 | ✓ |
+| `tests/integration/voice-reply-regression.test.ts` | 1 | ✓ |
+| `tests/integration/cfr-tts-single-emit.test.ts` (=== 1 assertion) | 1 | ✓ |
+| **Total new** | **14** | **all pass** |
+
+## Modified tests
+- `tests/capabilities/reverify-dispatch.test.ts` — audio-to-text routing test now passes mock invoker.
+
+## Suites run
+| Suite | Result |
+|---|---|
+| `packages/core/tests/capabilities/` | [N] pass / [M] skip / 0 fail |
+| `packages/dashboard/tests/integration/` | [N] pass |
+| Full core suite | [counts] |
+| Full dashboard suite | [counts] (note pre-existing failures from S17 baseline) |
+| `tests/e2e/cfr-phase2-tts-replay.test.ts` regression gate | ✓ pass |
+
+## Plug smoke tests (env-loaded)
+[output of `for s in .my_agent/capabilities/*/scripts/smoke.sh; do bash "$s"; done`]
+
+## tsc
+- `packages/core` — 0 errors
+- `packages/dashboard` — 0 errors
+
+## ffmpeg verification
+[output of `which ffmpeg && ffmpeg -version | head -1`]
+
+## tts-edge-tts manual verification (Task 3 Step 3)
+[output of synthesize.sh + od magic-byte check + file-type check]
+```
+
+- [ ] **Step 8: Final type-check both packages**
 
 ```bash
 cd packages/core && npx tsc --noEmit && echo "core OK"
@@ -1597,14 +1891,26 @@ cd /home/nina/my_agent/packages/dashboard && npx tsc --noEmit && echo "dashboard
 
 Expected: both OK.
 
-- [ ] **Step 7: Final commit**
+- [ ] **Step 9: Final commit (all four artifacts) [ARCHITECT R2]**
 
 ```bash
 cd /home/nina/my_agent
-git add docs/sprints/m9.6-s18-tts-path-collapse/DECISIONS.md \
-        docs/sprints/m9.6-s18-tts-path-collapse/FOLLOW-UPS.md
-git commit -m "docs(s18): DECISIONS.md + FOLLOW-UPS.md — all §0.5 deferrals confirmed landed"
+git add docs/sprints/m9.6-capability-resilience/s18-DECISIONS.md \
+        docs/sprints/m9.6-capability-resilience/s18-DEVIATIONS.md \
+        docs/sprints/m9.6-capability-resilience/s18-FOLLOW-UPS.md \
+        docs/sprints/m9.6-capability-resilience/s18-test-report.md
+git commit -m "docs(s18): sprint artifacts — DECISIONS, DEVIATIONS, FOLLOW-UPS, test-report"
 ```
+
+- [ ] **Step 10: Stop the trip-sprint and notify CTO**
+
+Notify CTO: "S18 dev is done; artifacts ready for architect review."
+
+**Do NOT:**
+- Commit `APPROVED` in any commit message.
+- Mark S18 Done in `docs/ROADMAP.md`.
+- Write `s18-architect-review.md` (architect's exclusively).
+- Merge `sprint/m9.6-s18-tts-path-collapse` to master.
 
 ---
 
