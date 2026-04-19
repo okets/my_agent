@@ -76,6 +76,12 @@ export function createResilienceCopy(registry: CapabilityRegistry): ResilienceCo
       if (reason === "surrender-cooldown") {
         return `I already tried fixing ${name}${suffix} recently — ${fallback} for now. I've logged it.`;
       }
+      if (reason === "redesign-needed") {
+        return `I tried to fix ${name}${suffix} but the design needs a bigger rework — I've flagged it, ${fallback} for now.`;
+      }
+      if (reason === "insufficient-context") {
+        return `I couldn't fix ${name}${suffix} — I didn't have enough to go on. ${fallback}.`;
+      }
       // iteration-3
       return `I tried three fixes and ${name}${suffix} isn't working today. ${fallback}? I've logged the issue.`;
     },
