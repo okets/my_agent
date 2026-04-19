@@ -684,6 +684,7 @@ export class App extends EventEmitter {
               trigger: [{ type: "manual" }],
               once: true,
               job_type: spec.jobType,
+              target_path: spec.targetPath,
             },
           });
           await app.automations.fire(automation.id);
@@ -738,6 +739,10 @@ export class App extends EventEmitter {
             text = rc.surrender(failure, "surrender-cooldown");
           } else if (kind === "surrender-budget") {
             text = rc.surrender(failure, "budget");
+          } else if (kind === "surrender-redesign-needed") {
+            text = rc.surrender(failure, "redesign-needed");
+          } else if (kind === "surrender-insufficient-context") {
+            text = rc.surrender(failure, "insufficient-context");
           } else if (kind === "terminal-fixed") {
             text = rc.terminalAck(failure);
           } else {

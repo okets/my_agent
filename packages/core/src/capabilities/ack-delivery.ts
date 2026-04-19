@@ -111,7 +111,7 @@ export const CFR_RECOVERY_FILENAME = "CFR_RECOVERY.md";
  */
 export interface AckDeliverySessionInfo {
   attempts: FixAttempt[];
-  surrenderReason?: "budget" | "iteration-3";
+  surrenderReason?: "budget" | "iteration-3" | "redesign-needed" | "insufficient-context";
 }
 
 /** Optional delivery context — surfaces the ack kind and session info. */
@@ -329,7 +329,7 @@ function buildRecoveryBody(args: {
   plugName: string;
   outcome: "fixed" | "terminal-fixed" | "surrendered";
   attempts: FixAttempt[];
-  surrenderReason?: "budget" | "iteration-3";
+  surrenderReason?: "budget" | "iteration-3" | "redesign-needed" | "insufficient-context";
   symptomDetail?: string;
 }): string {
   const { plugName, outcome, attempts, surrenderReason, symptomDetail } = args;
@@ -365,11 +365,15 @@ function buildRecoveryBody(args: {
   return `# ${plugName} recovery summary\n\n${summaryParagraph}\n\n## Attempts\n\n${tableHeader}\n${tableRows}\n`;
 }
 
-function surrenderReasonToSentence(reason: "budget" | "iteration-3"): string {
+function surrenderReasonToSentence(reason: "budget" | "iteration-3" | "redesign-needed" | "insufficient-context"): string {
   switch (reason) {
     case "budget":
       return "Surrendered: the fix loop hit the 5-job automation budget before the capability could be recovered.";
     case "iteration-3":
       return "Surrendered: three consecutive fix attempts failed to recover the capability.";
+    case "redesign-needed":
+      return "Surrendered: the capability requires a redesign that cannot be completed within the fix loop.";
+    case "insufficient-context":
+      return "Surrendered: insufficient context to proceed with automated recovery.";
   }
 }
