@@ -42,6 +42,7 @@ export interface AutomationSpec {
   jobType: "capability_modify";
   parent?: { jobId: string; iteration: number };
   targetPath?: string;
+  smokeOutput?: string;
 }
 
 export interface AutomationResult {
@@ -358,11 +359,11 @@ export class RecoveryOrchestrator {
 
     // Build fix-mode invocation prompt
     const cap = this.deps.capabilityRegistry.get(failure.capabilityType);
-    const fixPrompt = this.buildFixModeInvocation(failure, session, cap?.path);
+    const fixPrompt = this.buildFixModeInvocation(failure, session, cap?.path, failure.detail ?? undefined);
 
     // Budget check before spawning execute job (M9.6-S6 D3: tag the session so
     // surrender() knows this was a budget-exhaustion bail, not a 3-attempts bail).
-    if (session.totalJobsSpawned >= 5) {
+    if (session.totalJobsSpawned >= 4) {
       session.surrenderReason = "budget";
       return { recovered: false };
     }
@@ -378,6 +379,7 @@ export class RecoveryOrchestrator {
         prompt: fixPrompt,
         jobType: "capability_modify",
         targetPath: cap?.path,
+        smokeOutput: failure.detail ?? undefined,
         parent: session.executeJobId
           ? { jobId: session.executeJobId, iteration: session.attemptNumber }
           : undefined,
@@ -409,7 +411,26 @@ export class RecoveryOrchestrator {
         session.surrenderReason = "redesign-needed";
       } else if (firstLine.includes("insufficient-context")) {
         session.surrenderReason = "insufficient-context";
+      } else {
+        // FU-2: unrecognised ESCALATE reason — log so it's not silently swallowed.
+        console.warn(
+          `[RecoveryOrchestrator] ESCALATE with unrecognised reason in firstLine: "${firstLine}"`,
+        );
       }
+      // FU-1: push synthetic FixAttempt so the paper trail is complete in CFR_RECOVERY.md.
+      session.attempts.push({
+        attempt: session.attemptNumber,
+        startedAt: attemptStartedAt,
+        endedAt: this.deps.now(),
+        hypothesis,
+        change,
+        verificationInputPath: failure.triggeringInput.artifact?.rawMediaPath ?? "",
+        verificationResult: "fail",
+        failureMode: `escalate: ${firstLine.trim() || "no reason given"}`,
+        jobId: executeJobId,
+        modelUsed: "opus",
+        phase: "execute",
+      });
       return { recovered: false, escalate: true };
     }
 
@@ -434,7 +455,7 @@ export class RecoveryOrchestrator {
       return { recovered: false };
     }
 
-    // Execute succeeded — record and move to REFLECTING
+    // Execute succeeded — record and move directly to reverify (reflect phase removed in S17).
     const executeAttempt: FixAttempt = {
       attempt: session.attemptNumber,
       startedAt: attemptStartedAt,
@@ -449,56 +470,8 @@ export class RecoveryOrchestrator {
     };
     session.attempts.push(executeAttempt);
 
-    session.state = "REFLECTING";
-    nextAction(session, { type: "EXECUTE_JOB_DONE", success: true });
-
-    // Budget check before spawning reflect job
-    if (session.totalJobsSpawned >= 5) {
-      // Budget exhausted — still attempt reverify without reflect. If the
-      // reverify passes, we recover normally; if it fails, runFixLoop will
-      // drop through to surrender — tag the reason here so surrender picks
-      // the "budget" copy rather than "iteration-3".
-      const result = await this.doReverify(failure, session, executeAttempt);
-      if (!result.recovered) {
-        session.surrenderReason = "budget";
-      }
-      return result;
-    }
-
-    // Spawn reflect-phase automation (Opus)
-    let reflectJobId: string;
-    try {
-      const reflectPrompt = this.renderReflectPrompt(failure, session, deliverable);
-      const spawned = await this.deps.spawnAutomation({
-        name: `cfr-fix-${failure.capabilityType}-a${session.attemptNumber}-reflect-${randomUUID().slice(0, 8)}`,
-        model: "opus",
-        autonomy: "cautious",
-        prompt: reflectPrompt,
-        jobType: "capability_modify",
-        parent: { jobId: executeJobId, iteration: session.attemptNumber },
-      });
-      reflectJobId = spawned.jobId;
-      session.reflectJobId = reflectJobId;
-      session.totalJobsSpawned += 1;
-    } catch (err) {
-      console.error("[RecoveryOrchestrator] Failed to spawn reflect job:", err);
-      // Still attempt reverify — execute may have been sufficient
-      return await this.doReverify(failure, session, executeAttempt);
-    }
-
-    // Await reflect job
-    await this.deps.awaitAutomation(reflectJobId, JOB_TIMEOUT_MS);
-    const reflectDeliverable = this.readDeliverable(reflectJobId);
-    const nextHypothesis =
-      reflectDeliverable?.frontmatter.summary ??
-      reflectDeliverable?.body.slice(0, 200) ??
-      "no hypothesis from reflect phase";
-
     session.state = "REVERIFYING";
-    nextAction(session, { type: "REFLECT_JOB_DONE", nextHypothesis });
-
-    // Update the execute attempt with the next hypothesis from reflect
-    executeAttempt.nextHypothesis = nextHypothesis;
+    nextAction(session, { type: "EXECUTE_JOB_DONE", success: true });
 
     return await this.doReverify(failure, session, executeAttempt);
   }
@@ -725,11 +698,16 @@ export class RecoveryOrchestrator {
    * Build the fix-mode invocation prompt for the capability-brainstorming skill.
    * Prompt begins with "MODE: FIX" so Step 0 of the skill routes to the fix-only path.
    * Cold Opus run on an unfamiliar plug is projected at 5–12 min — JOB_TIMEOUT_MS is 15 min.
+   *
+   * smokeOutput: the raw output from the failing script invocation (failure.detail for
+   * execution-error / timeout failures). Appended as ## Smoke Output so the fix agent
+   * doesn't re-run diagnostics when the evidence is already available.
    */
   private buildFixModeInvocation(
     failure: CapabilityFailure,
     session: FixSession,
     capPath: string | undefined,
+    smokeOutput?: string,
   ): string {
     const { capabilityType, capabilityName, symptom, detail, previousAttempts } = failure;
 
@@ -749,6 +727,10 @@ export class RecoveryOrchestrator {
       ? `- **Capability folder:** \`${capPath}\``
       : `- **Capability folder:** (not found in registry — try \`.my_agent/capabilities/${capabilityName ?? capabilityType}\` if it exists)`;
 
+    const smokeSection = smokeOutput
+      ? `\n\n## Smoke Output\n\n\`\`\`\n${smokeOutput}\n\`\`\``
+      : "";
+
     return `MODE: FIX
 
 You have been invoked by the recovery orchestrator because a capability failed.
@@ -763,45 +745,9 @@ ${capDirLine}
 
 ## Previous Attempts
 
-${attemptsSection}`;
+${attemptsSection}${smokeSection}`;
   }
 
-  /**
-   * Render the reflect-phase prompt — Opus summarises what happened and proposes a better hypothesis.
-   */
-  private renderReflectPrompt(
-    failure: CapabilityFailure,
-    session: FixSession,
-    executeDeliverable: ParsedDeliverable | null,
-  ): string {
-    const { capabilityType } = failure;
-    const deliverableSummary = executeDeliverable
-      ? `**Summary:** ${executeDeliverable.frontmatter.summary ?? "—"}\n**Result:** ${executeDeliverable.frontmatter.test_result ?? "—"}\n\n${executeDeliverable.body.slice(0, 800)}`
-      : "_No deliverable found from execute phase._";
-
-    return `# Reflect — ${capabilityType} Fix Attempt ${session.attemptNumber}
-
-You are reviewing the execute-phase result for a capability fix. Your job is to:
-1. Assess whether the fix is likely to be correct.
-2. Propose the best next hypothesis if it is not.
-
-## Execute Phase Deliverable
-
-${deliverableSummary}
-
-## Your Deliverable
-
-Write \`deliverable.md\` with YAML frontmatter:
-
----
-change_type: config | script | deps | env
-test_result: pass | fail
-hypothesis_confirmed: true | false
-summary: your assessment and next hypothesis in one line
----
-
-Body: reasoning about what the execute agent did and what should be tried next.`;
-  }
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

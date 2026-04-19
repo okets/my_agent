@@ -147,3 +147,61 @@ describe("fix-mode-invocation — buildFixModeInvocation", () => {
     expect(captured[0].targetPath).toBeUndefined();
   });
 });
+
+describe("Item A (M9.6-S17): smoke output in fix-mode prompt", () => {
+  it("prompt includes ## Smoke Output section when failure.detail is set", async () => {
+    const captured: AutomationSpec[] = [];
+    const failure: CapabilityFailure = {
+      ...makeFailure(),
+      detail: "Command failed: /scripts/transcribe.sh\nError: DEEPGRAM_API_KEY not set",
+    };
+    const deps = makeDeps({
+      spawnAutomation: vi.fn().mockImplementation(async (spec: AutomationSpec) => {
+        captured.push(spec);
+        return { jobId: "j-1", automationId: "a-1" };
+      }),
+      awaitAutomation: vi.fn().mockResolvedValue({ status: "failed" }),
+    });
+    const orch = new RecoveryOrchestrator(deps);
+    await orch.handle(failure);
+
+    expect(captured[0].prompt).toContain("## Smoke Output");
+    expect(captured[0].prompt).toContain("DEEPGRAM_API_KEY not set");
+  });
+
+  it("prompt omits ## Smoke Output section when failure.detail is absent", async () => {
+    const captured: AutomationSpec[] = [];
+    const failure: CapabilityFailure = {
+      ...makeFailure(),
+      detail: undefined,
+    };
+    const deps = makeDeps({
+      spawnAutomation: vi.fn().mockImplementation(async (spec: AutomationSpec) => {
+        captured.push(spec);
+        return { jobId: "j-1", automationId: "a-1" };
+      }),
+      awaitAutomation: vi.fn().mockResolvedValue({ status: "failed" }),
+    });
+    const orch = new RecoveryOrchestrator(deps);
+    await orch.handle(failure);
+
+    expect(captured[0].prompt).not.toContain("## Smoke Output");
+  });
+
+  it("spec.smokeOutput equals failure.detail", async () => {
+    const captured: AutomationSpec[] = [];
+    const detail = "exit 1: authentication failed";
+    const failure: CapabilityFailure = { ...makeFailure(), detail };
+    const deps = makeDeps({
+      spawnAutomation: vi.fn().mockImplementation(async (spec: AutomationSpec) => {
+        captured.push(spec);
+        return { jobId: "j-1", automationId: "a-1" };
+      }),
+      awaitAutomation: vi.fn().mockResolvedValue({ status: "failed" }),
+    });
+    const orch = new RecoveryOrchestrator(deps);
+    await orch.handle(failure);
+
+    expect(captured[0].smokeOutput).toBe(detail);
+  });
+});

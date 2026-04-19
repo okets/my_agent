@@ -175,11 +175,8 @@ describe("RecoveryOrchestrator — surrender scope", () => {
 });
 
 describe("RecoveryOrchestrator — job budget", () => {
-  it("no more than 5 automation jobs are spawned across 3 attempts", async () => {
-    // State machine MAX_JOBS is now 4 (S17 reflects removed).
-    // The orchestrator's own budget guard (>= 5) will be updated to >= 4 in Task 5
-    // when the reflect block is deleted. Until then the combined ceiling is still 5.
-    // This test will be tightened to toBe(3) after Task 5.
+  it("no more than 4 automation jobs are spawned across 3 attempts (1 execute per attempt)", async () => {
+    // S17: reflect removed. Each attempt = 1 execute job. MAX_JOBS=4. In practice: 3 spawns.
     let spawnCount = 0;
     const spawnAutomation = vi.fn().mockImplementation(async (_spec: AutomationSpec) => {
       spawnCount++;
@@ -210,6 +207,7 @@ describe("RecoveryOrchestrator — job budget", () => {
     const orchestrator = new RecoveryOrchestrator(deps);
     await orchestrator.handle(makeFailure());
 
-    expect(spawnCount).toBeLessThanOrEqual(5);
+    expect(spawnCount).toBeLessThanOrEqual(4);
+    expect(spawnCount).toBe(3);
   });
 });

@@ -8,6 +8,7 @@ import type { CapabilityFailure } from "../../src/capabilities/cfr-types.js";
 import { conversationOrigin } from "../../src/capabilities/cfr-helpers.js";
 import type { CapabilityRegistry } from "../../src/capabilities/registry.js";
 import type { CapabilityWatcher } from "../../src/capabilities/watcher.js";
+import type { TriggeringOrigin } from "../../src/capabilities/cfr-types.js";
 
 function makeFailure(): CapabilityFailure {
   return {
@@ -134,5 +135,54 @@ describe("non-ESCALATE deliverable — no early bail", () => {
 
     // 3 attempts → 3 spawns (fix-mode has no reflect spawn)
     expect(spawnAutomation.mock.calls.length).toBe(3);
+  });
+});
+
+describe("FU-1: ESCALATE pushes synthetic FixAttempt", () => {
+  it("session.attempts has 1 entry with failureMode containing 'escalate' after ESCALATE", async () => {
+    const runDir = makeRunDir("ESCALATE: redesign-needed\n\nFull rethink needed.");
+    const writeAutomationRecovery = vi.fn();
+
+    // Use an automation origin so writeAutomationRecovery is called by terminalDrain.
+    const automationOrigin: TriggeringOrigin = {
+      kind: "automation",
+      automationId: "auto-s17-fu1",
+      jobId: "job-s17-fu1",
+      runDir,
+      notifyMode: "debrief",
+    };
+    const failure: CapabilityFailure = {
+      ...makeFailure(),
+      triggeringInput: { ...makeFailure().triggeringInput, origin: automationOrigin },
+    };
+
+    const deps = makeDeps(runDir, { writeAutomationRecovery });
+    const orch = new RecoveryOrchestrator(deps);
+    await orch.handle(failure);
+
+    // writeAutomationRecovery receives the session — inspect its attempts.
+    expect(writeAutomationRecovery).toHaveBeenCalled();
+    const { session } = writeAutomationRecovery.mock.calls[0][0] as {
+      session: { attempts: Array<{ failureMode?: string; phase: string }> };
+    };
+    expect(session.attempts).toHaveLength(1);
+    expect(session.attempts[0].failureMode).toMatch(/escalate/i);
+    expect(session.attempts[0].phase).toBe("execute");
+  });
+});
+
+describe("FU-2: unrecognised ESCALATE reason logs console.warn", () => {
+  it("logs a warning when the ESCALATE line has no known reason token", async () => {
+    const runDir = makeRunDir("ESCALATE: unknown-future-reason\n\nSomething new.");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const deps = makeDeps(runDir);
+    const orch = new RecoveryOrchestrator(deps);
+    await orch.handle(makeFailure());
+
+    const warned = warnSpy.mock.calls.some((c) =>
+      String(c[0]).includes("unrecognised reason"),
+    );
+    expect(warned).toBe(true);
+    warnSpy.mockRestore();
   });
 });
