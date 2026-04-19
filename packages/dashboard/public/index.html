@@ -3324,12 +3324,12 @@
                 </div>
 
                 <!-- System-origin CFR health panel (S19) -->
-                <div class="mt-4 p-3 rounded-lg border border-white/5 bg-surface-800">
+                <div class="mt-4 p-3 rounded-lg border border-white/5 bg-tokyo-surface">
                   <div class="flex items-center justify-between mb-2">
                     <span class="text-[11px] font-medium text-white/60 uppercase tracking-wider">Recent System Events</span>
                     <button
                       @click="loadSystemCfrEvents()"
-                      class="text-[10px] text-accent-blue/70 hover:text-accent-blue transition-colors"
+                      class="text-[10px] text-tokyo-blue/70 hover:text-tokyo-blue transition-colors"
                     >Refresh</button>
                   </div>
                   <div x-show="systemCfrEvents.length === 0" class="text-[11px] text-white/30 italic">No recent events.</div>
