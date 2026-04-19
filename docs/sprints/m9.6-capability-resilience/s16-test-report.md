@@ -67,22 +67,24 @@ Both packages: **0 errors**.
 
 ## Wall-time measurement (Task 12)
 
-**Status: COMPLETE — Branch A (ship as-is).**
+**Status: COMPLETE — Branch B/C. Mitigation proposal filed.**
 
-Method: synthetic test capability (`s16-walltime-test-cap`) with `smoke.sh exit 1` created
-temporarily; MODE:FIX automation written to `.my_agent/automations/` and fired via
-`POST /api/automations/:id/fire`; wall-time measured from fire to `completed` status.
+Method: two real plugs broken surgically; CFR injected via `POST /api/debug/cfr/inject`
+(new endpoint); orchestrator ran fix-mode end-to-end through real `spawnAutomation` path;
+wall-time from `cfr.emitFailure()` to final attempt `completed`.
 
-Results: **92–100 s (1.5–1.7 min)** — well under the 5-min gate.
+Results:
 
-| Plug | Break method | Wall-time (s) | Outcome | Gate |
-|------|-------------|---------------|---------|------|
-| s16-walltime-test-cap (synthetic script) | smoke.sh exit 1 | 100 | completed | A |
+| Plug | Type | Wall-time (s) | Gate | Outcome |
+|------|------|---------------|------|---------|
+| tts-edge-tts | script | 480 (8.0 min) | B | fixed (3 attempts) |
+| browser-chrome | MCP | 652 (10.9 min) | C | fixed (3 attempts) |
 
 Full results: `docs/sprints/m9.6-capability-resilience/s16-walltime-results.md`
 
-**Gate decision: Branch A — ship as-is.** DEV-3 resolved (measurement executed via headless
-HTTP API, no CTO presence required).
+Mitigation proposal: `docs/sprints/m9.6-capability-resilience/proposals/s16-walltime-mitigation.md`
+
+Architect decides gate outcome (M1 / M2 / M3 options).
 
 ## Commit log (sprint/m9.6-s16-fix-engine-swap → master)
 

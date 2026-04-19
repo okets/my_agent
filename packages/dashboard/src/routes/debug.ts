@@ -17,6 +17,7 @@ import {
   createCalDAVClient,
   CalDAVClient,
 } from "@my-agent/core";
+import type { CapabilityFailureSymptom } from "@my-agent/core";
 import {
   getBrainStatus,
   getBrainFiles,
@@ -864,5 +865,74 @@ export async function registerDebugRoutes(
         degradedReason: c.degradedReason,
       })),
     };
+  });
+
+  /**
+   * POST /api/debug/cfr/inject — inject a synthetic CapabilityFailure into the live orchestrator.
+   *
+   * Constructs a real CapabilityFailure and calls cfr.emitFailure(), which triggers the
+   * same orchestrator path as a live chat-service emit. Used for wall-time measurement
+   * (M9.6-S16 gate) and future CFR regression testing.
+   *
+   * Body:
+   *   capabilityType  string   — e.g. "audio-to-text"
+   *   capabilityName  string?  — e.g. "stt-deepgram"
+   *   symptom         string   — one of the CapabilityFailureSymptom literals
+   *   detail          string?  — human-readable error tail
+   *
+   * Returns { ok: true, failureId: string } or { ok: false, error: string }
+   */
+  fastify.post<{
+    Body: {
+      capabilityType: string;
+      capabilityName?: string;
+      symptom: string;
+      detail?: string;
+    };
+  }>("/cfr/inject", async (request, reply) => {
+    const app = fastify.app;
+    if (!app?.cfr) {
+      return reply.code(503).send({ ok: false, error: "CFR not initialized" });
+    }
+
+    const { capabilityType, capabilityName, symptom, detail } = request.body ?? {};
+
+    if (!capabilityType || !symptom) {
+      return reply
+        .code(400)
+        .send({ ok: false, error: "capabilityType and symptom are required" });
+    }
+
+    const validSymptoms = [
+      "not-installed",
+      "not-enabled",
+      "deps-missing",
+      "execution-error",
+      "empty-result",
+      "timeout",
+      "validation-failed",
+    ];
+    if (!validSymptoms.includes(symptom)) {
+      return reply.code(400).send({
+        ok: false,
+        error: `symptom must be one of: ${validSymptoms.join(", ")}`,
+      });
+    }
+
+    const failure = app.cfr.emitFailure({
+      capabilityType,
+      capabilityName,
+      symptom: symptom as CapabilityFailureSymptom,
+      detail,
+      triggeringInput: {
+        origin: { kind: "system", component: "debug-cfr-inject" },
+      },
+    });
+
+    fastify.log.info(
+      `[debug-cfr-inject] Injected failure ${failure.id} for ${capabilityType}`,
+    );
+
+    return { ok: true, failureId: failure.id };
   });
 }

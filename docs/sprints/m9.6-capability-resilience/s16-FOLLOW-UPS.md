@@ -22,11 +22,11 @@ sprint: m9.6-s16
 - **Why deferred:** No sprint has been scoped for it yet. The automation fix path works correctly without it; the guard is a security/auditability improvement.
 - **Target sprint:** Dedicated hook-setup sprint (pre-M10 or early M10)
 
-## FU-4 — Wall-time measurement (RESOLVED 2026-04-19)
+## FU-4 — Wall-time measurement (RESOLVED 2026-04-19 — Branch B/C)
 
-- **What:** Task 12 executed via HTTP API. Synthetic test capability + MODE:FIX automation fired via `POST /api/automations/:id/fire`. Wall-time: **100 s (1.7 min)**.
-- **Gate decision: Branch A — ship as-is.** Well under the 5-min threshold.
-- **DEV-3 resolved.** No CTO-assisted run needed; headless HTTP path sufficient.
+- **What:** Task 12 executed against 2 real broken plugs via `POST /api/debug/cfr/inject`. Both plugs fixed by Opus. tts-edge-tts: 480 s (8.0 min, Branch B). browser-chrome: 652 s (10.9 min, Branch C).
+- **Mitigation proposal:** `proposals/s16-walltime-mitigation.md` — M1 (smoke output in prompt), M2 (per-type timeouts), M3 (relax boundary). Recommendation: M1 + M3.
+- **Gate decision:** Pending architect selection of M1/M2/M3.
 
 ## FU-5 — `stalemate` path not covered by fix-mode tests
 

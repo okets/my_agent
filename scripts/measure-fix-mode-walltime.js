@@ -1,73 +1,41 @@
 #!/usr/bin/env node
 /**
- * M9.6-S16 wall-time gate: measure fix-mode Opus run time.
- *
- * Creates a synthetic broken test capability, fires a MODE:FIX automation
- * against it via the running dashboard HTTP API, and records wall-time.
+ * M9.6-S16 wall-time gate: measure fix-mode Opus run time against real plugs.
  *
  * Pre-conditions:
- *   Dashboard running on port 4321 (systemctl --user status nina-dashboard.service)
- *   CLAUDE_CODE_OAUTH_TOKEN set in packages/dashboard/.env
+ *   Dashboard running on port 4321 with POST /api/debug/cfr/inject available.
+ *   Real plugs surgically broken before running this script.
+ *   CLAUDE_CODE_OAUTH_TOKEN set in packages/dashboard/.env.
  *
  * Usage:
  *   node scripts/measure-fix-mode-walltime.js
  *
  * Wall-time gate (plan §2.1):
- *   ≤5 min:   ship as-is
- *   5–10 min: file proposals/s16-walltime-mitigation.md
- *   >10 min:  escalate to architect
+ *   ≤5 min:   ship as-is (Branch A)
+ *   5–10 min: file proposals/s16-walltime-mitigation.md (Branch B)
+ *   >10 min:  escalate to architect (Branch C)
  */
 
-import {
-  mkdirSync,
-  writeFileSync,
-  rmSync,
-  existsSync,
-  readdirSync,
-} from "node:fs";
+import { writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const DASHBOARD_BASE = "http://localhost:4321";
 const AGENT_DIR = join(process.cwd(), ".my_agent");
-const AUTOMATIONS_DIR = join(AGENT_DIR, "automations");
 const CAPABILITIES_DIR = join(AGENT_DIR, "capabilities");
 const RESULTS_PATH = join(
   process.cwd(),
   "docs/sprints/m9.6-capability-resilience/s16-walltime-results.md",
 );
 
-// 16-minute total timeout per run (JOB_TIMEOUT_MS is 15 min)
+// 16-minute timeout per run (JOB_TIMEOUT_MS is 15 min)
 const RUN_TIMEOUT_MS = 16 * 60 * 1000;
-const POLL_INTERVAL_MS = 10_000;
-
-// Test capability that always fails smoke check
-const TEST_CAP_ID = "s16-walltime-test-cap";
-const TEST_CAP_DIR = join(CAPABILITIES_DIR, TEST_CAP_ID);
-const TEST_AUTOMATION_ID = "s16-walltime-fix-test";
-
-function buildModeFixPrompt(capPath) {
-  return `MODE: FIX
-
-You have been invoked by the recovery orchestrator because a capability failed.
-
-## Failure Context
-
-- **Capability folder:** \`${capPath}\`
-- **Capability:** S16 Walltime Test (type: s16-walltime-test)
-- **Symptom:** smoke check exited with code 1
-- **Detail:** scripts/smoke.sh returned: "SMOKE FAILED: intentional test failure for S16 wall-time gate"
-- **Attempt:** 1/3
-
-## Previous Attempts
-
-_No previous attempts._`;
-}
+const POLL_INTERVAL_MS = 15_000;
 
 async function apiPost(path, body) {
   const res = await fetch(`${DASHBOARD_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
+    body: JSON.stringify(body),
   });
   return res.json();
 }
@@ -77,7 +45,7 @@ async function apiGet(path) {
   return res.json();
 }
 
-async function checkDashboardRunning() {
+async function checkDashboard() {
   try {
     await fetch(`${DASHBOARD_BASE}/api/debug/brain/status`);
     return true;
@@ -86,149 +54,144 @@ async function checkDashboardRunning() {
   }
 }
 
-function createTestCapability() {
-  mkdirSync(join(TEST_CAP_DIR, "scripts"), { recursive: true });
+/**
+ * Inject a CFR failure and wait for the orchestrator job to complete.
+ * Returns { wallTimeMs, status, jobId, summary }.
+ */
+async function measurePlug({ capabilityType, capabilityName, plugType, symptom, detail }) {
+  console.log(`\nMeasuring ${capabilityName} (${capabilityType}, ${plugType})...`);
+  console.log(`  Symptom: ${symptom} — ${detail}`);
 
-  writeFileSync(
-    join(TEST_CAP_DIR, "CAPABILITY.md"),
-    `---
-name: S16 Walltime Test
-provides: s16-walltime-test
-interface: script
----
-
-Synthetic test capability for M9.6-S16 wall-time gate measurement.
-This capability always fails its smoke check so fix-mode has real work to do.
-`,
-  );
-
-  const smokeScript = `#!/usr/bin/env bash
-echo "SMOKE FAILED: intentional test failure for S16 wall-time gate" >&2
-exit 1
-`;
-  writeFileSync(join(TEST_CAP_DIR, "scripts", "smoke.sh"), smokeScript, {
-    mode: 0o755,
+  // Inject CFR failure through live orchestrator
+  const fireStart = Date.now();
+  const injectResult = await apiPost("/api/debug/cfr/inject", {
+    capabilityType,
+    capabilityName,
+    symptom,
+    detail,
   });
 
-  console.log(`  Created test capability at: ${TEST_CAP_DIR}`);
-}
+  if (!injectResult.ok) {
+    throw new Error(`CFR inject failed: ${injectResult.error}`);
+  }
 
-function createAutomationManifest(capPath) {
-  const prompt = buildModeFixPrompt(capPath);
-  const manifest = `---
-name: S16 Walltime Fix Test
-status: active
-trigger:
-  - type: manual
-model: opus
-notify: always
-autonomy: medium
-once: true
-system: true
-job_type: capability_modify
-target_path: ${capPath}
-created: ${new Date().toISOString()}
----
+  console.log(`  Failure injected: ${injectResult.failureId}`);
+  console.log(`  Polling for job completion (max 16 min)...`);
 
-${prompt}
-`;
-  const filePath = join(AUTOMATIONS_DIR, `${TEST_AUTOMATION_ID}.md`);
-  writeFileSync(filePath, manifest);
-  console.log(`  Wrote automation manifest: ${filePath}`);
-  return filePath;
-}
-
-async function waitForJobCompletion(automationId) {
+  // Poll for a job associated with this capabilityType to appear and complete.
+  // The orchestrator creates a capability_modify automation job named after the cap.
   const deadline = Date.now() + RUN_TIMEOUT_MS;
   let jobId = null;
+  let jobStatus = null;
+  let jobSummary = null;
 
   while (Date.now() < deadline) {
-    const data = await apiGet(`/api/automations/${automationId}/jobs`);
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+    // List recent jobs and find one for this capability type
+    const data = await apiGet(
+      `/api/jobs?status=&limit=20`,
+    );
     const jobs = data.jobs ?? [];
 
-    if (jobs.length > 0 && !jobId) {
-      jobId = jobs[0].id;
-      console.log(`  Job created: ${jobId}`);
+    // Find the fix-mode job: it will be named after the capability and be recent
+    const recent = jobs.filter((j) => {
+      const name = (j.automationName ?? "").toLowerCase();
+      return (
+        name.includes(capabilityName?.toLowerCase() ?? capabilityType) ||
+        name.includes(capabilityType.replace(/-/g, " "))
+      );
+    });
+
+    if (recent.length > 0 && !jobId) {
+      jobId = recent[0].id;
+      console.log(`  Job found: ${jobId} (${recent[0].automationName})`);
     }
 
-    if (jobs.length > 0) {
-      const job = jobs[0];
-      if (job.status === "completed" || job.status === "failed") {
-        return { jobId: job.id, status: job.status, summary: job.summary };
+    if (jobId) {
+      const job = jobs.find((j) => j.id === jobId);
+      if (job && (job.status === "completed" || job.status === "failed")) {
+        jobStatus = job.status;
+        jobSummary = job.summary;
+        break;
       }
     }
 
     process.stdout.write(".");
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
 
-  return { jobId, status: "timeout", summary: "Timed out after 16 minutes" };
-}
+  const wallTimeMs = Date.now() - fireStart;
 
-function cleanUp(automationFilePath) {
-  try {
-    if (existsSync(automationFilePath)) {
-      rmSync(automationFilePath);
-      console.log(`  Cleaned up: ${automationFilePath}`);
-    }
-  } catch (e) {
-    console.warn(`  Warning: could not remove ${automationFilePath}: ${e.message}`);
+  if (!jobId) {
+    console.log("\n  WARNING: No matching job found within timeout window.");
+    return { wallTimeMs, status: "no-job-found", jobId: null, summary: null };
   }
-  try {
-    if (existsSync(TEST_CAP_DIR)) {
-      rmSync(TEST_CAP_DIR, { recursive: true });
-      console.log(`  Cleaned up test capability: ${TEST_CAP_DIR}`);
-    }
-  } catch (e) {
-    console.warn(`  Warning: could not remove ${TEST_CAP_DIR}: ${e.message}`);
+
+  if (!jobStatus) {
+    console.log("\n  WARNING: Job did not complete within 16 min timeout.");
+    return { wallTimeMs, status: "timeout", jobId, summary: null };
   }
+
+  console.log(`\n  Done. Status: ${jobStatus} | Wall-time: ${Math.round(wallTimeMs / 1000)}s`);
+  if (jobSummary) console.log(`  Summary: ${jobSummary.slice(0, 150)}`);
+
+  return { wallTimeMs, status: jobStatus, jobId, summary: jobSummary };
 }
 
 function gateDecision(wallTimeMs) {
-  const sec = wallTimeMs / 1000;
-  const min = sec / 60;
-  if (min <= 5) return { label: "≤5 min: ship as-is", branch: "A", checked: 0 };
-  if (min <= 10) return { label: "5–10 min: file mitigation proposal", branch: "B", checked: 1 };
-  return { label: ">10 min: escalate to architect", branch: "C", checked: 2 };
+  const min = wallTimeMs / 60000;
+  if (min <= 5) return "A";
+  if (min <= 10) return "B";
+  return "C";
+}
+
+function gateLabel(branch) {
+  return branch === "A"
+    ? "≤5 min: ship as-is"
+    : branch === "B"
+      ? "5–10 min: file mitigation proposal"
+      : ">10 min: escalate to architect";
 }
 
 function writeResults(runs) {
   const rows = runs
     .map(
       (r) =>
-        `| ${r.plug} | ${r.type} | synthetic smoke.sh exit 1 | ${r.wallTimeSec ?? "_timeout_"} | ${r.outcome} | ${r.decision.branch} |`,
+        `| ${r.plugName} | ${r.plugType} | ${r.breakMethod} | ${r.wallTimeSec ?? "timeout"} | ${r.status} | ${r.branch} |`,
     )
     .join("\n");
 
+  const allA = runs.every((r) => r.branch === "A");
+  const anyB = runs.some((r) => r.branch === "B");
+  const anyC = runs.some((r) => r.branch === "C");
+
   const checkboxes = [
-    runs.every((r) => r.decision.branch === "A")
-      ? "- [x] ≤5 min consistently: ship as-is"
-      : "- [ ] ≤5 min consistently: ship as-is",
-    runs.some((r) => r.decision.branch === "B")
-      ? "- [x] 5–10 min consistently: file `proposals/s16-walltime-mitigation.md`, architect picks mitigation"
-      : "- [ ] 5–10 min consistently: file `proposals/s16-walltime-mitigation.md`, architect picks mitigation",
-    runs.some((r) => r.decision.branch === "C")
-      ? "- [x] >10 min consistently: escalate — may need architectural change"
-      : "- [ ] >10 min consistently: escalate — may need architectural change",
+    `- [${allA ? "x" : " "}] ≤5 min consistently: ship as-is`,
+    `- [${anyB ? "x" : " "}] 5–10 min consistently: file \`proposals/s16-walltime-mitigation.md\`, architect picks mitigation`,
+    `- [${anyC ? "x" : " "}] >10 min consistently: escalate — may need architectural change`,
   ].join("\n");
 
   const plugList = readdirSync(CAPABILITIES_DIR, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && e.name !== TEST_CAP_ID)
+    .filter((e) => e.isDirectory() && !e.name.includes("walltime-test"))
     .filter((e) => existsSync(join(CAPABILITIES_DIR, e.name, "scripts", "smoke.sh")))
     .map((e) => `- \`${e.name}\``)
     .join("\n");
+
+  const overallBranch =
+    anyC ? "C" : anyB ? "B" : "A";
 
   const content = `---
 sprint: M9.6-S16
 gate: wall-time measurement
 generated: ${new Date().toISOString()}
+overall_branch: ${overallBranch}
 ---
 
 # S16 Wall-Time Results
 
 **Gate:** plan-phase3-refinements.md §2.1 / design §6.3
 
-## Plugs found at measurement time (real)
+## Plugs found at measurement time
 
 ${plugList}
 
@@ -244,10 +207,15 @@ ${checkboxes}
 
 ## Measurement method
 
-Synthetic test capability (\`s16-walltime-test-cap\`) with \`smoke.sh exit 1\` was created
-temporarily. A MODE:FIX automation was written to \`.my_agent/automations/\` and fired via
-\`POST /api/automations/:id/fire\`. Wall-time measured from fire request to job
-\`completed\`/\`failed\` status in \`GET /api/automations/:id/jobs\`.
+Two real plugs were surgically broken and measured end-to-end through the live
+recovery orchestrator via \`POST /api/debug/cfr/inject\` (M9.6-S16 Path B endpoint).
+
+- \`tts-edge-tts\`: voice name in \`config.yaml\` changed to \`en-XX-BrokenVoiceXXX\` (invalid voice)
+- \`browser-chrome\`: entrypoint in \`CAPABILITY.md\` changed to \`src/server-broken-s16-test.ts\` (missing file)
+
+Wall-time measured from \`cfr.emitFailure()\` call to job \`completed\`/\`failed\` status,
+exercising the full \`spawnAutomation\` → automation executor → orchestrator path.
+Plugs restored to original state after measurement (backups at \`*.bak\`).
 `;
 
   writeFileSync(RESULTS_PATH, content);
@@ -255,69 +223,67 @@ temporarily. A MODE:FIX automation was written to \`.my_agent/automations/\` and
 }
 
 async function main() {
-  console.log("M9.6-S16 wall-time gate measurement\n");
+  console.log("M9.6-S16 wall-time gate measurement (real plugs, CFR inject path)\n");
 
-  if (!(await checkDashboardRunning())) {
-    console.error(
-      "Dashboard not running on port 4321.\n" +
-        "Start with: systemctl --user start nina-dashboard.service",
-    );
+  if (!(await checkDashboard())) {
+    console.error("Dashboard not running on port 4321.");
     process.exit(1);
   }
-  console.log("Dashboard: online\n");
+  console.log("Dashboard: online");
 
-  // Create test capability
-  console.log("Step 1: Creating synthetic test capability...");
-  createTestCapability();
-
-  // Create automation manifest
-  console.log("\nStep 2: Creating MODE:FIX automation manifest...");
-  const automationFilePath = createAutomationManifest(TEST_CAP_DIR);
-
-  // Fire via HTTP
-  console.log("\nStep 3: Firing automation via HTTP...");
-  const startMs = Date.now();
-  const fireResult = await apiPost(
-    `/api/automations/${TEST_AUTOMATION_ID}/fire`,
-    {},
-  );
-  console.log(`  Fire response: ${JSON.stringify(fireResult)}`);
-
-  if (!fireResult.ok) {
-    console.error("  Fire failed — check automation manifest format");
-    cleanUp(automationFilePath);
-    process.exit(1);
-  }
-
-  // Poll for completion
-  console.log("\nStep 4: Polling for job completion (max 16 min)...");
-  const result = await waitForJobCompletion(TEST_AUTOMATION_ID);
-  const wallTimeMs = Date.now() - startMs;
-  const wallTimeSec = Math.round(wallTimeMs / 1000);
-  console.log(`\n  Status: ${result.status} | Wall-time: ${wallTimeSec}s`);
-  if (result.summary) console.log(`  Summary: ${result.summary}`);
-
-  const decision = gateDecision(wallTimeMs);
-  console.log(`  Gate: ${decision.label}`);
-
-  // Clean up
-  console.log("\nStep 5: Cleaning up...");
-  cleanUp(automationFilePath);
-
-  // Write results
-  const runs = [
+  // Two plugs: one script type, one MCP type
+  const PLUGS = [
     {
-      plug: TEST_CAP_ID,
-      type: "synthetic (script)",
-      wallTimeSec: result.status === "timeout" ? null : wallTimeSec,
-      outcome: result.status,
-      decision,
+      capabilityType: "text-to-audio",
+      capabilityName: "tts-edge-tts",
+      plugType: "script",
+      symptom: "execution-error",
+      detail:
+        'edge-tts failed: ValueError: "en-XX-BrokenVoiceXXX" is not a valid voice',
+      breakMethod: 'config.yaml voice → "en-XX-BrokenVoiceXXX"',
+    },
+    {
+      capabilityType: "browser-control",
+      capabilityName: "browser-chrome",
+      plugType: "mcp",
+      symptom: "not-installed",
+      detail:
+        "entrypoint src/server-broken-s16-test.ts not found; npx tsx exited with code 1",
+      breakMethod: "CAPABILITY.md entrypoint → missing file",
     },
   ];
+
+  const runs = [];
+
+  for (const plug of PLUGS) {
+    const { wallTimeMs, status } = await measurePlug(plug);
+    const branch = gateDecision(wallTimeMs);
+    runs.push({
+      plugName: plug.capabilityName,
+      plugType: plug.plugType,
+      breakMethod: plug.breakMethod,
+      wallTimeSec: Math.round(wallTimeMs / 1000),
+      status,
+      branch,
+    });
+    console.log(`  Gate decision: Branch ${branch} — ${gateLabel(branch)}`);
+  }
+
   writeResults(runs);
 
-  console.log("\nDone.");
-  console.log(`Gate decision: ${decision.label} (Branch ${decision.branch})`);
+  console.log("\n=== Summary ===");
+  for (const r of runs) {
+    console.log(
+      `  ${r.plugName}: ${r.wallTimeSec}s — Branch ${r.branch} (${gateLabel(r.branch)})`,
+    );
+  }
+
+  const overall = runs.some((r) => r.branch === "C")
+    ? "C"
+    : runs.some((r) => r.branch === "B")
+      ? "B"
+      : "A";
+  console.log(`\nOverall: Branch ${overall} — ${gateLabel(overall)}`);
 }
 
 main().catch((err) => {
