@@ -9,12 +9,8 @@
  */
 
 import { EventEmitter } from "node:events";
-import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { randomUUID } from "node:crypto";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import type { AppEventMap } from "./app-events.js";
 import { writeFrontmatter } from "./metadata/frontmatter.js";
 import { ensureDecisionsFile } from "./spaces/decisions.js";
@@ -962,9 +958,7 @@ export class App extends EventEmitter {
         return new MockTransportPlugin();
       });
       app.transportManager.registerPlugin("baileys", (cfg) => {
-        const plugin = createBaileysPlugin({ ...cfg, agentDir });
-        wireAudioCallbacks(plugin, app);
-        return plugin;
+        return createBaileysPlugin({ ...cfg, agentDir });
       });
 
       // ChannelMessageHandler needs connectionRegistry for WS broadcasts.
@@ -2335,47 +2329,4 @@ export class App extends EventEmitter {
   ): this {
     return super.on(event as string, listener as (...args: unknown[]) => void);
   }
-}
-
-// ─────────────────────────────────────────────────────────────────
-// Audio callback wiring (WhatsApp voice notes ↔ capability registry)
-// ─────────────────────────────────────────────────────────────────
-
-const execFileAsync = promisify(execFile);
-
-function wireAudioCallbacks(plugin: BaileysPlugin, app: App): void {
-  // STT removed — transcription now happens in sendMessage() via capability
-  // onAudioMessage callback no longer needed
-
-  // TTS: synthesize voice replies
-  plugin.onSendVoiceReply = async (text: string, _jid: string, language?: string) => {
-    const cap = app.capabilityRegistry?.get("text-to-audio");
-    if (!cap || cap.status !== "available") return null;
-
-    const { prepareForSpeech } = await import("./chat/chat-service.js");
-    const spokenText = prepareForSpeech(text);
-    if (!spokenText.trim()) return null;
-
-    const scriptPath = join(cap.path, "scripts", "synthesize.sh");
-    const outputDir = join(tmpdir(), "wa-tts");
-    mkdirSync(outputDir, { recursive: true });
-    const outputFile = join(outputDir, `tts-${randomUUID()}.ogg`);
-
-    try {
-      const args = [spokenText, outputFile];
-      if (language) args.push(language);
-      await execFileAsync(scriptPath, args, { timeout: 30000 });
-      const buffer = readFileSync(outputFile);
-      try {
-        unlinkSync(outputFile);
-      } catch {}
-      return buffer;
-    } catch (err: unknown) {
-      console.warn(
-        "[WhatsApp] Voice reply synthesis failed:",
-        err instanceof Error ? err.message : String(err),
-      );
-      return null;
-    }
-  };
 }

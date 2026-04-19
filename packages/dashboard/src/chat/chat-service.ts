@@ -1091,21 +1091,9 @@ export class AppChatService {
   }
 
   /**
-   * Synthesize audio via the TTS capability script.
-   * Returns the audio file path or null.
-   *
-   * TODO(S15/S18): route through CapabilityInvoker so TTS failures emit CFR.
-   * Deferred per plan-phase2-coverage.md §2.2 — S15 may pre-wire if exit gate
-   * needs it; S18 (Phase 3, "Duplicate TTS path collapse") formalizes.
-   */
-  /**
-   * Synthesize audio via the TTS capability script.
+   * Synthesize audio via the TTS capability invoker.
    * Returns the audio URL path or null.
-   *
-   * Routed through CapabilityInvoker (M9.6-S15) so TTS failures emit CFR
-   * automatically. Falls back to silent null return when capabilityInvoker
-   * is not wired (unit tests, hatching). S18 (Phase 3 "Duplicate TTS path
-   * collapse") will formalize the full authoritative path.
+   * Falls back to null when capabilityInvoker is not wired (unit tests, hatching).
    */
   private async synthesizeAudio(
     text: string,
