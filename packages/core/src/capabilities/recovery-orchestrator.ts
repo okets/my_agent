@@ -292,6 +292,12 @@ export class RecoveryOrchestrator {
       while (session.attemptNumber <= 3) {
         const attemptResult = await this.runOneAttempt(session, failure);
 
+        if (attemptResult.escalate) {
+          // ESCALATE: marker — skip remaining attempts and surrender with the pre-set reason.
+          await this.surrender(session, failure);
+          return;
+        }
+
         if (attemptResult.recovered) {
           if (attemptResult.recoveredContent !== undefined) {
             // Reprocess path (STT): re-run the user's turn with recovered content.
@@ -347,7 +353,7 @@ export class RecoveryOrchestrator {
   private async runOneAttempt(
     session: FixSession,
     failure: CapabilityFailure,
-  ): Promise<{ recovered: boolean; recoveredContent?: string }> {
+  ): Promise<{ recovered: boolean; recoveredContent?: string; escalate?: boolean }> {
     const attemptStartedAt = this.deps.now();
 
     // Build fix-mode invocation prompt
@@ -394,6 +400,18 @@ export class RecoveryOrchestrator {
     const deliverable = this.readDeliverable(executeJobId);
     const hypothesis = deliverable?.frontmatter.summary ?? "(no deliverable)";
     const change = deliverable?.body.slice(0, 500) ?? "";
+
+    // ESCALATE: marker — fix-mode signals that the problem requires redesign or lacks context.
+    // Skip reverify and remaining attempts; surrender immediately with the appropriate reason.
+    if (deliverable?.body && deliverable.body.trimStart().startsWith("ESCALATE:")) {
+      const firstLine = deliverable.body.trimStart().split("\n")[0] ?? "";
+      if (firstLine.includes("redesign-needed")) {
+        session.surrenderReason = "redesign-needed";
+      } else if (firstLine.includes("insufficient-context")) {
+        session.surrenderReason = "insufficient-context";
+      }
+      return { recovered: false, escalate: true };
+    }
 
     if (!executeSuccess) {
       // Execute failed — record attempt, skip reflect
@@ -595,7 +613,10 @@ export class RecoveryOrchestrator {
     );
 
     const terminalAckKind: AckKind =
-      session.surrenderReason === "budget" ? "surrender-budget" : "surrender";
+      session.surrenderReason === "budget" ? "surrender-budget" :
+      session.surrenderReason === "redesign-needed" ? "surrender-redesign-needed" :
+      session.surrenderReason === "insufficient-context" ? "surrender-insufficient-context" :
+      "surrender";
 
     // Step 3: automation origins — durable record, then terminal ack.
     for (const origin of automationOrigins) {
