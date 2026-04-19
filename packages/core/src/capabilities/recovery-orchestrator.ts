@@ -77,8 +77,8 @@ export interface OrchestratorDeps {
 
 // ─── Internal ─────────────────────────────────────────────────────────────────
 
-/** Max time to wait for a single automation job (10 minutes) */
-const JOB_TIMEOUT_MS = 10 * 60 * 1000;
+/** Max time to wait for a single automation job (15 minutes — cold Opus on unfamiliar plug: 5–12 min) */
+const JOB_TIMEOUT_MS = 15 * 60 * 1000;
 
 /** Surrender cooldown: 10 minutes in ms */
 const SURRENDER_COOLDOWN_MS = 10 * 60 * 1000;
@@ -350,8 +350,9 @@ export class RecoveryOrchestrator {
   ): Promise<{ recovered: boolean; recoveredContent?: string }> {
     const attemptStartedAt = this.deps.now();
 
-    // Build execute prompt from template
-    const executePrompt = this.renderPrompt(failure, session);
+    // Build fix-mode invocation prompt
+    const cap = this.deps.capabilityRegistry.get(failure.capabilityType);
+    const fixPrompt = this.buildFixModeInvocation(failure, session, cap?.path);
 
     // Budget check before spawning execute job (M9.6-S6 D3: tag the session so
     // surrender() knows this was a budget-exhaustion bail, not a 3-attempts bail).
@@ -360,16 +361,17 @@ export class RecoveryOrchestrator {
       return { recovered: false };
     }
 
-    // Spawn execute-phase automation (Sonnet)
+    // Spawn fix-phase automation (Opus — routes to MODE: FIX path in capability-brainstorming)
     let executeJobId: string;
     let executeAutomationId: string;
     try {
       const spawned = await this.deps.spawnAutomation({
         name: `cfr-fix-${failure.capabilityType}-a${session.attemptNumber}-exec-${randomUUID().slice(0, 8)}`,
-        model: "sonnet",
+        model: "opus",
         autonomy: "standard",
-        prompt: executePrompt,
+        prompt: fixPrompt,
         jobType: "capability_modify",
+        targetPath: cap?.path,
         parent: session.executeJobId
           ? { jobId: session.executeJobId, iteration: session.attemptNumber }
           : undefined,
@@ -699,65 +701,48 @@ export class RecoveryOrchestrator {
   }
 
   /**
-   * Render the execute-phase prompt from the template.
-   * Uses simple string replacement for {{placeholders}}.
+   * Build the fix-mode invocation prompt for the capability-brainstorming skill.
+   * Prompt begins with "MODE: FIX" so Step 0 of the skill routes to the fix-only path.
+   * Cold Opus run on an unfamiliar plug is projected at 5–12 min — JOB_TIMEOUT_MS is 15 min.
    */
-  private renderPrompt(failure: CapabilityFailure, session: FixSession): string {
+  private buildFixModeInvocation(
+    failure: CapabilityFailure,
+    session: FixSession,
+    capPath: string | undefined,
+  ): string {
     const { capabilityType, capabilityName, symptom, detail, previousAttempts } = failure;
 
-    const previousAttemptsMarkdown =
-      previousAttempts.length === 0 && session.attempts.length === 0
+    const allAttempts = [...previousAttempts, ...session.attempts];
+    const attemptsSection =
+      allAttempts.length === 0
         ? "_No previous attempts._"
-        : [...previousAttempts, ...session.attempts]
+        : `| Attempt | Hypothesis | Result | Failure mode |\n|---|---|---|---|\n` +
+          allAttempts
             .map(
               (a) =>
-                `### Attempt ${a.attempt}\n` +
-                `- **Hypothesis:** ${a.hypothesis}\n` +
-                `- **Change made:** ${a.change}\n` +
-                `- **Verification result:** ${a.verificationResult}\n` +
-                `- **Failure mode:** ${a.failureMode ?? "—"}\n` +
-                `- **Next hypothesis:** ${a.nextHypothesis ?? "—"}`,
+                `| ${a.attempt} | ${a.hypothesis} | ${a.verificationResult} | ${a.failureMode ?? "—"} |`,
             )
-            .join("\n\n");
+            .join("\n");
 
-    const allAttempts = [...previousAttempts, ...session.attempts];
+    const capDirLine = capPath
+      ? `- **Capability folder:** \`${capPath}\``
+      : `- **Capability folder:** (not found in registry — try \`.my_agent/capabilities/${capabilityName ?? capabilityType}\` if it exists)`;
 
-    return `# Fix Automation — ${capabilityType} (Attempt ${session.attemptNumber}/3)
+    return `MODE: FIX
+
+You have been invoked by the recovery orchestrator because a capability failed.
 
 ## Failure Context
 
+${capDirLine}
 - **Capability:** ${capabilityName ?? capabilityType} (type: ${capabilityType})
 - **Symptom:** ${symptom}
 - **Detail:** ${detail ?? "—"}
+- **Attempt:** ${session.attemptNumber}/3
 
 ## Previous Attempts
 
-${previousAttemptsMarkdown}
-
-## Your Task
-
-Diagnose and fix the ${capabilityType} capability. The fix has failed ${allAttempts.length} time(s). Use the previous attempt history above to form a better hypothesis.
-
-## Constraints — READ CAREFULLY
-
-1. **Do NOT run \`systemctl\`, \`service\`, \`pkill\`, or any process-management command.** The framework hot-reloads capabilities when their files change. A restart is never the right fix.
-2. **Do NOT read from \`<agentDir>/conversations/\`**. The orchestrator handles re-verification against the user's actual data. Your job is to fix the capability so it works.
-3. **Your smoke test uses a synthetic fixture** in \`packages/core/tests/fixtures/capabilities/\`. The orchestrator will run the real re-verification after you finish.
-4. **Do NOT declare success based on configuration checks alone.** Run the actual script against the fixture and confirm it produces valid output.
-
-## Required Deliverables
-
-Write \`deliverable.md\` in your run directory with YAML frontmatter:
-
----
-change_type: config | script | deps | env
-test_result: pass | fail
-surface_required_for_hotreload: false
-hypothesis_confirmed: true | false
-summary: one-line description of what you changed
----
-
-Then the body: what you changed, what the test showed, what the next hypothesis should be if it failed.`;
+${attemptsSection}`;
   }
 
   /**
