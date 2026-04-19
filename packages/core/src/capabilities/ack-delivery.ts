@@ -124,7 +124,13 @@ export interface DeliveryContext {
 
 /** Kinds that mark a terminal transition (end of the fix loop). */
 function isTerminalKind(kind: AckKind | undefined): boolean {
-  return kind === "surrender" || kind === "surrender-budget" || kind === "terminal-fixed";
+  return (
+    kind === "surrender" ||
+    kind === "surrender-budget" ||
+    kind === "surrender-redesign-needed" ||
+    kind === "surrender-insufficient-context" ||
+    kind === "terminal-fixed"
+  );
 }
 
 /**

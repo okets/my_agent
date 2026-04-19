@@ -773,7 +773,12 @@ export class App extends EventEmitter {
           // (M9.6-S5) does not re-drive this turn on the next boot.
           // surrender-cooldown does NOT write a new event — the original surrender
           // already wrote one. Writing again would be noise (S6-FU3).
-          if (kind === "surrender" || kind === "surrender-budget") {
+          if (
+            kind === "surrender" ||
+            kind === "surrender-budget" ||
+            kind === "surrender-redesign-needed" ||
+            kind === "surrender-insufficient-context"
+          ) {
             const _surrenderOrigin = failure.triggeringInput.origin;
             // M9.6-S12 Task 6d: non-conversation origins have no conversation
             // to attach a `capability_surrender` event to — their durable
@@ -791,7 +796,11 @@ export class App extends EventEmitter {
                 capabilityType: failure.capabilityType,
                 conversationId,
                 turnNumber,
-                reason: kind === "surrender-budget" ? "budget-exhausted" : "max-attempts",
+                reason:
+                  kind === "surrender-budget" ? "budget-exhausted" :
+                  kind === "surrender-redesign-needed" ? "redesign-needed" :
+                  kind === "surrender-insufficient-context" ? "insufficient-context" :
+                  "max-attempts",
                 surrenderedAt: new Date().toISOString(),
               });
             } catch (err) {
