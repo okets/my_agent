@@ -159,6 +159,7 @@ export async function scanCapabilities(
         iconSlug: data.icon,
         fallbackAction: data.fallback_action,    // S14
         multiInstance: data.multi_instance,      // S14
+        friendlyName: data.friendly_name,        // S19
       }
 
       if (allMissing.length > 0) {

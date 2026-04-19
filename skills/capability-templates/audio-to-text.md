@@ -4,6 +4,7 @@ type: audio-to-text
 provides: audio-to-text
 fallback_action: "could you resend as text"
 multi_instance: false
+friendly_name: "voice transcription"
 ---
 
 # Audio-to-Text Capability Template

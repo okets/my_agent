@@ -16,6 +16,17 @@ function makeRegistry(multiInstanceTypes: string[], fallback = "try again in a m
   return {
     isMultiInstance: (type: string) => multiInstanceTypes.includes(type),
     getFallbackAction: () => fallback,
+    getFriendlyName: (type: string) => {
+      const NAMES: Record<string, string> = {
+        "audio-to-text": "voice transcription",
+        "image-to-text": "image understanding",
+        "text-to-audio": "voice reply",
+        "text-to-image": "image generation",
+        "browser-control": "browser",
+        "desktop-control": "desktop control",
+      };
+      return NAMES[type] ?? type;
+    },
   } as unknown as CapabilityRegistry;
 }
 

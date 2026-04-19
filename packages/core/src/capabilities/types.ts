@@ -31,6 +31,7 @@ export interface Capability {
   iconSlug?: string
   fallbackAction?: string   // sourced from fallback_action frontmatter (S14)
   multiInstance?: boolean   // sourced from multi_instance frontmatter (S14)
+  friendlyName?: string     // sourced from friendly_name frontmatter (S19)
 }
 
 /**
@@ -65,4 +66,5 @@ export interface CapabilityFrontmatter {
   }
   fallback_action?: string  // e.g. "could you resend as text" (S14)
   multi_instance?: boolean  // true → instance name appended in ack copy (S14)
+  friendly_name?: string    // e.g. "voice transcription" (S19)
 }
