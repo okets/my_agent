@@ -175,30 +175,21 @@ describe("RecoveryOrchestrator — surrender scope", () => {
 });
 
 describe("RecoveryOrchestrator — job budget", () => {
-  it("no more than 5 automation jobs are spawned across 3 attempts (execute + reflect = 2 per attempt)", async () => {
+  it("no more than 4 automation jobs are spawned across 3 attempts (1 execute per attempt)", async () => {
+    // S17: reflect removed. Each attempt = 1 execute job. MAX_JOBS=4. In practice: 3 spawns.
     let spawnCount = 0;
     const spawnAutomation = vi.fn().mockImplementation(async (_spec: AutomationSpec) => {
       spawnCount++;
       return { jobId: `j-${spawnCount}`, automationId: `a-${spawnCount}` };
     });
 
-    const awaitAutomation = vi.fn().mockImplementation(async (jobId: string) => {
-      // execute jobs succeed, reflect jobs also succeed
-      return { status: "done" } as AutomationResult;
-    });
-
-    // Reverify always fails so we iterate
-    const mockRegistry = {
-      get: vi.fn().mockReturnValue({ status: "available", path: "/fake", provides: "audio-to-text" }),
-    } as unknown as CapabilityRegistry;
+    // All execute jobs succeed (status "done") but reverify always fails (nonexistent cap path).
+    const awaitAutomation = vi.fn().mockResolvedValue({ status: "done" } as AutomationResult);
 
     const mockWatcher = {
       rescanNow: vi.fn().mockResolvedValue([]),
     } as unknown as CapabilityWatcher;
 
-    // Patch: make reverify fail (capability unavailable from registry.get perspective for actual script)
-    // We'll mock the whole registry.get to return something that passes availability but fails script execution
-    // by pointing to a nonexistent script path
     const deps = makeDeps({
       spawnAutomation,
       awaitAutomation,
@@ -216,6 +207,7 @@ describe("RecoveryOrchestrator — job budget", () => {
     const orchestrator = new RecoveryOrchestrator(deps);
     await orchestrator.handle(makeFailure());
 
-    expect(spawnCount).toBeLessThanOrEqual(5);
+    expect(spawnCount).toBeLessThanOrEqual(4);
+    expect(spawnCount).toBe(3);
   });
 });

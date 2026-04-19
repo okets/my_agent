@@ -55,7 +55,7 @@ export interface FixAttempt {
   nextHypothesis?: string;
   jobId: string; // the automation job UUID
   modelUsed: "opus" | "sonnet";
-  phase: "execute" | "reflect";
+  phase: "execute";
 }
 
 export interface CapabilityFailure {
