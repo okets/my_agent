@@ -89,32 +89,39 @@ describe.skipIf(!dashboardAvailable)(
         (e) => e.includes("calendar") || e.includes("FullCalendar"),
       );
       expect(calendarErrors).toHaveLength(0);
-    });
+
+      // FullCalendar's initialisation blocks the page JS thread for several
+      // seconds. Wait here until JS is responsive again so the next test
+      // doesn't hang on every page interaction.
+      await page.waitForFunction(() => true, { timeout: 30_000 });
+    }, 30_000);
 
     it("settings tab shows automation schedule editor", async () => {
-      // Navigate to settings
-      const settingsTab = page.locator(
-        '[data-tab="settings"], [x-on\\:click*="settings"], button:has-text("Settings")',
-      );
-      if ((await settingsTab.count()) > 0) {
-        await settingsTab.first().click();
-        await page.waitForTimeout(1000);
-      }
-
-      // Take screenshot
-      await page.screenshot({
-        path: join(SCREENSHOT_DIR, "settings-tab.png"),
-        fullPage: true,
+      // Open a fresh page — FullCalendar's deferred init blocks the shared
+      // page's JS thread for ~15 s after the calendar test, so we isolate.
+      const freshPage = await browser.newPage({
+        viewport: { width: 1280, height: 800 },
       });
+      await freshPage.goto(DASHBOARD_URL, { waitUntil: "domcontentloaded" });
+      await freshPage.waitForTimeout(2000); // Alpine init
 
-      // Verify automation-related content exists
-      const pageText = await page.textContent("body");
-      expect(pageText).toBeTruthy();
+      try {
+        // Navigate to settings
+        const settingsTab = freshPage.locator(
+          '[data-tab="settings"], [x-on\\:click*="settings"], button:has-text("Settings")',
+        );
+        if ((await settingsTab.count()) > 0) {
+          await settingsTab.first().click();
+          await freshPage.waitForTimeout(1000);
+        }
 
-      // Verify no old work-patterns section
-      const workPatterns = page.locator('text="Work Patterns"');
-      expect(await workPatterns.count()).toBe(0);
-    });
+        // Verify no old work-patterns section
+        const workPatterns = freshPage.locator('text="Work Patterns"');
+        expect(await workPatterns.count()).toBe(0);
+      } finally {
+        await freshPage.close();
+      }
+    }, 15_000);
 
     it("automation detail shows job history", async () => {
       // Navigate back to home/automations

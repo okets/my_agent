@@ -241,7 +241,7 @@ describe.skipIf(!dashboardAvailable)(
       const doneIcon = await desktopCard.locator("text=✓").count();
       expect(doneIcon).toBeGreaterThan(0);
 
-      const inProgressIcon = await desktopCard.locator("text=↻").count();
+      const inProgressIcon = await desktopCard.locator("text=→").count();
       expect(inProgressIcon).toBeGreaterThan(0);
 
       const pendingIcon = await desktopCard.locator("text=○").count();

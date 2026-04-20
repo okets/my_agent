@@ -63,15 +63,15 @@ describe("Progress card — template structure", () => {
   });
 
   it("uses correct status colors from design spec", () => {
-    expect(progressCardJs).toContain("text-green-400/60");
-    expect(progressCardJs).toContain("text-blue-400");
+    expect(progressCardJs).toContain("text-green-400");
+    expect(progressCardJs).toContain("text-red-400");
     expect(progressCardJs).toContain("text-orange-400/60");
     expect(progressCardJs).toContain("text-gray-500");
   });
 
   it("uses correct status icons", () => {
     expect(progressCardJs).toContain("\\u2713");   // ✓
-    expect(progressCardJs).toContain("\\u21bb");   // ↻
+    expect(progressCardJs).toContain("\\u2192");   // → (in_progress, M9.4-S6)
     expect(progressCardJs).toContain("\\u2298");   // ⊘
     expect(progressCardJs).toContain("\\u25cb");   // ○
   });
