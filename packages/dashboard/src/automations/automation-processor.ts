@@ -43,11 +43,21 @@ export interface AutomationProcessorConfig {
       | { status: "delivered" }
       | { status: "no_conversation" }
       | { status: "transport_failed"; reason: string }
+      | { status: "skipped_busy" }
+      | { status: "send_failed"; reason: string }
     >;
     initiate(options?: {
       firstTurnPrompt?: string;
       channel?: string;
-    }): Promise<unknown>;
+    }): Promise<{
+      conversation: unknown;
+      delivery:
+        | { status: "delivered" }
+        | { status: "no_conversation" }
+        | { status: "transport_failed"; reason: string }
+        | { status: "skipped_busy" }
+        | { status: "send_failed"; reason: string };
+    }>;
   } | null;
   /** Called after a failure alert is delivered — for collision suppression with conversation watchdog */
   onAlertDelivered?: () => void;
@@ -293,13 +303,22 @@ export class AutomationProcessor {
       if (result.status === "delivered") {
         this.config.onAlertDelivered?.();
       } else if (result.status === "no_conversation") {
-        await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
-        this.config.onAlertDelivered?.();
+        const init = await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+        if (init.delivery.status === "delivered") {
+          this.config.onAlertDelivered?.();
+        } else {
+          const reason =
+            "reason" in init.delivery ? init.delivery.reason : init.delivery.status;
+          console.warn(
+            `[AutomationProcessor] Alert for job ${jobId} initiate-fallback deferred: ${reason}`,
+          );
+        }
       } else {
-        // transport_failed — no queue configured in this fallback path, so
-        // there's nothing to retry against. Log and move on.
+        // transport_failed / skipped_busy / send_failed — no queue configured
+        // in this fallback path, so there's nothing to retry against. Log and move on.
+        const reason = "reason" in result ? result.reason : result.status;
         console.warn(
-          `[AutomationProcessor] Alert for job ${jobId} deferred: ${result.reason}`,
+          `[AutomationProcessor] Alert for job ${jobId} deferred: ${reason}`,
         );
       }
     } catch {

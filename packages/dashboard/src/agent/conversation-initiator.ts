@@ -66,7 +66,22 @@ export interface ConversationInitiatorOptions {
 export type AlertResult =
   | { status: "delivered" }
   | { status: "no_conversation" }
-  | { status: "transport_failed"; reason: string };
+  | { status: "transport_failed"; reason: string }
+  | { status: "skipped_busy" }
+  | { status: "send_failed"; reason: string };
+
+/**
+ * Outcome of `initiate()`. The new conversation is created regardless of
+ * delivery outcome (so the caller always has a Conversation to reference),
+ * but `delivery` carries the same never-lie semantics as `alert()`:
+ * `delivered` only when the model actually produced a `done` event and any
+ * external channel forward succeeded. Added M9.4-S4.1 FU-7 to close the
+ * delivery-ack gap on the fresh-install / channel-switch paths.
+ */
+export type InitiateResult = {
+  conversation: Conversation;
+  delivery: AlertResult;
+};
 
 const DEFAULT_THRESHOLD_MINUTES = 15;
 
@@ -121,14 +136,19 @@ export class ConversationInitiator {
 
     // Web delivery: no external transport involved, no forward.
     if (!targetChannel || targetChannel === "web") {
-      for await (const _event of this.chatService.sendSystemMessage(
+      let sawDone = false;
+      let errorMsg: string | undefined;
+      for await (const event of this.chatService.sendSystemMessage(
         current.id,
         prompt,
         (current.turnCount ?? 0) + 1,
         { triggerJobId: options?.triggerJobId },
       )) {
-        // consume events (turn saving + broadcasting handled by sendSystemMessage)
+        if (event.type === "done") sawDone = true;
+        else if (event.type === "error") errorMsg = event.message;
       }
+      if (errorMsg) return { status: "send_failed", reason: errorMsg };
+      if (!sawDone) return { status: "skipped_busy" };
       return { status: "delivered" };
     }
 
@@ -156,15 +176,20 @@ export class ConversationInitiator {
     if (!isSameChannel) {
       // Channel switch — new conversation on the presence-rule target, NOT
       // on the preferred channel. Pass the channel explicitly so initiate()
-      // doesn't silently fall back to `getOutboundChannel()`.
-      await this.initiate({
+      // doesn't silently fall back to `getOutboundChannel()`. Propagate
+      // initiate()'s delivery outcome as this alert's result — so a busy/
+      // errored session during channel-switch initiation doesn't silently
+      // mark the notification delivered (FU-7).
+      const { delivery } = await this.initiate({
         firstTurnPrompt: `[SYSTEM: ${prompt}]`,
         channel: targetChannel,
       });
-      return { status: "delivered" };
+      return delivery;
     }
 
     let response = "";
+    let sawDone = false;
+    let errorMsg: string | undefined;
     for await (const event of this.chatService.sendSystemMessage(
       current.id,
       prompt,
@@ -173,8 +198,14 @@ export class ConversationInitiator {
     )) {
       if (event.type === "text_delta" && event.text) {
         response += event.text;
+      } else if (event.type === "done") {
+        sawDone = true;
+      } else if (event.type === "error") {
+        errorMsg = event.message;
       }
     }
+    if (errorMsg) return { status: "send_failed", reason: errorMsg };
+    if (!sawDone) return { status: "skipped_busy" };
     const forward = await this.forwardToChannel(response, targetChannel);
     if (!forward.delivered) {
       return {
@@ -196,7 +227,7 @@ export class ConversationInitiator {
   async initiate(options?: {
     firstTurnPrompt?: string;
     channel?: string;
-  }): Promise<Conversation> {
+  }): Promise<InitiateResult> {
     const { ownerJid, resolvedChannelId } = this.resolveOutboundInfo(
       options?.channel,
     );
@@ -223,7 +254,11 @@ export class ConversationInitiator {
       options?.firstTurnPrompt ||
       "[SYSTEM: You are reaching out to the user proactively. You are the conversation layer — explain briefly why you're messaging them. If you don't have a specific reason, let them know you're available.]";
 
+    // Observe delivery outcome — same never-lie semantics as alert(). See
+    // InitiateResult doc and M9.4-S4.1 FU-7.
     let response = "";
+    let sawDone = false;
+    let errorMsg: string | undefined;
     for await (const event of this.chatService.sendSystemMessage(
       conv.id,
       prompt,
@@ -232,14 +267,34 @@ export class ConversationInitiator {
     )) {
       if (event.type === "text_delta" && event.text) {
         response += event.text;
+      } else if (event.type === "done") {
+        sawDone = true;
+      } else if (event.type === "error") {
+        errorMsg = event.message;
       }
     }
 
-    if (response && resolvedChannelId) {
-      await this.forwardToChannel(response, resolvedChannelId);
+    if (errorMsg) {
+      return { conversation: conv, delivery: { status: "send_failed", reason: errorMsg } };
+    }
+    if (!sawDone) {
+      return { conversation: conv, delivery: { status: "skipped_busy" } };
     }
 
-    return conv;
+    if (response && resolvedChannelId) {
+      const forward = await this.forwardToChannel(response, resolvedChannelId);
+      if (!forward.delivered) {
+        return {
+          conversation: conv,
+          delivery: {
+            status: "transport_failed",
+            reason: forward.reason ?? "forward failed",
+          },
+        };
+      }
+    }
+
+    return { conversation: conv, delivery: { status: "delivered" } };
   }
 
   // === Private helpers ===

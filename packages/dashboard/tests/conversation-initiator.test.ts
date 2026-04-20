@@ -520,7 +520,7 @@ describe("ConversationInitiator", () => {
         getOutboundChannel: () => "web",
       });
 
-      const conv = await initiator.initiate();
+      const { conversation: conv } = await initiator.initiate();
       expect(conv).toBeTruthy();
       expect(conv.id).toMatch(/^conv-/);
       expect(chatService.calls).toHaveLength(1);
@@ -573,7 +573,7 @@ describe("ConversationInitiator", () => {
         getOutboundChannel: () => "web",
       });
 
-      const newConv = await initiator.initiate();
+      const { conversation: newConv } = await initiator.initiate();
       expect(newConv.id).not.toBe(existing.id);
       const old = await manager.get(existing.id);
       expect(old!.status).toBe("inactive");

@@ -77,11 +77,21 @@ export interface HeartbeatConfig {
       | { status: "delivered" }
       | { status: "no_conversation" }
       | { status: "transport_failed"; reason: string }
+      | { status: "skipped_busy" }
+      | { status: "send_failed"; reason: string }
     >;
     initiate(options?: {
       firstTurnPrompt?: string;
       channel?: string;
-    }): Promise<unknown>;
+    }): Promise<{
+      conversation: unknown;
+      delivery:
+        | { status: "delivered" }
+        | { status: "no_conversation" }
+        | { status: "transport_failed"; reason: string }
+        | { status: "skipped_busy" }
+        | { status: "send_failed"; reason: string };
+    }>;
   } | null;
   staleThresholdMs: number; // default: 5 * 60 * 1000
   tickIntervalMs: number; // default: 30 * 1000
@@ -295,12 +305,38 @@ export class HeartbeatService {
         if (result.status === "delivered") {
           this.config.notificationQueue.markDelivered(notification._filename!);
         } else if (result.status === "no_conversation") {
-          // Fresh install edge case — no conversation exists yet.
-          // Fall back to initiate() — per spec C2, no triggerJobId here.
-          await this.config.conversationInitiator.initiate({
+          // Fresh install edge case — no conversation exists yet. Fall back
+          // to initiate() and observe its delivery outcome. Per FU-7, never
+          // mark delivered if initiate() itself couldn't stream a response
+          // (same never-lie invariant as the alert path above).
+          const init = await this.config.conversationInitiator.initiate({
             firstTurnPrompt: `[SYSTEM: ${prompt}]`,
           });
-          this.config.notificationQueue.markDelivered(notification._filename!);
+          if (init.delivery.status === "delivered") {
+            this.config.notificationQueue.markDelivered(notification._filename!);
+          } else {
+            const reason =
+              "reason" in init.delivery
+                ? init.delivery.reason
+                : init.delivery.status;
+            console.warn(
+              `[Heartbeat] Notification ${notification.job_id} initiate-fallback deferred: ${reason}`,
+            );
+            this.config.notificationQueue.incrementAttempts(
+              notification._filename!,
+            );
+          }
+        } else if (result.status === "skipped_busy" || result.status === "send_failed") {
+          const reason =
+            result.status === "skipped_busy"
+              ? "session busy"
+              : `send failed: ${result.reason}`;
+          console.warn(
+            `[Heartbeat] Notification ${notification.job_id} deferred: ${reason}`,
+          );
+          this.config.notificationQueue.incrementAttempts(
+            notification._filename!,
+          );
         } else {
           // transport_failed — keep the notification pending so the next tick
           // (or drainNow) retries. MAX_DELIVERY_ATTEMPTS handles eventual

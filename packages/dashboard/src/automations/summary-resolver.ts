@@ -7,7 +7,15 @@ const MAX_LENGTH = 10_000;
 const CONDENSE_SYSTEM_PROMPT =
   "Condense this content to fit within 10,000 characters. Do NOT drop any information — " +
   "every finding, number, name, date, and actionable item must be preserved. " +
-  "Shorten prose, remove filler, use bullets, but keep all substance.";
+  "If the content has `## ` section headings written at the top level (aggregator-style " +
+  "worker wrappers), every such heading MUST appear in the output in its original order — " +
+  "including near-duplicate headings such as retry attempts (e.g. `-a1`, `-a2`, `-a3` " +
+  "suffixes). If two sections have near-identical content, keep BOTH headings and under " +
+  "the second write a single brief line like 'Same outcome as previous attempt.' — never " +
+  "merge two wrapper headings into one. You may compress the body under each heading and " +
+  "merge internal subsections, but never drop a top-level wrapper heading. Shorten prose, " +
+  "remove filler, use bullets, but keep all substance. Return only the condensed markdown " +
+  "— no preamble, no explanation, no meta-commentary about the task.";
 
 /** Strip YAML frontmatter from markdown content, returning body text only. */
 export function stripFrontmatter(content: string): string {
@@ -68,6 +76,44 @@ export function resolveJobSummary(
   return text.slice(0, maxLength) + DB_TRUNCATION_NOTICE;
 }
 
+const HARD_INPUT_CAP = 100_000;
+
+/**
+ * Contract string written by `handler-registry.ts::runDebriefReporter`
+ * immediately before each aggregator-written worker wrapper heading. The
+ * marker is invisible in rendered markdown and cannot be produced by
+ * worker content. Both sides of the contract import THIS constant — do not
+ * hard-code the string elsewhere. See the unit test
+ * "wrapper-marker contract" which guards against silent divergence.
+ */
+export const WRAPPER_MARKER = "<!-- wrapper -->";
+
+const WRAPPER_MARKER_RE = new RegExp(
+  `${WRAPPER_MARKER.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\n## (.+?)(?:\\n|$)`,
+  "g",
+);
+
+/**
+ * Extract aggregator-written wrapper headings from a multi-section debrief.
+ *
+ * Contract: `handler-registry.ts::runDebriefReporter` prefixes each wrapper
+ * heading with `<!-- wrapper -->\n`. Worker content cannot produce this
+ * exact sequence. Worker-internal `## ` headings (`## Diagnosis`,
+ * `## Results`, etc.) are NOT prefixed, so they are correctly ignored here
+ * and may be compressed/merged by Haiku per the condense prompt.
+ *
+ * IMPORTANT: the marker string is a contract. Changing either side without
+ * the other silently disables the preservation check. See the guard comment
+ * at the writer site in handler-registry.ts.
+ */
+function extractWrapperHeadings(text: string): string[] {
+  const headings: string[] = [];
+  for (const match of text.matchAll(WRAPPER_MARKER_RE)) {
+    headings.push(match[1].trim());
+  }
+  return headings;
+}
+
 export async function resolveJobSummaryAsync(
   runDir: string | undefined | null,
   fallbackWork: string,
@@ -82,15 +128,50 @@ export async function resolveJobSummaryAsync(
   // Under limit — return as-is
   if (text.length <= MAX_LENGTH) return text;
 
-  // Over limit — use Haiku to condense without dropping information
+  // Hard cap: >100K chars indicates a runaway worker; skip Haiku, return stub
+  if (text.length > HARD_INPUT_CAP) {
+    const headings = extractWrapperHeadings(text);
+    const sectionList = headings.map((h) => `- ${h}`).join("\n");
+    const sizeK = Math.round(text.length / 1000);
+    const deliverablePath = runDir ? `${runDir}/deliverable.md` : "(no path)";
+    console.warn(
+      `[summary-resolver] Hard cap exceeded: ${text.length} chars, ${headings.length} sections — skipping Haiku`,
+    );
+    return (
+      `[Debrief exceeded safe size (${sizeK}K chars across ${headings.length} sections) — content preserved at ${deliverablePath}. Section list:\n` +
+      sectionList +
+      `]`
+    );
+  }
+
+  // Over limit but under hard cap — use Haiku to condense without dropping information
   if (queryModelFn) {
     try {
       console.log(`[summary-resolver] Haiku condense: ${text.length} chars → ≤${MAX_LENGTH} (source: ${source})`);
-      return await queryModelFn(
-        text.slice(0, 20_000),
+      const expectedHeadings = extractWrapperHeadings(text);
+      const condensed = await queryModelFn(
+        text,
         CONDENSE_SYSTEM_PROMPT,
         "haiku",
       );
+
+      // Post-Haiku heading verification: every wrapper heading name must
+      // appear SOMEWHERE in the output. Relaxed substring match (not
+      // `## <name>`) because Haiku may reformat headings (e.g. bold, emoji,
+      // different level) while still preserving the name. Automation names
+      // are stable identifiers (e.g. `chiang-mai-aqi-worker`) that Haiku has
+      // no reason to rewrite. If the name is missing, the section dropped.
+      if (expectedHeadings.length > 0) {
+        const missing = expectedHeadings.filter((h) => !condensed.includes(h));
+        if (missing.length > 0) {
+          console.warn(
+            `[summary-resolver] Haiku dropped ${missing.length} section(s): ${missing.join(", ")} — falling back to raw (Haiku output length: ${condensed.length} chars, first 400: ${condensed.slice(0, 400).replace(/\n/g, " ")})`,
+          );
+          return text;
+        }
+      }
+
+      return condensed;
     } catch {
       console.warn(`[summary-resolver] Haiku condense failed — returning raw (${text.length} chars)`);
     }

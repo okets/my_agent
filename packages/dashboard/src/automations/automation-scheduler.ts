@@ -26,11 +26,21 @@ export interface AutomationSchedulerConfig {
       | { status: "delivered" }
       | { status: "no_conversation" }
       | { status: "transport_failed"; reason: string }
+      | { status: "skipped_busy" }
+      | { status: "send_failed"; reason: string }
     >;
     initiate(options?: {
       firstTurnPrompt?: string;
       channel?: string;
-    }): Promise<unknown>;
+    }): Promise<{
+      conversation: unknown;
+      delivery:
+        | { status: "delivered" }
+        | { status: "no_conversation" }
+        | { status: "transport_failed"; reason: string }
+        | { status: "skipped_busy" }
+        | { status: "send_failed"; reason: string };
+    }>;
   } | null;
 }
 
@@ -316,9 +326,16 @@ export class AutomationScheduler {
       `You are the conversation layer — let the user know briefly.`;
     const result = await ci.alert(prompt);
     if (result.status === "no_conversation") {
-      await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+      const init = await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+      if (init.delivery.status !== "delivered") {
+        const reason =
+          "reason" in init.delivery ? init.delivery.reason : init.delivery.status;
+        console.warn(
+          `[AutomationScheduler] notifyFailure(${automationId}) initiate-fallback deferred: ${reason}`,
+        );
+      }
     }
-    // transport_failed: nothing to retry here (no queue wired in this path).
-    // The alert already logged via the initiator.
+    // transport_failed / skipped_busy / send_failed: nothing to retry here
+    // (no queue wired in this path). The alert already logged via the initiator.
   }
 }

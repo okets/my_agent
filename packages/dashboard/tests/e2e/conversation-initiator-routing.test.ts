@@ -86,7 +86,7 @@ describe("Conversation Initiator Reply Routing", () => {
   });
 
   it("initiate() sets externalParty to the owner JID", async () => {
-    const conv = await initiator.initiate({
+    const { conversation: conv } = await initiator.initiate({
       firstTurnPrompt: "[SYSTEM: Test alert]",
     });
 
@@ -103,7 +103,7 @@ describe("Conversation Initiator Reply Routing", () => {
   });
 
   it("getByExternalParty finds the initiated conversation for reply matching", async () => {
-    const conv = await initiator.initiate();
+    const { conversation: conv } = await initiator.initiate();
 
     const found = await conversationManager.getByExternalParty(OWNER_JID);
     expect(found).not.toBeNull();
@@ -141,7 +141,7 @@ describe("Conversation Initiator Reply Routing", () => {
       getOutboundChannel: () => "web",
     });
 
-    const conv = await webInitiator.initiate();
+    const { conversation: conv } = await webInitiator.initiate();
     expect(conv.externalParty).toBeNull();
   });
 });

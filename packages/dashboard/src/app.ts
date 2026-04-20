@@ -680,9 +680,28 @@ export class App extends EventEmitter {
             `Outcome: ${outcome}.\n\n${message}\n\n` +
             `You are the conversation layer — let the user know briefly.`;
           try {
+            // Pre-M9.4-S4.1 this was `if (!alerted)` which never fired
+            // (AlertResult is always a truthy object). Fixed FU-7 rollup:
+            // fall back to initiate() only when alert() reports no_conversation,
+            // and observe the initiate delivery outcome too.
             const alerted = await ci.alert(prompt);
-            if (!alerted) {
-              await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+            if (alerted.status === "no_conversation") {
+              const init = await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+              if (init.delivery.status !== "delivered") {
+                const reason =
+                  "reason" in init.delivery
+                    ? init.delivery.reason
+                    : init.delivery.status;
+                console.warn(
+                  `[AutomationNotifier] initiate-fallback deferred: ${reason}`,
+                );
+              }
+            } else if (alerted.status !== "delivered") {
+              const reason =
+                "reason" in alerted ? alerted.reason : alerted.status;
+              console.warn(
+                `[AutomationNotifier] alert deferred: ${reason}`,
+              );
             }
           } catch (err) {
             console.error("[AutomationNotifier] Failed to notify user:", err);
