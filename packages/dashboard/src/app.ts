@@ -53,6 +53,8 @@ import {
   AckDelivery,
   createResilienceCopy,
   CapabilityInvoker,
+  syncFrameworkSkillsSync,
+  defaultFrameworkSkillsDir,
 } from "@my-agent/core";
 import type { OrphanSweepReport, ResilienceCopy, AutomationNotifierLike } from "@my-agent/core";
 import { RawMediaStore } from "./media/raw-media-store.js";
@@ -469,6 +471,17 @@ export class App extends EventEmitter {
   // Ack delivery (M9.6-S6, exposed for capabilities health route in S19)
   ackDelivery: AckDelivery | null = null;
 
+  // Automation notifier — declared during capability-registry boot, consumed
+  // after TransportManager init to build AckDelivery (S21 BUG-1).
+  automationNotifier: AutomationNotifierLike | null = null;
+
+  // Brain-CFR race gate (M9.6-S21 BUG-2): when STT fails and CFR takes over,
+  // the brain turn awaits this gate (keyed by "convId:turnNumber") so it doesn't
+  // emit "[Voice message — transcription unavailable]" while recovery is in flight.
+  // reprocessTurn resolves the gate with the recovered text; surrender resolves
+  // with framing text so the brain still gets a sensible user turn to process.
+  cfrSttPendingGates: Map<string, (text: string) => void> = new Map();
+
   // CFR (M9.6-S1)
   cfr!: CfrEmitter;
   rawMediaStore!: RawMediaStore;
@@ -526,6 +539,30 @@ export class App extends EventEmitter {
       console.log(
         "Agent not hatched yet. Hatching wizard will be available in the web UI.",
       );
+    }
+
+    // ── Framework skills sync (M9.6-S21 BUG-4) ──
+    // Hash-compare every file under packages/core/skills/ against its copy
+    // under <agentDir>/.claude/skills/ and rewrite only on mismatch. This
+    // closes the gap that let the verbose capability-brainstorming SKILL.md
+    // persist in production after the terse-deliverable update shipped.
+    if (hatched) {
+      try {
+        const { synced, unchanged } = syncFrameworkSkillsSync({
+          sourceDir: defaultFrameworkSkillsDir(),
+          agentDir,
+        });
+        if (synced > 0) {
+          console.log(`[Skills] skills synced: ${synced} files updated (${unchanged} already current)`);
+        } else {
+          console.log(`[Skills] skills up to date (${unchanged} files)`);
+        }
+      } catch (err) {
+        console.warn(
+          "[Skills] sync failed (non-fatal):",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
     }
 
     // ── Capability Registry (M9-S1) ──
@@ -709,12 +746,12 @@ export class App extends EventEmitter {
         },
       };
 
-      const ackDelivery =
-        app.transportManager && connectionRegistry
-          ? new AckDelivery(app.transportManager, connectionRegistry, automationNotifier)
-          : null;
-
-      app.ackDelivery = ackDelivery;
+      // Construction is deferred until the TransportManager is built further
+      // below — the orchestrator closures below read `app.ackDelivery` at
+      // call time, not construction time. Wiring happens after `app.transportManager`
+      // is initialised (~line 1003). If either dep is absent at that point,
+      // AckDelivery stays null and the orchestrator logs "unavailable".
+      app.automationNotifier = automationNotifier;
 
       app.recoveryOrchestrator = new RecoveryOrchestrator({
         spawnAutomation: async (spec) => {
@@ -803,17 +840,38 @@ export class App extends EventEmitter {
             `[CFR] ack(${kind}) for ${failure.capabilityType} — conv ${_convId}`,
           );
 
-          if (ackDelivery) {
+          if (app.ackDelivery) {
             // M9.6-S12 Task 5: thread the ack kind through so automation-origin
             // terminal kinds trigger CFR_RECOVERY.md writing. session info is
             // not yet wired (Task 6 will pass it from the orchestrator's
             // FixSession); the writer falls back to an empty attempts table
             // when session is absent.
-            await ackDelivery.deliver(failure, text, { kind });
+            await app.ackDelivery.deliver(failure, text, { kind });
           } else {
             console.warn(
               "[CFR] AckDelivery unavailable (TransportManager or ConnectionRegistry missing) — ack not delivered",
             );
+          }
+
+          // BUG-2 (M9.6-S21): if a brain turn is waiting behind a CFR gate,
+          // resolve it with surrender framing so the brain processes the turn.
+          // Applies to all surrender kinds (the brain must not be left hanging).
+          if (
+            kind === "surrender" ||
+            kind === "surrender-budget" ||
+            kind === "surrender-redesign-needed" ||
+            kind === "surrender-insufficient-context" ||
+            kind === "surrender-cooldown"
+          ) {
+            const _surrenderOriginForGate = failure.triggeringInput.origin;
+            if (_surrenderOriginForGate.kind === "conversation") {
+              const _gk = `${_surrenderOriginForGate.conversationId}:${_surrenderOriginForGate.turnNumber}`;
+              const _gr = app.cfrSttPendingGates.get(_gk);
+              if (_gr) {
+                app.cfrSttPendingGates.delete(_gk);
+                _gr(text);
+              }
+            }
           }
 
           // D4: on surrender, persist a marker event so the orphan watchdog
@@ -864,17 +922,23 @@ export class App extends EventEmitter {
         },
         reprocessTurn: async (failure, recoveredContent) => {
           const { origin } = failure.triggeringInput;
-          // M9.6-S12 Task 6d: non-conversation origins have no user turn to
-          // re-process. The orchestrator's terminal drain (Task 6b) already
-          // routed the recovery:
-          //   - automation → CFR_RECOVERY.md via writeAutomationRecovery
-          //   - system     → console log
-          // Full RESTORED_TERMINAL state-machine wiring is S13; S12 just
-          // makes this path non-crashing.
           if (origin.kind !== "conversation") {
             return;
           }
           const { conversationId, turnNumber, channel } = origin;
+
+          // BUG-2 (M9.6-S21): if the brain turn is waiting behind a gate, resolve
+          // it — the brain will pick up the transcription and answer naturally.
+          const gateKey = `${conversationId}:${turnNumber}`;
+          const gateResolve = app.cfrSttPendingGates.get(gateKey);
+          if (gateResolve) {
+            app.cfrSttPendingGates.delete(gateKey);
+            gateResolve(`[Voice message] ${recoveredContent ?? ""}`);
+            return;
+          }
+
+          // No gate — brain already processed the placeholder. Inject a system
+          // message so the brain can follow up with the recovered transcription.
           const prompt = `You are the conversation layer. The user's original turn #${turnNumber} failed to transcribe; it actually said: "${recoveredContent}". Answer their question directly — don't acknowledge this system message.`;
           let response = "";
           for await (const event of app.chat.sendSystemMessage(
@@ -889,10 +953,6 @@ export class App extends EventEmitter {
           if (response) {
             const ci = app.conversationInitiator;
             if (ci) {
-              // FU4 (M9.6-S6): route the re-processed response back to the
-              // original conversation's channel — not the preferred-outbound
-              // default — so a WhatsApp-triggered CFR doesn't answer on
-              // dashboard (or vice versa).
               const originChannel = channel.channelId || undefined;
               await ci.forwardToChannel(response, originChannel);
             }
@@ -903,11 +963,17 @@ export class App extends EventEmitter {
         // automation origin — including the `outcome: "fixed"` case, which
         // doesn't flow through emitAck. Absent ackDelivery → the orchestrator
         // logs a warning and continues with the remaining drain steps.
-        writeAutomationRecovery: ackDelivery
-          ? (args) => {
-              ackDelivery.writeAutomationRecovery(args);
-            }
-          : undefined,
+        // Late-binding: reads `app.ackDelivery` at call time so it picks up
+        // the instance wired after TransportManager init (S21 BUG-1 fix).
+        writeAutomationRecovery: (args) => {
+          if (app.ackDelivery) {
+            app.ackDelivery.writeAutomationRecovery(args);
+          } else {
+            console.warn(
+              "[CFR] writeAutomationRecovery: AckDelivery unavailable — CFR_RECOVERY.md not written",
+            );
+          }
+        },
         now: () => new Date().toISOString(),
       });
 
@@ -1102,6 +1168,25 @@ export class App extends EventEmitter {
         );
       } else {
         console.log("Transport system ready (no transports configured yet)");
+      }
+
+      // M9.6-S21 BUG-1: wire AckDelivery now that the TransportManager exists.
+      // The RecoveryOrchestrator's emitAck / writeAutomationRecovery closures
+      // read `app.ackDelivery` at call time (late-binding), so setting it here
+      // is sufficient — all CFR events are emitted after boot completes.
+      if (app.transportManager && connectionRegistry) {
+        app.ackDelivery = new AckDelivery(
+          app.transportManager,
+          connectionRegistry,
+          app.automationNotifier ?? undefined,
+        );
+      } else {
+        console.warn(
+          "[CFR] AckDelivery not wired: TransportManager=" +
+            String(!!app.transportManager) +
+            ", ConnectionRegistry=" +
+            String(!!connectionRegistry),
+        );
       }
     }
 

@@ -687,8 +687,22 @@ export class AppChatService {
         const trigInput = buildTriggeringInput(options, convId!, turnNumber, audioAttachment);
         const sttResult = await this.transcribeAudio(absoluteAudioPath, trigInput);
         if (sttResult === null) {
-          // Invoker already emitted CFR — use placeholder text
-          transcribedContent = `[Voice message — transcription unavailable]`;
+          // Invoker already emitted CFR — gate this turn until recovery resolves.
+          // BUG-2 (M9.6-S21): Without the gate, the brain processes the turn
+          // immediately with "[unavailable]" and the STT recovery result is
+          // silently dropped. The gate is keyed by "convId:turnNumber" and
+          // resolved by reprocessTurn (success) or emitAck surrender (failure).
+          const gateKey = `${convId}:${turnNumber}`;
+          const gateText = await new Promise<string>((resolve) => {
+            this.app.cfrSttPendingGates.set(gateKey, resolve);
+            const timer = setTimeout(() => {
+              if (this.app.cfrSttPendingGates.delete(gateKey)) {
+                resolve(`[Voice message — transcription unavailable]`);
+              }
+            }, 50 * 60 * 1000);
+            timer.unref?.();
+          });
+          transcribedContent = gateText;
           contentBlocks = [{ type: "text", text: transcribedContent }];
         } else if (sttResult.text) {
           transcribedContent = `[Voice message] ${sttResult.text}`;
