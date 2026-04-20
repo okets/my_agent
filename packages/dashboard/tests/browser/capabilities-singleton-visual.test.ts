@@ -21,7 +21,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { chromium, type Browser, type Page, type Route } from 'playwright'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join, resolve } from 'node:path'
 
@@ -153,6 +153,9 @@ describe.skipIf(!dashboardAvailable)(
 
     afterAll(async () => {
       await browser?.close()
+      // Clean up the diff-failure inspection capture so it doesn't pollute
+      // the changelog. The baseline (capabilities-singletons.png) stays.
+      rmSync(join(BASELINE_DIR, 'capabilities-singletons.actual.png'), { force: true })
     })
 
     it('renders singleton rows pixel-identical to baseline', async () => {
