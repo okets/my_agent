@@ -435,7 +435,60 @@ cd packages/dashboard && npx vitest run  # full dashboard suite, regression gate
 
 **Files:**
 
+- **NEW (added 2026-04-20 after M9.4-S4.1 handoff):** test-suite triage — see Task §2.5.0 below. Three dashboard tests are currently red on master; S20 cannot prove milestone-clean while baseline noise hides whether new work regressed anything.
 - **NEW (added 2026-04-20 after M9.4-S4.1 incident):** the CFR-fix worker output contract change — see Task §2.5.1 below before the test files. This must land before the exit-gate tests run, otherwise S20's own debriefs will pollute the user's brief with forensic detail.
+- **NEW (added 2026-04-20 from M9.4-S4.1 handoff §1):** any code path in this sprint that touches debrief aggregation must preserve the `WRAPPER_MARKER` contract — see the cross-cutting constraint below Task §2.5.0.
+
+#### 2.5.0 Test-suite triage gate — clear the red baseline before feature work (added 2026-04-20)
+
+**Why this exists.** S20 is the milestone exit. Returning a clean test suite is part of the exit. Three dashboard failures are currently inherited on master:
+
+| Test | Failure | Hypothesis |
+|------|---------|-----------|
+| `tests/browser/capabilities-singleton-visual.test.ts` | sha256 mismatch vs baseline `capabilities-singletons.png` | Either real CSS regression in M9.5/M9.6 capability-card work, or stale baseline. |
+| `tests/browser/capability-ack-render.test.ts` | `data.handleWebSocketMessage is not a function` on Alpine root | API renamed/removed without test migration. Could mask a real WS-wiring bug. |
+| `tests/e2e/whatsapp-before-browser.test.ts` | `expected 0 to be greater than 0` — no STT-level CFR emitted | Pipeline behaviour drifted (deps-gate now blocks, or CFR signal moved); either the test premise is stale or a real pre-existing CFR detection regression. |
+
+**Each failure must be root-caused, not silenced.** A "fix" that mutes the assertion without explaining why the previous behaviour was correct or what changed is a deviation per §0.4 — escalate instead.
+
+**Files:**
+
+- `packages/dashboard/tests/browser/capabilities-singleton-visual.test.ts` + `docs/sprints/m9.5-s7-browser-capability/screenshots/baseline/capabilities-singletons.png` — diff `*.actual.png` vs baseline; if intended-change, regenerate baseline with `UPDATE_VISUAL_BASELINES=1` and document what changed in the sprint DECISIONS file (one line: "baseline refreshed; CSS change: <brief>"). If unintended regression, fix the dashboard CSS / Alpine template — do NOT silently update the baseline.
+- `packages/dashboard/tests/browser/capability-ack-render.test.ts` + `packages/dashboard/public/js/chat.js` (or wherever the Alpine `chat()` component lives) — find the rename/removal of `handleWebSocketMessage`; either restore the function name or migrate the test to call the current API. If the function was intentionally removed without a replacement, audit real consumers (broadcast handlers, WS wiring) before marking the test stale.
+- `packages/dashboard/tests/e2e/whatsapp-before-browser.test.ts` — re-run with logging to see what the pipeline actually emits when an audio-bearing WhatsApp message hits a deps-wired-but-no-STT environment. If a different CFR/signal type is emitted, update the assertion to match the new contract and document the contract drift; if no signal is emitted at all, that's a regression in CFR detection — root-cause first.
+- `docs/sprints/m9.6-capability-resilience/s20-DECISIONS.md` — D-X (assign at sprint-time) — capture per-failure root cause + fix rationale in three short paragraphs.
+- `docs/sprints/m9.6-capability-resilience/s20-FOLLOW-UPS.md` — if any failure surfaces a deeper bug whose fix exceeds S20 scope (e.g., a multi-day refactor of WS wiring), file it as a follow-up and apply the minimal patch to green the test, with a `// TODO(FU-N)` reference and a sprint-DECISIONS note.
+
+**Acceptance:** all three tests green on the dev machine. `npx vitest run` in both `packages/dashboard` and `packages/core` reports zero failures.
+
+**Verification command:**
+
+```bash
+cd packages/dashboard && npx vitest run tests/browser/capabilities-singleton-visual tests/browser/capability-ack-render tests/e2e/whatsapp-before-browser
+cd packages/dashboard && npx vitest run   # full suite, must be green
+cd packages/core && npx vitest run        # already green at S19 close, regression gate
+```
+
+Expected: zero failed.
+
+**Deviation triggers:**
+
+- A failure root-causes to a multi-day fix that would blow S20's envelope. File a follow-up sprint, apply minimal patch with TODO marker, document in DECISIONS — do NOT skip the test.
+- A baseline refresh is needed but the underlying CSS change isn't traceable to a specific recent commit. Walk `git log -- packages/dashboard/public/` since the baseline-add commit (`a6285fe`) and identify the commit; if multiple candidates, document the ambiguity.
+- A test is genuinely obsolete (the feature it covers was deleted). Delete the test file with a DECISIONS entry naming the commit that removed the feature.
+
+**Out of scope:**
+
+- Reviving any of the 18 currently-skipped tests (`describe.skipIf(!dashboardAvailable)`, `live/*` skips). Skips are gates, not failures.
+- Touching `packages/core` tests — green at S19 close; only run as the regression gate.
+
+**Why it's first.** The dev needs a clean baseline to know whether their S20 work breaks anything. Running new feature work against a 3-failure baseline means every failure-set diff requires manual subtraction.
+
+#### Cross-cutting constraint: WRAPPER_MARKER preservation (added 2026-04-20 from M9.4-S4.1 handoff §1)
+
+S20's exit-gate tests assert that the automation's debrief includes a CFR recovery summary (Task §2.5.2 Test 1, last assertion). The debrief aggregator at `handler-registry.ts` prefixes every worker section with `<!-- wrapper -->\n` immediately before `## automationName`; `summary-resolver.ts` keys section extraction off this exact marker. **Any S20 work that touches `handler-registry.ts` aggregation, the CFR recovery summary writer, or the debrief-prep section assembly MUST preserve this prefix.**
+
+The contract is enforced by `summary-resolver.test.ts` → `"wrapper-marker contract"` suite, which asserts at test-time that `handler-registry.ts` imports `WRAPPER_MARKER` from `summary-resolver.ts`. If this test starts failing during S20, do not "fix" it by hard-coding the marker string elsewhere — restore the import.
 
 #### 2.5.1 CFR-fix worker output contract — terse `deliverable.md` + sibling `attempts.md` (added 2026-04-20)
 
@@ -517,7 +570,7 @@ Expected: all pass.
     - The mock transport's capture log shows: (1) initial "hold on" ack, (2) final meaningful reply. Reply delivered to the conversation's transport (captured by mock), not silently dropped.
 - `packages/dashboard/tests/e2e/cfr-abbreviated-replays.test.ts` *(new — extends Phase 2 S15 abbreviated tests)* — one abbreviated test per other registered plug type (TTS conversation-origin, desktop-control automation-origin if installed) matching whichever of Test 1 / Test 2's shape fits each plug's origin/invocation profile.
 
-**Acceptance:** both exit-gate tests green; abbreviated replays green for every registered plug type.
+**Acceptance:** both exit-gate tests green; abbreviated replays green for every registered plug type; **plus** Task §2.5.0's zero-failed-tests gate holds at sprint close (no new failures introduced by S20 work, no pre-existing failures left behind).
 
 **Verification:**
 
@@ -555,7 +608,7 @@ No `image-to-text` or `text-to-image` plug is installed in `.my_agent/capabiliti
 
 **Universal coverage check:** **this sprint IS the final coverage gate.** Every plug type in `.my_agent/capabilities/` exercised via either Exit-gate Test 1, Test 2, or an abbreviated replay. If any plug isn't exercised, M9.6 doesn't close.
 
-**Milestone exit:** all tests pass + S16-S19 acceptance gates green + architect approval + CTO sign-off.
+**Milestone exit:** all tests pass (full `packages/dashboard` and `packages/core` suites — **zero failed**, per Task §2.5.0) + S16-S19 acceptance gates green + architect approval + CTO sign-off. The clean test suite is a hard gate, not a soft target — if any failure remains at sprint close, S20 does not exit and M9.6 does not close.
 
 **Roadmap commit:** lands AFTER architect + CTO approval per Phase 1 §0.3 rule. **M9.6 done.**
 
