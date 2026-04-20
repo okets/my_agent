@@ -394,4 +394,64 @@ describe("HeartbeatService", () => {
       expect.objectContaining({ status: "interrupted" }),
     );
   });
+
+  it("skipped_busy — leaves notification in queue, increments attempts, does NOT mark delivered", async () => {
+    mockCi.alert.mockResolvedValue({ status: "skipped_busy" });
+
+    queue.enqueue({
+      job_id: "job-busy",
+      automation_id: "a1",
+      type: "job_completed",
+      summary: "Done",
+      created: new Date().toISOString(),
+      delivery_attempts: 0,
+    });
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const hb = createHeartbeat();
+    await hb.tick();
+    warnSpy.mockRestore();
+
+    // Still pending — not moved to delivered
+    expect(queue.listPending()).toHaveLength(1);
+    const delivered = fs.existsSync(path.join(notifDir, "delivered"))
+      ? fs.readdirSync(path.join(notifDir, "delivered"))
+      : [];
+    expect(delivered).toHaveLength(0);
+
+    // Attempts incremented
+    const pending = queue.listPending();
+    expect(pending[0].delivery_attempts).toBeGreaterThanOrEqual(1);
+  });
+
+  it("send_failed — leaves notification in queue, increments attempts, logs warning, does NOT mark delivered", async () => {
+    mockCi.alert.mockResolvedValue({ status: "send_failed", reason: "model error: context limit" });
+
+    queue.enqueue({
+      job_id: "job-send-fail",
+      automation_id: "a1",
+      type: "job_completed",
+      summary: "Done",
+      created: new Date().toISOString(),
+      delivery_attempts: 0,
+    });
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const hb = createHeartbeat();
+    await hb.tick();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("send failed: model error: context limit"),
+    );
+    warnSpy.mockRestore();
+
+    expect(queue.listPending()).toHaveLength(1);
+    const delivered = fs.existsSync(path.join(notifDir, "delivered"))
+      ? fs.readdirSync(path.join(notifDir, "delivered"))
+      : [];
+    expect(delivered).toHaveLength(0);
+
+    const pending = queue.listPending();
+    expect(pending[0].delivery_attempts).toBeGreaterThanOrEqual(1);
+  });
 });

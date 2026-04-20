@@ -325,6 +325,34 @@ const CONVERSATION_TOOLS = [
   "Skill",
 ];
 
+/** Shape of the briefing result returned by pendingBriefingProvider. */
+export interface BriefingResult {
+  lines: string[];
+  markDelivered: () => void;
+}
+
+/**
+ * Wrap a StreamEvent async iterable, firing briefingResult.markDelivered() exactly
+ * once after the first text_delta event. If the stream ends or throws without
+ * yielding a text_delta, markDelivered is never called — the briefing stays
+ * in pending/ and will be re-included by the next session.
+ *
+ * Exported so tests can exercise the timing invariant without a full SessionManager.
+ */
+export async function* ackBriefingOnFirstOutput(
+  stream: AsyncIterable<StreamEvent>,
+  briefingResult: BriefingResult | null,
+): AsyncGenerator<StreamEvent> {
+  let delivered = false;
+  for await (const event of stream) {
+    if (!delivered && briefingResult && event.type === "text_delta") {
+      briefingResult.markDelivered();
+      delivered = true;
+    }
+    yield event;
+  }
+}
+
 export class SessionManager {
   private conversationId: string;
   private channel: string = "web";
@@ -345,6 +373,9 @@ export class SessionManager {
   private disabledSkills: string[] = [];
   private pendingNotifications: string[] = [];
   private delegationEnforcer: DelegationEnforcer = createDelegationEnforcer(2);
+  /** Briefing captured in buildQuery, marked delivered after first model output. */
+  private pendingBriefingResult: { lines: string[]; markDelivered: () => void } | null = null;
+  private briefingDelivered = false;
 
   /**
    * M9.6-S12 — per-session context map, keyed by SDK `session_id`.
@@ -684,7 +715,7 @@ export class SessionManager {
 
     try {
       try {
-        for await (const event of processStream(q)) {
+        for await (const event of ackBriefingOnFirstOutput(processStream(q), this.pendingBriefingResult)) {
           if (event.type === "session_init") {
             this.sdkSessionId = event.sessionId;
             console.log(
@@ -706,6 +737,10 @@ export class SessionManager {
           }
           yield event;
         }
+        // ackBriefingOnFirstOutput fired markDelivered on first text_delta (if any).
+        // Clear local refs so the fresh-fallback loop doesn't double-fire.
+        this.pendingBriefingResult = null;
+        this.briefingDelivered = true;
       } catch (resumeError) {
         // If we were resuming and it failed, fall back to a fresh session
         if (!this.sdkSessionId) throw resumeError; // Already fresh — nothing to fall back to
@@ -722,7 +757,7 @@ export class SessionManager {
         const freshQ = await this.buildQuery(content, model, reasoning);
         this.activeQuery = freshQ;
 
-        for await (const event of processStream(freshQ)) {
+        for await (const event of ackBriefingOnFirstOutput(processStream(freshQ), this.pendingBriefingResult)) {
           if (event.type === "session_init") {
             this.sdkSessionId = event.sessionId;
             console.log(
@@ -743,6 +778,8 @@ export class SessionManager {
           }
           yield event;
         }
+        this.pendingBriefingResult = null;
+        this.briefingDelivered = true;
       }
     } finally {
       this.activeQuery = null;
@@ -796,9 +833,11 @@ export class SessionManager {
 
     const systemPrompt = await this.promptBuilder!.build(buildContext);
 
-    // Mark briefing notifications as delivered — they're now in Nina's context
+    // Store briefing result — markDelivered fires after first model output in streamMessage,
+    // not here. Firing here risks marking delivered when the session throws before generating output.
     if (briefingResult && briefingResult.lines.length > 0) {
-      briefingResult.markDelivered();
+      this.pendingBriefingResult = briefingResult;
+      this.briefingDelivered = false;
     }
 
     const opts: BrainSessionOptions = {

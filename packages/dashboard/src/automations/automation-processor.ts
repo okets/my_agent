@@ -43,6 +43,8 @@ export interface AutomationProcessorConfig {
       | { status: "delivered" }
       | { status: "no_conversation" }
       | { status: "transport_failed"; reason: string }
+      | { status: "skipped_busy" }
+      | { status: "send_failed"; reason: string }
     >;
     initiate(options?: {
       firstTurnPrompt?: string;
@@ -296,10 +298,11 @@ export class AutomationProcessor {
         await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
         this.config.onAlertDelivered?.();
       } else {
-        // transport_failed — no queue configured in this fallback path, so
-        // there's nothing to retry against. Log and move on.
+        // transport_failed / skipped_busy / send_failed — no queue configured
+        // in this fallback path, so there's nothing to retry against. Log and move on.
+        const reason = "reason" in result ? result.reason : result.status;
         console.warn(
-          `[AutomationProcessor] Alert for job ${jobId} deferred: ${result.reason}`,
+          `[AutomationProcessor] Alert for job ${jobId} deferred: ${reason}`,
         );
       }
     } catch {

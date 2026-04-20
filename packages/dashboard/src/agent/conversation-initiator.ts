@@ -66,7 +66,9 @@ export interface ConversationInitiatorOptions {
 export type AlertResult =
   | { status: "delivered" }
   | { status: "no_conversation" }
-  | { status: "transport_failed"; reason: string };
+  | { status: "transport_failed"; reason: string }
+  | { status: "skipped_busy" }
+  | { status: "send_failed"; reason: string };
 
 const DEFAULT_THRESHOLD_MINUTES = 15;
 
@@ -121,14 +123,19 @@ export class ConversationInitiator {
 
     // Web delivery: no external transport involved, no forward.
     if (!targetChannel || targetChannel === "web") {
-      for await (const _event of this.chatService.sendSystemMessage(
+      let sawDone = false;
+      let errorMsg: string | undefined;
+      for await (const event of this.chatService.sendSystemMessage(
         current.id,
         prompt,
         (current.turnCount ?? 0) + 1,
         { triggerJobId: options?.triggerJobId },
       )) {
-        // consume events (turn saving + broadcasting handled by sendSystemMessage)
+        if (event.type === "done") sawDone = true;
+        else if (event.type === "error") errorMsg = event.message;
       }
+      if (errorMsg) return { status: "send_failed", reason: errorMsg };
+      if (!sawDone) return { status: "skipped_busy" };
       return { status: "delivered" };
     }
 
@@ -165,6 +172,8 @@ export class ConversationInitiator {
     }
 
     let response = "";
+    let sawDone = false;
+    let errorMsg: string | undefined;
     for await (const event of this.chatService.sendSystemMessage(
       current.id,
       prompt,
@@ -173,8 +182,14 @@ export class ConversationInitiator {
     )) {
       if (event.type === "text_delta" && event.text) {
         response += event.text;
+      } else if (event.type === "done") {
+        sawDone = true;
+      } else if (event.type === "error") {
+        errorMsg = event.message;
       }
     }
+    if (errorMsg) return { status: "send_failed", reason: errorMsg };
+    if (!sawDone) return { status: "skipped_busy" };
     const forward = await this.forwardToChannel(response, targetChannel);
     if (!forward.delivered) {
       return {

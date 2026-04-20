@@ -7,7 +7,10 @@ const MAX_LENGTH = 10_000;
 const CONDENSE_SYSTEM_PROMPT =
   "Condense this content to fit within 10,000 characters. Do NOT drop any information — " +
   "every finding, number, name, date, and actionable item must be preserved. " +
-  "Shorten prose, remove filler, use bullets, but keep all substance.";
+  "If the content has `## ` section headings written at the top level (aggregator-style " +
+  "worker wrappers), every such heading MUST appear in the output in its original order. " +
+  "You may compress the body under each heading and merge internal subsections, but never " +
+  "drop a top-level section entirely. Shorten prose, remove filler, use bullets, but keep all substance.";
 
 /** Strip YAML frontmatter from markdown content, returning body text only. */
 export function stripFrontmatter(content: string): string {
@@ -68,6 +71,13 @@ export function resolveJobSummary(
   return text.slice(0, maxLength) + DB_TRUNCATION_NOTICE;
 }
 
+const HARD_INPUT_CAP = 100_000;
+
+/** Extract all top-level `## heading` lines from text. */
+function extractTopLevelHeadings(text: string): string[] {
+  return (text.match(/^## \S.*/gm) ?? []).map((h) => h.slice(3).trim());
+}
+
 export async function resolveJobSummaryAsync(
   runDir: string | undefined | null,
   fallbackWork: string,
@@ -82,15 +92,47 @@ export async function resolveJobSummaryAsync(
   // Under limit — return as-is
   if (text.length <= MAX_LENGTH) return text;
 
-  // Over limit — use Haiku to condense without dropping information
+  // Hard cap: >100K chars indicates a runaway worker; skip Haiku, return stub
+  if (text.length > HARD_INPUT_CAP) {
+    const headings = extractTopLevelHeadings(text);
+    const sectionList = headings.map((h) => `- ${h}`).join("\n");
+    const sizeK = Math.round(text.length / 1000);
+    const deliverablePath = runDir ? `${runDir}/deliverable.md` : "(no path)";
+    console.warn(
+      `[summary-resolver] Hard cap exceeded: ${text.length} chars, ${headings.length} sections — skipping Haiku`,
+    );
+    return (
+      `[Debrief exceeded safe size (${sizeK}K chars across ${headings.length} sections) — content preserved at ${deliverablePath}. Section list:\n` +
+      sectionList +
+      `]`
+    );
+  }
+
+  // Over limit but under hard cap — use Haiku to condense without dropping information
   if (queryModelFn) {
     try {
       console.log(`[summary-resolver] Haiku condense: ${text.length} chars → ≤${MAX_LENGTH} (source: ${source})`);
-      return await queryModelFn(
-        text.slice(0, 20_000),
+      const expectedHeadings = extractTopLevelHeadings(text);
+      const condensed = await queryModelFn(
+        text,
         CONDENSE_SYSTEM_PROMPT,
         "haiku",
       );
+
+      // Post-Haiku heading verification: every top-level heading must survive
+      if (expectedHeadings.length > 0) {
+        const missing = expectedHeadings.filter(
+          (h) => !condensed.includes(`## ${h}`),
+        );
+        if (missing.length > 0) {
+          console.warn(
+            `[summary-resolver] Haiku dropped ${missing.length} section(s): ${missing.join(", ")} — falling back to raw`,
+          );
+          return text;
+        }
+      }
+
+      return condensed;
     } catch {
       console.warn(`[summary-resolver] Haiku condense failed — returning raw (${text.length} chars)`);
     }

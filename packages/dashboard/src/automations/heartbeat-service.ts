@@ -77,6 +77,8 @@ export interface HeartbeatConfig {
       | { status: "delivered" }
       | { status: "no_conversation" }
       | { status: "transport_failed"; reason: string }
+      | { status: "skipped_busy" }
+      | { status: "send_failed"; reason: string }
     >;
     initiate(options?: {
       firstTurnPrompt?: string;
@@ -301,6 +303,17 @@ export class HeartbeatService {
             firstTurnPrompt: `[SYSTEM: ${prompt}]`,
           });
           this.config.notificationQueue.markDelivered(notification._filename!);
+        } else if (result.status === "skipped_busy" || result.status === "send_failed") {
+          const reason =
+            result.status === "skipped_busy"
+              ? "session busy"
+              : `send failed: ${result.reason}`;
+          console.warn(
+            `[Heartbeat] Notification ${notification.job_id} deferred: ${reason}`,
+          );
+          this.config.notificationQueue.incrementAttempts(
+            notification._filename!,
+          );
         } else {
           // transport_failed — keep the notification pending so the next tick
           // (or drainNow) retries. MAX_DELIVERY_ATTEMPTS handles eventual

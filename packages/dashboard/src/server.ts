@@ -74,6 +74,8 @@ declare module "fastify" {
         | { status: "delivered" }
         | { status: "no_conversation" }
         | { status: "transport_failed"; reason: string }
+        | { status: "skipped_busy" }
+        | { status: "send_failed"; reason: string }
       >;
       initiate(options?: {
         firstTurnPrompt?: string;
