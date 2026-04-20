@@ -23,8 +23,8 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { EventEmitter } from "node:events";
-import { CfrEmitter } from "@my-agent/core";
-import type { CapabilityFailure } from "@my-agent/core";
+import { CfrEmitter, CapabilityInvoker } from "@my-agent/core";
+import type { CapabilityFailure, CapabilityRegistry } from "@my-agent/core";
 import { AppChatService } from "../../src/chat/chat-service.js";
 import { AppConversationService } from "../../src/app.js";
 import { ConversationManager } from "../../src/conversations/index.js";
@@ -41,6 +41,9 @@ function makeTestApp(agentDir: string) {
     emitter as any,
   );
   const cfr = new CfrEmitter();
+  // Stub registry that has no capabilities installed → invoker emits "not-installed" CFR
+  const stubRegistry = { listByProvides: () => [] } as unknown as CapabilityRegistry;
+  const capabilityInvoker = new CapabilityInvoker({ cfr, registry: stubRegistry });
   return Object.assign(emitter, {
     agentDir,
     conversationManager,
@@ -48,6 +51,7 @@ function makeTestApp(agentDir: string) {
     sessionRegistry: new SessionRegistry(5),
     cfr,
     capabilityRegistry: null,
+    capabilityInvoker,
     rawMediaStore: new RawMediaStore(agentDir),
   });
 }

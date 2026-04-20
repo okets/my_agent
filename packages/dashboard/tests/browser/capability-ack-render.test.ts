@@ -51,21 +51,23 @@ describe.skipIf(!dashboardAvailable)(
       // Inject the message directly into the Alpine chat() component's WS handler
       await page.evaluate((text) => {
         // @ts-ignore — Alpine is a global injected by CDN
-        const body = document.querySelector("body");
+        const root = document.querySelector('[x-data="chat()"]') as HTMLElement | null;
         // @ts-ignore
-        const data = Alpine.$data(body);
-        data.handleWebSocketMessage({
+        const data = Alpine.$data(root!);
+        // Pass currentConversationId back so the ack matches the guard check
+        data.handleWsMessage({
           type: "capability_ack",
-          conversationId: data.currentConversationId || "test-conv-ack",
+          conversationId: data.currentConversationId,
           content: text,
           timestamp: new Date().toISOString(),
         });
       }, ackText);
 
       // Assert the ack text appears in the messages list
-      await expect(
-        page.locator(".assistant-bubble", { hasText: ackText }),
-      ).toBeVisible({ timeout: 3000 });
+      await page
+        .locator(".assistant-bubble", { hasText: ackText })
+        .first()
+        .waitFor({ state: "visible", timeout: 3000 });
     });
   },
 );

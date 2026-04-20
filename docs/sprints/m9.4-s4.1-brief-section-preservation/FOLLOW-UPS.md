@@ -63,7 +63,7 @@ Any future change to either union requires editing 4 inline copies. TypeScript e
 - New test file `conversation-initiator-initiate-outcome.test.ts` (4 tests). Two new heartbeat-service tests for initiate-fallback skipped_busy and send_failed.
 - Live verification script re-run: 34,271-byte fixture → 7,098-byte Haiku output, 14/14 wrappers preserved, VERDICT: PASS.
 
-## FU-8 — Drop unused `response` accumulator on external same-channel error/busy branches
+## FU-8 — Drop unused `response` accumulator on external same-channel error/busy branches — ✅ ADDRESSED IN M9.6-S20
 
 **Type:** Cosmetic.
 

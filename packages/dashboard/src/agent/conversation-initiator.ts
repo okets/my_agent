@@ -187,7 +187,7 @@ export class ConversationInitiator {
       return delivery;
     }
 
-    let response = "";
+    const chunks: string[] = [];
     let sawDone = false;
     let errorMsg: string | undefined;
     for await (const event of this.chatService.sendSystemMessage(
@@ -197,7 +197,7 @@ export class ConversationInitiator {
       { channel: targetChannel, triggerJobId: options?.triggerJobId },
     )) {
       if (event.type === "text_delta" && event.text) {
-        response += event.text;
+        chunks.push(event.text);
       } else if (event.type === "done") {
         sawDone = true;
       } else if (event.type === "error") {
@@ -206,7 +206,7 @@ export class ConversationInitiator {
     }
     if (errorMsg) return { status: "send_failed", reason: errorMsg };
     if (!sawDone) return { status: "skipped_busy" };
-    const forward = await this.forwardToChannel(response, targetChannel);
+    const forward = await this.forwardToChannel(chunks.join(""), targetChannel);
     if (!forward.delivered) {
       return {
         status: "transport_failed",

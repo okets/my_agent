@@ -36,8 +36,15 @@ prompt).
    If the existing design cannot be repaired, write `ESCALATE: redesign-needed` atop
    your deliverable and stop.
 4. Run `<capDir>/scripts/smoke.sh`. Record the result.
-5. Write `deliverable.md` in your run directory with frontmatter (`change_type`,
-   `test_result`, `hypothesis_confirmed`, `summary`, `surface_required_for_hotreload`) + body.
+5. Write two files in your run directory:
+   - **`deliverable.md`** — frontmatter (`change_type`, `test_result`, `hypothesis_confirmed`,
+     `summary`, `surface_required_for_hotreload`) UNCHANGED. Body: terse one-liner per attempt,
+     2–5 lines TOTAL. Format: `Attempt {N}: {outcome} — {file changed | "no change"}`.
+     No diagnosis prose, no decision log, no per-attempt state, no validation commands.
+     `summary` frontmatter field: one short sentence summarising the FINAL outcome.
+   - **`forensic.md`** — full per-attempt detail: diagnosis, hypothesis, change explanation,
+     smoke output, validation commands. Free-form prose. For human/agent audit only —
+     the debrief aggregator reads `deliverable.md`, not this file.
 6. Do NOT append the paper-trail entry to `DECISIONS.md` yourself — the automation
    framework's `writePaperTrail` does that on job completion (`target_path` is set).
 

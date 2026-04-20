@@ -25,6 +25,7 @@ import {
   initNotebook,
   CfrEmitter,
 } from "@my-agent/core";
+import type { TransportManagerLike } from "@my-agent/core";
 import type { ServerMessage } from "../../src/ws/protocol.js";
 import type { AppEventMap } from "../../src/app-events.js";
 import { ConversationManager } from "../../src/conversations/index.js";
@@ -47,6 +48,36 @@ import { AutomationProcessor } from "../../src/automations/automation-processor.
 export interface CapturedBroadcast {
   type: string;
   [key: string]: unknown;
+}
+
+export interface RecordedTransportSend {
+  transportId: string;
+  to: string;
+  content: string;
+  replyTo?: string;
+}
+
+/**
+ * MockTransport — implements TransportManagerLike and records every send() call.
+ * Inject into AckDelivery (or any transport-consuming service) in E2E tests to
+ * assert that acks and replies are delivered to the conversation's channel.
+ */
+export class MockTransport implements TransportManagerLike {
+  readonly sends: RecordedTransportSend[] = [];
+
+  send(
+    transportId: string,
+    to: string,
+    message: { content: string; replyTo?: string },
+  ): Promise<void> {
+    this.sends.push({
+      transportId,
+      to,
+      content: message.content,
+      replyTo: message.replyTo,
+    });
+    return Promise.resolve();
+  }
 }
 
 export interface AppHarnessOptions {

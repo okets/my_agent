@@ -59,4 +59,13 @@ describe("capability-brainstorming SKILL.md — Step 0 gate", () => {
     expect(content).toContain("create_automation");
     expect(content).toContain("Spawn the Builder");
   });
+
+  // [S20] terse deliverable contract assertions
+  it("fix-mode Step 5 names forensic.md sibling file", () => {
+    expect(content).toContain("forensic.md");
+  });
+
+  it("fix-mode Step 5 enforces terse deliverable body (2-5 lines / one-liner)", () => {
+    expect(content).toMatch(/2[–\-]5 lines|terse|one-liner/i);
+  });
 });
