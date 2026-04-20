@@ -45,3 +45,10 @@ prototypes/calendar/node_modules/
 
 # CFR incident audio fixtures (local only, never committed)
 packages/core/tests/fixtures/cfr/.local/
+
+# Visual-regression test failure captures
+# Playwright writes <name>.actual.png beside the baseline <name>.png on diff
+# failure (see packages/dashboard/tests/browser/capabilities-singleton-visual.test.ts).
+# These are inspection artifacts, not source of truth — pollute the changelog
+# every test run when the diff fails. Baselines (without .actual) stay tracked.
+**/*.actual.png

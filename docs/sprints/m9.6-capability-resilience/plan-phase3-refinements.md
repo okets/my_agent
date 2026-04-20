@@ -429,9 +429,65 @@ cd packages/dashboard && npx vitest run  # full dashboard suite, regression gate
 
 **Design refs:** v2.3 §8 (Exit-gate Tests 1 and 2 — CTO-defined 2026-04-16).
 
+**Blocked on:** M9.4-S4.1 (brief section preservation + delivery-ack correctness) landing first. S4.1 fixes the byte-slice bug in `summary-resolver.ts:90` that silently dropped sections during debrief aggregation. Without S4.1, S20's CFR-fix output (multiple attempt deliverables aggregated) would still get truncated even after the new terse-deliverable contract below lands.
+
 **Goal:** the two CTO-defined definitive smoke tests pass end-to-end on the dev machine with real plugs installed. **M9.6 closes here.**
 
 **Files:**
+
+- **NEW (added 2026-04-20 after M9.4-S4.1 incident):** the CFR-fix worker output contract change — see Task §2.5.1 below before the test files. This must land before the exit-gate tests run, otherwise S20's own debriefs will pollute the user's brief with forensic detail.
+
+#### 2.5.1 CFR-fix worker output contract — terse `deliverable.md` + sibling `attempts.md` (added 2026-04-20)
+
+**Why this exists.** During M9.4-S4.1 investigation on 2026-04-20, the team confirmed: even after S4.1 fixes the section-drop, CFR-fix output will still dominate the Haiku 10K condense budget. Each fix-mode attempt produces a ~2–3K forensic deliverable; three attempts aggregate above the threshold. Once S20's exit-gate tests fire real CFR fixes, the resulting debriefs will push out other automations' brief sections under the new no-truncation rule. The user-facing signal is "voice capability broken, now fixed" — not the three-attempt forensic diary. Full forensic detail still gets written, but to a sibling file the debrief-reporter doesn't aggregate.
+
+**Files:**
+
+- `packages/core/skills/capability-brainstorming/SKILL.md` — Step 0 Fix Mode item 5 (deliverable spec) — change the deliverable.md contract:
+  - **Body:** **terse one-liner per attempt**, 2–5 lines TOTAL across all attempts. Format: `Attempt {N}: {outcome} — {file changed | "no change"}`. No diagnosis prose, no decision log, no per-attempt state, no validation commands in `deliverable.md`.
+  - **Frontmatter:** unchanged (`change_type`, `test_result`, `hypothesis_confirmed`, `summary`, `surface_required_for_hotreload`).
+  - **`summary` frontmatter field:** stays one short sentence (already the contract); summarises the FINAL outcome across attempts, not the journey.
+  - **NEW sibling file:** `<runDir>/forensic.md` — full per-attempt detail (diagnosis, hypothesis, change explanation, smoke output, validation commands). The fix-mode skill writes this in Step 5 alongside `deliverable.md`. Format is free-form prose; this file is for human/agent audit, not automated aggregation.
+- `packages/core/src/capabilities/recovery-orchestrator.ts` — `readDeliverable()` already reads the frontmatter + body. **No change needed** — the orchestrator's existing logic continues to work with shorter bodies. Verify at sprint-time that `surrenderReason` parsing still finds the `ESCALATE:` marker (it's at body start; one-liner format keeps it at body start).
+- `packages/dashboard/src/scheduler/jobs/debrief-prep.ts` — verify the existing reader behavior. It currently reads `deliverable.md` body for the brief; with the terse body, the brief stays terse. **Optional NEW reader:** if the reporter wants to surface the forensic file's existence (e.g., "full diagnosis available at <path>"), add a one-line reference. Don't read the forensic content into the brief — that's the whole point.
+- `packages/core/tests/skills/capability-brainstorming-gate.test.ts` (existing from S16) — extend the regression assertions to verify Step 0 Fix Mode now references `forensic.md` and the terse deliverable contract:
+  - `expect(content).toContain("forensic.md")` — sibling file named.
+  - `expect(content).toMatch(/2[–-]5 lines|terse|one-liner/i)` — terse contract present.
+  - The existing R3 regression assertions (Steps 1-6 still exist + key authoring phrases) must continue to pass. Adding to the same gate test keeps the SKILL.md edit one-touch.
+- `packages/core/tests/capabilities/fix-mode-deliverable-contract.test.ts` *(new)* — runs the fix-mode skill against a stub plug (same harness as `fix-mode-integration.test.ts`), asserts:
+  - `deliverable.md` body line count ≤ 5
+  - `deliverable.md` body matches the per-attempt format (regex per spec above)
+  - `forensic.md` exists in the same `run_dir`
+  - `forensic.md` body length > deliverable.md body length (the forensic detail actually went somewhere)
+- `docs/sprints/m9.6-capability-resilience/s20-DECISIONS.md` — D-X (assign at sprint-time) — capture the contract change rationale. Reference the M9.4-S4.1 incident.
+
+**Acceptance test:** the existing CFR-fix run dirs from S15/S16/S17/S18/S19 use the OLD contract. Don't retroactively edit those — they're history. The new contract applies only to S20's exit-gate fix runs and beyond.
+
+**Verification command:**
+
+```bash
+cd packages/core && npx vitest run tests/skills/capability-brainstorming-gate tests/capabilities/fix-mode-deliverable-contract
+```
+
+Expected: all pass.
+
+**Deviation triggers:**
+
+- The terse deliverable format breaks `recovery-orchestrator.readDeliverable()` ESCALATE marker parsing (verify ESCALATE marker stays at body start in the new format).
+- The forensic.md sibling file collides with an existing artifact name in any worker template.
+- A test elsewhere depended on the old verbose deliverable body (grep for `deliverable.md` consumers; expand if found).
+
+**Out of scope:**
+
+- Retroactive editing of historical CFR-fix run dirs.
+- Aggregating multiple `deliverable.md` files at the debrief layer (covered by M9.4-S4.1's no-truncation aggregation; this contract change makes that aggregation produce sensible output).
+- Changing the format for non-CFR automations' deliverables — those follow their own contracts.
+
+**Why it's in S20, not M9.4-S4.1:** S4.1 is a framework-level fix (no truncation, no silent drops). The terse-deliverable contract is an automation-template change scoped to the CFR-fix path. Cleaner separation: S4.1 makes the framework not lose data; S20 makes the CFR template not flood it.
+
+---
+
+#### 2.5.2 Exit-gate tests (the original §2.5 work)
 
 - `packages/dashboard/tests/e2e/cfr-exit-gate-helpers.ts` *(new — inherited from S15 architect §3, S15-FU code-duplication note)* — extract shared E2E helpers from S15's four `cfr-phase2-*-replay.test.ts` files (~200 lines duplicated each: agentDir setup, plug-break helpers, CFR-emit harness, recovery-loop assertions). DRY before S20 adds two more E2E tests. The helper API surface is a sprint-time call: target ~150 lines factored, ~50 lines per remaining test file. Don't over-abstract.
 - `packages/dashboard/tests/integration/app-harness.ts` — extend with the `MockTransport` recording shape: implements the transport interface and records every `send` call with args; injection point in `AppHarness`. **Note:** S15 deliberately substituted the direct-emit pattern (S15 D-EXT, D2). For S20, the recording mock is required for Exit-gate Test 2 — voice reply via the conversation's transport must be captured by the mock to assert "delivered, not silently dropped." The S15 substitution does not cover this assertion shape.
