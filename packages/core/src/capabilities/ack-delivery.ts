@@ -34,6 +34,7 @@ import { join } from "node:path";
 import type { CapabilityFailure, FixAttempt } from "./cfr-types.js";
 import type { AckKind } from "./recovery-orchestrator.js";
 import { writeFrontmatter } from "../metadata/frontmatter.js";
+import { FRIENDLY_NAMES } from "./resilience-messages.js";
 
 // ─── Structural types (no cross-package imports) ─────────────────────────────
 
@@ -92,6 +93,120 @@ export interface AutomationNotifierLike {
   }): Promise<void>;
 }
 
+// ─── Coalescing ─────────────────────────────────────────────────────────────
+
+const COALESCE_WINDOW_MS = 30_000;
+
+type CoalesceStatus = "fixing" | "fixed" | "surrendered";
+
+interface CoalesceEntry {
+  capabilityType: string;
+  status: CoalesceStatus;
+}
+
+interface CoalesceWindow {
+  entries: Map<string, CoalesceEntry>; // keyed by capabilityType
+  openedAt: number;
+}
+
+/**
+ * Per-conversation ack coalescer. Tracks in-flight CFRs within a 30-second window.
+ * Conversation-origin ONLY — automation/system origins never call this.
+ */
+export class ConversationAckCoalescer {
+  private windows = new Map<string, CoalesceWindow>();
+
+  onAck(
+    conversationId: string,
+    capabilityType: string,
+    _kind: string,
+    nowMs: number = Date.now(),
+  ): string | null {
+    const existing = this.windows.get(conversationId);
+
+    if (!existing || nowMs - existing.openedAt > COALESCE_WINDOW_MS) {
+      const entries = new Map<string, CoalesceEntry>();
+      entries.set(capabilityType, { capabilityType, status: "fixing" });
+      this.windows.set(conversationId, { entries, openedAt: nowMs });
+      return null;
+    }
+
+    if (existing.entries.has(capabilityType)) {
+      return null; // idempotent re-attempt
+    }
+
+    existing.entries.set(capabilityType, { capabilityType, status: "fixing" });
+
+    const allTypes = Array.from(existing.entries.keys());
+    return "still fixing — now also " + this.renderTypeList(allTypes.slice(1));
+  }
+
+  onTerminal(
+    conversationId: string,
+    capabilityType: string,
+    outcome: "fixed" | "surrendered",
+    _nowMs: number = Date.now(),
+  ): string | null {
+    const window = this.windows.get(conversationId);
+    if (!window || !window.entries.has(capabilityType)) return null;
+
+    window.entries.get(capabilityType)!.status = outcome;
+
+    const allEntries = Array.from(window.entries.values());
+    const allTerminal = allEntries.every(
+      (e) => e.status === "fixed" || e.status === "surrendered",
+    );
+
+    if (!allTerminal) {
+      const fixed = allEntries.filter((e) => e.status === "fixed");
+      const inFlight = allEntries.filter((e) => e.status === "fixing");
+      if (fixed.length > 0 && inFlight.length > 0) {
+        const fixedNames = this.renderTypeList(fixed.map((e) => e.capabilityType));
+        const inFlightNames = this.renderTypeList(inFlight.map((e) => e.capabilityType));
+        return `${fixedNames} ${fixed.length === 1 ? "is" : "are"} back; ${inFlightNames} still in progress.`;
+      }
+      return null;
+    }
+
+    this.windows.delete(conversationId);
+
+    const fixedTypes = allEntries.filter((e) => e.status === "fixed");
+    const surrenderedTypes = allEntries.filter((e) => e.status === "surrendered");
+
+    if (surrenderedTypes.length === 0) {
+      return `${this.renderTypeList(fixedTypes.map((e) => e.capabilityType))} ${fixedTypes.length === 1 ? "is" : "are"} back.`;
+    }
+    if (fixedTypes.length === 0) {
+      return `I couldn't fix ${this.renderTypeList(surrenderedTypes.map((e) => e.capabilityType))} — try again in a moment.`;
+    }
+    const fixedNames = this.renderTypeList(fixedTypes.map((e) => e.capabilityType));
+    const surrenderedNames = this.renderTypeList(surrenderedTypes.map((e) => e.capabilityType));
+    return `${fixedNames} ${fixedTypes.length === 1 ? "is" : "are"} back; ${surrenderedNames} couldn't be fixed automatically.`;
+  }
+
+  private renderTypeList(types: string[]): string {
+    const names = types.map((t) => FRIENDLY_NAMES[t] ?? t);
+    if (names.length === 0) return "";
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]} and ${names[1]}`;
+    return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+  }
+}
+
+// ─── System-origin ring buffer ───────────────────────────────────────────────
+
+/** Shape of a system-origin CFR event stored in the ring buffer. */
+export interface SystemCfrEvent {
+  component: string;
+  capabilityType: string;
+  capabilityName?: string;
+  symptom: string;
+  outcome: "in-progress" | "surrendered";
+  timestamp: string;
+}
+
+const SYSTEM_RING_BUFFER_MAX = 100;
+
 // ─── AckDelivery ─────────────────────────────────────────────────────────────
 
 /** Transport ID used by the dashboard (WS) channel. */
@@ -139,6 +254,9 @@ function isTerminalKind(kind: AckKind | undefined): boolean {
  * crash the orchestrator.
  */
 export class AckDelivery {
+  private readonly coalescer = new ConversationAckCoalescer();
+  private systemEventLog: SystemCfrEvent[] = [];
+
   constructor(
     private transportManager: TransportManagerLike,
     private connectionRegistry: ConnectionRegistryLike,
@@ -160,6 +278,30 @@ export class AckDelivery {
     // ── conversation ─────────────────────────────────────────────────────────
     if (origin.kind === "conversation") {
       const { channel, conversationId } = origin;
+      const kind = context?.kind;
+
+      // Coalescing intercept — conversation-origin only.
+      let deliveryText = text;
+      if (isTerminalKind(kind)) {
+        const outcome = kind === "terminal-fixed" ? "fixed" : "surrendered";
+        const coalescedMsg = this.coalescer.onTerminal(
+          conversationId,
+          failure.capabilityType,
+          outcome,
+        );
+        if (coalescedMsg !== null) {
+          deliveryText = coalescedMsg;
+        }
+      } else {
+        const followUp = this.coalescer.onAck(
+          conversationId,
+          failure.capabilityType,
+          kind ?? "attempt",
+        );
+        if (followUp !== null) {
+          deliveryText = followUp;
+        }
+      }
 
       // Dashboard channel: broadcast as an assistant-style system message over WS.
       if (channel.transportId === DASHBOARD_TRANSPORT_ID) {
@@ -167,7 +309,7 @@ export class AckDelivery {
           this.connectionRegistry.broadcastToConversation(conversationId, {
             type: "capability_ack",
             conversationId,
-            content: text,
+            content: deliveryText,
             timestamp: new Date().toISOString(),
           });
         } catch (err) {
@@ -182,7 +324,7 @@ export class AckDelivery {
       // External transport (WhatsApp, etc.): route through TransportManager.
       try {
         await this.transportManager.send(channel.transportId, channel.sender, {
-          content: text,
+          content: deliveryText,
           replyTo: channel.replyTo,
         });
       } catch (err) {
@@ -204,7 +346,8 @@ export class AckDelivery {
         return;
       }
 
-      const outcome: "fixed" | "surrendered" = "surrendered";
+      const outcome: "fixed" | "surrendered" =
+        context?.kind === "terminal-fixed" ? "fixed" : "surrendered";
       try {
         this.writeAutomationRecovery({
           failure,
@@ -262,12 +405,28 @@ export class AckDelivery {
           `(${failure.capabilityType}): ${failure.symptom} → ${outcome} ` +
           `[component=${origin.component}]`,
       );
+      this.systemEventLog.push({
+        component: origin.component,
+        capabilityType: failure.capabilityType,
+        capabilityName: failure.capabilityName,
+        symptom: failure.symptom,
+        outcome,
+        timestamp: new Date().toISOString(),
+      });
+      if (this.systemEventLog.length > SYSTEM_RING_BUFFER_MAX) {
+        this.systemEventLog.shift();
+      }
       return;
     }
 
     // Exhaustiveness guard — unreachable under the current TriggeringOrigin union.
     const _exhaust: never = origin;
     void _exhaust;
+  }
+
+  /** Returns system-origin CFR events, most-recent-first. Max 100 entries. */
+  getSystemEvents(): SystemCfrEvent[] {
+    return [...this.systemEventLog].reverse();
   }
 
   /**

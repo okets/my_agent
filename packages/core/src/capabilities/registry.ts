@@ -5,6 +5,7 @@ import { parseFrontmatterContent } from '../metadata/frontmatter.js'
 import { testCapability } from './test-harness.js'
 import { WELL_KNOWN_MULTI_INSTANCE } from './types.js'
 import type { Capability, CapabilityTestResult } from './types.js'
+import { FRIENDLY_NAMES } from './resilience-messages.js'
 
 export interface CapabilityHealthReport {
   type: string
@@ -35,6 +36,12 @@ export class CapabilityRegistry extends EventEmitter {
       if (cap.status === 'invalid') continue
       this.capabilities.set(cap.name, cap)
     }
+  }
+
+  /** Register a single capability (for testing and incremental updates). */
+  register(cap: Capability): void {
+    if (cap.status === 'invalid') return
+    this.capabilities.set(cap.name, cap)
   }
 
   /**
@@ -225,6 +232,24 @@ export class CapabilityRegistry extends EventEmitter {
       if (cap.provides === type && cap.fallbackAction) return cap.fallbackAction
     }
     return "try again in a moment"
+  }
+
+  /**
+   * Return the human-friendly display name for a capability type.
+   *
+   * Resolution order (first-wins):
+   *   1. `friendly_name` frontmatter on any registered instance of the type
+   *   2. Hardcoded FRIENDLY_NAMES table (backward compat)
+   *   3. Raw type string
+   *
+   * Semantic: plug-level frontmatter overrides template-level (same first-wins
+   * logic as getFallbackAction — all instances of a type should agree). (S19)
+   */
+  getFriendlyName(type: string): string {
+    for (const cap of this.capabilities.values()) {
+      if (cap.provides === type && cap.friendlyName) return cap.friendlyName;
+    }
+    return FRIENDLY_NAMES[type] ?? type;
   }
 
   /**

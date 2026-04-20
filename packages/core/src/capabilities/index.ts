@@ -84,6 +84,8 @@ export {
   AckDelivery,
   type TransportManagerLike,
   type ConnectionRegistryLike,
+  type AutomationNotifierLike,
+  type SystemCfrEvent,
 } from './ack-delivery.js'
 export {
   McpCapabilityCfrDetector,

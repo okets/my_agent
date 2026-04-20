@@ -74,6 +74,8 @@ export interface TranscriptTurnLike {
     mimeType: string;
     size: number;
   }>;
+  /** Set when a capability failed during this assistant turn (S19). */
+  failure_type?: string;
 }
 
 export interface TurnCorrectedLike {
@@ -161,18 +163,31 @@ export interface OrphanSweepReport {
     turnNumber: number;
     reason: string;
   }>;
+  assistantFailuresScheduled: Array<{
+    conversationId: string;
+    turnNumber: number;
+    failureType: string;
+  }>;
 }
 
 // ─── Placeholder detection ──────────────────────────────────────────────────
 
-/** Voice-note placeholder content that signals STT never ran or failed. */
-const VOICE_PLACEHOLDERS = [
-  "[Voice note — audio attached, pending transcription]",
-  "[Voice message — transcription failed",
-];
+/**
+ * Placeholder strings keyed by capability type. Written by CFR-capable paths
+ * when a capability fails before populating the turn content. Exported for
+ * the universal-coverage test (spec §2.4).
+ */
+export const FAILURE_PLACEHOLDERS: Record<string, readonly string[]> = {
+  "audio-to-text": [
+    "[Voice note — audio attached, pending transcription]",
+    "[Voice message — transcription failed",
+  ],
+};
 
-function isVoicePlaceholder(content: string): boolean {
-  return VOICE_PLACEHOLDERS.some((needle) => content.includes(needle));
+function isUserTurnPlaceholder(content: string): boolean {
+  return Object.values(FAILURE_PLACEHOLDERS)
+    .flat()
+    .some((needle) => content.includes(needle));
 }
 
 // ─── Prompt template ────────────────────────────────────────────────────────
@@ -240,6 +255,7 @@ export class OrphanWatchdog {
     const report: OrphanSweepReport = {
       scanned: 0,
       rescued: [],
+      assistantFailuresScheduled: [],
       staleSkipped: [],
       corruptSkipped: [],
     };
@@ -281,6 +297,39 @@ export class OrphanWatchdog {
   ): Promise<void> {
     const transcript =
       await this.config.conversationManager.getFullTranscript(conversationId);
+
+    // Assistant-turn failure_type scan (S19): detect assistant turns where a
+    // capability failed and schedule a re-drive via systemMessageInjector.
+    for (const line of transcript) {
+      if (line.type !== "turn") continue;
+      const turn = line as TranscriptTurnLike;
+      if (turn.role !== "assistant" || !turn.failure_type) continue;
+
+      const failureType = turn.failure_type;
+
+      // Idempotency: skip if a later non-failed assistant turn exists for
+      // the same or later turnNumber — the capability already recovered.
+      const laterNonEmpty = transcript.some(
+        (l) =>
+          l.type === "turn" &&
+          (l as TranscriptTurnLike).role === "assistant" &&
+          (l as TranscriptTurnLike).turnNumber > turn.turnNumber &&
+          (l as TranscriptTurnLike).content.trim().length > 0 &&
+          !(l as TranscriptTurnLike).failure_type,
+      );
+      if (laterNonEmpty) continue;
+
+      report.assistantFailuresScheduled.push({
+        conversationId,
+        turnNumber: turn.turnNumber,
+        failureType,
+      });
+      await this.config.systemMessageInjector(
+        conversationId,
+        `[SYSTEM: The voice reply for turn ${turn.turnNumber} failed (${failureType}). ` +
+          `Please resend the response as text now.]`,
+      );
+    }
 
     const orphan = findOrphanedUserTurn(transcript);
     if (!orphan) return;
@@ -399,7 +448,7 @@ export class OrphanWatchdog {
     orphan: TranscriptTurnLike,
   ): Promise<{ correctedContent: string; event: TurnCorrectedLike } | null> {
     if (!this.config.reverify) return null;
-    if (!isVoicePlaceholder(orphan.content)) return null;
+    if (!isUserTurnPlaceholder(orphan.content)) return null;
 
     const audioAttachment = (orphan.attachments ?? []).find((a) =>
       a.mimeType.startsWith("audio/"),

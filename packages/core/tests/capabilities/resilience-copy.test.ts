@@ -17,6 +17,17 @@ function makeStubRegistry(fallbackAction: string): CapabilityRegistry {
   return {
     isMultiInstance: () => false,
     getFallbackAction: () => fallbackAction,
+    getFriendlyName: (type: string) => {
+      const NAMES: Record<string, string> = {
+        "audio-to-text": "voice transcription",
+        "image-to-text": "image understanding",
+        "text-to-audio": "voice reply",
+        "text-to-image": "image generation",
+        "browser-control": "browser",
+        "desktop-control": "desktop control",
+      };
+      return NAMES[type] ?? type;
+    },
   } as unknown as CapabilityRegistry;
 }
 

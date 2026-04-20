@@ -3048,8 +3048,19 @@
                 wipeProfile: false,
                 deleting: false,
                 _onChange: null,
+                systemCfrEvents: [],
+                async loadSystemCfrEvents() {
+                  try {
+                    const resp = await fetch('/api/capabilities/cfr-system-events');
+                    const data = await resp.json();
+                    this.systemCfrEvents = data.events ?? [];
+                  } catch (e) {
+                    console.warn('[Capabilities] Failed to load system CFR events:', e);
+                  }
+                },
                 init() {
                   this.refresh();
+                  this.loadSystemCfrEvents();
                   this._onChange = () => this.refresh();
                   window.addEventListener('capability:changed', this._onChange);
                 },
@@ -3309,6 +3320,31 @@
                         <span x-show="deleting">Removing...</span>
                       </button>
                     </div>
+                  </div>
+                </div>
+
+                <!-- System-origin CFR health panel (S19) -->
+                <div class="mt-4 p-3 rounded-lg border border-white/5 bg-tokyo-surface">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-[11px] font-medium text-white/60 uppercase tracking-wider">Recent System Events</span>
+                    <button
+                      @click="loadSystemCfrEvents()"
+                      class="text-[10px] text-tokyo-blue/70 hover:text-tokyo-blue transition-colors"
+                    >Refresh</button>
+                  </div>
+                  <div x-show="systemCfrEvents.length === 0" class="text-[11px] text-white/30 italic">No recent events.</div>
+                  <div class="space-y-1">
+                    <template x-for="ev in systemCfrEvents" :key="ev.timestamp + ev.component">
+                      <div class="flex items-start gap-2 text-[10px]">
+                        <span :class="ev.outcome === 'surrendered' ? 'text-red-400' : 'text-orange-400'" class="mt-px">●</span>
+                        <div>
+                          <span class="text-white/70" x-text="ev.capabilityType"></span>
+                          <span class="text-white/40 mx-1">·</span>
+                          <span class="text-white/50" x-text="ev.component"></span>
+                          <span class="text-white/30 ml-1" x-text="new Date(ev.timestamp).toLocaleTimeString()"></span>
+                        </div>
+                      </div>
+                    </template>
                   </div>
                 </div>
               </div>
@@ -5855,6 +5891,13 @@
                                @error="$el.parentElement.style.display='none'">
                         </audio>
                       </div>
+                    </template>
+
+                    <!-- failure_type inline marker (S19) -->
+                    <template x-if="msg.failureType">
+                      <span class="block mt-1 text-[10px] text-orange-400/70 italic">
+                        <span x-text="msg.failureType === 'text-to-audio' ? 'voice reply unavailable — fixing…' : (msg.failureType + ' unavailable — fixing…')"></span>
+                      </span>
                     </template>
 
                     <!-- Action button (e.g. "Ask Nina" for HTTPS setup) -->
@@ -9187,6 +9230,13 @@
                                @error="$el.parentElement.style.display='none'">
                         </audio>
                       </div>
+                    </template>
+
+                    <!-- failure_type inline marker (S19) -->
+                    <template x-if="msg.failureType">
+                      <span class="block mt-1 text-[10px] text-orange-400/70 italic">
+                        <span x-text="msg.failureType === 'text-to-audio' ? 'voice reply unavailable — fixing…' : (msg.failureType + ' unavailable — fixing…')"></span>
+                      </span>
                     </template>
 
                     <!-- Action button (mobile) -->

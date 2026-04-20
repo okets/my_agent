@@ -107,6 +107,12 @@ export interface TranscriptTurn {
     mimeType: string;
     size: number;
   }>;
+
+  /**
+   * Capability type that failed for this assistant turn (S19).
+   * Set when CFR fires during synthesis (e.g. TTS failed → text fallback).
+   */
+  failure_type?: string;
 }
 
 /**

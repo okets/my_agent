@@ -365,4 +365,10 @@ export async function registerCapabilityRoutes(fastify: FastifyInstance): Promis
     fastify.app?.emit('capability:changed', registry.list())
     return { deleted: true, wipedProfile: wipeProfile }
   })
+
+  // ─── S19: system-origin CFR event ring buffer ──────────────────────────────
+  fastify.get('/api/capabilities/cfr-system-events', async () => {
+    const events = fastify.app?.ackDelivery?.getSystemEvents() ?? [];
+    return { events };
+  });
 }
