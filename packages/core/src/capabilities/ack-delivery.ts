@@ -266,7 +266,27 @@ export class AckDelivery {
      * still gets written and a warning is logged.
      */
     private automationNotifier?: AutomationNotifierLike,
-  ) {}
+  ) {
+    // M9.6-S21 BUG-1: fail fast if required deps are missing. The old silent
+    // no-op (checked at the caller) masked a production bug where AckDelivery
+    // was constructed before TransportManager existed, so every CFR ack was
+    // dropped with a console warning. Both deps are required for production;
+    // callers that genuinely cannot supply them must refrain from instantiating
+    // AckDelivery at all.
+    if (!transportManager) {
+      throw new Error(
+        "AckDelivery: transportManager is required (got null/undefined). " +
+          "If TransportManager is not yet initialised at the call site, defer " +
+          "constructing AckDelivery until after TransportManager init.",
+      );
+    }
+    if (!connectionRegistry) {
+      throw new Error(
+        "AckDelivery: connectionRegistry is required (got null/undefined). " +
+          "Dashboard-channel conversation acks depend on the WS ConnectionRegistry.",
+      );
+    }
+  }
 
   async deliver(
     failure: CapabilityFailure,

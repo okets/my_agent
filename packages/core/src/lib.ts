@@ -71,6 +71,15 @@ export type { HatchingStep } from './hatching/index.js'
 
 export { copyFrameworkSkills } from './hatching/skills-copy.js'
 
+// Framework skills sync (M9.6-S21 BUG-4): boot-time one-way sync from
+// packages/core/skills/ → <agentDir>/.claude/skills/ via SHA-256 comparison.
+export {
+  syncFrameworkSkills,
+  syncFrameworkSkillsSync,
+  defaultFrameworkSkillsDir,
+} from './skills/sync.js'
+export type { SkillsSyncResult, SyncSkillsOptions } from './skills/sync.js'
+
 export {
   createDirectoryStructure,
   writeMinimalConfig,
