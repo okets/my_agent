@@ -438,6 +438,7 @@ cd packages/dashboard && npx vitest run  # full dashboard suite, regression gate
 - **NEW (added 2026-04-20 after M9.4-S4.1 handoff):** test-suite triage — see Task §2.5.0 below. Three dashboard tests are currently red on master; S20 cannot prove milestone-clean while baseline noise hides whether new work regressed anything.
 - **NEW (added 2026-04-20 after M9.4-S4.1 incident):** the CFR-fix worker output contract change — see Task §2.5.1 below before the test files. This must land before the exit-gate tests run, otherwise S20's own debriefs will pollute the user's brief with forensic detail.
 - **NEW (added 2026-04-20 from M9.4-S4.1 handoff §1):** any code path in this sprint that touches debrief aggregation must preserve the `WRAPPER_MARKER` contract — see the cross-cutting constraint below Task §2.5.0.
+- **NEW (added 2026-04-20 from M9.4-S4.1 FOLLOW-UPS.md FU-8):** small cosmetic cleanup — see Task §2.5.0b below. Drop the unused `response` accumulator on the `send_failed` / `skipped_busy` exit branches in `conversation-initiator.ts`.
 
 #### 2.5.0 Test-suite triage gate — clear the red baseline before feature work (added 2026-04-20)
 
@@ -483,6 +484,38 @@ Expected: zero failed.
 - Touching `packages/core` tests — green at S19 close; only run as the regression gate.
 
 **Why it's first.** The dev needs a clean baseline to know whether their S20 work breaks anything. Running new feature work against a 3-failure baseline means every failure-set diff requires manual subtraction.
+
+#### 2.5.0b FU-8 cleanup — drop unused `response` accumulator on error/busy exits (added 2026-04-20)
+
+**Why this exists.** Inherited from M9.4-S4.1 FOLLOW-UPS.md FU-8. The S4.1 review flagged that `conversation-initiator.ts:177-190` (the external same-channel path) accumulates `response` from `text_delta` events for the happy path's `forwardToChannel(response, targetChannel)` call, but on the `send_failed` and `skipped_busy` exit branches control returns before `forwardToChannel` runs — leaving the accumulator as dead state on those branches. Not a bug; cosmetic readability debt. Pulled into S20 because S20 is closing M9.6 cleanly and this is a one-file edit.
+
+**Files:**
+
+- `packages/dashboard/src/agent/conversation-initiator.ts` — at lines 177-190 (verify line numbers at sprint-time; S4.1 may have shifted them), conditionally accumulate `response` only when the loop is on the happy path, or restructure so the accumulator isn't touched on the error/busy exits. Pick whichever shape is more readable; behaviour must not change on the happy path.
+- `packages/dashboard/tests/unit/agent/conversation-initiator-alert-outcome.test.ts` (existing from S4.1) — already covers happy + error + busy outcomes. **No new test required** — the existing assertions on `AlertResult` shape catch any behavioural regression. Verify all three S4.1 outcomes still pass post-cleanup.
+- `docs/sprints/m9.6-capability-resilience/s20-DECISIONS.md` — D-X (assign at sprint-time) — one line: "FU-8 closed in S20; no behaviour change."
+- `docs/sprints/m9.4-s4.1-brief-section-preservation/FOLLOW-UPS.md` — annotate FU-8 with `✅ ADDRESSED IN M9.6-S20` (matching the FU-6 close pattern).
+
+**Acceptance:** `conversation-initiator-alert-outcome.test.ts` (3 tests) still green; visual diff of the changed function shows the accumulator is no longer assigned on the `send_failed` / `skipped_busy` branches.
+
+**Verification command:**
+
+```bash
+cd packages/dashboard && npx vitest run tests/unit/agent/conversation-initiator-alert-outcome
+```
+
+Expected: 3/3 pass.
+
+**Deviation triggers:**
+
+- Line numbers don't match — locate the same logical branches by behaviour (the two paths that return without calling `forwardToChannel`).
+- The cleanup uncovers a real bug (e.g., a branch that should have been calling `forwardToChannel` and wasn't). Stop, document in proposals, escalate — this is a cosmetic task, not a behaviour-fix scope.
+
+**Out of scope:**
+
+- Touching the happy-path branch (works correctly today).
+- Refactoring the broader `alert()` / `initiate()` mediator pattern (S4.1's surface; stable).
+- Type-alias consolidation (FU-3, explicitly deferred).
 
 #### Cross-cutting constraint: WRAPPER_MARKER preservation (added 2026-04-20 from M9.4-S4.1 handoff §1)
 
