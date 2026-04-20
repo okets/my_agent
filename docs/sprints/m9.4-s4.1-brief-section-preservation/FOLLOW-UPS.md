@@ -52,6 +52,24 @@ Any future change to the union requires editing all five locations. TypeScript e
 
 **Suggested approach:** Add an explicit budget (e.g., 5 minutes from worker completion to brain notification, 10 minutes from aggregator start to brain response) to the brief pipeline's design doc. Surface on the dashboard debug pane. Capacity debates become data-driven.
 
+## FU-7 — Extend delivery-observation to `initiate()`
+
+**Type:** Correctness — completes the "delivery may fail, must not lie" invariant on the fallback path.
+
+**Summary:** S4.1 fixed `alert()` to observe `sendSystemMessage()` output before returning. `heartbeat-service.ts:305` still calls `markDelivered()` immediately after `initiate()` returns, without observing `initiate()`'s internal stream. This is the same class of bug the sprint closed for `alert()`, just on the fresh-install `no_conversation` fallback path.
+
+**Severity:** Low. The `initiate()` path is taken only when the conversation doesn't exist yet — a rare edge case in steady-state operation. Flagged by the external reviewer.
+
+**Suggested approach:** Mirror Task 4's pattern inside `initiate()`. Consume the `sendSystemMessage()` generator to completion, track `sawDone`/`errorMsg`, and return a richer result (or throw) that the heartbeat's `no_conversation` fallback branch can observe before calling `markDelivered()`. Decision point: whether `initiate()` should return an `AlertResult`-shape (symmetric API) or a narrower `InitiateResult`. Architectural judgment call for the follow-up sprint.
+
+## FU-8 — Drop unused `response` accumulator on external same-channel error/busy branches
+
+**Type:** Cosmetic.
+
+**Summary:** In `conversation-initiator.ts:177-190` (the external same-channel path), the accumulated `response` string is assembled from `text_delta` events and then passed to `forwardToChannel(response, targetChannel)` on the happy path. On the `send_failed` or `skipped_busy` paths, control returns before `forwardToChannel` is called — so the `response` accumulator has no observable use on those branches. Not incorrect, just dead state.
+
+**Suggested approach:** Only accumulate `response` when the loop is going to complete successfully, or use a conditional so the accumulator isn't touched on the error/busy exits. Non-functional — purely readability cleanup.
+
 ## FU-6 — Remove vestigial `briefingDelivered` field from `SessionManager`
 
 **Type:** Dead-state cleanup.
