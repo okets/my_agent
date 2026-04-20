@@ -49,6 +49,7 @@ import {
   makeCapabilityStack,
   makeAutomationStack,
   makeOrchestrator,
+  makeTestInvoker,
   waitForConversationRecovery,
   assertTerseDeliverable,
   MockTransport,
@@ -117,6 +118,7 @@ describe.skipIf(!canRun)(
 
       cfr = new CfrEmitter();
 
+      const invoker = makeTestInvoker(cfr, registry);
       const orchestrator = makeOrchestrator(
         registry,
         watcher,
@@ -124,6 +126,7 @@ describe.skipIf(!canRun)(
         automationJobService,
         callbacks,
         ackDelivery,
+        invoker,
       );
 
       cfr.on("failure", (f) => {
@@ -150,7 +153,11 @@ describe.skipIf(!canRun)(
           detail: "stt-deepgram .enabled absent",
           triggeringInput: {
             origin: conversationOrigin(TEST_CHANNEL, TEST_CONV_ID, 1),
-            rawMediaPath: rawAudioPath,
+            artifact: {
+              type: "audio",
+              rawMediaPath: rawAudioPath,
+              mimeType: "audio/ogg",
+            },
           },
         });
 

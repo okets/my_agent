@@ -12,6 +12,8 @@ import { join } from "node:path";
 import {
   CapabilityRegistry,
   CapabilityWatcher,
+  CapabilityInvoker,
+  CfrEmitter,
   AckDelivery,
   scanCapabilities,
   RecoveryOrchestrator,
@@ -219,6 +221,7 @@ export function makeOrchestrator(
   automationJobService: AutomationJobService,
   callbacks: OrchestratorCallbacks,
   ackDelivery: AckDelivery,
+  invoker?: CapabilityInvoker,
 ): RecoveryOrchestrator {
   return new RecoveryOrchestrator({
     spawnAutomation: async (spec) => {
@@ -256,16 +259,31 @@ export function makeOrchestrator(
     getJobRunDir: (jobId) => automationJobService.getJob(jobId)?.run_dir ?? null,
     capabilityRegistry: registry,
     watcher,
+    invoker,
     emitAck: async (_failure, kind) => {
       callbacks.emittedAcks.push(kind);
       if (kind === "surrender" || kind === "surrender-budget")
         callbacks.surrenderEmitted = true;
     },
-    reprocessTurn: async ({ text }) => {
-      callbacks.reprocessCalledWith = text ?? null;
+    reprocessTurn: async (_failure, recoveredContent) => {
+      callbacks.reprocessCalledWith = recoveredContent ?? null;
     },
     writeAutomationRecovery: (args) => ackDelivery.writeAutomationRecovery(args),
     now: () => new Date().toISOString(),
+  });
+}
+
+/**
+ * Create a CapabilityInvoker suitable for E2E tests.
+ * originFactory is never called during reverification (only on failure paths).
+ */
+export function makeTestInvoker(cfr: CfrEmitter, registry: CapabilityRegistry): CapabilityInvoker {
+  return new CapabilityInvoker({
+    cfr,
+    registry,
+    originFactory: () => {
+      throw new Error("[makeTestInvoker] originFactory called unexpectedly in test");
+    },
   });
 }
 
@@ -356,10 +374,12 @@ export async function waitForConversationRecovery(
   callbacks: OrchestratorCallbacks,
   timeoutMs = 300_000,
 ): Promise<void> {
+  // STT recovery calls reprocessTurn (no terminal ack emitted); TTS/other call emitAck("terminal-fixed").
   const TERMINAL_ACKS = new Set(["terminal-fixed", "surrender", "surrender-budget"]);
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (callbacks.emittedAcks.some((k) => TERMINAL_ACKS.has(k))) return;
+    if (callbacks.reprocessCalledWith !== null) return;
     await new Promise((r) => setTimeout(r, 1000));
   }
 }
