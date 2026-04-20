@@ -52,6 +52,16 @@ Any future change to the union requires editing all five locations. TypeScript e
 
 **Suggested approach:** Add an explicit budget (e.g., 5 minutes from worker completion to brain notification, 10 minutes from aggregator start to brain response) to the brief pipeline's design doc. Surface on the dashboard debug pane. Capacity debates become data-driven.
 
+## FU-6 — Remove vestigial `briefingDelivered` field from `SessionManager`
+
+**Type:** Dead-state cleanup.
+
+**Summary:** After extracting the guard into `ackBriefingOnFirstOutput`, the `this.briefingDelivered` field on `SessionManager` (declared at line 378, written at lines 743, 782, reset at 840) is written in three places but never read. The helper's internal `delivered` flag is what actually gates `markDelivered()`. The field is vestigial — not affecting correctness, but dead state that invites confusion for future editors.
+
+**Suggested approach:** Remove the field declaration at line 378, the two `this.briefingDelivered = true` writes at 743 and 782, and the reset at 840. Ensure no other references exist (`grep briefingDelivered packages/dashboard/src/agent/session-manager.ts` should return only the removal diff). Re-run `npx tsc --noEmit` and the sprint-scoped test suite to confirm no regression.
+
+**Priority:** Low. Safe to defer to the next tidy-up sprint.
+
 ## FU-5 — Session-manager briefing-timing test independence
 
 **Type:** Test debt.
