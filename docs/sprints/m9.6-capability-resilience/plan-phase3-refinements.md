@@ -643,7 +643,109 @@ No `image-to-text` or `text-to-image` plug is installed in `.my_agent/capabiliti
 
 **Milestone exit:** all tests pass (full `packages/dashboard` and `packages/core` suites — **zero failed**, per Task §2.5.0) + S16-S19 acceptance gates green + architect approval + CTO sign-off. The clean test suite is a hard gate, not a soft target — if any failure remains at sprint close, S20 does not exit and M9.6 does not close.
 
-**Roadmap commit:** lands AFTER architect + CTO approval per Phase 1 §0.3 rule. **M9.6 done.**
+**Roadmap commit:** lands AFTER architect + CTO approval per Phase 1 §0.3 rule. *(Note: post-2026-04-20 S20 live-test discovery, M9.6 closure moves to S21 — see §2.6 below.)*
+
+---
+
+### 2.6 Sprint 21 — M9.6 milestone-close fix sprint (production wiring bugs from S20 live test, added 2026-04-20)
+
+**Why this exists.** S20 delivered the test infrastructure, terse contract, FU-8 cleanup, and three test-triage fixes. The unit/integration suite was clean (1347/0). The abbreviated E2E replays passed. **But the live /pair-browse milestone sign-off test on 2026-04-20 — CTO sent a real voice message over WhatsApp with both STT and TTS plugs deliberately broken — exposed three production wiring bugs that every prior test layer missed plus a process bug.** See `s20-test-report.md` for the full timeline.
+
+The user-facing CFR contract — *"user sees 'hold on' ack, then receives the real answer to the original message"* — does not work end-to-end in the real app. Unit tests passed because they used isolated orchestrators with their own `emitAck` callbacks. The integration tests passed because they mocked `TransportManager`. The abbreviated E2E tests passed because they didn't exercise the full conversation-origin acknowledgement path (TTS test asserts `terminal-fixed` ack-kind in callbacks, NOT delivery to the conversation's transport). Only the live test exposed that the production wiring between `RecoveryOrchestrator → AckDelivery → TransportManager` is broken.
+
+**M9.6 cannot close until S21 fixes these and the full user-facing contract is verified end-to-end on the live system.**
+
+**Files (BUG-1 — AckDelivery wiring):**
+
+- `packages/dashboard/src/app.ts` — locate where `AckDelivery` is constructed and where `emitAck` is wired into `RecoveryOrchestrator`. The instance must be passed the live `TransportManager` (not null, not a stub). Trace the `[CFR] AckDelivery unavailable (TransportManager or ConnectionRegistry missing)` log line to its source — that branch is what's firing in production today. Verify both `transportManager` AND `connectionRegistry` are non-null at the construction site.
+- `packages/core/src/capabilities/ack-delivery.ts` — verify the unavailability check is the right shape: it should warn-and-no-op only if the dependencies are genuinely absent, not if they're present but mis-wired. Add a constructor-time assertion if the production codepath requires both deps (don't rely on call-site nullability).
+- `packages/dashboard/tests/integration/cfr-ack-delivery-wiring.test.ts` *(new)* — boots a real `App` (via `app-harness.ts`), wires a `MockTransport`, fires a CFR, asserts that `mockTransport.sends.length > 0` for the conversation's channel. **This test would have caught BUG-1 before the live run.** It's the regression test that must accompany the fix.
+
+**Files (BUG-2 — brain races CFR):**
+
+S20 live timeline (19:10:20 → 19:10:31 = 11 seconds): voice arrives → STT CFR fires → fix automation spawned → **brain processes turn with `[Voice message — transcription unavailable]` fallback text and replies "Voice transcription is down again. Can you resend as text?"** before fix completes. Even after the fix succeeds and reverify recovers the original transcription, the brain has already committed to the wrong reply.
+
+**Design decision (architect):** Option (a) — gate the brain pending CFR completion. The brain session must NOT receive the fallback text turn while a CFR is dispatched for that turn. When the orchestrator calls `reprocessTurn`, the real text is injected. If CFR surrenders (after orchestrator's job timeout, currently 15 min from S16), the fallback text is injected then with terminal-surrender framing.
+
+Reasoning: option (b) — sentinel fallback text the brain learns to ignore — relies on prompt-engineering reliability and is fragile. The brain might still reply. Option (a) is the architecturally correct answer; the orchestrator already owns the timeout, so the brain doesn't need to invent its own.
+
+- `packages/dashboard/src/conversations/message-handler.ts` (or wherever STT failure converts to brain-injected text — verify location at sprint-time) — add a CFR-pending gate. When STT fails AND a CFR is dispatched for the turn, hold the message in a "pending CFR" state. Do NOT inject the fallback text into the brain session.
+- `packages/core/src/capabilities/recovery-orchestrator.ts` — when `reprocessTurn` is called, the message-handler must release the pending state and inject the recovered text. When the orchestrator surrenders (`SURRENDERED_TERMINAL` state), the message-handler must release the pending state and inject the fallback text with surrender framing ("transcription couldn't be recovered — would you like to send as text?"). Both transitions must signal the message-handler.
+- `packages/dashboard/tests/integration/brain-cfr-race-gate.test.ts` *(new)* — boots a real `App`, simulates an STT-bearing turn arrival with a registered orchestrator that delays `reprocessTurn` by 2 seconds, asserts that no brain reply is generated during the 2-second window AND that the brain reply uses the recovered transcription (not the fallback). Second test: orchestrator surrenders after 1 second, brain reply uses the surrender framing.
+- `packages/dashboard/tests/integration/brain-cfr-race-timeout.test.ts` *(new)* — orchestrator never calls `reprocessTurn` and never surrenders; pending-state must time out after 15 min (test-time = 200 ms via injected clock); brain receives the fallback with timeout framing.
+
+**Files (BUG-3 — `reverifyAudioToText → reprocessTurn` chain):**
+
+S20 live timeline: STT fix completed at 19:13:17 (`.enabled` created at 19:11). No `reprocessTurn` log entry appears. No `terminal-fixed` ack for `audio-to-text`. Three candidate causes per the test report — all need investigation:
+
+1. The raw audio file path stored in the CFR failure event is not accessible at reverification time (path mismatch between conversation runtime and orchestrator).
+2. `reverifyAudioToText` throws and the error is swallowed.
+3. The orchestrator's `awaitAutomation` returns a non-`done` status (e.g., `completed` not normalized — but S17 fixed that; verify the fix actually applies here).
+
+- `packages/core/src/capabilities/recovery-orchestrator.ts` — instrument the conversation-origin terminal path with detailed logging (every state transition, every reverify call, every reprocessTurn call). Sprint dev runs the live test once with logging on, identifies which step is failing.
+- `packages/core/src/capabilities/reverify/audio-to-text.ts` (verify path at sprint-time) — wrap reverify in a try/catch and log the error if it throws. Currently a thrown error may be silently swallowed by the orchestrator's outer handler.
+- Whatever production reverify file fails — fix the bug found.
+- `packages/dashboard/tests/integration/cfr-stt-reprocess-chain.test.ts` *(new)* — boots a real `App` with stub registry that fails STT once then succeeds, registers a real orchestrator, fires a conversation-origin CFR with `rawMediaPath` pointing to a fixture audio file, asserts that `reprocessTurn` IS called with non-empty text and that `terminal-fixed` ack is emitted. **This test would have caught BUG-3 before the live run.**
+
+**Files (BUG-4 — terse SKILL.md not synced):**
+
+S20 live: TTS fix attempts a2 and a3 wrote deliverables of 3071 and 2629 chars. Terse contract requires ≤5 lines. Root cause: production agent reads from `.my_agent/brain/skills/`, the instance copy. `packages/core/skills/` was updated but the copy wasn't synced.
+
+- `.my_agent/brain/skills/capability-brainstorming/SKILL.md` — copy from `packages/core/skills/capability-brainstorming/SKILL.md`. Verify `diff` shows zero output post-copy.
+- `packages/core/src/skills/sync.ts` *(new)* — small utility that reads `packages/core/skills/` and writes to `<agentDir>/brain/skills/`. Hash-based change detection (SHA-256 of source file → only copy if different).
+- `packages/dashboard/src/app.ts` — call the sync utility at app startup (after agentDir is known, before the brain session opens). Log "skills synced: N files" or "skills already in sync" so it's visible.
+- `packages/core/tests/skills/skills-sync.test.ts` *(new)* — temp dir as agentDir; populate `packages/core/skills/foo.md`; run sync; assert the file exists at `<agentDir>/brain/skills/foo.md` with identical content; modify source; re-run sync; assert update propagates.
+- `packages/core/tests/skills/skills-sync-startup.test.ts` *(new)* — boots `App`, asserts that on startup the agent's `brain/skills/capability-brainstorming/SKILL.md` matches `packages/core/skills/capability-brainstorming/SKILL.md` byte-for-byte. **This test catches the drift class as a pattern, not just BUG-4.**
+
+**Files (BUG-5 — `cfr-exit-gate-automation` precondition mismatch):**
+
+S20 test report: this test SKIPPED with `canRun = false` despite `browser-chrome` plug being installed. Either the precondition check is buggy or the plug-presence detection didn't see the same files in the test env.
+
+- `packages/dashboard/tests/e2e/cfr-exit-gate-automation.test.ts` — instrument the precondition check (`hasBrowserPlug`, `hasAuth`) at test boot to log which check returned false and why. Run the test once with the instrumentation, identify the gap, fix it.
+- `packages/dashboard/tests/e2e/cfr-exit-gate-helpers.ts` — if the precondition logic lives here (e.g., `findAgentDir`), trace whether the path resolution matches between test environments. Possibly a `__dirname` resolution issue when run from a specific subdirectory.
+
+**Acceptance for S21 close:**
+
+| Gate | Verification |
+|------|--------------|
+| BUG-1 fixed | New `cfr-ack-delivery-wiring.test.ts` passes; live test sees "hold on" ack on WhatsApp |
+| BUG-2 fixed | New `brain-cfr-race-gate.test.ts` + timeout test pass; live test does NOT show brain replying before fix completes |
+| BUG-3 fixed | New `cfr-stt-reprocess-chain.test.ts` passes; `cfr-exit-gate-conversation.test.ts` (S20 file) passes; live test, brain answers the original voice message correctly after fix |
+| BUG-4 fixed | New `skills-sync.test.ts` + `skills-sync-startup.test.ts` pass; live test, fix-mode deliverables are ≤5 lines |
+| BUG-5 fixed | `cfr-exit-gate-automation.test.ts` runs (not skipped) and passes on the dev machine |
+| Live retest | CTO repeats /pair-browse with both STT and TTS deliberately broken; receives "hold on" ack, then a real reply to the voice message |
+
+**Verification command (full suite + live retest):**
+
+```bash
+cd packages/dashboard && npx vitest run                    # full suite, 0 failures
+cd packages/core && npx vitest run                          # full suite, 0 failures
+env -u CLAUDECODE node --env-file=packages/dashboard/.env \
+  node_modules/.bin/vitest run \
+  tests/e2e/cfr-exit-gate-automation \
+  tests/e2e/cfr-exit-gate-conversation \
+  tests/e2e/cfr-abbreviated-replays                         # all pass, none skipped (with plugs + auth)
+# Live: CTO sends voice message via WhatsApp with both plugs broken; observes correct flow
+```
+
+**Deviation triggers:**
+
+- BUG-2 design decision changes — if the brain-CFR gate proves harder to implement than expected (e.g., the brain session's turn-injection point is structured differently than spec), escalate to architect with a proposal in `proposals/s21-brain-cfr-gate.md`. Do NOT silently fall back to option (b) sentinel-text.
+- BUG-3 turns out to be in the message-handler not the orchestrator (e.g., the orchestrator IS calling reprocessTurn but the message-handler isn't actioning it). Fix the actual location; document the expected vs actual call shape in DECISIONS.
+- BUG-4 sync mechanism reveals that `packages/core/skills/` and `.my_agent/brain/skills/` have drifted on OTHER files too (not just `capability-brainstorming/SKILL.md`). Diff all skills; document drift in DECISIONS; sync them all (with a one-line per-file note in the commit message).
+
+**Out of scope for S21:**
+
+- Refactoring the brain session lifecycle beyond what BUG-2's gate requires.
+- Migrating any of the 22 currently-skipped tests to non-skipped state (other than BUG-5's exit-gate-automation).
+- Touching `RecoveryOrchestrator` state machine logic beyond fixing BUG-3 (the orchestrator is mostly correct; this is a wiring or instrumentation fix).
+- New CFR-fix template work (the contract change landed in S20; only the sync is open).
+
+**Why it's S21, not amended into S20:** S20 shipped substantive work (test infra, terse contract, FU-8, test triage). The bugs are NEW discoveries from the live test, not S20 work products. Splitting keeps S20 sprint artifacts intact and makes the milestone-close gate clearly attributable. The dev's S20 commits (still uncommitted at architect-review time) should land as S20; S21 starts from there.
+
+**Milestone exit:** all five bugs fixed + new regression tests green + S20's exit-gate-conversation test green + live retest signed off by CTO + architect approval. **M9.6 closes here.**
+
+**Roadmap commit:** lands AFTER architect + CTO approval per §0.3. *(S16 and S20 dev have both made the same premature-Done mistake; S21 dev: do NOT pre-mark Done. Wait for sign-off.)*
 
 ---
 
