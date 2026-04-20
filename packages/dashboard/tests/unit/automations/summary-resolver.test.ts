@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { resolveJobSummary, resolveJobSummaryAsync } from "../../../src/automations/summary-resolver.js";
+import { resolveJobSummary, resolveJobSummaryAsync, WRAPPER_MARKER } from "../../../src/automations/summary-resolver.js";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -192,16 +192,18 @@ describe("resolveJobSummaryAsync", () => {
 
   it("falls back to raw input when Haiku drops a section heading", async () => {
     const dir = makeTmpDir();
+    // Mirror the real aggregator format: WRAPPER_MARKER before each wrapper.
     const content = [
-      `## section-alpha\n\n${"A".repeat(4_000)}`,
-      `## section-beta\n\n${"B".repeat(4_000)}`,
-      `## section-gamma\n\n${"C".repeat(4_000)}`,
+      `${WRAPPER_MARKER}\n## section-alpha\n\n${"A".repeat(4_000)}`,
+      `${WRAPPER_MARKER}\n## section-beta\n\n${"B".repeat(4_000)}`,
+      `${WRAPPER_MARKER}\n## section-gamma\n\n${"C".repeat(4_000)}`,
     ].join("\n\n");
     fs.writeFileSync(path.join(dir, "deliverable.md"), content);
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const mockQuery = vi.fn(async () =>
-      // Haiku drops section-gamma
+      // Haiku drops section-gamma (marker may or may not survive — we check
+      // the heading text, not the marker)
       "## section-alpha\nCompressed alpha.\n## section-beta\nCompressed beta."
     );
 
@@ -214,12 +216,48 @@ describe("resolveJobSummaryAsync", () => {
     warnSpy.mockRestore();
   });
 
+  it("does NOT fall back when Haiku merges worker-internal ## subheadings (M9.4-S4.1 live-bug fix)", async () => {
+    const dir = makeTmpDir();
+    // Each worker has internal `## Diagnosis` / `## Results` subheadings that
+    // Haiku is explicitly allowed to merge. Only the WRAPPER_MARKER-prefixed
+    // wrappers count as "must survive." This was the bug found on live test:
+    // the old regex treated internal `## Diagnosis` as a wrapper and tripped
+    // raw-fallback on every real debrief.
+    const makeWorker = (name: string, body: string) =>
+      `${WRAPPER_MARKER}\n## ${name}\n\n## Diagnosis\n${body}\n\n## Results\nall good`;
+    const content = [
+      makeWorker("worker-alpha", "A".repeat(3_500)),
+      makeWorker("worker-beta", "B".repeat(3_500)),
+      makeWorker("worker-gamma", "C".repeat(3_500)),
+    ].join("\n\n---\n\n"); // aggregator's real separator
+    fs.writeFileSync(path.join(dir, "deliverable.md"), content);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const mockQuery = vi.fn(async () =>
+      // All three wrappers present; Haiku merged the internal subsections.
+      "## worker-alpha\ncondensed alpha\n## worker-beta\ncondensed beta\n## worker-gamma\ncondensed gamma"
+    );
+
+    const result = await resolveJobSummaryAsync(dir, "fallback", mockQuery);
+
+    // Condense output returned (not raw fallback); no warn about drops.
+    expect(result).not.toContain("A".repeat(3_500));
+    expect(result).toContain("## worker-alpha");
+    expect(result).toContain("## worker-beta");
+    expect(result).toContain("## worker-gamma");
+    const dropWarns = warnSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("Haiku dropped"),
+    );
+    expect(dropWarns).toHaveLength(0);
+    warnSpy.mockRestore();
+  });
+
   it("returns stub and skips Haiku when content exceeds 100K hard cap", async () => {
     const dir = makeTmpDir();
     const content = [
-      `## huge-section-1\n\n${"A".repeat(40_000)}`,
-      `## huge-section-2\n\n${"B".repeat(40_000)}`,
-      `## huge-section-3\n\n${"C".repeat(25_000)}`,
+      `${WRAPPER_MARKER}\n## huge-section-1\n\n${"A".repeat(40_000)}`,
+      `${WRAPPER_MARKER}\n## huge-section-2\n\n${"B".repeat(40_000)}`,
+      `${WRAPPER_MARKER}\n## huge-section-3\n\n${"C".repeat(25_000)}`,
     ].join("\n\n");
     // total > 100K
     fs.writeFileSync(path.join(dir, "deliverable.md"), content);
@@ -236,6 +274,77 @@ describe("resolveJobSummaryAsync", () => {
     expect(result).toContain("huge-section-3");
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Hard cap exceeded"));
     warnSpy.mockRestore();
+  });
+});
+
+describe("wrapper-marker contract (silent-break guard)", () => {
+  // These tests exist so that if a future editor changes the WRAPPER_MARKER
+  // string on one side of the aggregator↔resolver contract without changing
+  // the other, the test suite fails loudly. Without this guard, a marker
+  // mismatch silently causes every real debrief to fall back to raw content
+  // (the exact M9.4-S4.1 live-test bug).
+
+  it("exports a non-empty WRAPPER_MARKER constant", () => {
+    expect(typeof WRAPPER_MARKER).toBe("string");
+    expect(WRAPPER_MARKER.length).toBeGreaterThan(0);
+    expect(WRAPPER_MARKER.startsWith("<!--")).toBe(true);
+  });
+
+  it("round-trips: aggregator-format content built with WRAPPER_MARKER extracts back to N wrappers", async () => {
+    // Simulate the aggregator's exact output format (see handler-registry.ts
+    // Step 2/4 in runDebriefReporter). If the aggregator later drifts from
+    // this format, the live fixture test — now updated to match — will fail.
+    const mockWorkers = [
+      { name: "worker-one", body: "body one\n\n## Internal-A\nx\n\n## Internal-B\ny" },
+      { name: "worker-two", body: "body two" },
+      { name: "worker-three", body: "body three\n\n![chart](/api/assets/screenshots/x.png)" },
+    ];
+    const assembled = mockWorkers
+      .map((w) => `${WRAPPER_MARKER}\n## ${w.name}\n\n${w.body}`)
+      .join("\n\n---\n\n");
+
+    // Force the oversize condense path so extractWrapperHeadings runs.
+    const padded = assembled + "\n\n".padEnd(11_000, " ");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "marker-contract-"));
+    fs.writeFileSync(path.join(dir, "deliverable.md"), padded);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const mockQuery = vi.fn(async () =>
+      mockWorkers.map((w) => `## ${w.name}\ncondensed`).join("\n\n"),
+    );
+
+    const result = await resolveJobSummaryAsync(dir, "fallback", mockQuery);
+
+    // All three wrappers survived the extraction + verification round-trip.
+    for (const w of mockWorkers) {
+      expect(result).toContain(`## ${w.name}`);
+    }
+    const dropWarns = warnSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("Haiku dropped"),
+    );
+    expect(dropWarns).toHaveLength(0);
+
+    warnSpy.mockRestore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("handler-registry.ts imports WRAPPER_MARKER and uses it when building worker sections", () => {
+    // Source-file assertion: if a future editor hard-codes the marker string
+    // instead of importing WRAPPER_MARKER, this test fails. Guards against
+    // silent divergence between the aggregator and resolver. If you change
+    // the aggregator file path, update this test.
+    const aggregatorPath = new URL(
+      "../../../src/scheduler/jobs/handler-registry.ts",
+      import.meta.url,
+    ).pathname;
+    const source = fs.readFileSync(aggregatorPath, "utf-8");
+    expect(source).toMatch(
+      /import\s*{[^}]*WRAPPER_MARKER[^}]*}\s*from\s*["']\.\.\/\.\.\/automations\/summary-resolver\.js["']/,
+    );
+    expect(source).toContain("${WRAPPER_MARKER}");
+    // Negative: no hardcoded literal of the marker string in the aggregator —
+    // only occurrences of the imported constant reference are allowed.
+    expect(source.includes(`"${WRAPPER_MARKER}"`)).toBe(false);
+    expect(source.includes(`'${WRAPPER_MARKER}'`)).toBe(false);
   });
 });
 

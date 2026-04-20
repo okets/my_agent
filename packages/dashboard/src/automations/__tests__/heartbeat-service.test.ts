@@ -40,7 +40,10 @@ describe("HeartbeatService", () => {
     };
     mockCi = {
       alert: vi.fn(async () => ({ status: "delivered" as const })),
-      initiate: vi.fn(async () => ({})),
+      initiate: vi.fn(async () => ({
+        conversation: { id: "conv-new" },
+        delivery: { status: "delivered" as const },
+      })),
     };
   });
 
@@ -181,6 +184,63 @@ describe("HeartbeatService", () => {
     expect(mockCi.initiate).toHaveBeenCalledTimes(1);
     // Should be delivered after initiate() fallback
     expect(queue.listPending()).toHaveLength(0);
+  });
+
+  it("does NOT mark delivered when initiate() itself reports skipped_busy (FU-7)", async () => {
+    mockCi.alert.mockResolvedValue({ status: "no_conversation" });
+    mockCi.initiate.mockResolvedValue({
+      conversation: { id: "conv-new" },
+      delivery: { status: "skipped_busy" as const },
+    });
+
+    queue.enqueue({
+      job_id: "job-init-busy",
+      automation_id: "a1",
+      type: "job_failed",
+      summary: "Failed",
+      created: new Date().toISOString(),
+      delivery_attempts: 0,
+    });
+
+    const hb = createHeartbeat();
+    await hb.tick();
+
+    expect(mockCi.initiate).toHaveBeenCalledTimes(1);
+    // Must stay in pending for the next tick to retry
+    const pending = queue.listPending();
+    expect(pending).toHaveLength(1);
+    expect(pending[0].job_id).toBe("job-init-busy");
+    expect(pending[0].delivery_attempts).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does NOT mark delivered when initiate() itself reports send_failed (FU-7)", async () => {
+    mockCi.alert.mockResolvedValue({ status: "no_conversation" });
+    mockCi.initiate.mockResolvedValue({
+      conversation: { id: "conv-new" },
+      delivery: { status: "send_failed" as const, reason: "model error" },
+    });
+
+    queue.enqueue({
+      job_id: "job-init-fail",
+      automation_id: "a1",
+      type: "job_failed",
+      summary: "Failed",
+      created: new Date().toISOString(),
+      delivery_attempts: 0,
+    });
+
+    const hb = createHeartbeat();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await hb.tick();
+
+    expect(mockCi.initiate).toHaveBeenCalledTimes(1);
+    const pending = queue.listPending();
+    expect(pending).toHaveLength(1);
+    expect(pending[0].job_id).toBe("job-init-fail");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("initiate-fallback deferred: model error"),
+    );
+    warnSpy.mockRestore();
   });
 
   it("skips jobs without run_dir", async () => {

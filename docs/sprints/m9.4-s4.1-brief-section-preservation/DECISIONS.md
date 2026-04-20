@@ -64,3 +64,44 @@ runner: team-lead
 **Context:** During planning an orthogonal architectural concern was raised — the alert layer has no budget awareness and can overwhelm the brain's context window on busy days.
 
 **Decision:** Explicitly out of scope for S4.1. Captured as FU-1 for a future sprint. S4.1's charter is delivery correctness (no drops, no lies), not backpressure.
+
+## D8 — Wrapper-marker contract (post-merge fix)
+
+**Context:** Post-merge live verification against today's real deliverable exposed a defect in the initial implementation. The `extractTopLevelHeadings` regex matched every `^## ` line, which caused two problems:
+1. First pass: ANY `## Diagnosis` / `## Results` worker-internal heading was treated as a wrapper, so post-Haiku verification saw 59 "dropped" sections and fell back to raw on every real debrief.
+2. Second pass (split-on-`---`): still over-detected because workers write `---` horizontal rules in their content, misaligning with the aggregator's `---` separator.
+
+**Decision:** Introduce an explicit contract between aggregator and resolver. `handler-registry.ts::runDebriefReporter` prefixes each worker wrapper with `<!-- wrapper -->` (HTML comment, invisible in rendered markdown, workers cannot produce it). `summary-resolver.ts::extractWrapperHeadings` matches that exact marker via a regex built from the shared `WRAPPER_MARKER` constant. Both sides import the constant from summary-resolver — no string duplication.
+
+**Consequences:**
+- Silent-break guard: new unit test `wrapper-marker contract (silent-break guard)` asserts (a) the constant exists and is HTML-comment-shaped, (b) assembled aggregator output with `WRAPPER_MARKER` round-trips through extraction, (c) `handler-registry.ts` source imports `WRAPPER_MARKER` and does NOT hard-code the marker as a string literal. If a future editor diverges either side, the contract test fails loudly.
+- Output-side check relaxed: `condensed.includes("## <name>")` → `condensed.includes(<name>)`. Wrapper heading names are stable identifiers (`chiang-mai-aqi-worker`, `cfr-fix-text-to-audio-a3-exec-<hash>`). A substring match on the name alone is robust to Haiku reformatting headings (different level, bold, emoji) while still catching true drops.
+
+## D9 — Condense prompt hardened against wrapper-merging
+
+**Context:** First live run produced Haiku output that correctly compressed content but merged `cfr-fix-test-type-a2` into `cfr-fix-test-type-a1` because the two retries had near-identical content. Per the never-drop invariant, raw fallback fired. Valid behavior, but defeated the condense path on any debrief with duplicative retry sections — which is every CFR-heavy debrief until M9.6-S20 lands.
+
+**Decision:** Strengthen `CONDENSE_SYSTEM_PROMPT` with three additions:
+1. Explicit instruction: "every wrapper heading MUST appear in the output in its original order — including near-duplicate headings such as retry attempts (`-a1`, `-a2`, `-a3` suffixes)".
+2. Prescribed pattern for near-duplicate content: "keep BOTH headings and under the second write a single brief line like 'Same outcome as previous attempt.' — never merge two wrapper headings into one".
+3. Output purity: "Return only the condensed markdown — no preamble, no explanation, no meta-commentary about the task" (Haiku had been adding a brief preamble paragraph).
+
+**Consequence:** Second live run with strengthened prompt produced a 7,098-byte condense output from 34,271-byte fixture, all 14 wrappers present, AQI/Songkran/project-status markers preserved. Verdict: PASS.
+
+## D10 — FU-7: extend delivery-observation to `initiate()`
+
+**Context:** Post-merge external audit flagged that FU-7 was a twin of the alert() delivery-lying bug, just on the `no_conversation` fresh-install fallback path. Heartbeat called `markDelivered()` immediately after `initiate()` returned, regardless of whether initiate's model stream actually completed.
+
+**Decision (in-scope expansion, CTO-approved):** Mirror the alert() outcome-observation pattern inside `initiate()`. `initiate()` now returns `InitiateResult = { conversation: Conversation; delivery: AlertResult }` — the created conversation plus an AlertResult-shaped delivery outcome with the same `delivered` / `skipped_busy` / `send_failed` / `transport_failed` semantics. All 6 callers updated: heartbeat fallback (FU-7 target), alert's channel-switch branch, automation-processor, automation-scheduler, app.ts's `AutomationNotifier` (also fixed a pre-existing dead-code `if (!alerted)` bug), and debug.ts (destructures `.conversation`).
+
+**Consequences:**
+- Channel-switch `alert()` now propagates initiate's delivery as the alert's result — no more blanket `{status: "delivered"}` after channel switch.
+- Heartbeat retries on initiate failure via `incrementAttempts`, mirroring alert-path retry semantics.
+- TypeScript exhaustiveness on the new InitiateResult shape surfaces any future caller that misses handling. Four inline structural aliases (heartbeat-service, automation-scheduler, automation-processor, server.ts) all extended to match the new signature.
+- New test files: `conversation-initiator-initiate-outcome.test.ts` (4 tests — busy / error / happy / always-returns-conversation), plus 2 new heartbeat tests for the initiate-fallback skipped_busy and send_failed branches.
+
+## D11 — FU-6: vestigial `briefingDelivered` field removed
+
+**Context:** External reviewer flagged `SessionManager.briefingDelivered` as dead state — written in 3 places, never read. The actual delivery guard moved into the local `delivered` boolean inside `ackBriefingOnFirstOutput`.
+
+**Decision:** Removed the field declaration and all three writes. Zero remaining references. No regression in tests.

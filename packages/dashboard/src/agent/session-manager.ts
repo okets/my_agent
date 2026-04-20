@@ -375,7 +375,6 @@ export class SessionManager {
   private delegationEnforcer: DelegationEnforcer = createDelegationEnforcer(2);
   /** Briefing captured in buildQuery, marked delivered after first model output. */
   private pendingBriefingResult: { lines: string[]; markDelivered: () => void } | null = null;
-  private briefingDelivered = false;
 
   /**
    * M9.6-S12 — per-session context map, keyed by SDK `session_id`.
@@ -738,9 +737,8 @@ export class SessionManager {
           yield event;
         }
         // ackBriefingOnFirstOutput fired markDelivered on first text_delta (if any).
-        // Clear local refs so the fresh-fallback loop doesn't double-fire.
+        // Clear local ref so the fresh-fallback loop doesn't double-fire.
         this.pendingBriefingResult = null;
-        this.briefingDelivered = true;
       } catch (resumeError) {
         // If we were resuming and it failed, fall back to a fresh session
         if (!this.sdkSessionId) throw resumeError; // Already fresh — nothing to fall back to
@@ -779,7 +777,6 @@ export class SessionManager {
           yield event;
         }
         this.pendingBriefingResult = null;
-        this.briefingDelivered = true;
       }
     } finally {
       this.activeQuery = null;
@@ -837,7 +834,6 @@ export class SessionManager {
     // not here. Firing here risks marking delivered when the session throws before generating output.
     if (briefingResult && briefingResult.lines.length > 0) {
       this.pendingBriefingResult = briefingResult;
-      this.briefingDelivered = false;
     }
 
     const opts: BrainSessionOptions = {

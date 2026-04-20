@@ -80,7 +80,15 @@ declare module "fastify" {
       initiate(options?: {
         firstTurnPrompt?: string;
         channel?: string;
-      }): Promise<unknown>;
+      }): Promise<{
+        conversation: unknown;
+        delivery:
+          | { status: "delivered" }
+          | { status: "no_conversation" }
+          | { status: "transport_failed"; reason: string }
+          | { status: "skipped_busy" }
+          | { status: "send_failed"; reason: string };
+      }>;
     } | null;
     postResponseHooks:
       | import("./conversations/post-response-hooks.js").PostResponseHooks

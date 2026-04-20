@@ -163,3 +163,78 @@ tests/fixtures/debrief-2026-04-20.md
 | Live fixture regression — authenticated Haiku | DEFERRED (needs authenticated SDK session; will verify on 2026-04-21 brief) |
 
 All S4.1 success criteria #1-4 are satisfied by CI-runnable tests. Success criterion #5 (manual verification of next morning's brief content) is scheduled for 2026-04-21.
+
+---
+
+## Post-Review Addendum — 2026-04-20 live verification + FU-6/FU-7 resolution
+
+After the initial external review, CTO flagged three concerns:
+1. The live fixture test was gracefully-skipped in CI (Agent SDK session not authenticated in the dev shell) — how do we know the fix actually works?
+2. FU-6 (vestigial `briefingDelivered` field) and FU-7 (delivery-observation on `initiate()`) need to be properly addressed, not deferred.
+
+### Live verification
+
+Wrote `scripts/verify-s4.1-live.ts` exposing `queryModel` + `resolveJobSummaryAsync` directly, ran from CTO's server with dashboard .env loaded and `CLAUDECODE` unset (per live-test helpers pattern).
+
+**Round 1 — real bug surfaced in the fix itself.** Initial `extractTopLevelHeadings` regex matched every `^## ` line, so it counted worker-internal headings (`## Diagnosis`, `## Results`, etc.) as wrappers. Post-Haiku check saw 59 "dropped" sections on the real fixture and fell back to raw on every multi-section debrief. Net effect of the initial fix: section-drop safety preserved (no data loss) but condense path never actually ran.
+
+**Root cause analysis.** The aggregator at `handler-registry.ts:368` joins worker sections with `\n\n---\n\n`, but workers write `---` horizontal rules inside their content too. No content-only heuristic cleanly distinguishes aggregator-written wrappers from worker-internal headings.
+
+**Fix (D8).** Introduced `WRAPPER_MARKER = "<!-- wrapper -->"` — invisible in rendered markdown, workers cannot produce it. Aggregator prefixes each wrapper heading with the marker; resolver extracts via regex built from the shared exported constant. Silent-break guarded by a new contract test that asserts `handler-registry.ts` imports and uses `WRAPPER_MARKER` and does NOT hard-code the string literal.
+
+**Fix (D9).** Strengthened `CONDENSE_SYSTEM_PROMPT` after Round 2 live run revealed Haiku merging retry attempts (`-a1` / `-a2` / `-a3`) when content was near-identical. Added explicit instruction to keep both headings and write "Same outcome as previous attempt." under the duplicate. Also told Haiku to return only markdown, no preamble.
+
+**Round 3 — PASS.**
+
+```
+[1/2] Smoke check: direct queryModel call with tiny prompt
+  Haiku reply: "ok"
+[2/2] Real resolver: resolveJobSummaryAsync against fixture
+  Output length: 5716 bytes  (from 34,271 byte fixture — 83% reduction)
+  Headings present: 14/14
+  Length ≤ 10 000: yes
+  Output < fixture: yes (condense happened, not raw fallback)
+  Representative facts: AQI=true Songkran=true Project=true
+VERDICT: PASS
+```
+
+All 14 top-level wrapper headings preserved, user-facing AQI / Songkran / project-status markers survive the condense. Haiku output includes proper retry-attempt handling (`## cfr-fix-text-to-audio-a2-exec-...` with brief "Attempt 2/3: State on disk already correct from attempt 1. Smoke re-verified." body).
+
+### FU-6 — DONE
+
+Removed `briefingDelivered` field declaration + all three writes from `session-manager.ts`. Zero remaining references. Typecheck clean.
+
+### FU-7 — DONE
+
+`initiate()` signature changed from `Promise<Conversation>` to `Promise<{ conversation: Conversation; delivery: AlertResult }>`. All six callers updated. Discovered and fixed a pre-existing dead-code `if (!alerted)` bug in `app.ts:685` as part of the rollup. 4 new inline structural aliases updated (same pattern as AlertResult — now FU-3 counts double duplication).
+
+### Updated test counts
+
+| File | Pre-review | Post-review | Delta |
+|------|-----------|-------------|-------|
+| `tests/unit/automations/summary-resolver.test.ts` | 18 | 22 | +4 (3 contract guards + 1 worker-internal-subheading test) |
+| `src/automations/__tests__/heartbeat-service.test.ts` | 16 | 18 | +2 (FU-7 initiate-busy + initiate-fail) |
+| `tests/unit/agent/conversation-initiator-alert-outcome.test.ts` | 3 | 3 | — |
+| `tests/unit/agent/conversation-initiator-initiate-outcome.test.ts` | — | 4 | +4 new file |
+| `tests/unit/agent/session-manager-briefing-timing.test.ts` | 6 | 6 | — |
+| **Sprint-scoped total** | **43** | **53** | **+10** |
+
+### Full-suite regression
+
+```
+Test Files  6 failed | 160 passed | 9 skipped (175)
+      Tests  7 failed | 1340 passed | 18 skipped (1365)
+```
+
+Pre-sprint baseline was 6 files / 8 tests failing. Post-sprint: 6 files / 7 tests. **One fewer test failing** than pre-sprint despite the `initiate()` signature change — initial cascade (conversation-initiator.test.ts + conversation-initiator-routing.test.ts = 4 new failures) fixed via destructuring updates at 5 test sites.
+
+### Success criteria — updated
+
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | Live Haiku regression test passes | **PASS** (5,716-byte output, 14/14 headings, real Haiku call, on CTO's server with authenticated SDK) |
+| 2 | All synthetic tests pass | PASS (53/53 sprint-scoped) |
+| 3 | Dashboard typecheck clean | PASS |
+| 4 | Full suite has no new failures | PASS (7 failed vs. 8 pre-sprint — actually improved) |
+| 5 | Next morning's brief (2026-04-21) includes all user-facing sections | Pending — scheduled |
+| 6 | DECISIONS / FOLLOW-UPS / test-report present | PASS (D1–D11, FU-1..FU-8 scoped) |

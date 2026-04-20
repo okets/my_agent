@@ -27,22 +27,21 @@ runner: team-lead
 
 **Impact:** After S4.1 + S20 land together, the morning brief goes back to ~6–8K chars on a normal day. Condense path becomes a safety net rather than a steady-state necessity.
 
-## FU-3 — AlertResult type alias consolidation
+## FU-3 — AlertResult + InitiateResult type alias consolidation
 
 **Type:** Tidy-up.
 
-**Summary:** The `AlertResult` discriminated union is duplicated in five locations across four files:
-- `packages/dashboard/src/agent/conversation-initiator.ts` — canonical `export type AlertResult` (source of truth)
-- `packages/dashboard/src/automations/heartbeat-service.ts` — inline structural type inside `HeartbeatConfig.conversationInitiator.alert`
-- `packages/dashboard/src/automations/automation-scheduler.ts` — inline alias
-- `packages/dashboard/src/automations/automation-processor.ts` — inline alias
-- `packages/dashboard/src/server.ts` — inline alias
+**Summary:** The `AlertResult` discriminated union is duplicated in five locations across four files. After FU-7 landed the `initiate()` signature change, each of the four inline consumer aliases also gained an inline `InitiateResult` shape — so the duplication budget is now effectively 2× what it was:
 
-(Plan's scope table listed three structural duplicates; a fourth at `heartbeat-service.ts:77-81` was discovered by a cascading `app.ts:1990` TS2322 error during integration — see DEV-1 in DEVIATIONS.md.)
+- `packages/dashboard/src/agent/conversation-initiator.ts` — canonical `export type AlertResult`, canonical `export type InitiateResult` (source of truth for both)
+- `packages/dashboard/src/automations/heartbeat-service.ts` — inline structural types for both `alert()` and `initiate()`
+- `packages/dashboard/src/automations/automation-scheduler.ts` — same
+- `packages/dashboard/src/automations/automation-processor.ts` — same
+- `packages/dashboard/src/server.ts` — same
 
-Any future change to the union requires editing all five locations. TypeScript exhaustiveness catches mismatches but the duplication is friction.
+Any future change to either union requires editing 4 inline copies. TypeScript exhaustiveness catches mismatches but the duplication is friction.
 
-**Suggested approach:** Consolidate to a single `export type AlertResult` and import it in all consumers. Replace the `HeartbeatConfig.conversationInitiator` and peer interfaces with a shared interface. Low-risk refactor; high readability value.
+**Suggested approach:** Consolidate to the single exported `AlertResult` / `InitiateResult` types and import them in all consumers. Replace the `HeartbeatConfig.conversationInitiator` and peer interfaces with a shared interface. Low-risk refactor; high readability value.
 
 ## FU-4 — Document the 8:13 AM brief delivery latency budget
 
@@ -52,15 +51,17 @@ Any future change to the union requires editing all five locations. TypeScript e
 
 **Suggested approach:** Add an explicit budget (e.g., 5 minutes from worker completion to brain notification, 10 minutes from aggregator start to brain response) to the brief pipeline's design doc. Surface on the dashboard debug pane. Capacity debates become data-driven.
 
-## FU-7 — Extend delivery-observation to `initiate()`
+## FU-7 — Extend delivery-observation to `initiate()` — ✅ ADDRESSED IN THIS SPRINT
 
-**Type:** Correctness — completes the "delivery may fail, must not lie" invariant on the fallback path.
+**Original concern:** S4.1's first merge fixed `alert()` to observe `sendSystemMessage()` output before returning. `heartbeat-service.ts:305` still called `markDelivered()` immediately after `initiate()` returned, without observing `initiate()`'s internal stream. Same class of bug, fresh-install `no_conversation` fallback path.
 
-**Summary:** S4.1 fixed `alert()` to observe `sendSystemMessage()` output before returning. `heartbeat-service.ts:305` still calls `markDelivered()` immediately after `initiate()` returns, without observing `initiate()`'s internal stream. This is the same class of bug the sprint closed for `alert()`, just on the fresh-install `no_conversation` fallback path.
+**Resolution (post-audit, in-scope per CTO 2026-04-20):** Full fix landed. See DECISIONS D10.
 
-**Severity:** Low. The `initiate()` path is taken only when the conversation doesn't exist yet — a rare edge case in steady-state operation. Flagged by the external reviewer.
-
-**Suggested approach:** Mirror Task 4's pattern inside `initiate()`. Consume the `sendSystemMessage()` generator to completion, track `sawDone`/`errorMsg`, and return a richer result (or throw) that the heartbeat's `no_conversation` fallback branch can observe before calling `markDelivered()`. Decision point: whether `initiate()` should return an `AlertResult`-shape (symmetric API) or a narrower `InitiateResult`. Architectural judgment call for the follow-up sprint.
+- `initiate()` signature changed to return `InitiateResult = { conversation: Conversation; delivery: AlertResult }`.
+- All six callers updated (heartbeat-service FU-7 target, `alert()` channel-switch, automation-processor, automation-scheduler, `app.ts` AutomationNotifier — also fixed a pre-existing dead-code `if (!alerted)` bug there — and debug.ts).
+- Four inline structural aliases of `initiate()`'s return type extended to the InitiateResult shape.
+- New test file `conversation-initiator-initiate-outcome.test.ts` (4 tests). Two new heartbeat-service tests for initiate-fallback skipped_busy and send_failed.
+- Live verification script re-run: 34,271-byte fixture → 7,098-byte Haiku output, 14/14 wrappers preserved, VERDICT: PASS.
 
 ## FU-8 — Drop unused `response` accumulator on external same-channel error/busy branches
 
@@ -70,15 +71,9 @@ Any future change to the union requires editing all five locations. TypeScript e
 
 **Suggested approach:** Only accumulate `response` when the loop is going to complete successfully, or use a conditional so the accumulator isn't touched on the error/busy exits. Non-functional — purely readability cleanup.
 
-## FU-6 — Remove vestigial `briefingDelivered` field from `SessionManager`
+## FU-6 — Remove vestigial `briefingDelivered` field from `SessionManager` — ✅ ADDRESSED IN THIS SPRINT
 
-**Type:** Dead-state cleanup.
-
-**Summary:** After extracting the guard into `ackBriefingOnFirstOutput`, the `this.briefingDelivered` field on `SessionManager` (declared at line 378, written at lines 743, 782, reset at 840) is written in three places but never read. The helper's internal `delivered` flag is what actually gates `markDelivered()`. The field is vestigial — not affecting correctness, but dead state that invites confusion for future editors.
-
-**Suggested approach:** Remove the field declaration at line 378, the two `this.briefingDelivered = true` writes at 743 and 782, and the reset at 840. Ensure no other references exist (`grep briefingDelivered packages/dashboard/src/agent/session-manager.ts` should return only the removal diff). Re-run `npx tsc --noEmit` and the sprint-scoped test suite to confirm no regression.
-
-**Priority:** Low. Safe to defer to the next tidy-up sprint.
+**Resolution:** Field declaration + all three writes removed. Zero remaining references. Typecheck clean, 53 sprint-scoped tests pass. See DECISIONS D11.
 
 ## FU-5 — Session-manager briefing-timing test independence
 

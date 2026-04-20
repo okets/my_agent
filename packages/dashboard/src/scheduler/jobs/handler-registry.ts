@@ -14,7 +14,7 @@ import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import type { ConversationDatabase } from "../../conversations/db.js";
 import { queryModel, type ModelAlias } from "../query-model.js";
 import { loadPreferences } from "@my-agent/core";
-import { stripFrontmatter } from "../../automations/summary-resolver.js";
+import { stripFrontmatter, WRAPPER_MARKER } from "../../automations/summary-resolver.js";
 
 // Import job-specific prompts and logic
 import {
@@ -328,7 +328,15 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
         content = job.summary ?? "No output available.";
       }
 
-      workerSections.push(`## ${prefix}${job.automationName}\n\n${content}`);
+      // WRAPPER_MARKER prefixes each aggregator-written wrapper heading so
+      // `summary-resolver.ts::extractWrapperHeadings` can distinguish
+      // wrappers from worker-internal `## ` headings (which Haiku may
+      // legitimately compress). The constant is shared — do NOT hard-code
+      // the string here; silent divergence is guarded by the contract test
+      // "wrapper-marker contract" in summary-resolver.test.ts.
+      workerSections.push(
+        `${WRAPPER_MARKER}\n## ${prefix}${job.automationName}\n\n${content}`,
+      );
     }
   }
 
