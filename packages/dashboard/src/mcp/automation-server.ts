@@ -99,7 +99,14 @@ export function createAutomationServer(deps: AutomationServerDeps) {
         .string()
         .optional()
         .describe("Model override (haiku/sonnet/opus)"),
-      notify: z.enum(["immediate", "debrief", "none"]).optional(),
+      notify: z
+        .enum(["immediate", "debrief", "none"])
+        .optional()
+        .describe(
+          "When to deliver results: 'immediate' = user is present and waiting now; " +
+          "'debrief' = user has signed off or asked to be told later — results collect for the next scheduled debrief-reporter run; " +
+          "'none' = background task, no delivery needed. Omitting defaults to 'debrief'.",
+        ),
       autonomy: z.enum(["full", "cautious", "review"]).optional(),
       once: z
         .boolean()

@@ -30,7 +30,12 @@ For anything beyond a quick WebSearch, use `create_automation` to delegate to a 
 - **Always include `todos`** — break the work into concrete steps. Each becomes a mandatory checklist item the worker must complete. Without todos, the worker only gets generic process items.
 - Set `job_type` when applicable (`capability_build`, `capability_modify`)
 - Set `target_path` for capability work (e.g., `.my_agent/capabilities/stt-deepgram`)
-- Set `once: true` for one-off tasks, `notify: "immediate"` when the user is waiting
+- Set `once: true` for one-off tasks
+- Set `notify` to control when results reach the user:
+  - `notify: "immediate"` — the user is present and waiting now
+  - `notify: "debrief"` — the user has signed off, asked to be told later, or said "tell me in the morning/brief/tomorrow". Results collect and are delivered in the next scheduled debrief-reporter run. **When the user signals deferred delivery, you MUST use this and stop — do not run the research inline, do not call researcher Task, do not call WebSearch. Acknowledge and end the turn.**
+  - `notify: "none"` — background housekeeping the user doesn't need to hear about
+  - Omitting `notify` defaults to `"debrief"` — same as explicit debrief
 - You can ask clarifying questions before creating the automation
 
 ### Example: modifying a capability
@@ -48,7 +53,7 @@ create_automation({
   job_type: "capability_modify",
   target_path: ".my_agent/capabilities/stt-deepgram",
   trigger: [{ type: "manual" }],
-  notify: "immediate",
+  notify: "immediate",  // user is present and waiting
   once: true
 })
 ```

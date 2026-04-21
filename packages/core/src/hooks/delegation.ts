@@ -37,7 +37,8 @@ export function createDelegationEnforcer(budget: number = 2): DelegationEnforcer
           `WebSearch blocked (${webSearchCount - 1} searches already used, limit is ${budget}). ` +
           `This is research-level work. First, tell the user you're delegating this to a research agent — ` +
           `do not wait for the tool call to finish before acknowledging. Then delegate via create_automation ` +
-          `with once: true and notify: "immediate" so the user gets results quickly. ` +
+          `with once: true. Set notify based on context: "immediate" if the user is waiting now, ` +
+          `"debrief" if the user has signed off or asked to be told later. ` +
           `Include the full research context in the instructions field.`,
         hookSpecificOutput: {
           hookEventName: 'PreToolUse' as const,
