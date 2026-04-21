@@ -53,7 +53,9 @@ const hasBrowserPlug =
   realAgentDir !== null &&
   existsSync(join(realAgentDir, "capabilities", "browser-chrome", "CAPABILITY.md"));
 
-const canRun = hasBrowserPlug && hasAuth;
+// Skip when running inside Claude Code — automation executor can't spawn nested CC.
+const isInsideClaude = !!process.env.CLAUDECODE;
+const canRun = hasBrowserPlug && hasAuth && !isInsideClaude;
 
 if (!canRun) {
   // BUG-5 (M9.6-S21): surface exactly WHICH precondition failed so the

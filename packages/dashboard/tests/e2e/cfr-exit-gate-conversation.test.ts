@@ -70,7 +70,8 @@ const hasSttPlug =
 const hasAudio = existsSync(AUDIO_PATH);
 const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
 
-const canRun = hasSttPlug && hasAudio && hasAuth && hasDeepgram;
+const isInsideClaude = !!process.env.CLAUDECODE;
+const canRun = hasSttPlug && hasAudio && hasAuth && hasDeepgram && !isInsideClaude;
 
 const TEST_CONV_ID = "cfr-s20-stt-exit-gate";
 const TEST_CHANNEL = { transportId: "whatsapp", channelId: "+15550001", sender: "+15550001" };

@@ -69,7 +69,10 @@ const hasSttPlug =
   existsSync(join(realAgentDir, "capabilities", "stt-deepgram", "CAPABILITY.md"));
 const hasAudio = existsSync(AUDIO_FIXTURE);
 
-const canRun = hasSttPlug && hasAudio && hasAuth;
+// Skip when running inside Claude Code — automation executor can't spawn a
+// nested Claude Code process (CLAUDECODE env var is set by the session).
+const isInsideClaude = !!process.env.CLAUDECODE;
+const canRun = hasSttPlug && hasAudio && hasAuth && !isInsideClaude;
 
 const TEST_CONV_ID = "cfr-s21-stt-reprocess-chain";
 const TEST_CHANNEL = { transportId: "whatsapp", channelId: "+15550002", sender: "+15550002" };
