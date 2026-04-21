@@ -49,6 +49,7 @@ import {
   makeCapabilityStack,
   makeAutomationStack,
   makeOrchestrator,
+  makeTestInvoker,
   waitForConversationRecovery,
   assertTerseDeliverable,
   MockTransport,
@@ -69,7 +70,8 @@ const hasSttPlug =
 const hasAudio = existsSync(AUDIO_PATH);
 const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
 
-const canRun = hasSttPlug && hasAudio && hasAuth && hasDeepgram;
+const isInsideClaude = !!process.env.CLAUDECODE;
+const canRun = hasSttPlug && hasAudio && hasAuth && hasDeepgram && !isInsideClaude;
 
 const TEST_CONV_ID = "cfr-s20-stt-exit-gate";
 const TEST_CHANNEL = { transportId: "whatsapp", channelId: "+15550001", sender: "+15550001" };
@@ -117,6 +119,7 @@ describe.skipIf(!canRun)(
 
       cfr = new CfrEmitter();
 
+      const invoker = makeTestInvoker(cfr, registry);
       const orchestrator = makeOrchestrator(
         registry,
         watcher,
@@ -124,6 +127,7 @@ describe.skipIf(!canRun)(
         automationJobService,
         callbacks,
         ackDelivery,
+        invoker,
       );
 
       cfr.on("failure", (f) => {
@@ -150,7 +154,11 @@ describe.skipIf(!canRun)(
           detail: "stt-deepgram .enabled absent",
           triggeringInput: {
             origin: conversationOrigin(TEST_CHANNEL, TEST_CONV_ID, 1),
-            rawMediaPath: rawAudioPath,
+            artifact: {
+              type: "audio",
+              rawMediaPath: rawAudioPath,
+              mimeType: "audio/ogg",
+            },
           },
         });
 

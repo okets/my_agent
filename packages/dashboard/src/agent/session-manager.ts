@@ -137,6 +137,7 @@ export function initPromptBuilder(
   options?: {
     getNotebookLastUpdated?: () => string | null;
     getCapabilities?: () => import("@my-agent/core").Capability[];
+    getDegradedCapabilities?: () => { type: string; name: string; friendlyName: string }[];
   },
 ): SystemPromptBuilder {
   sharedPromptBuilder = new SystemPromptBuilder({
@@ -144,6 +145,7 @@ export function initPromptBuilder(
     agentDir,
     getNotebookLastUpdated: options?.getNotebookLastUpdated,
     getCapabilities: options?.getCapabilities,
+    getDegradedCapabilities: options?.getDegradedCapabilities,
   });
   console.log(`[SessionManager] Shared SystemPromptBuilder initialized`);
   return sharedPromptBuilder;

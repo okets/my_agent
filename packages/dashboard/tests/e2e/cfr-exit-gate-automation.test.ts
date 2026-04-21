@@ -53,7 +53,27 @@ const hasBrowserPlug =
   realAgentDir !== null &&
   existsSync(join(realAgentDir, "capabilities", "browser-chrome", "CAPABILITY.md"));
 
-const canRun = hasBrowserPlug && hasAuth;
+// Skip when running inside Claude Code — automation executor can't spawn nested CC.
+const isInsideClaude = !!process.env.CLAUDECODE;
+const canRun = hasBrowserPlug && hasAuth && !isInsideClaude;
+
+if (!canRun) {
+  // BUG-5 (M9.6-S21): surface exactly WHICH precondition failed so the
+  // previous silent skip ("canRun=false") no longer hides a missing .env.
+  const reasons: string[] = [];
+  if (!realAgentDir) reasons.push("realAgentDir not found");
+  if (!hasBrowserPlug)
+    reasons.push("capabilities/browser-chrome/CAPABILITY.md missing");
+  if (!hasAuth)
+    reasons.push(
+      "no ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN in env — " +
+        "run with `node --env-file=packages/dashboard/.env node_modules/.bin/vitest run …`",
+    );
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[cfr-exit-gate-automation] SKIP — precondition failed: ${reasons.join("; ")}`,
+  );
+}
 
 describe.skipIf(!canRun)(
   "M9.6-S20 Exit Gate Test 1: browser-control automation-origin",

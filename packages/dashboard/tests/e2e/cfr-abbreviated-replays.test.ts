@@ -60,7 +60,9 @@ const hasTtsPlug =
   realAgentDir !== null &&
   existsSync(join(realAgentDir, "capabilities", "tts-edge-tts", "CAPABILITY.md"));
 
-const canRunTts = hasTtsPlug && hasAuth;
+// Skip when running inside Claude Code — automation executor can't spawn nested CC.
+const isInsideClaude = !!process.env.CLAUDECODE;
+const canRunTts = hasTtsPlug && hasAuth && !isInsideClaude;
 
 const TTS_CONV_ID = "cfr-s20-tts-abbreviated";
 const TTS_CHANNEL = { transportId: "dashboard", channelId: "dashboard", sender: "user" };
@@ -179,7 +181,7 @@ const hasDesktopPlug =
   realAgentDir !== null &&
   existsSync(join(realAgentDir, "capabilities", "desktop-x11", "CAPABILITY.md"));
 
-const canRunDesktop = hasDesktopPlug && hasAuth;
+const canRunDesktop = hasDesktopPlug && hasAuth && !isInsideClaude;
 
 describe.skipIf(!canRunDesktop)(
   "M9.6-S20 Abbreviated Replay B: desktop-control automation-origin",

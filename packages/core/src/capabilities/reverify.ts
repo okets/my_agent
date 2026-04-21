@@ -211,7 +211,14 @@ async function reverifyAudioToText(
   invoker?: CapabilityInvoker,
 ): Promise<ReverifyResult> {
   const rawMediaPath = failure.triggeringInput.artifact?.rawMediaPath;
+  console.log(
+    `[reverifyAudioToText] start — rawMediaPath=${rawMediaPath ?? "(missing)"} hasInvoker=${!!invoker}`,
+  );
   if (!rawMediaPath) {
+    console.warn(
+      `[reverifyAudioToText] FAIL: no rawMediaPath on triggeringInput.artifact — ` +
+        `artifact=${JSON.stringify(failure.triggeringInput.artifact)}`,
+    );
     return {
       pass: false,
       failureMode: "no rawMediaPath on triggeringInput.artifact for audio-to-text reverification",
@@ -219,6 +226,7 @@ async function reverifyAudioToText(
   }
 
   if (!existsSync(rawMediaPath)) {
+    console.warn(`[reverifyAudioToText] FAIL: raw media file not found: ${rawMediaPath}`);
     return {
       pass: false,
       failureMode: `raw media file not found: ${rawMediaPath}`,
@@ -257,6 +265,9 @@ async function reverifyAudioToText(
 
   // Invoker is required for audio-to-text reverification (S10-FU-2 / S13-FU-1 / S18).
   // The legacy bash wrapper has been removed. If invoker is absent, fail fast.
+  console.warn(
+    `[reverifyAudioToText] FAIL: invoker required but absent — bash wrapper removed in S18`,
+  );
   return {
     pass: false,
     failureMode: "invoker required for audio-to-text reverification — bash wrapper removed in S18",

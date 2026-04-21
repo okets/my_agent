@@ -266,7 +266,16 @@ export class RecoveryOrchestrator {
       return;
     }
     session.state = "ACKED";
-    await this.deps.emitAck(failure, "attempt");
+    // BUG-6 (M9.6-S21): suppress the user-facing "attempt" ack for output-class
+    // capabilities (text-to-audio, text-to-image). For these types the brain
+    // already acknowledges the degradation in its own voice via the system-prompt
+    // "Currently Degraded" section — a separate "hold on, fixing..." ack is
+    // redundant noise arriving after the text response. Surrender acks are still
+    // emitted so the user knows recovery failed permanently.
+    const OUTPUT_CAPABILITY_TYPES = new Set(["text-to-audio", "text-to-image"]);
+    if (!OUTPUT_CAPABILITY_TYPES.has(failure.capabilityType)) {
+      await this.deps.emitAck(failure, "attempt");
+    }
 
     // Arm the 20s status timer (M9.6-S6, D2). Fires once if we're still
     // working after 20 seconds; cancelled on DONE or SURRENDER below.
@@ -455,6 +464,10 @@ export class RecoveryOrchestrator {
       return { recovered: false };
     }
 
+    console.log(
+      `[RecoveryOrchestrator] attempt ${session.attemptNumber} execute done — status=${executeResult.status} success=${executeSuccess}`,
+    );
+
     // Execute succeeded — record and move directly to reverify (reflect phase removed in S17).
     const executeAttempt: FixAttempt = {
       attempt: session.attemptNumber,
@@ -484,8 +497,18 @@ export class RecoveryOrchestrator {
     session: FixSession,
     executeAttempt: FixAttempt,
   ): Promise<{ recovered: boolean; recoveredContent?: string }> {
+    console.log(
+      `[RecoveryOrchestrator] doReverify start — type=${failure.capabilityType} attempt=${session.attemptNumber} ` +
+        `hasRawMediaPath=${!!(failure.triggeringInput.artifact?.rawMediaPath)} ` +
+        `hasInvoker=${!!this.deps.invoker}`,
+    );
     try {
       const result = await dispatchReverify(failure, this.deps.capabilityRegistry, this.deps.watcher, this.deps.invoker);
+      console.log(
+        `[RecoveryOrchestrator] doReverify result — pass=${result.pass} ` +
+          `recoveredContent=${result.recoveredContent !== undefined ? `"${result.recoveredContent.slice(0, 50)}..."` : "undefined"} ` +
+          `failureMode=${result.failureMode ?? "—"}`,
+      );
 
       if (result.pass) {
         if (result.verificationInputPath) {
