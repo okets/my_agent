@@ -703,7 +703,12 @@ export class AppChatService {
             timer.unref?.();
           });
           transcribedContent = gateText;
-          contentBlocks = [{ type: "text", text: transcribedContent }];
+          contentBlocks = [
+            {
+              type: "text",
+              text: VOICE_MODE_HINT + "\n\n" + transcribedContent,
+            },
+          ];
         } else if (sttResult.text) {
           transcribedContent = `[Voice message] ${sttResult.text}`;
           detectedLanguage = sttResult.language;
