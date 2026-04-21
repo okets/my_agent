@@ -24,6 +24,10 @@ export interface BuilderConfig {
   agentDir: string;
   getNotebookLastUpdated?: () => string | null;
   getCapabilities?: () => Capability[];
+  // BUG-6 (M9.6-S21): brain awareness of degraded output capabilities.
+  // When set, the builder injects a "Currently Degraded" section into
+  // Layer 3 so the brain knows not to claim a capability works when it doesn't.
+  getDegradedCapabilities?: () => { type: string; name: string; friendlyName: string }[];
 }
 
 export interface BuildContext {
@@ -104,6 +108,21 @@ export class SystemPromptBuilder {
     }
     temporalLines.push(`[End Temporal Context]`);
     dynamicParts.push(temporalLines.join("\n"));
+
+    // Layer 3b: Degraded capabilities (BUG-6, M9.6-S21).
+    // Omitted entirely when everything is healthy — no empty header.
+    const degraded = this.config.getDegradedCapabilities?.() ?? [];
+    if (degraded.length > 0) {
+      const list = degraded.map((c) => `- ${c.friendlyName}`).join("\n");
+      dynamicParts.push(
+        `[Currently Degraded Capabilities]\n` +
+        `${list}\n\n` +
+        `If a capability listed above is relevant to the reply you are about to write, briefly acknowledge the degradation in your own voice (one short sentence — no padding, no apologies). ` +
+        `Do not mention capabilities that are not relevant to this reply. ` +
+        `If nothing above affects this reply, ignore this section entirely.\n` +
+        `[End Currently Degraded Capabilities]`,
+      );
+    }
 
     // Layer 4: Memory context
     // Daily summary is included in stable prompt via assembleSystemPrompt.

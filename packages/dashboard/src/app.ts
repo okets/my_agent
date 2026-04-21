@@ -997,6 +997,7 @@ export class App extends EventEmitter {
           }
         },
         getCapabilities: () => app.capabilityRegistry?.list() ?? [],
+        getDegradedCapabilities: () => app.capabilityRegistry?.listDegraded() ?? [],
       });
     }
 

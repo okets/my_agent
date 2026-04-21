@@ -304,6 +304,32 @@ export class CapabilityRegistry extends EventEmitter {
   }
 
   /**
+   * Return capabilities that are currently degraded or broken.
+   * Used by the system-prompt-builder to inject a "Currently degraded"
+   * section so the brain knows not to claim a capability works when it doesn't.
+   *
+   * A capability is degraded when:
+   *   - enabled && status === 'unavailable' (broken plug)
+   *   - status === 'available' && health === 'degraded' (available but failing tests)
+   */
+  listDegraded(): { type: string; name: string; friendlyName: string }[] {
+    const out: { type: string; name: string; friendlyName: string }[] = []
+    for (const cap of this.capabilities.values()) {
+      const isDegraded =
+        (cap.enabled && cap.status === 'unavailable') ||
+        (cap.status === 'available' && cap.health === 'degraded')
+      if (isDegraded) {
+        out.push({
+          type: cap.provides ?? 'custom',
+          name: cap.name,
+          friendlyName: this.getFriendlyName(cap.provides ?? cap.name),
+        })
+      }
+    }
+    return out
+  }
+
+  /**
    * Re-scan capabilities by delegating to an injected scanner function.
    * The scanner is injected to avoid circular dependencies.
    */
