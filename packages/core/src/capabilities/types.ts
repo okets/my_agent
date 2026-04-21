@@ -32,6 +32,7 @@ export interface Capability {
   fallbackAction?: string   // sourced from fallback_action frontmatter (S14)
   multiInstance?: boolean   // sourced from multi_instance frontmatter (S14)
   friendlyName?: string     // sourced from friendly_name frontmatter (S19)
+  interaction?: "input" | "output" | "tool"  // sourced from interaction frontmatter (S22)
 }
 
 /**
@@ -67,4 +68,21 @@ export interface CapabilityFrontmatter {
   fallback_action?: string  // e.g. "could you resend as text" (S14)
   multi_instance?: boolean  // true → instance name appended in ack copy (S14)
   friendly_name?: string    // e.g. "voice transcription" (S19)
+  interaction?: "input" | "output" | "tool"  // how recovery dispatches after fix (S22)
+}
+
+/**
+ * Default `interaction` values for well-known `provides` types.
+ * Used by the scanner (when frontmatter omits `interaction:`) and the registry
+ * (`getInteraction` fallback). Unknown types not in this table default to "tool" —
+ * the safest choice because `retryTurn` can't lose data, while `reprocessTurn`
+ * expects content that tool capabilities never produce.
+ */
+export const DEFAULT_INTERACTION: Readonly<Record<string, "input" | "output" | "tool">> = {
+  "audio-to-text": "input",
+  "image-to-text": "input",
+  "text-to-audio": "output",
+  "text-to-image": "output",
+  "browser-control": "tool",
+  "desktop-control": "tool",
 }

@@ -6,6 +6,7 @@ interface: mcp
 multi_instance: true
 fallback_action: "try again in a moment"
 friendly_name: "browser"
+interaction: tool
 ---
 
 # Browser Control Capability Template

@@ -12,6 +12,7 @@ import { basename, dirname, join } from 'node:path'
 import { readFrontmatter } from '../metadata/frontmatter.js'
 import { getEnvValue } from '../env.js'
 import {
+  DEFAULT_INTERACTION,
   WELL_KNOWN_MULTI_INSTANCE,
   type Capability,
   type CapabilityFrontmatter,
@@ -98,6 +99,23 @@ function loadMcpConfig(
 }
 
 /**
+ * Resolve the `interaction` field for a capability.
+ * Explicit frontmatter wins; if absent, infer from `provides` via DEFAULT_INTERACTION;
+ * unknown types default to "tool" (safest: retryTurn can't lose data).
+ */
+function resolveInteraction(
+  declared: "input" | "output" | "tool" | undefined,
+  provides: string | undefined,
+): "input" | "output" | "tool" {
+  if (declared) return declared
+  if (provides && DEFAULT_INTERACTION[provides]) return DEFAULT_INTERACTION[provides]
+  if (provides) {
+    console.debug(`[capability-scanner] no interaction declared for "${provides}", inferred as "tool"`)
+  }
+  return "tool"
+}
+
+/**
  * Scan for capabilities in the given directory.
  *
  * Looks for `* /CAPABILITY.md` one level deep, parses frontmatter,
@@ -160,6 +178,7 @@ export async function scanCapabilities(
         fallbackAction: data.fallback_action,    // S14
         multiInstance: data.multi_instance,      // S14
         friendlyName: data.friendly_name,        // S19
+        interaction: resolveInteraction(data.interaction, data.provides),  // S22
       }
 
       if (allMissing.length > 0) {

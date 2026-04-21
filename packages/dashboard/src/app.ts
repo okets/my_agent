@@ -958,6 +958,38 @@ export class App extends EventEmitter {
             }
           }
         },
+        // M9.6-S22: re-submit the original user turn to the brain after a
+        // tool-capability fix (browser-control, desktop-control, etc.).
+        // sendMessage() handles the full pipeline: turn save, brain session,
+        // assistant turn save, WS broadcast, post-response hooks.
+        retryTurn: async (failure) => {
+          const { origin } = failure.triggeringInput;
+          if (origin.kind !== "conversation") return;
+          const { conversationId, turnNumber, channel } = origin;
+
+          const turns = await app.conversationManager.getTurns(conversationId);
+          const originalTurn = turns.find(
+            (t) => t.role === "user" && t.turnNumber === turnNumber,
+          );
+          if (!originalTurn) {
+            console.warn(
+              `[CFR] retryTurn: no user turn found for conv=${conversationId} turn=${turnNumber}`,
+            );
+            return;
+          }
+
+          const conv = await app.conversationManager.get(conversationId);
+          const nextTurnNumber = (conv?.turnCount ?? 0) + 1;
+
+          for await (const _event of app.chat.sendMessage(
+            conversationId,
+            originalTurn.content,
+            nextTurnNumber,
+            { channel, source: "channel" },
+          )) {
+            // events broadcast automatically via app's chat:* listener
+          }
+        },
         // M9.6-S12 Task 6b: wire AckDelivery.writeAutomationRecovery so the
         // terminal drain can land a CFR_RECOVERY.md record for every attached
         // automation origin — including the `outcome: "fixed"` case, which

@@ -6,6 +6,7 @@ interface: mcp
 fallback_action: "try again in a moment"
 multi_instance: false
 friendly_name: "desktop control"
+interaction: tool
 ---
 
 # Desktop Control Capability Template

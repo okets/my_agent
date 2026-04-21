@@ -60,6 +60,13 @@ export interface OrchestratorDeps {
   emitAck: (failure: CapabilityFailure, kind: AckKind) => Promise<void>;
   reprocessTurn: (failure: CapabilityFailure, recoveredContent: string) => Promise<void>;
   /**
+   * Re-submit the original user turn to the brain after a tool-capability fix.
+   * Called when `outcome === "fixed"` and `registry.getInteraction(type) === "tool"`.
+   * Optional: when absent, the orchestrator logs a warning and no-ops (same pattern
+   * as `writeAutomationRecovery`). (S22)
+   */
+  retryTurn?: (failure: CapabilityFailure) => Promise<void>;
+  /**
    * Write `CFR_RECOVERY.md` for an automation-origin attached to this fix
    * session. Called once per attached automation origin during the Task 6b
    * terminal drain — independent of `emitAck` so `outcome: "fixed"` can land
@@ -666,6 +673,18 @@ export class RecoveryOrchestrator {
           await this.deps.reprocessTurn(perOriginFailure, recoveredContent);
         } else if (outcome === "terminal-fixed") {
           await this.deps.emitAck(perOriginFailure, "terminal-fixed");
+          // Tool capabilities (browser-control, desktop-control): after notifying
+          // the user the capability is restored, re-submit the original request.
+          // Output capabilities (TTS): ack only — no user turn to replay.
+          if (this.deps.capabilityRegistry.getInteraction(failure.capabilityType) === "tool") {
+            if (this.deps.retryTurn) {
+              await this.deps.retryTurn(perOriginFailure);
+            } else {
+              console.warn(
+                `[RecoveryOrchestrator] retryTurn not wired — tool capability "${failure.capabilityType}" fixed but original task not retried`,
+              );
+            }
+          }
         } else {
           await this.deps.emitAck(perOriginFailure, terminalAckKind);
         }

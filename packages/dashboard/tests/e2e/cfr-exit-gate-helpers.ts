@@ -249,6 +249,8 @@ export interface OrchestratorCallbacks {
   emittedAcks: AckKind[];
   surrenderEmitted: boolean;
   reprocessCalledWith: string | null;
+  /** Set when retryTurn fires (tool capability recovery, M9.6-S22). */
+  retryCalledWith?: boolean;
 }
 
 export function makeOrchestrator(
@@ -304,6 +306,9 @@ export function makeOrchestrator(
     },
     reprocessTurn: async (_failure, recoveredContent) => {
       callbacks.reprocessCalledWith = recoveredContent ?? null;
+    },
+    retryTurn: async (_failure) => {
+      callbacks.retryCalledWith = true;
     },
     writeAutomationRecovery: (args) => ackDelivery.writeAutomationRecovery(args),
     now: () => new Date().toISOString(),

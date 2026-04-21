@@ -5,6 +5,7 @@ provides: text-to-audio
 fallback_action: "you can read my last reply above"
 multi_instance: false
 friendly_name: "voice reply"
+interaction: output
 ---
 
 # Text-to-Audio Capability Template

@@ -3,7 +3,7 @@ import * as path from 'node:path'
 import { EventEmitter } from 'node:events'
 import { parseFrontmatterContent } from '../metadata/frontmatter.js'
 import { testCapability } from './test-harness.js'
-import { WELL_KNOWN_MULTI_INSTANCE } from './types.js'
+import { DEFAULT_INTERACTION, WELL_KNOWN_MULTI_INSTANCE } from './types.js'
 import type { Capability, CapabilityTestResult } from './types.js'
 import { FRIENDLY_NAMES } from './resilience-messages.js'
 
@@ -250,6 +250,24 @@ export class CapabilityRegistry extends EventEmitter {
       if (cap.provides === type && cap.friendlyName) return cap.friendlyName;
     }
     return FRIENDLY_NAMES[type] ?? type;
+  }
+
+  /**
+   * Return the interaction model for a capability type.
+   *
+   * Resolution order (first-wins):
+   *   1. `interaction` frontmatter on any registered instance of the type
+   *   2. DEFAULT_INTERACTION table (well-known types)
+   *   3. "tool" — safest default: retryTurn can't lose data; reprocessTurn
+   *      expects content that tool capabilities never produce.
+   *
+   * (S22)
+   */
+  getInteraction(type: string): "input" | "output" | "tool" {
+    for (const cap of this.capabilities.values()) {
+      if (cap.provides === type && cap.interaction) return cap.interaction;
+    }
+    return DEFAULT_INTERACTION[type] ?? "tool";
   }
 
   /**

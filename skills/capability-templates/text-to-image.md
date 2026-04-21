@@ -5,6 +5,7 @@ provides: text-to-image
 fallback_action: "try again in a moment"
 multi_instance: false
 friendly_name: "image generation"
+interaction: output
 ---
 
 # Text-to-Image Capability Template

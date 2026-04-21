@@ -5,6 +5,7 @@ provides: audio-to-text
 fallback_action: "could you resend as text"
 multi_instance: false
 friendly_name: "voice transcription"
+interaction: input
 ---
 
 # Audio-to-Text Capability Template
