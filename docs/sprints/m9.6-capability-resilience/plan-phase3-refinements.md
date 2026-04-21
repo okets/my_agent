@@ -77,8 +77,10 @@ If any item ships earlier than its receiving sprint or doesn't ship at all by S2
 | S18 | Duplicate TTS path collapse | Phase 2 | S17 |
 | S19 | Ack coalescing + assistant-turn orphan + system-origin UI | S16 | — |
 | S20 | Phase 3 exit gate: two definitive smoke tests | S16–S19 | — |
+| S21 | M9.6 milestone-close fix sprint (S20 live-test bugs) | S20 | — |
+| S22 | Tool capability recovery loop (S21 live-test gap) | S21 | — |
 
-**Phase 3 exit (S20):** the two CTO-defined definitive smoke tests pass. M9.6 closes.
+**Phase 3 exit (originally S20, then S21, now S22):** the framework's recovery loop works for input, output, AND tool capabilities. Live retest with deliberately-broken plug from each shape passes end-to-end. M9.6 closes.
 
 ---
 
@@ -765,6 +767,109 @@ env -u CLAUDECODE node --env-file=packages/dashboard/.env \
 **Milestone exit:** all five bugs fixed + new regression tests green + S20's exit-gate-conversation test green + live retest signed off by CTO + architect approval. **M9.6 closes here.**
 
 **Roadmap commit:** lands AFTER architect + CTO approval per §0.3. *(S16 and S20 dev have both made the same premature-Done mistake; S21 dev: do NOT pre-mark Done. Wait for sign-off.)*
+
+---
+
+### 2.7 Sprint 22 — Tool capability recovery loop (added 2026-04-21)
+
+**Why this exists.** S21 closed cleanly for input (STT) and output (TTS) capabilities. The 2026-04-21 live retest of the third shape — **tool capabilities** (browser-control, desktop-control) — exposed a structural gap that no prior sprint built for. See `tool-capability-cfr-gap.md` for the full live-test transcript and dev analysis.
+
+**The architectural gap:** M9.6's recovery machinery was designed around the STT incident. Phase 1 built the input-recovery loop; Phase 2 generalized the **detection and fix-execution** machinery (CFR detector, orchestrator, fix-mode) — but the **gate** (which holds the brain pre-failure) and the **content-replay** path (`reprocessTurn`) stayed input-shaped. They generalized to *"any input capability that produces recoverable content."* TTS sidestepped the gap by accepting degraded UX (text fallback + BUG-6 brain awareness). Tool capabilities don't fit either pattern: the failure happens **mid-brain-session** (no gate possible without SDK changes), and there's **no recoverable content** (the user wanted an *action* performed, not data lost).
+
+**The S20 exit-gate Test 1 was supposed to catch this.** Per S20 architect review §R2, the test's "deliberately broken" scenario was `.enabled` missing with the test's own CLAUDE.md prescribing the exact `touch <path>` fix. It exercised the orchestrator → spawn → fix → smoke chain but NOT the user-facing "task gets done after recovery" assertion. The other half of the loop — what happens after `terminal-fixed` for a tool capability — was never tested because the test had no original task to retry. **The framework promised "Nina gets task → capability broken → fixes it → resumes task" uniformly; today that promise holds only for input capabilities.**
+
+**Goal:** the orchestrator gains a `retryTurn` path alongside the existing `reprocessTurn` path. Capability authors declare their interaction model in CAPABILITY.md frontmatter. The orchestrator dispatches generically. After S22 closes, the recovery loop works for all three shapes (input replay / output degrade-and-acknowledge / tool retry-original-action). M9.6 actually closes.
+
+#### 2.7.1 BUG-7 — task silently dropped after tool-capability fix (in scope)
+
+**Files (capability frontmatter — `interaction` field):**
+
+- `packages/core/src/capabilities/types.ts` — extend the loaded capability metadata with `interaction?: "input" | "output" | "tool"`. Default-inferred from `provides` for the well-known types when frontmatter omits it (see scanner change below). Explicit declaration in CAPABILITY.md overrides.
+- `packages/core/src/capabilities/scanner.ts` — read `interaction:` from frontmatter (template + plug-level; plug-level overrides template). When absent, default-infer from `provides`:
+  - `audio-to-text`, `image-to-text` → `input`
+  - `text-to-audio`, `text-to-image` → `output`
+  - everything else (including `browser-control`, `desktop-control`) → `tool`
+  - The default-inference table lives next to `FRIENDLY_NAMES` (S14 / S19 frontmatter migration sister of). Keep the table but make explicit declaration the preferred path — log a debug-level "no interaction declared, inferred as X" so plug authors learn to declare.
+- `packages/core/src/capabilities/registry.ts` — add `getInteraction(type: string): "input" | "output" | "tool"` method (pattern-matches `getFriendlyName` from S19). Looks up registered plug; returns its `interaction` if set; falls back to default-inference table; never throws — unknown types return `"tool"` (safest default since `tool` triggers retry, which can't lose data; `input` would call reprocessTurn which expects content).
+- `skills/capability-templates/audio-to-text.md`, `text-to-audio.md`, `image-to-text.md`, `text-to-image.md`, `browser-control.md`, `desktop-control.md` — add explicit `interaction:` field to each template's frontmatter. Templates are the documented contract; relying on inference everywhere is fragile.
+- `.my_agent/capabilities/browser-chrome/CAPABILITY.md`, `.my_agent/capabilities/desktop-x11/CAPABILITY.md`, `.my_agent/capabilities/stt-deepgram/CAPABILITY.md`, `.my_agent/capabilities/tts-edge-tts/CAPABILITY.md` — add `interaction:` field to each installed plug. Required for the live retest to use declared values, not inferred.
+- `packages/core/tests/capabilities/registry-interaction.test.ts` *(new)* — frontmatter override; missing-frontmatter fallback to default-inference; missing-from-both fallback to `"tool"`.
+
+**Files (orchestrator — `retryTurn` path):**
+
+- `packages/core/src/capabilities/recovery-orchestrator.ts` — `terminalDrain` (around line 665, verify at sprint-time) currently dispatches:
+  ```
+  if (outcome === "fixed" && recoveredContent !== undefined) {
+    await reprocessTurn(failure, recoveredContent)
+  }
+  ```
+  Add a sibling branch:
+  ```
+  } else if (outcome === "fixed" && registry.getInteraction(capabilityType) === "tool") {
+    await retryTurn(failure)
+  }
+  ```
+  `retryTurn` is a NEW dependency on the orchestrator (mirrors the existing `reprocessTurn` injection). Caller (`app.ts`) wires the implementation.
+- `packages/core/src/capabilities/recovery-orchestrator.ts` — `OrchestratorDeps` type adds `retryTurn?: (failure: CapabilityFailure) => Promise<void>` (optional for backward compat; undefined → log warn + no-op same as missing notifier in S12).
+- `packages/dashboard/src/app.ts` — wire a concrete `retryTurn` implementation. It receives the failure event, extracts `convId` and `turnNumber` from `failure.triggeringInput.origin`, looks up the original user turn via `conversationManager.getTurns(convId)` filtered to that turn number (verify the lookup pattern at sprint-time — there may already be a `getTurn(convId, turnNumber)` helper), and re-submits via `chatService.streamMessage(convId, originalText, ...)` with the same channel context. The brain processes it as a new turn, sees the now-healthy capability, completes the task. **No per-capability code in this path.** Generic for all `interaction: tool` capabilities.
+- `packages/dashboard/tests/integration/cfr-tool-retry.test.ts` *(new)* — boots a real `App`; registers a synthetic tool capability that fails once then succeeds; user turn arrives with that tool needed; CFR fires; fix succeeds; asserts `chatService.streamMessage` was called the second time with the original user message text and that the second call sees the capability as healthy. **This test catches the BUG-7 class for ANY tool capability, not just browser-control.**
+- `packages/dashboard/tests/integration/cfr-input-no-retry.test.ts` *(new — symmetric coverage)* — same harness, but synthetic capability declared `interaction: input`; orchestrator should call `reprocessTurn` not `retryTurn`. Asserts the dispatch decision is correct.
+- `packages/dashboard/tests/e2e/cfr-exit-gate-tool-retry.test.ts` *(new)* — extends the S20 helpers pattern. Real `browser-chrome` plug, deliberately broken (this time NOT just `.enabled` missing — break a script or config so the fix-mode agent has to actually diagnose). User turn requesting a screenshot. Asserts: CFR fires, fix runs, plug recovers, retryTurn called, second brain run produces an audioUrl-or-text reply containing screenshot evidence (e.g. attachment present). This is the test that S20 should have had but didn't.
+
+**Idempotency / recursion guard:**
+
+The orchestrator already tracks `attemptNumber` and `previousAttempts` on `CapabilityFailure`. `retryTurn` increments attempt counter; if the second brain run fails the same tool again, CFR fires for `attemptNumber: 2`; if budget is exhausted, surrender path runs (existing S12 machinery). No new recursion guard needed — the existing per-failure attempt budget (3 from Phase 1) caps the loop.
+
+**Out of scope (BUG-8 — explicit deferral):**
+
+BUG-8 (ack ordering / brain races CFR mid-session, the wart described in `tool-capability-cfr-gap.md` Bug 1) is **explicitly deferred**. The user's first reply ("I can't, want to set up?") still lands before CFR begins, because `PostToolUseFailure` fires after the SDK has already streamed the tool error into the brain. Fixing this requires either:
+- A pre-delivery SDK hook that intercepts tool errors before they reach the brain stream, OR
+- Suppression of brain output mid-stream when CFR is active.
+
+The Agent SDK as of M9.6 doesn't expose pre-delivery interception. Mid-stream output suppression is race-y and architecturally invasive. **BUG-8 belongs in M10's brain-lifecycle work**, where the SDK hook surface is being revisited anyway. For S22, the BUG-7 fix means the user *eventually gets their screenshot* — Nina's stale "I can't" reply lurks in the transcript but the recovery itself becomes the implicit correction. Track BUG-8 in `s22-FOLLOW-UPS.md`.
+
+**Acceptance for S22 close:**
+
+| Gate | Verification |
+|------|--------------|
+| Frontmatter spec | New `registry-interaction.test.ts` passes (3 cases: explicit / inferred / unknown). All 6 templates declare `interaction:` explicitly. All 4 installed plugs declare `interaction:` explicitly. |
+| Orchestrator dispatch | New `cfr-tool-retry.test.ts` + `cfr-input-no-retry.test.ts` pass. `retryTurn` is called for `interaction: tool`; `reprocessTurn` is called for `interaction: input`; no false-cross-dispatch. |
+| End-to-end browser recovery | New `cfr-exit-gate-tool-retry.test.ts` passes (with auth + plug). Real browser-chrome deliberately broken; fix-mode diagnoses + repairs; user receives the screenshot. |
+| Live retest | CTO breaks `browser-chrome` (a real corruption: edit `config.yaml` or a script under `scripts/` — NOT just `.enabled` missing). Sends Nina a "screenshot foxnews.com" request. Pass conditions: (a) CFR fires; (b) fix runs successfully (paper trail in DECISIONS.md); (c) `terminal-fixed` ack delivered to user; (d) **screenshot attachment arrives within ~3 min of the original request.** Acceptable: Nina's first reply is a stale "I can't, want to set up?" — the screenshot arriving later is the implicit correction. Document this UX wart explicitly in s22 sprint artifacts as the BUG-8 deferral. |
+| Suite green | `packages/dashboard` + `packages/core` both report zero failed tests at sprint close. Same gate that closed S20 / S21. |
+
+**Verification command:**
+
+```bash
+cd packages/core && npx vitest run tests/capabilities/registry-interaction
+cd packages/dashboard && npx vitest run tests/integration/cfr-tool-retry tests/integration/cfr-input-no-retry
+cd packages/dashboard && npx vitest run                                          # full suite, 0 failures
+cd packages/core && npx vitest run                                                # full suite, 0 failures
+env -u CLAUDECODE node --env-file=packages/dashboard/.env \
+  node_modules/.bin/vitest run tests/e2e/cfr-exit-gate-tool-retry                 # passes with browser-chrome installed
+# Live: CTO breaks browser-chrome (real corruption, not .enabled), asks for a screenshot, observes arrival within 3 min
+```
+
+**Deviation triggers:**
+
+- The `getTurns(convId)` lookup pattern in `app.ts`'s `retryTurn` doesn't match the existing helper signature (e.g., turns aren't keyed by `turnNumber` directly). Locate the right helper; document in DECISIONS. Don't write a new lookup if `conversationManager` already has one.
+- A synthetic capability harness for the integration tests is harder to mock than expected (e.g., the orchestrator's CFR detection requires real PostToolUseFailure wiring). Use a smaller-scoped unit test that exercises just `terminalDrain`'s dispatch decision; document the integration-test gap as a follow-up.
+- The live retest reveals that CFR fires but the orchestrator can't actually retry because the `triggeringInput.origin` shape for tool failures lacks `convId` or `turnNumber` (M9.6 origin types may be input-shaped). Surface the missing fields, propose extension in `proposals/s22-tool-origin-shape.md`, escalate to architect.
+- The `interaction` default-inference table needs to handle a capability type not in the well-known list. Default to `"tool"` (safest — triggers retry, which can't lose data). Document the choice in DECISIONS.
+
+**Out of scope:**
+
+- BUG-8 (ack ordering / brain races CFR mid-session) — see explicit deferral above.
+- Refactoring the `OrchestratorDeps` injection pattern (the new `retryTurn?` field follows the existing optional-dep pattern; don't restructure).
+- Migrating any other frontmatter fields (`friendly_name` migration was S19; this sprint only adds `interaction`).
+- Suppressing or rewriting the brain's first reply when a tool fails mid-session — that's BUG-8 territory.
+- Cross-conversation tool failures (a tool fired in conversation A fails because of state from conversation B). Tracked as `s22-FOLLOW-UPS.md` if surfaced.
+
+**Why it's S22, not amended into S21:** S21's scope was wiring fixes to the input/output recovery loops the framework already had. S22 ships a **new third shape** of the framework (tool retry) that was conceptually missing from M9.6 entirely. Naming it as its own sprint makes the architectural change visible in the artifact trail. The dev can audit the spec → S20 exit-gate-test → S21 fixes → S22 third-shape-build chain and see exactly what was added when. Folding into S21 would hide the design gap.
+
+**Milestone exit:** S22 acceptance gates green + S21 still green + live retest signed off by CTO + architect approval. **M9.6 actually closes here, for real this time.**
+
+**Roadmap commit:** lands AFTER architect + CTO approval per §0.3. **S22 dev: do NOT pre-mark Done.** S16 + S20 + (almost) S21 each made this mistake. The pattern stops here.
 
 ---
 
