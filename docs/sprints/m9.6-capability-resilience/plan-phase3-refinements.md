@@ -704,6 +704,22 @@ S20 test report: this test SKIPPED with `canRun = false` despite `browser-chrome
 - `packages/dashboard/tests/e2e/cfr-exit-gate-automation.test.ts` — instrument the precondition check (`hasBrowserPlug`, `hasAuth`) at test boot to log which check returned false and why. Run the test once with the instrumentation, identify the gap, fix it.
 - `packages/dashboard/tests/e2e/cfr-exit-gate-helpers.ts` — if the precondition logic lives here (e.g., `findAgentDir`), trace whether the path resolution matches between test environments. Possibly a `__dirname` resolution issue when run from a specific subdirectory.
 
+**Files (BUG-6 — brain unaware of degraded output capabilities; falsely claims voice works in text-fallback replies, added 2026-04-21):**
+
+The 2026-04-21 live retest (see `s21-live-retest.md`) confirmed BUG-1 through BUG-5 are fixed. But it surfaced a new failure mode the inverted CFR ack ordering was a symptom of: when TTS is unhealthy and the message-handler falls back to text, **the brain doesn't know its own output medium has degraded.** It commits to audio-friendly content ("Loud and clear!", "Voice is working great") that gets delivered as text — a self-contradicting message. Conversation `conv-01KP3WPV3KGHWCRHD7VX8XVZFZ` turns 42, 43, 44 all show this: each assistant turn has `failure_type: "text-to-audio"` and no `audioUrl`, while the text content asserts voice works. Same M9.4-S4.1 invariant violated (*"never claim delivered when session was busy or errored"*) — applied to OUTPUT medium.
+
+The dev's `s21-live-retest.md` framing of "TTS recovered silently, subsequent replies delivered as audio" misread the transcript — turn 45 was the first reply with a real `audioUrl`; turns 42-44 were silent text-fallbacks with false-positive voice content. The TTS attempt-ack arriving AFTER the text reply (the "wrong order" the report flagged at 6/10 clarity) is a downstream symptom: the brain shipped contradictory content before the recovery signal could reach the user.
+
+**Design (architect, 2026-04-21):** brain awareness via system prompt, **not** capability-specific code in the message-handler. The brain reads degraded-capability state from the registry at prompt-assembly time and authors the acknowledgement in its own voice. One prompt section, one registry read, zero per-capability branching. Generic — works for any capability that becomes unhealthy, not just TTS.
+
+- `packages/core/src/agent/system-prompt-builder.ts` (or whichever 6-layer builder layer surfaces capability state — verify exact location at sprint-time; likely the same layer that already lists installed capabilities) — append a "Currently degraded (auto-recovery in progress)" section, populated from the registry. Section content: bulleted list of `friendly_name` (per-template, S19) for every capability whose health state is `unhealthy` / `recovering` / similar (use the registry's existing health enum — don't invent a new one). Followed by one short instruction: *"If a capability you'd normally use for THIS reply is in this list, briefly acknowledge it in your own voice (one short sentence, no padding). If nothing here is relevant to the reply you're about to write, ignore this section."* Section is OMITTED entirely when no capabilities are degraded — no empty header.
+- `packages/core/src/capabilities/registry.ts` — if a `listDegraded()` (or equivalent) method doesn't already exist on the registry, add one. ~5 lines reading from existing health state. Returns `{ name, friendly_name, type }[]`.
+- `packages/dashboard/tests/integration/system-prompt-degraded-capabilities.test.ts` *(new)* — three tests: (a) all capabilities healthy → section absent from assembled prompt; (b) one capability marked degraded → section present, lists that capability's `friendly_name`; (c) capability transitions back to healthy → next prompt assembly omits the section. Use a real `CapabilityRegistry` with synthetic state, not a mock.
+- `docs/sprints/m9.6-capability-resilience/s21-DECISIONS.md` — D-X (assign at sprint-time): "BUG-6 fix is generic — system prompt + registry read; no per-capability code. Brain authors the wording. The pattern works for any future capability degradation."
+- `docs/sprints/m9.6-capability-resilience/s21-live-retest.md` — annotate that the original 6/10 clarity finding was a downstream symptom of BUG-6, not the root cause; correct the "TTS recovered silently, subsequent replies delivered as audio" framing once BUG-6 retest confirms turns now match audioUrl + content.
+
+**Optional companion change (CTO decision):** suppress the user-facing TTS `attempt` ack entirely for output-class capabilities. Once the brain itself acknowledges the degradation, the ack is redundant. Paper trail (`DECISIONS.md`, system-origin Settings panel) is unaffected — only the user-facing WhatsApp/dashboard message is suppressed. If left in, it's harmless background noise; if suppressed, one fewer message per recovery. **Default: suppress.** Confirm at sprint-time.
+
 **Acceptance for S21 close:**
 
 | Gate | Verification |
@@ -713,7 +729,8 @@ S20 test report: this test SKIPPED with `canRun = false` despite `browser-chrome
 | BUG-3 fixed | New `cfr-stt-reprocess-chain.test.ts` passes; `cfr-exit-gate-conversation.test.ts` (S20 file) passes; live test, brain answers the original voice message correctly after fix |
 | BUG-4 fixed | New `skills-sync.test.ts` + `skills-sync-startup.test.ts` pass; live test, fix-mode deliverables are ≤5 lines |
 | BUG-5 fixed | `cfr-exit-gate-automation.test.ts` runs (not skipped) and passes on the dev machine |
-| Live retest | CTO repeats /pair-browse with both STT and TTS deliberately broken; receives "hold on" ack, then a real reply to the voice message |
+| BUG-6 fixed | New `system-prompt-degraded-capabilities.test.ts` (3 cases) passes; live retest, brain text-fallback replies acknowledge "voice fix in progress" in Nina's own voice and do NOT contain false-positive claims like "loud and clear" while `failure_type: text-to-audio` is set on the assistant turn |
+| Live retest | CTO repeats /pair-browse with both STT and TTS deliberately broken. Pass conditions: (a) "hold on" ack arrives on WhatsApp; (b) real reply to the voice message after STT recovers; (c) every text-fallback reply acknowledges the TTS degradation (no contradiction between `failure_type` and content); (d) once TTS recovers, replies are delivered as audio with no further acknowledgement |
 
 **Verification command (full suite + live retest):**
 
@@ -733,6 +750,8 @@ env -u CLAUDECODE node --env-file=packages/dashboard/.env \
 - BUG-2 design decision changes — if the brain-CFR gate proves harder to implement than expected (e.g., the brain session's turn-injection point is structured differently than spec), escalate to architect with a proposal in `proposals/s21-brain-cfr-gate.md`. Do NOT silently fall back to option (b) sentinel-text.
 - BUG-3 turns out to be in the message-handler not the orchestrator (e.g., the orchestrator IS calling reprocessTurn but the message-handler isn't actioning it). Fix the actual location; document the expected vs actual call shape in DECISIONS.
 - BUG-4 sync mechanism reveals that `packages/core/skills/` and `.my_agent/brain/skills/` have drifted on OTHER files too (not just `capability-brainstorming/SKILL.md`). Diff all skills; document drift in DECISIONS; sync them all (with a one-line per-file note in the commit message).
+- BUG-6 — the registry has no `listDegraded()` equivalent and adding one requires a non-trivial health-state refactor (S19 surfaced ring-buffer + `/api/capabilities/cfr-system-events`; the health enum may be split across modules). Document the gap in DECISIONS and propose the simplest adapter that keeps BUG-6 self-contained — do NOT refactor the registry's health state machine in S21.
+- BUG-6 — the system-prompt-builder layer that owns capability state turns out to be in the dashboard package (not core). Fine — implement there; reference the registry method via the existing core import path.
 
 **Out of scope for S21:**
 
