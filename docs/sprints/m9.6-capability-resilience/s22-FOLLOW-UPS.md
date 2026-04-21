@@ -56,11 +56,13 @@ The Agent SDK hook surface is a planned M10 topic. BUG-8 should be revisited whe
 
 **Why deferred:** S22's scope is the (a)-shape (tool-call failure mid-session). Mode 3 is the (b)-shape (MCP-init failure at startup). Different code paths, different sprint. Adding Mode 3 verification + fix to S22 expands scope; cleaner to file as the next sprint's work.
 
-**Recommended scope:** S23 or the first M10 sprint. Specific tasks:
+**Status (2026-04-21):** Promoted to S23 (in scope) per CTO direction — *"any plug-side failure should be recoverable."* See `plan-phase3-refinements.md` §2.8.
+
+**Recommended scope (now S23):** Specific tasks:
 1. Add diagnostic logging at `processSystemInit` entry to capture the actual `mcp_servers[]` shape for both healthy and failed stdio servers.
 2. Run a focused diagnostic: corrupt `browser-chrome/config.yaml` to make MCP exit at startup, start a session, capture `system_init_raw` payload.
 3. If failed servers appear with a different status string, update the matcher in `processSystemInit`.
 4. If failed servers don't appear at all, file an SDK gap and either: (a) wait for SDK fix, or (b) add a periodic health probe on registered MCP capabilities as a fallback detection mechanism.
 5. Verify with a live retest: corrupt `browser-chrome` config, start session, confirm CFR fires from `processSystemInit` even though brain succeeds via Desktop MCP fallback.
 
-**Owner:** S23 architect or M10 planning.
+**Owner:** S23 dev (planned 2026-04-21).

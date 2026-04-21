@@ -79,8 +79,9 @@ If any item ships earlier than its receiving sprint or doesn't ship at all by S2
 | S20 | Phase 3 exit gate: two definitive smoke tests | S16–S19 | — |
 | S21 | M9.6 milestone-close fix sprint (S20 live-test bugs) | S20 | — |
 | S22 | Tool capability recovery loop (S21 live-test gap) | S21 | — |
+| S23 | Mode 3 verification + matcher fix (S22 follow-up — any plug-side failure recoverable) | S22 | — |
 
-**Phase 3 exit (originally S20, then S21, now S22):** the framework's recovery loop works for input, output, AND tool capabilities. Live retest with deliberately-broken plug from each shape passes end-to-end. M9.6 closes.
+**Phase 3 exit (now S23):** the framework's recovery loop works for input, output, AND tool capabilities, across all three MCP failure modes (Mode 1: tool exception; Mode 2: child crash mid-call; Mode 3: server crashes at startup). Live retests verify each. M9.6 closes.
 
 ---
 
@@ -872,6 +873,84 @@ env -u CLAUDECODE node --env-file=packages/dashboard/.env \
 **Milestone exit:** S22 acceptance gates green + S21 still green + live retest signed off by CTO + architect approval. **M9.6 actually closes here, for real this time.**
 
 **Roadmap commit:** lands AFTER architect + CTO approval per §0.3. **S22 dev: do NOT pre-mark Done.** S16 + S20 + (almost) S21 each made this mistake. The pattern stops here.
+
+---
+
+### 2.8 Sprint 23 — Mode 3 verification + matcher fix (added 2026-04-21)
+
+**Why this exists.** S22 closed the (a)-shape recovery loop (Mode 1+2: tool exception, child crash mid-call). The (b)-shape (Mode 3: MCP server crashes at startup) has wired detection in `mcp-cfr-detector.ts:127-165` (`processSystemInit`) since S12, but **was never verified end-to-end against a real plug.** S22 dev's first three retest attempts engineered Mode 3 failures (config corruption → MCP exits at boot) and observed: no `processSystemInit` log output, no CFR detection. Two candidate causes (per S22 review §"Structural finding"):
+1. The SDK doesn't include the failed server in `mcp_servers[]` for the `system_init_raw` event when the stdio process exits immediately at boot.
+2. The SDK status string for a failed-at-boot server doesn't match the matcher's expected values (`"failed" | "needs-auth" | "disabled"`).
+
+**Goal:** any plug-side failure is recoverable. Mode 3 detection works end-to-end against a real plug. With S23, the framework's three-MCP-failure-mode coverage matches the three capability shapes — full M9.6 promise actually delivered.
+
+**Files (diagnostic + matcher fix):**
+
+- `packages/core/src/capabilities/mcp-cfr-detector.ts` — at the entry of `processSystemInit` (line 127), add a debug log capturing the full `systemMessage.mcp_servers[]` shape: `console.debug("[CfrDetector] processSystemInit:", JSON.stringify(systemMessage.mcp_servers))`. Temporary diagnostic — used in step 1 below to capture what the SDK actually emits. Once the matcher is fixed, leave the debug log in place at debug level (not info) for future diagnosis but don't gate behavior on it.
+- `packages/core/src/capabilities/mcp-cfr-detector.ts` — `isInitSystemMessage` type guard at line 186-200: after step 1 captures the actual shape, expand the guard if the SDK's `mcp_servers[]` array structure differs from the expected `{name, status, error?}` (e.g., status field renamed, additional wrapper). Don't widen the guard speculatively — only adjust to match observed reality.
+- `packages/core/src/capabilities/mcp-cfr-detector.ts` — the status matcher at line 131-138: extend the explicit "failed-states" list with whatever string the SDK actually uses. Common candidates the matcher should accept: `"failed"`, `"needs-auth"`, `"disabled"`, plus any newly-observed strings like `"crashed"`, `"exited"`, `"terminated"`, or empty/missing status with non-empty `error`. Use a positive match against an allow-list, not negative match against `connected/pending` — defensive against future SDK additions of new "failed-equivalent" states.
+- `packages/core/src/capabilities/mcp-cfr-detector.ts` — fallback (only if step 1 reveals SDK doesn't include failed servers in init at all): add a periodic health probe that calls `q.mcpServerStatus()` on session start (1-shot, not periodic — single check post-init, idempotent via existing `initEmitted: Set<string>`). The spike's S12 results (`s12-spike-results.md`) confirmed `q.mcpServerStatus()` returns `status: "failed"` for Mode 3 servers — this is the SDK's authoritative async RPC for server state. Wire it in `session-manager.ts:731` adjacent to the `system_init_raw` handler. Implement only if step 1 confirms the init-frame path doesn't carry the failed server.
+- `packages/core/tests/capabilities/mcp-cfr-detector-init.test.ts` *(new — extend existing test if one exists for this detector; check at sprint-time)* — three tests:
+  - (a) init message with all `connected` servers → no CFR fired
+  - (b) init message with one `failed` server matching a registered capability → CFR fired with `symptom: "execution-error"`
+  - (c) init message with one of each newly-supported failure status (whatever step 1 reveals) → CFR fired for each, idempotent (`initEmitted` prevents double-emit)
+- `packages/dashboard/tests/integration/cfr-mode3-init-detection.test.ts` *(new)* — boots a real `App` with a synthetic capability registered; injects a synthetic `system_init_raw` event with the failed server in `mcp_servers[]`; asserts CFR emits and `RecoveryOrchestrator` spawns fix-mode. Catches the wiring end-to-end, not just the matcher in isolation.
+
+**Files (live test scaffolding):**
+
+- `docs/sprints/m9.6-capability-resilience/s23-test-report.md` *(new)* — the diagnostic capture from step 1 (raw `mcp_servers[]` payload from the SDK on a real `browser-chrome` MCP-init failure) + the matcher fix decision + the live retest transcript. Future Mode 3 diagnostics start here.
+
+**Live retest:**
+
+CTO breaks `browser-chrome` with a **(b)-shape failure** (the same kind that masked S22's first retest): corrupt `config.yaml` so the MCP server exits with code 2 at startup, OR rename a script under `scripts/` that the MCP server requires. The MCP must FAIL to register tools — opposite of S22's (a)-shape requirement. Send Nina any prompt that doesn't necessarily need browser-chrome (e.g., *"What time is it?"* — a simple message that doesn't trigger any tool call). Pass conditions:
+
+- (a) `[CfrDetector] processSystemInit` debug log fires at session start and captures the failed `browser-chrome` entry
+- (b) CFR emits proactively (no tool call needed) — `[CFR] ack(attempt) for browser-control`
+- (c) Brain notifies user (or doesn't, depending on `notifyMode` for system-origin failures — verify what's expected)
+- (d) Fix-mode agent spawns, repairs config, smoke passes, `terminal-fixed` ack
+- (e) **The original simple message gets answered correctly** — the test prompt isn't blocked by the CFR pipeline (system-origin failures don't gate the conversation)
+- (f) Subsequent prompt explicitly using `browser-chrome` capability succeeds (proves the plug self-healed end-to-end)
+
+**Acceptance for S23 close:**
+
+| Gate | Verification |
+|------|--------------|
+| Diagnostic captures SDK shape | `[CfrDetector] processSystemInit` debug log shows the actual `mcp_servers[]` payload for a Mode 3 failure |
+| Matcher fix lands | `processSystemInit` correctly identifies the failed server and emits CFR. New unit test `mcp-cfr-detector-init.test.ts` proves the matcher handles all observed failure-status strings |
+| Wiring proven | New integration test `cfr-mode3-init-detection.test.ts` proves init → CFR → orchestrator chain |
+| Suite green | Both packages report zero failed (same gate that closed S20/S21/S22) |
+| Live retest | (b)-shape break + simple prompt → CFR fires proactively from `processSystemInit` → fix-mode → terminal-fixed → subsequent explicit prompt succeeds |
+
+**Verification command:**
+
+```bash
+cd packages/core && npx vitest run tests/capabilities/mcp-cfr-detector-init
+cd packages/dashboard && npx vitest run tests/integration/cfr-mode3-init-detection
+cd packages/dashboard && npx vitest run                    # full suite, 0 failures
+cd packages/core && npx vitest run                          # full suite, 0 failures
+# Live: CTO corrupts browser-chrome config (b-shape, MCP exits at boot), starts a session, observes
+#   processSystemInit log, CFR detection, fix-mode run, plug self-heals, subsequent explicit-capability
+#   prompt succeeds
+```
+
+**Deviation triggers:**
+
+- **Step 1 reveals the SDK omits failed servers from `mcp_servers[]` entirely.** Fall back to `q.mcpServerStatus()` health probe per the file plan above. Document in DECISIONS as "SDK init frame doesn't carry failed servers; using `mcpServerStatus()` RPC as the authoritative source."
+- **The SDK status string for crash-at-boot is unstable across SDK versions.** Use a defensive allow-list (positive match) and document each accepted value in a comment. If the list grows past ~5 values, refactor to a config constant.
+- **Fix-mode struggles to repair a Mode 3 corruption** (e.g., MCP exits but smoke can't reproduce because shell-launching scripts/ behavior differs from MCP-launched). Document as a fix-mode hardening follow-up — out of scope for S23 but worth tracking. Live retest may surface this; if so, file as `s23-FOLLOW-UPS.md` and accept that this specific corruption can't be auto-recovered.
+
+**Out of scope:**
+
+- BUG-8 (still deferred to M10).
+- Restructuring the orchestrator state machine for Mode 3-specific paths — Mode 3's CFR uses the existing pipeline (system-origin via `originFactory`), no new state needed.
+- Changing the symptom classification (Mode 3 maps to `execution-error` per the existing matcher; don't add new symptom values).
+- Mode 3 for non-MCP capabilities (script-based plugs that fail at script-init time). Different surface, not currently broken in production. File as M10 if it surfaces.
+
+**Why it's S23, not folded into S22:** S22 was scoped to building the third capability shape's recovery (tool retry). S23 verifies the third MCP failure mode's detection. Different code paths, different testing methodology. Splitting keeps each sprint's artifact trail clean: S22's retryTurn for Modes 1+2, S23's processSystemInit verification for Mode 3. After S23, the framework matrix is fully covered (3 shapes × 3 modes).
+
+**Milestone exit:** S23 acceptance gates green + S22 still green + live retest signed off by CTO + architect approval. **M9.6 closes here.**
+
+**Roadmap commit:** lands AFTER architect + CTO approval per §0.3. **S22 dev followed this discipline; S23 dev: same expectation.**
 
 ---
 
