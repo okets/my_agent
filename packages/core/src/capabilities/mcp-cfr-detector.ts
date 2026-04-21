@@ -39,6 +39,12 @@ export interface McpCapabilityCfrDetectorDeps {
   originFactory: () => TriggeringOrigin;
 }
 
+// Positive allow-list of MCP server status values that indicate a failure.
+// Add new entries here when a live diagnostic reveals additional SDK strings.
+// Prefer explicit allow-list over negative-match so future SDK additions of
+// new "connected-equivalent" states don't silently trigger false CFRs.
+const FAILED_STATUSES = new Set(["failed", "needs-auth", "disabled"]);
+
 export class McpCapabilityCfrDetector {
   readonly hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>>;
 
@@ -127,15 +133,18 @@ export class McpCapabilityCfrDetector {
   processSystemInit(systemMessage: unknown): void {
     if (!isInitSystemMessage(systemMessage)) return;
 
+    // S23 diagnostic: capture the actual mcp_servers[] shape from the SDK.
+    // Kept at debug level permanently — surfaced in live tests to diagnose
+    // Mode 3 detection gaps (e.g. unexpected status strings or absent entries).
+    console.debug(
+      "[CfrDetector] processSystemInit:",
+      JSON.stringify(systemMessage.mcp_servers),
+    );
+
     for (const entry of systemMessage.mcp_servers) {
       if (entry.status === "connected" || entry.status === "pending") continue;
-      if (
-        entry.status !== "failed" &&
-        entry.status !== "needs-auth" &&
-        entry.status !== "disabled"
-      ) {
-        continue;
-      }
+      if (!FAILED_STATUSES.has(entry.status)) continue;
+      if (!FAILED_STATUSES.has(entry.status)) continue;
 
       const cap = this.deps.registry.findByName(entry.name);
       if (!cap) continue;
@@ -154,13 +163,23 @@ export class McpCapabilityCfrDetector {
             ? "MCP server needs authentication"
             : "MCP server is disabled");
 
-      this.deps.cfr.emitFailure({
-        capabilityType: cap.provides ?? "custom",
-        capabilityName: cap.name,
-        symptom,
-        detail,
-        triggeringInput: this.buildTriggeringInput("[mcp init]"),
-      });
+      try {
+        this.deps.cfr.emitFailure({
+          capabilityType: cap.provides ?? "custom",
+          capabilityName: cap.name,
+          symptom,
+          detail,
+          triggeringInput: this.buildTriggeringInput("[mcp init]"),
+        });
+      } catch (err) {
+        // originFactory can throw if session context isn't ready yet (e.g. no
+        // active session when processSystemInit fires). Log and continue so
+        // one failed entry doesn't abort detection for remaining entries.
+        console.error(
+          `[CfrDetector] processSystemInit: failed to emit CFR for "${cap.name}":`,
+          err,
+        );
+      }
     }
   }
 
