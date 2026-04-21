@@ -80,8 +80,9 @@ If any item ships earlier than its receiving sprint or doesn't ship at all by S2
 | S21 | M9.6 milestone-close fix sprint (S20 live-test bugs) | S20 | — |
 | S22 | Tool capability recovery loop (S21 live-test gap) | S21 | — |
 | S23 | Mode 3 verification + matcher fix (S22 follow-up — any plug-side failure recoverable) | S22 | — |
+| S24 | Mode 4: daily silent self-heal + brief integration | S23 | — |
 
-**Phase 3 exit (now S23):** the framework's recovery loop works for input, output, AND tool capabilities, across all three MCP failure modes (Mode 1: tool exception; Mode 2: child crash mid-call; Mode 3: server crashes at startup). Live retests verify each. M9.6 closes.
+**Phase 3 exit (now S24):** the framework's recovery loop works for input, output, AND tool capabilities, across all four MCP failure modes (1: tool exception; 2: child crash mid-call; 3: server crashes at startup; 4: daily proactive health probe). Reactive failures (1+2+3) get real-time user-facing acks. Proactive (4) self-heals silently and surfaces in the next morning's brief. Live retests verify each. M9.6 closes.
 
 ---
 
@@ -951,6 +952,180 @@ cd packages/core && npx vitest run                          # full suite, 0 fail
 **Milestone exit:** S23 acceptance gates green + S22 still green + live retest signed off by CTO + architect approval. **M9.6 closes here.**
 
 **Roadmap commit:** lands AFTER architect + CTO approval per §0.3. **S22 dev followed this discipline; S23 dev: same expectation.**
+
+---
+
+### 2.9 Sprint 24 — Mode 4: daily silent self-heal + brief integration (added 2026-04-21)
+
+**Why this exists.** S22 + S23 closed the reactive recovery surface (Modes 1+2+3): failures the user or Nina encounter get fixed immediately. But a capability can degrade silently — API key revoked, dependency rot, config drift — and stay broken indefinitely until someone tries to use it. Per CTO direction: *"any plug-side failure should be recoverable"* and *"the user should not be bothered with internal fixes if they are done in the background."*
+
+**Goal:** once a day, the framework probes every registered capability. Anything degraded triggers an auto-fix via the existing CFR pipeline with `system` origin (silent — no chat ack, no WhatsApp, no real-time bother). The next morning's brief includes a "System Health" section listing what self-healed and what surrendered (if anything). After S24, the framework matrix is fully covered: 3 capability shapes × 4 MCP failure modes.
+
+**Audit findings (architect, 2026-04-21):** Before writing this plan, an auditor checked the proposed design against the actual code. Five issues surfaced and are folded into the file plan below:
+
+1. `systemOrigin()` factory does NOT exist — only `conversationOrigin()` does. Use inline `{ kind: "system", component: "..." }`.
+2. `RecoveryOrchestrator.inFlight` is private; no public query method. Need to add `isInFlight(type: string): boolean`.
+3. The system-origin terminal drain at `recovery-orchestrator.ts:700-714` only logs the outcome — it does NOT append fixed/surrendered to the ring buffer. The ring buffer accumulates only initial `in-progress` entries. Without a fix, the brief would show "in progress" forever.
+4. `testAll()` filters to `c.status === 'available' && c.provides`. MCP capabilities with `provides` set go through `testMcpCapability` (spawn + handshake + tool list — no API call). **Need to verify** that the installed `browser-chrome` and `desktop-x11` CAPABILITY.md files actually declare `provides` + `interface: mcp` so they're included in the daily probe; if not, fix the manifests OR extend `TEST_CONTRACTS`.
+5. Brief composer is `debrief-reporter` at `packages/dashboard/src/scheduler/jobs/`, not `handler-registry.ts`. It strictly aggregates DB job rows — no injection seam for framework data. **Need to add** an `AckDelivery` constructor dep so it can read `getSystemEvents()` directly and append a "System Health" section.
+
+#### 2.9.1 Wire heartbeat → daily capability probe (in scope)
+
+**Files:**
+
+- `packages/dashboard/src/app.ts` — locate the `new HeartbeatService({...})` construction. The existing `capabilityHealthIntervalMs: 60 * 60 * 1000` (1h) is wired but the `capabilityHealthCheck` callback is undefined, so the timer ticks with no effect. Two changes:
+  - Change interval to `24 * 60 * 60 * 1000` (24h).
+  - Add the callback:
+    ```typescript
+    capabilityHealthCheck: async () => {
+      await app.capabilityRegistry.testAll();
+      for (const cap of app.capabilityRegistry.list()) {
+        if (cap.health !== 'degraded' && cap.health !== 'unhealthy') continue;
+        if (app.recoveryOrchestrator?.isInFlight(cap.provides ?? cap.name)) continue;
+        app.cfr.emitFailure({
+          capabilityType: cap.provides ?? 'custom',
+          capabilityName: cap.name,
+          symptom: 'execution-error',
+          detail: cap.degradedReason ?? 'daily health probe failed',
+          triggeringInput: {
+            origin: { kind: "system", component: "heartbeat-daily-probe" },
+          },
+        });
+      }
+    },
+    ```
+- `packages/dashboard/src/automations/heartbeat-service.ts` — no code change. The existing `checkCapabilityHealth()` at line 365 already gates on `lastCapabilityCheck` and calls the callback. Verify the existing log message at the call site is still appropriate at 24h cadence (currently logs each time it fires; should be info-level, not debug).
+- `packages/dashboard/tests/unit/automations/heartbeat-service.test.ts` (existing) — extend with one new test: heartbeat ticks at fake-time intervals, capabilityHealthCheck fires once per `capabilityHealthIntervalMs` window, idempotent.
+
+**Cadence note:** heartbeat ticks every 30s; the capability check is gated via `now - lastCapabilityCheck < capabilityHealthIntervalMs`. At 24h, fires once per day on the first tick after the interval elapses. Process restart resets `lastCapabilityCheck = 0`, so it fires immediately on first tick after restart — acceptable behavior (catches anything that broke during downtime).
+
+#### 2.9.2 Add `RecoveryOrchestrator.isInFlight(type)` public method (in scope)
+
+**Files:**
+
+- `packages/core/src/capabilities/recovery-orchestrator.ts` — add a small public method:
+  ```typescript
+  isInFlight(capabilityType: string): boolean {
+    return this.inFlight.has(capabilityType);
+  }
+  ```
+  Used by the daily probe (above) to skip emitting CFR for capabilities that already have a recovery in flight (the S12 `inFlight` mutex would dedup anyway, but pre-checking avoids ring-buffer noise from duplicate `in-progress` entries).
+- `packages/core/tests/capabilities/orchestrator/orchestrator-state-machine.test.ts` (existing) — extend with one new test: `isInFlight` returns true while a recovery is mid-flight, false after it completes.
+
+#### 2.9.3 Fix system-origin terminal drain to append outcome to ring buffer (in scope — required for brief integration)
+
+**Files:**
+
+- `packages/core/src/capabilities/recovery-orchestrator.ts` — at the system-origin terminal drain (around line 700-714, verify at sprint-time), the current behavior is log-only. Add a call to `ackDelivery.appendSystemEvent({ ..., outcome: 'fixed' | 'surrendered' })` (or the existing equivalent — verify the method name in `ack-delivery.ts`) so the ring buffer entry transitions from `in-progress` to its terminal outcome. Without this fix, the brief composer would show stale `in-progress` entries indefinitely.
+- `packages/core/src/capabilities/ack-delivery.ts` — verify the system event log entry shape supports outcome transitions (or add an `outcome` field if missing). The S19 ring buffer was built for "system-origin events" — extending it to carry terminal outcomes is consistent with that purpose.
+- `packages/dashboard/tests/integration/cfr-system-origin-terminal-drain.test.ts` *(new)* — boots a real `App`, fires a system-origin CFR, mocks fix-mode to succeed, asserts the ring buffer has one entry that transitions from `in-progress` to `fixed` (and a parallel test for `surrendered`).
+
+**Note:** This is a real bug discovered by the audit, not just an S24 enabler. Even without S24, a system-origin failure today (e.g., S23's Mode 3 detection at session start) leaves the ring buffer in `in-progress` forever. **This fix lands as part of S24 but resolves a pre-existing gap.** Worth flagging in the s24 review as "fix landed in S24 closes a latent S19 gap."
+
+#### 2.9.4 Verify + fix `testAll()` MCP coverage (in scope)
+
+**Files:**
+
+- `.my_agent/capabilities/browser-chrome/CAPABILITY.md` — verify the frontmatter declares `provides: browser-control` AND `interface: mcp`. If either is missing, add it. Without `provides`, the cap is silently skipped by `testAll()`'s filter.
+- `.my_agent/capabilities/desktop-x11/CAPABILITY.md` — same verification + fix if needed.
+- `skills/capability-templates/browser-control.md` and `skills/capability-templates/desktop-control.md` — if the installed plugs have correct frontmatter but the templates don't show `interface: mcp` as required, add it for clarity (templates are the documented contract).
+- `packages/core/src/capabilities/test-harness.ts` — verify `TEST_CONTRACTS` table at line 211 + the MCP dispatch path at line 35 actually cover all currently-installed capability types. If a script-interface plug type lacks a TEST_CONTRACTS entry (e.g., a future script-based browser plug), `testCapability` returns an error and the cap stays `untested`. Document the dispatch table as the source of truth in CAPABILITY.md schema.
+- `packages/core/tests/capabilities/test-harness-mcp-coverage.test.ts` *(new — small scope)* — for each currently-installed capability type, asserts that `testCapability` returns either `ok` or `error` with a meaningful message (NOT silent `untested` from a missing dispatch entry).
+
+**Sprint-time verification:** before implementing 2.9.1, run a quick diagnostic in the dev environment:
+```bash
+node -e "
+const { CapabilityRegistry, scanCapabilities } = require('./packages/core/dist');
+const r = new CapabilityRegistry();
+const caps = await scanCapabilities('.my_agent/capabilities', '.env');
+r.load(caps);
+await r.testAll();
+console.log(r.list().map(c => ({ name: c.name, provides: c.provides, interface: c.interface, health: c.health, reason: c.degradedReason })));
+"
+```
+If any installed plug shows `health: 'untested'` after `testAll()`, that's the gap — fix it before wiring the daily probe. Document the diagnostic + fix in `s24-DECISIONS.md`.
+
+#### 2.9.5 Brief integration via `debrief-reporter` (in scope)
+
+**Files:**
+
+- `packages/dashboard/src/scheduler/jobs/debrief-reporter.ts` (verify exact path at sprint-time) — add a constructor dependency on `AckDelivery` (or pass it via the existing handler-registry init). After the existing worker-section aggregation, before returning the deliverable string, query `app.ackDelivery.getSystemEvents()` filtered to the last 24h. If non-empty, append a "## System Health" section. Format:
+
+  ```markdown
+  ## System Health
+
+  - 03:14 — browser-chrome auto-recovered (config drift; smoke clean within 2 min)
+  - 14:47 — tts-edge-tts auto-recovered (voice config; 3 attempts, smoke clean)
+  - 22:08 — desktop-x11 surrendered after 3 attempts; needs attention
+    (last error: xdotool not found; check `which xdotool`)
+  ```
+
+  If the ring buffer is empty for the last 24h: omit the section entirely (no empty header).
+- `packages/dashboard/src/scheduler/jobs/handler-registry.ts` — locate where `debrief-reporter` is registered and ensure the new `AckDelivery` dep flows through. Likely a one-line addition to the dep object.
+- `packages/dashboard/src/app.ts` — ensure `app.ackDelivery` is constructed before the scheduler initialises (verify ordering at sprint-time; if scheduler init runs first, refactor to lazy-resolve the dep).
+- `packages/dashboard/tests/integration/debrief-reporter-system-health-section.test.ts` *(new)* — three tests:
+  - (a) ring buffer empty for last 24h → no "System Health" section in deliverable
+  - (b) ring buffer has one fixed event in last 24h → section appears with one bullet, fixed framing
+  - (c) ring buffer has one surrendered event in last 24h → section appears with surrender framing + remediation hint
+
+**Why this design (not a separate brief-worker automation):** instance-level `.my_agent/automations/cfr-self-heal-summary.md` would require every agent to set it up manually — wrong for framework-level functionality. The debrief-reporter is the framework's brief composer; adding `AckDelivery` as a dep is the cleanest extension point.
+
+#### 2.9.6 Live retest
+
+**Setup:** corrupt `.my_agent/capabilities/stt-deepgram/scripts/transcribe.sh` so the script exits non-zero (e.g., `mv transcribe.sh transcribe.sh.bak; echo '#!/bin/bash\nexit 1' > transcribe.sh; chmod +x transcribe.sh`). Don't restart the dashboard (we want to observe the daily probe catching it organically). Optionally also: revoke `DEEPGRAM_API_KEY` in `.env` (force-restart needed for env to reload — but that gets us a different fail mode).
+
+**Wait** until next 24h heartbeat tick fires the probe. To accelerate for the live test, temporarily set `capabilityHealthIntervalMs: 60_000` (1 min) in `app.ts`, restart, and revert after the test. Document the test-mode override in s24-test-report.md.
+
+**Pass conditions:**
+
+| Gate | Verification |
+|------|--------------|
+| Probe fires | `[Heartbeat] capability health check starting` log entry at the expected interval |
+| Capability marked degraded | `app.capabilityRegistry.list()` shows `stt-deepgram` with `health: 'degraded'` after `testAll()` |
+| CFR emitted with system origin | `[CFR] ack(attempt) for audio-to-text — origin: system` log entry |
+| **Silent path** | **NO chat bubble appears in any open dashboard conversation; NO WhatsApp message sent; NO brain turn fired.** Inspect the conversation transcripts and the WhatsApp transport log. |
+| Fix runs | Fix-mode agent spawned, repairs transcribe.sh (or installs missing dep), smoke clean |
+| Ring buffer transitions | After fix: ring buffer entry for stt-deepgram shows `outcome: fixed` (was `in-progress` during recovery). Verify via `/api/capabilities/cfr-system-events`. |
+| Brief includes the event | Trigger debrief-reporter (or wait for next morning brief). Resulting deliverable includes `## System Health` section listing the stt-deepgram self-heal with timestamp and outcome. |
+
+**Acceptance for S24 close:**
+
+- All five sub-tasks (2.9.1 through 2.9.5) implemented + their unit/integration tests pass
+- Live retest above passes end-to-end with NO user-visible signal during the recovery window
+- Suite green: dashboard + core both report zero failed (same gate that closed S20/S21/S22/S23)
+
+**Verification command:**
+
+```bash
+cd packages/core && npx vitest run tests/capabilities/orchestrator/orchestrator-state-machine tests/capabilities/test-harness-mcp-coverage
+cd packages/dashboard && npx vitest run tests/unit/automations/heartbeat-service tests/integration/cfr-system-origin-terminal-drain tests/integration/debrief-reporter-system-health-section
+cd packages/dashboard && npx vitest run                    # full suite, 0 failures
+cd packages/core && npx vitest run                          # full suite, 0 failures
+# Live: corrupt stt-deepgram, accelerate cadence, observe silent recovery + ring-buffer transition + brief section
+```
+
+**Deviation triggers:**
+
+- **`testAll()` MCP coverage diagnostic reveals browser-chrome / desktop-x11 are silently `untested`.** Fix the CAPABILITY.md frontmatter or extend `testCapability`'s dispatch. Document the gap class in DECISIONS — this is a pre-existing latent bug surfaced by S24's audit, not S24's introduction.
+- **System-origin terminal drain fix turns out to also affect S23's Mode 3 detection path** (which is the only system-origin emit currently in production). Verify S23 still works after the fix; the drain change is additive (new outcome write) so it shouldn't regress.
+- **`debrief-reporter` constructor signature can't accept `AckDelivery` cleanly** (e.g., it's instantiated via a factory that doesn't have the AckDelivery instance). Refactor the wiring; document in DECISIONS. Don't fall back to instance-level automation file as a workaround — that violates the framework-level constraint.
+- **Live retest reveals the brief section appears empty even when ring buffer has events.** Trace the data flow; likely a timestamp filter mismatch (UTC vs local time) or a serialization gap. Fix before claiming the gate passes.
+
+**Out of scope:**
+
+- BUG-8 (still deferred to M10).
+- Per-capability `health_probe_interval_minutes` frontmatter override (rejected per CTO direction — daily is fine for everyone).
+- More-frequent-than-daily probing for any capability (CTO: "I don't want to be this wasteful").
+- User-facing real-time notification for system-origin failures (rejected — silent contract).
+- Surrender escalation to brain mediator after N failures (rejected — brief is the only user-facing surface; user can act when they read it).
+- Mode 4 for non-MCP, non-script capabilities. None exist today; not a real concern.
+- Adjusting the actual brief generation cron schedule. The brief runs when it runs; S24 just contributes one more section to it.
+
+**Why it's S24, not folded into S23:** S23 was scoped to verifying Mode 3 detection (a reactive, session-start-triggered path). S24 introduces Mode 4, the proactive daily probe — a different code surface, a different testing methodology, a different user-visibility contract (silent, brief-only). Splitting keeps each sprint's artifact trail clean and makes the framework matrix transition (3 modes → 4 modes) visible in the audit chain.
+
+**Milestone exit:** S24 acceptance gates green + S23 still green + live retest signed off by CTO + architect approval. **M9.6 closes here. M10 unblocks.**
+
+**Roadmap commit:** lands AFTER architect + CTO approval per §0.3. **S22 + S23 dev followed this discipline; S24 dev: same expectation. The pattern is established now.**
 
 ---
 
