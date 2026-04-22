@@ -144,7 +144,6 @@ export class McpCapabilityCfrDetector {
     for (const entry of systemMessage.mcp_servers) {
       if (entry.status === "connected" || entry.status === "pending") continue;
       if (!FAILED_STATUSES.has(entry.status)) continue;
-      if (!FAILED_STATUSES.has(entry.status)) continue;
 
       const cap = this.deps.registry.findByName(entry.name);
       if (!cap) continue;

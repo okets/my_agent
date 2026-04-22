@@ -10,7 +10,7 @@ date: 2026-04-21
 
 **Plan said:** `packages/core/tests/capabilities/mcp-cfr-detector-init.test.ts` (new) with three cases.
 
-**What happened:** The existing `mcp-cfr-detector.test.ts` already has comprehensive `processSystemInit` coverage (11 tests covering all three plan cases: all-connected, one-failed, idempotent). Creating a duplicate file for three tests that are already covered would be redundant. The new test effort went into `cfr-mode3-init-detection.test.ts` (conversation-origin integration test) which was the higher-value addition.
+**What happened:** The existing `mcp-cfr-detector.test.ts` already has comprehensive `processSystemInit` coverage (10 tests covering all three plan cases: all-connected, one-failed, idempotent). Creating a duplicate file for three tests that are already covered would be redundant. The new test effort went into `cfr-mode3-init-detection.test.ts` (conversation-origin integration test) which was the higher-value addition.
 
 **Impact:** None — the plan explicitly said "extend existing test if one exists for this detector; check at sprint-time." The existing file was extended conceptually; the new integration test fills the conversation-origin gap that existed.
 
