@@ -3,13 +3,25 @@
  * Table-driven — covers all transitions including budget exhaustion.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   nextAction,
   type FixSession,
   type OrchestratorEvent,
   type Action,
 } from "../../../src/capabilities/orchestrator-state-machine.js";
+import {
+  RecoveryOrchestrator,
+  type OrchestratorDeps,
+  type AutomationResult,
+} from "../../../src/capabilities/recovery-orchestrator.js";
+import type {
+  CapabilityFailure,
+  TriggeringOrigin,
+} from "../../../src/capabilities/cfr-types.js";
+import { conversationOrigin } from "../../../src/capabilities/cfr-helpers.js";
+import type { CapabilityRegistry } from "../../../src/capabilities/registry.js";
+import type { CapabilityWatcher } from "../../../src/capabilities/watcher.js";
 
 function makeSession(overrides: Partial<FixSession> = {}): FixSession {
   return {
@@ -167,4 +179,86 @@ describe("orchestrator state machine — transitions", () => {
       expect(result).toEqual(tc.expected);
     });
   }
+});
+
+// ─── RecoveryOrchestrator.isInFlight() ───────────────────────────────────────
+
+function makeConvFailure(id: string): CapabilityFailure {
+  const origin: TriggeringOrigin = conversationOrigin(
+    { transportId: "whatsapp", channelId: "ch-1", sender: "+10000000001" },
+    "conv-A",
+    1,
+  );
+  return {
+    id,
+    capabilityType: "audio-to-text",
+    capabilityName: "stt-deepgram",
+    symptom: "execution-error",
+    detail: "exit 1",
+    triggeringInput: {
+      origin,
+      artifact: {
+        type: "audio",
+        rawMediaPath: "/tmp/test-audio.ogg",
+        mimeType: "audio/ogg",
+      },
+    },
+    attemptNumber: 1,
+    previousAttempts: [],
+    detectedAt: new Date().toISOString(),
+  };
+}
+
+function makeIsInFlightDeps(
+  spawnGate: Promise<void>,
+): OrchestratorDeps {
+  return {
+    spawnAutomation: vi.fn().mockImplementation(async () => {
+      await spawnGate;
+      return { jobId: "j-1", automationId: "a-1" };
+    }),
+    awaitAutomation: vi
+      .fn()
+      .mockResolvedValue({ status: "failed" } as AutomationResult),
+    getJobRunDir: vi.fn().mockReturnValue(null),
+    capabilityRegistry: {
+      get: vi.fn().mockReturnValue(undefined),
+    } as unknown as CapabilityRegistry,
+    watcher: {
+      rescanNow: vi.fn().mockResolvedValue([]),
+    } as unknown as CapabilityWatcher,
+    emitAck: vi.fn().mockResolvedValue(undefined),
+    reprocessTurn: vi.fn().mockResolvedValue(undefined),
+    writeAutomationRecovery: vi.fn(),
+    now: () => new Date().toISOString(),
+  };
+}
+
+describe("RecoveryOrchestrator.isInFlight()", () => {
+  it("returns true while a recovery is mid-flight, false after it completes", async () => {
+    let releaseSpawn!: () => void;
+    const spawnGate = new Promise<void>((r) => {
+      releaseSpawn = r;
+    });
+
+    const deps = makeIsInFlightDeps(spawnGate);
+    const orchestrator = new RecoveryOrchestrator(deps);
+
+    // Before any failure, not in-flight.
+    expect(orchestrator.isInFlight("audio-to-text")).toBe(false);
+
+    const p = orchestrator.handle(makeConvFailure("fail-1"));
+    // Yield so handle() reaches the spawn gate and sets the inFlight entry.
+    await new Promise((r) => setTimeout(r, 0));
+
+    // While the gated spawnAutomation is awaiting, the session is in-flight.
+    expect(orchestrator.isInFlight("audio-to-text")).toBe(true);
+
+    // Release the gate and let the fix session drain to terminal.
+    releaseSpawn();
+    await p;
+
+    // After the terminal drain deletes the entry, no longer in-flight.
+    expect(orchestrator.isInFlight("audio-to-text")).toBe(false);
+  });
 });

@@ -201,7 +201,7 @@ export interface SystemCfrEvent {
   capabilityType: string;
   capabilityName?: string;
   symptom: string;
-  outcome: "in-progress" | "surrendered";
+  outcome: "in-progress" | "fixed" | "surrendered";
   timestamp: string;
 }
 
@@ -419,22 +419,36 @@ export class AckDelivery {
 
     // ── system ───────────────────────────────────────────────────────────────
     if (origin.kind === "system") {
-      const outcome = isTerminalKind(context?.kind) ? "surrendered" : "in-progress";
-      console.log(
-        `[CFR] capability ${failure.capabilityName ?? "(unknown)"} ` +
-          `(${failure.capabilityType}): ${failure.symptom} → ${outcome} ` +
-          `[component=${origin.component}]`,
-      );
-      this.systemEventLog.push({
-        component: origin.component,
-        capabilityType: failure.capabilityType,
-        capabilityName: failure.capabilityName,
-        symptom: failure.symptom,
-        outcome,
-        timestamp: new Date().toISOString(),
-      });
-      if (this.systemEventLog.length > SYSTEM_RING_BUFFER_MAX) {
-        this.systemEventLog.shift();
+      if (isTerminalKind(context?.kind)) {
+        console.log(
+          `[CFR] capability ${failure.capabilityName ?? "(unknown)"} ` +
+            `(${failure.capabilityType}): ${failure.symptom} → surrendered ` +
+            `[component=${origin.component}]`,
+        );
+        this.recordSystemOutcome({
+          component: origin.component,
+          capabilityType: failure.capabilityType,
+          capabilityName: failure.capabilityName,
+          symptom: failure.symptom,
+          outcome: "surrendered",
+        });
+      } else {
+        console.log(
+          `[CFR] capability ${failure.capabilityName ?? "(unknown)"} ` +
+            `(${failure.capabilityType}): ${failure.symptom} → in-progress ` +
+            `[component=${origin.component}]`,
+        );
+        this.systemEventLog.push({
+          component: origin.component,
+          capabilityType: failure.capabilityType,
+          capabilityName: failure.capabilityName,
+          symptom: failure.symptom,
+          outcome: "in-progress",
+          timestamp: new Date().toISOString(),
+        });
+        if (this.systemEventLog.length > SYSTEM_RING_BUFFER_MAX) {
+          this.systemEventLog.shift();
+        }
       }
       return;
     }
@@ -447,6 +461,56 @@ export class AckDelivery {
   /** Returns system-origin CFR events, most-recent-first. Max 100 entries. */
   getSystemEvents(): SystemCfrEvent[] {
     return [...this.systemEventLog].reverse();
+  }
+
+  /**
+   * Record the terminal outcome of a system-origin CFR.
+   *
+   * The initial "in-progress" entry is written when the attempt ack flows
+   * through `deliver()`. On terminal transition the orchestrator's
+   * system-origin drain calls this method so the ring buffer reflects the
+   * actual outcome instead of staying pinned at "in-progress" forever.
+   *
+   * Transitions the most recent in-progress entry matching
+   * (component, capabilityType) in place. If no matching in-progress entry
+   * exists (initial attempt ack was suppressed, ring buffer rotation ejected
+   * it, etc.), a fresh terminal entry is appended so the outcome is not lost.
+   */
+  recordSystemOutcome(args: {
+    component: string;
+    capabilityType: string;
+    capabilityName?: string;
+    symptom: string;
+    outcome: "fixed" | "surrendered";
+    timestamp?: string;
+  }): void {
+    const { component, capabilityType, capabilityName, symptom, outcome } = args;
+    const timestamp = args.timestamp ?? new Date().toISOString();
+
+    for (let i = this.systemEventLog.length - 1; i >= 0; i--) {
+      const entry = this.systemEventLog[i];
+      if (
+        entry.outcome === "in-progress" &&
+        entry.component === component &&
+        entry.capabilityType === capabilityType
+      ) {
+        entry.outcome = outcome;
+        entry.timestamp = timestamp;
+        return;
+      }
+    }
+
+    this.systemEventLog.push({
+      component,
+      capabilityType,
+      capabilityName,
+      symptom,
+      outcome,
+      timestamp,
+    });
+    if (this.systemEventLog.length > SYSTEM_RING_BUFFER_MAX) {
+      this.systemEventLog.shift();
+    }
   }
 
   /**

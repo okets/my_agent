@@ -13,6 +13,7 @@ import { join } from "node:path";
 import type { DebriefSchedulerLike } from "./debrief-server.js";
 import type { AutomationJobService } from "../automations/automation-job-service.js";
 import type { ConversationDatabase } from "../conversations/db.js";
+import type { AckDelivery } from "@my-agent/core";
 import { getHandler } from "../scheduler/jobs/handler-registry.js";
 
 /**
@@ -21,11 +22,14 @@ import { getHandler } from "../scheduler/jobs/handler-registry.js";
  * @param getJobService - Lazy getter (scheduler may not be initialized yet)
  * @param agentDir - Agent directory for running debrief handler
  * @param getDb - Lazy getter for database (needed by reporter for worker queries)
+ * @param getAckDelivery - Lazy getter for AckDelivery (needed by reporter for
+ *   the System Health section; M9.6-S24 Task 6)
  */
 export function createDebriefAutomationAdapter(
   getJobService: () => AutomationJobService | null,
   agentDir: string,
   getDb?: () => ConversationDatabase | null,
+  getAckDelivery?: () => AckDelivery | null,
 ): DebriefSchedulerLike {
   return {
     agentDir,
@@ -89,10 +93,12 @@ export function createDebriefAutomationAdapter(
           : "debrief-ondemand";
 
         const db = getDb?.() ?? undefined;
+        const ackDelivery = getAckDelivery?.() ?? undefined;
         const result = await reporter({
           agentDir,
           jobId,
           db,
+          ackDelivery,
         });
         return result.work;
       }

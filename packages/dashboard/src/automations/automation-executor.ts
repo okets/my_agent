@@ -29,6 +29,7 @@ import type {
   CapabilityRegistry,
   CfrEmitter,
   AutomationSessionContext,
+  AckDelivery,
 } from "@my-agent/core";
 import type { PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import fs from "node:fs";
@@ -80,6 +81,14 @@ export interface AutomationExecutorConfig {
    * `processSystemInit()` on the init frame of the for-await message loop.
    */
   cfr?: CfrEmitter;
+  /**
+   * M9.6-S24 Task 6 — AckDelivery instance, passed through to built-in
+   * handlers (specifically `debrief-reporter`) so they can read the
+   * system-origin CFR ring buffer for the System Health brief section.
+   * Optional: absent when AckDelivery has not yet been constructed
+   * (fresh install pre-TransportManager).
+   */
+  ackDelivery?: AckDelivery;
 }
 
 export interface ExecutionResult {
@@ -259,6 +268,7 @@ export class AutomationExecutor {
           db: this.config.db,
           jobId: job.id,
           runDir: job.run_dir ?? undefined,
+          ackDelivery: this.config.ackDelivery,
         });
 
         let handlerDeliverablePath: string | undefined;

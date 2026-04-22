@@ -313,6 +313,17 @@ export async function dispatchReverify(
     };
   }
 
+  // System-origin probes have no artifact to replay — rescanNow() + testAll()
+  // already verified health via waitForAvailability. Skip the per-type reverifier
+  // (which requires an artifact) and return pass directly.
+  if (failure.triggeringInput.origin.kind === "system") {
+    console.log(
+      `[dispatchReverify] system-origin: capability ${failure.capabilityType} ` +
+        `healthy after rescan — skipping artifact reverifier`,
+    );
+    return { pass: true };
+  }
+
   // Per-type reverifier
   const specific = REVERIFIERS[failure.capabilityType];
   if (specific) {

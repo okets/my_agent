@@ -152,3 +152,186 @@ describe("HeartbeatService.drainNow (M9.4-S5)", () => {
     expect(queue.markDelivered).toHaveBeenCalledWith("x.json");
   });
 });
+
+describe("HeartbeatService.checkCapabilityHealth (M9.6-S24 Mode 4)", () => {
+  it("fires the capabilityHealthCheck callback on tick when interval has elapsed", async () => {
+    const capabilityHealthCheck = vi.fn().mockResolvedValue(undefined);
+    const hb = new HeartbeatService(
+      baseConfig({
+        capabilityHealthIntervalMs: 0, // fire every tick
+        capabilityHealthCheck,
+      }),
+    );
+
+    await hb.tick();
+    expect(capabilityHealthCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits system-origin CFR for degraded caps that have no in-flight recovery", async () => {
+    const emitFailure = vi.fn();
+    const isInFlight = vi.fn().mockReturnValue(false);
+    const testAll = vi.fn().mockResolvedValue(undefined);
+    const list = vi.fn().mockReturnValue([
+      {
+        name: "stt-deepgram",
+        provides: "audio-to-text",
+        health: "degraded",
+        degradedReason: "401 Unauthorized",
+      },
+    ]);
+
+    // Inline-built callback mirrors the wiring in app.ts
+    const capabilityHealthCheck = async () => {
+      await testAll();
+      for (const cap of list() as Array<{
+        name: string;
+        provides?: string;
+        health: string;
+        degradedReason?: string;
+      }>) {
+        if (cap.health !== "degraded") continue;
+        const capType = cap.provides ?? cap.name;
+        if (isInFlight(capType)) continue;
+        emitFailure({
+          capabilityType: capType,
+          capabilityName: cap.name,
+          symptom: "execution-error",
+          detail: cap.degradedReason ?? "daily probe: capability degraded",
+          triggeringInput: {
+            origin: {
+              kind: "system",
+              component: "capability-health-probe",
+            },
+          },
+        });
+      }
+    };
+
+    const hb = new HeartbeatService(
+      baseConfig({
+        capabilityHealthIntervalMs: 0,
+        capabilityHealthCheck,
+      }),
+    );
+
+    await hb.tick();
+
+    expect(testAll).toHaveBeenCalledTimes(1);
+    expect(isInFlight).toHaveBeenCalledWith("audio-to-text");
+    expect(emitFailure).toHaveBeenCalledTimes(1);
+    expect(emitFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        capabilityType: "audio-to-text",
+        capabilityName: "stt-deepgram",
+        symptom: "execution-error",
+        detail: "401 Unauthorized",
+        triggeringInput: {
+          origin: {
+            kind: "system",
+            component: "capability-health-probe",
+          },
+        },
+      }),
+    );
+  });
+
+  it("skips degraded caps that already have an in-flight recovery", async () => {
+    const emitFailure = vi.fn();
+    const isInFlight = vi.fn().mockReturnValue(true);
+    const testAll = vi.fn().mockResolvedValue(undefined);
+    const list = vi.fn().mockReturnValue([
+      {
+        name: "tts-elevenlabs",
+        provides: "text-to-audio",
+        health: "degraded",
+        degradedReason: "timeout",
+      },
+    ]);
+
+    const capabilityHealthCheck = async () => {
+      await testAll();
+      for (const cap of list() as Array<{
+        name: string;
+        provides?: string;
+        health: string;
+        degradedReason?: string;
+      }>) {
+        if (cap.health !== "degraded") continue;
+        const capType = cap.provides ?? cap.name;
+        if (isInFlight(capType)) continue;
+        emitFailure({
+          capabilityType: capType,
+          capabilityName: cap.name,
+          symptom: "execution-error",
+          detail: cap.degradedReason ?? "daily probe: capability degraded",
+          triggeringInput: {
+            origin: {
+              kind: "system",
+              component: "capability-health-probe",
+            },
+          },
+        });
+      }
+    };
+
+    const hb = new HeartbeatService(
+      baseConfig({
+        capabilityHealthIntervalMs: 0,
+        capabilityHealthCheck,
+      }),
+    );
+
+    await hb.tick();
+
+    expect(testAll).toHaveBeenCalledTimes(1);
+    expect(isInFlight).toHaveBeenCalledWith("text-to-audio");
+    expect(emitFailure).not.toHaveBeenCalled();
+  });
+
+  it("ignores healthy and untested caps", async () => {
+    const emitFailure = vi.fn();
+    const isInFlight = vi.fn().mockReturnValue(false);
+    const testAll = vi.fn().mockResolvedValue(undefined);
+    const list = vi.fn().mockReturnValue([
+      { name: "cap-a", provides: "a", health: "healthy" },
+      { name: "cap-b", provides: "b", health: "untested" },
+    ]);
+
+    const capabilityHealthCheck = async () => {
+      await testAll();
+      for (const cap of list() as Array<{
+        name: string;
+        provides?: string;
+        health: string;
+        degradedReason?: string;
+      }>) {
+        if (cap.health !== "degraded") continue;
+        const capType = cap.provides ?? cap.name;
+        if (isInFlight(capType)) continue;
+        emitFailure({
+          capabilityType: capType,
+          capabilityName: cap.name,
+          symptom: "execution-error",
+          detail: cap.degradedReason ?? "daily probe: capability degraded",
+          triggeringInput: {
+            origin: {
+              kind: "system",
+              component: "capability-health-probe",
+            },
+          },
+        });
+      }
+    };
+
+    const hb = new HeartbeatService(
+      baseConfig({
+        capabilityHealthIntervalMs: 0,
+        capabilityHealthCheck,
+      }),
+    );
+
+    await hb.tick();
+    expect(emitFailure).not.toHaveBeenCalled();
+    expect(isInFlight).not.toHaveBeenCalled();
+  });
+});

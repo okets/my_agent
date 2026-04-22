@@ -1006,6 +1006,19 @@ export class App extends EventEmitter {
             );
           }
         },
+        // M9.6-S24 Task 4: wire AckDelivery.recordSystemOutcome so the
+        // system-origin terminal drain transitions the ring-buffer entry from
+        // in-progress → fixed/surrendered. Late-binds via `app.ackDelivery`
+        // for the same reason as writeAutomationRecovery above.
+        recordSystemOutcome: (args) => {
+          if (app.ackDelivery) {
+            app.ackDelivery.recordSystemOutcome(args);
+          } else {
+            console.warn(
+              "[CFR] recordSystemOutcome: AckDelivery unavailable — ring buffer entry not transitioned",
+            );
+          }
+        },
         now: () => new Date().toISOString(),
       });
 
@@ -1636,6 +1649,7 @@ export class App extends EventEmitter {
         () => app.automationJobService,
         agentDir,
         () => app.conversationManager?.getConversationDb() ?? null,
+        () => app.ackDelivery ?? null,
       );
 
       initMcpServers(
@@ -1751,6 +1765,10 @@ export class App extends EventEmitter {
           // McpCapabilityCfrDetector to the job's SDK hooks for MCP plug
           // failure detection (automation-origin CFRs).
           cfr: app.cfr,
+          // M9.6-S24 Task 6: passed through to built-in handlers (specifically
+          // debrief-reporter) so the System Health section of the daily brief
+          // can read the system-origin CFR ring buffer.
+          ackDelivery: app.ackDelivery ?? undefined,
         });
 
         // Persistent notification queue — heartbeat handles delivery
@@ -2129,7 +2147,30 @@ export class App extends EventEmitter {
           },
           staleThresholdMs: 5 * 60 * 1000,
           tickIntervalMs: 30 * 1000,
-          capabilityHealthIntervalMs: 60 * 60 * 1000,
+          // M9.6-S24 Mode 4: daily silent self-heal probe (was hourly in M9.6-S20).
+          capabilityHealthIntervalMs: 24 * 60 * 60 * 1000,
+          capabilityHealthCheck: async () => {
+            if (!app.capabilityRegistry) return;
+            await app.capabilityRegistry.testAll();
+            for (const cap of app.capabilityRegistry.list()) {
+              if (cap.health !== "degraded") continue;
+              const capType = cap.provides ?? cap.name;
+              if (app.recoveryOrchestrator?.isInFlight(capType)) continue;
+              app.cfr.emitFailure({
+                capabilityType: capType,
+                capabilityName: cap.name,
+                symptom: "execution-error",
+                detail:
+                  cap.degradedReason ?? "daily probe: capability degraded",
+                triggeringInput: {
+                  origin: {
+                    kind: "system",
+                    component: "capability-health-probe",
+                  },
+                },
+              });
+            }
+          },
           registry: connectionRegistry, // M9.4-S5 B7: WS broadcast for handoff_pending
           agentDir, // M9.1-S9: audit-log liveness signal
           resolveStaleThresholdMs: (automationId: string) => {

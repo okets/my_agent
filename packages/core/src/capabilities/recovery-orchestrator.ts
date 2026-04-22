@@ -80,6 +80,19 @@ export interface OrchestratorDeps {
     outcome: "fixed" | "terminal-fixed" | "surrendered";
     session: { attempts: FixAttempt[]; surrenderReason?: "budget" | "iteration-3" | "redesign-needed" | "insufficient-context" };
   }) => void;
+  /**
+   * Transition the ring-buffer entry for a system-origin CFR to its terminal
+   * outcome. Called from the system-origin branch of the terminal drain so the
+   * ring buffer reflects fixed/surrendered instead of remaining pinned at
+   * "in-progress". Optional: when absent, the drain only logs (legacy behaviour).
+   */
+  recordSystemOutcome?: (args: {
+    component: string;
+    capabilityType: string;
+    capabilityName?: string;
+    symptom: string;
+    outcome: "fixed" | "surrendered";
+  }) => void;
   now: () => string;
 }
 
@@ -120,6 +133,14 @@ export class RecoveryOrchestrator {
   private surrendered: Map<string, SurrenderScope> = new Map();
 
   constructor(private deps: OrchestratorDeps) {}
+
+  /**
+   * True while a fix session is active for the given capability type.
+   * Used by the daily probe to skip capabilities already mid-recovery.
+   */
+  isInFlight(capabilityType: string): boolean {
+    return this.inFlight.has(capabilityType);
+  }
 
   /**
    * Handle a capability failure. Called by app.cfr.on("failure", ...).
@@ -696,7 +717,14 @@ export class RecoveryOrchestrator {
       }
     }
 
-    // Step 5: system origins — log.
+    // Step 5: system origins — log and transition the ring-buffer entry.
+    // Without the recordSystemOutcome call the ring buffer's initial
+    // "in-progress" entry (written when the attempt ack flowed through
+    // AckDelivery.deliver) stays pinned, so Debug/Admin surfaces show the
+    // capability stuck in fixing forever. We map the session outcome onto
+    // the ring buffer's fixed|surrendered union here.
+    const ringOutcome: "fixed" | "surrendered" =
+      outcome === "surrendered" ? "surrendered" : "fixed";
     for (const origin of systemOrigins) {
       try {
         console.log(
@@ -705,6 +733,21 @@ export class RecoveryOrchestrator {
             `outcome=${outcome}` +
             (session.surrenderReason ? ` reason=${session.surrenderReason}` : ""),
         );
+
+        if (this.deps.recordSystemOutcome) {
+          this.deps.recordSystemOutcome({
+            component: origin.component,
+            capabilityType: session.capabilityType,
+            capabilityName: failure.capabilityName,
+            symptom: failure.symptom,
+            outcome: ringOutcome,
+          });
+        } else {
+          console.warn(
+            `[RecoveryOrchestrator] recordSystemOutcome not wired — ring buffer entry for ` +
+              `component="${origin.component}" capability=${session.capabilityType} stays in-progress`,
+          );
+        }
       } catch (err) {
         console.error(
           `[RecoveryOrchestrator] system drain threw for component="${origin.component}":`,

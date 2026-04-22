@@ -14,6 +14,7 @@ import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
 import type { ConversationDatabase } from "../../conversations/db.js";
 import { queryModel, type ModelAlias } from "../query-model.js";
 import { loadPreferences } from "@my-agent/core";
+import type { AckDelivery } from "@my-agent/core";
 import { stripFrontmatter, WRAPPER_MARKER } from "../../automations/summary-resolver.js";
 
 // Import job-specific prompts and logic
@@ -52,6 +53,15 @@ export type BuiltInHandler = (ctx: {
    * (e.g. the inline call from debrief-reporter uses a synthetic jobId).
    */
   runDir?: string;
+  /**
+   * AckDelivery instance for reading the system-origin CFR ring buffer.
+   * Consumed by the debrief-reporter handler (M9.6-S24 Task 6) to append a
+   * `## System Health` section listing capabilities that the daily probe
+   * self-healed or surrendered. Absent when AckDelivery has not yet been
+   * constructed (fresh install pre-TransportManager) — the handler simply
+   * skips the section in that case.
+   */
+  ackDelivery?: AckDelivery;
 }) => Promise<{ success: boolean; work: string; deliverable: string | null }>;
 
 const handlers = new Map<string, BuiltInHandler>();
@@ -284,8 +294,55 @@ registerHandler("debrief-prep", getHandler("debrief-context")!);
 // 2. Collecting worker deliverables from disk (no LLM re-digest)
 // 3. Writing full report + digest to disk
 // M9.4-S4: Converted from LLM digest to pure assembly.
+// M9.6-S24 Task 6: Appends a `## System Health` section listing caps that
+// the daily probe self-healed or surrendered (read from AckDelivery's ring
+// buffer). Section is omitted when no fixed/surrendered events exist.
 
-registerHandler("debrief-reporter", async ({ agentDir, db }) => {
+/**
+ * Format the System Health section for the daily brief.
+ *
+ * Reads the ring buffer via `ackDelivery.getSystemEvents()` (most-recent-first)
+ * and emits a `## System Health` section listing fixed and surrendered
+ * capabilities with ISO timestamps. Returns an empty string when no
+ * fixed/surrendered events exist — callers append unconditionally and rely
+ * on the empty-string return to omit the section entirely. The `in-progress`
+ * outcome is intentionally skipped: the daily probe runs once a day and any
+ * entry still pinned at in-progress means the fix session hasn't terminated
+ * yet, which is not a user-facing health update.
+ */
+export function formatSystemHealthSection(
+  ackDelivery: AckDelivery | undefined,
+): string {
+  if (!ackDelivery) return "";
+
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const events = ackDelivery.getSystemEvents().filter((e) => e.timestamp >= cutoff);
+  const fixed = events.filter((e) => e.outcome === "fixed");
+  const surrendered = events.filter((e) => e.outcome === "surrendered");
+
+  if (fixed.length === 0 && surrendered.length === 0) return "";
+
+  const lines: string[] = ["## System Health", ""];
+  if (fixed.length > 0) {
+    lines.push("Self-healed:");
+    for (const e of fixed) {
+      const name = e.capabilityName ?? e.capabilityType;
+      lines.push(`- ${name} (${e.capabilityType}) at ${e.timestamp}`);
+    }
+    lines.push("");
+  }
+  if (surrendered.length > 0) {
+    lines.push("Surrendered:");
+    for (const e of surrendered) {
+      const name = e.capabilityName ?? e.capabilityType;
+      lines.push(`- ${name} (${e.capabilityType}) at ${e.timestamp}`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n").trimEnd();
+}
+
+registerHandler("debrief-reporter", async ({ agentDir, db, ackDelivery }) => {
   const notebookDir = join(agentDir, "notebook");
 
   // Step 1: Run debrief-context to refresh current-state.md
@@ -340,8 +397,15 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
     }
   }
 
-  // Step 3: If no workers ran, skip debrief entirely
-  if (workerSections.length === 0) {
+  // Step 2b (M9.6-S24 Task 6): read the system-origin CFR ring buffer and
+  // format a `## System Health` section. Empty string when no
+  // fixed/surrendered events exist — section is omitted in that case.
+  const systemHealthSection = formatSystemHealthSection(ackDelivery);
+
+  // Step 3: If no workers AND no system health entries, skip debrief entirely.
+  // System health events alone still warrant a brief — the user wants to
+  // know what self-healed overnight.
+  if (workerSections.length === 0 && systemHealthSection === "") {
     await appendToDailyLog(notebookDir, "- Debrief reporter: no workers to report");
     return {
       success: true,
@@ -363,22 +427,28 @@ registerHandler("debrief-reporter", async ({ agentDir, db }) => {
     notebookContext = await readFile(currentStatePath, "utf-8");
   }
 
-  const fullBrief = [
-    notebookContext,
-    "---\n\n# Worker Reports\n\n" + workerSections.join("\n\n---\n\n"),
-  ]
+  const workerReports =
+    workerSections.length > 0
+      ? "---\n\n# Worker Reports\n\n" + workerSections.join("\n\n---\n\n")
+      : "";
+
+  const fullBrief = [notebookContext, workerReports, systemHealthSection]
     .filter(Boolean)
     .join("\n\n");
 
   await writeFile(join(opsDir, "debrief-full.md"), fullBrief, "utf-8");
 
-  // Digest IS the worker sections (no LLM summarization)
-  const digest = workerSections.join("\n\n---\n\n");
+  // Digest IS the worker sections + system health (no LLM summarization)
+  const digest = [workerSections.join("\n\n---\n\n"), systemHealthSection]
+    .filter(Boolean)
+    .join("\n\n");
   await writeFile(join(opsDir, "debrief-digest.md"), digest, "utf-8");
 
   await appendToDailyLog(
     notebookDir,
-    `- Debrief reporter: assembled ${workerSections.length} worker reports (${digest.length} chars digest, no LLM)`,
+    `- Debrief reporter: assembled ${workerSections.length} worker reports` +
+      (systemHealthSection ? " + System Health" : "") +
+      ` (${digest.length} chars digest, no LLM)`,
   );
 
   return { success: true, work: digest, deliverable: digest };

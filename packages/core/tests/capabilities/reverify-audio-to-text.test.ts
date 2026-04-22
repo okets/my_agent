@@ -115,7 +115,7 @@ describe("reverifyAudioToText (via dispatchReverify)", () => {
     expect(result.failureMode).toMatch(/non-empty.*text/i);
   });
 
-  it("returns pass:false when rawMediaPath is absent from triggeringInput", async () => {
+  it("returns pass:true for system-origin failures (no artifact needed — rescan is the verification)", async () => {
     const capDir = makeCapDir();
     const registry = makeRegistry("audio-to-text", capDir);
     const watcher = makeWatcher();
@@ -124,7 +124,7 @@ describe("reverifyAudioToText (via dispatchReverify)", () => {
       id: "f-stt-no-path",
       capabilityType: "audio-to-text",
       symptom: "execution-error",
-      triggeringInput: { origin: { kind: "system", component: "test" } },
+      triggeringInput: { origin: { kind: "system", component: "capability-health-probe" } },
       attemptNumber: 1,
       previousAttempts: [],
       detectedAt: new Date().toISOString(),
@@ -132,7 +132,9 @@ describe("reverifyAudioToText (via dispatchReverify)", () => {
 
     const result = await dispatchReverify(failure, registry, watcher, invoker);
 
-    expect(result.pass).toBe(false);
-    expect(result.failureMode).toMatch(/rawMediaPath/i);
+    // System-origin probes carry no artifact. rescanNow() + waitForAvailability()
+    // is the verification — if the cap is healthy after the fix agent runs,
+    // we trust the testAll() result and skip the artifact-based reverifier.
+    expect(result.pass).toBe(true);
   });
 });
