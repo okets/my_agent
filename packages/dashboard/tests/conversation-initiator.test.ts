@@ -31,12 +31,18 @@ function makeTurn(
 function createMockChatService(
   response: string = "Good morning!",
 ): ChatServiceLike & {
-  calls: Array<{ conversationId: string; prompt: string; turnNumber: number }>;
+  calls: Array<{
+    conversationId: string;
+    prompt: string;
+    turnNumber: number;
+    method: "sendSystemMessage" | "sendActionRequest";
+  }>;
 } {
   const calls: Array<{
     conversationId: string;
     prompt: string;
     turnNumber: number;
+    method: "sendSystemMessage" | "sendActionRequest";
   }> = [];
   return {
     calls,
@@ -45,7 +51,27 @@ function createMockChatService(
       prompt: string,
       turnNumber: number,
     ): AsyncGenerator<ChatEvent> {
-      calls.push({ conversationId, prompt, turnNumber });
+      calls.push({
+        conversationId,
+        prompt,
+        turnNumber,
+        method: "sendSystemMessage",
+      });
+      yield { type: "start" };
+      yield { type: "text_delta", text: response };
+      yield { type: "done" };
+    },
+    async *sendActionRequest(
+      conversationId: string,
+      prompt: string,
+      turnNumber: number,
+    ): AsyncGenerator<ChatEvent> {
+      calls.push({
+        conversationId,
+        prompt,
+        turnNumber,
+        method: "sendActionRequest",
+      });
       yield { type: "start" };
       yield { type: "text_delta", text: response };
       yield { type: "done" };

@@ -1335,6 +1335,14 @@ export class App extends EventEmitter {
               options,
             );
           },
+          async *sendActionRequest(conversationId, prompt, turnNumber, options) {
+            yield* app.chat.sendActionRequest(
+              conversationId,
+              prompt,
+              turnNumber,
+              options,
+            );
+          },
         },
         channelManager: {
           async send(transportId, to, message) {

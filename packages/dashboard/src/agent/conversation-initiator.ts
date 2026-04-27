@@ -19,9 +19,22 @@ import type { ChatEvent, SystemMessageOptions } from "../chat/types.js";
 
 /**
  * Minimal chat service interface for system-initiated brain invocation.
+ *
+ * Two delivery shapes:
+ * - `sendSystemMessage` — wraps prompt in `[SYSTEM: …]`. For genuine system
+ *   events (mount failures, infra alerts).
+ * - `sendActionRequest` — bare user-role turn, no wrap. For proactive
+ *   deliveries (briefs, scheduled sessions, `notify: immediate` job
+ *   completions). M9.4-S4.2 design principle.
  */
 export interface ChatServiceLike {
   sendSystemMessage(
+    conversationId: string,
+    prompt: string,
+    turnNumber: number,
+    options?: SystemMessageOptions,
+  ): AsyncGenerator<ChatEvent>;
+  sendActionRequest(
     conversationId: string,
     prompt: string,
     turnNumber: number,

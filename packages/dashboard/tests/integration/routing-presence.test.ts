@@ -42,6 +42,7 @@ interface RecordedSystemCall {
   turnNumber: number;
   channel?: string;
   triggerJobId?: string;
+  method: "sendSystemMessage" | "sendActionRequest";
 }
 
 function makeChatService(response = "system response"): ChatServiceLike & {
@@ -62,6 +63,25 @@ function makeChatService(response = "system response"): ChatServiceLike & {
         turnNumber,
         channel: options?.channel,
         triggerJobId: options?.triggerJobId,
+        method: "sendSystemMessage",
+      });
+      yield { type: "start" };
+      yield { type: "text_delta", text: response };
+      yield { type: "done" };
+    },
+    async *sendActionRequest(
+      conversationId,
+      prompt,
+      turnNumber,
+      options,
+    ): AsyncGenerator<ChatEvent> {
+      calls.push({
+        conversationId,
+        prompt,
+        turnNumber,
+        channel: options?.channel,
+        triggerJobId: options?.triggerJobId,
+        method: "sendActionRequest",
       });
       yield { type: "start" };
       yield { type: "text_delta", text: response };

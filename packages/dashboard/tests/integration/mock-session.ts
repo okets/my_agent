@@ -66,13 +66,42 @@ class MockSessionManager {
     // No-op for mock
   }
 
+  /** Last prompt passed to inject* — useful for asserting routing in tests. */
+  lastInjectedPrompt: string | null = null;
+  /**
+   * Whether the last injection was a "system" turn ([SYSTEM:]-wrapped) or an
+   * "action_request" (bare user-role). Tests assert this to verify
+   * sendSystemMessage vs sendActionRequest routed to the correct path.
+   */
+  lastInjectionKind: "system" | "action_request" | null = null;
+
   /**
    * Inject a synthetic system turn into the session.
    * Used by sendSystemMessage() for system-initiated brain invocations.
    */
   async *injectSystemTurn(
-    _prompt: string,
+    prompt: string,
   ): AsyncGenerator<{ type: string; text?: string }> {
+    this.lastInjectedPrompt = prompt;
+    this.lastInjectionKind = "system";
+    if (this.options.error) {
+      throw new Error(this.options.error);
+    }
+    const responseText = this.options.response ?? "Mock response";
+    yield { type: "text_delta", text: responseText };
+  }
+
+  /**
+   * Inject a synthetic user-role action request into the session.
+   * Used by sendActionRequest() for proactive deliveries (briefs, scheduled
+   * sessions, `notify: immediate` job completions). Mirrors injectSystemTurn
+   * shape but does NOT wrap in `[SYSTEM:]`.
+   */
+  async *injectActionRequest(
+    prompt: string,
+  ): AsyncGenerator<{ type: string; text?: string }> {
+    this.lastInjectedPrompt = prompt;
+    this.lastInjectionKind = "action_request";
     if (this.options.error) {
       throw new Error(this.options.error);
     }
