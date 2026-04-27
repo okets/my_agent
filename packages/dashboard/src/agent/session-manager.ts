@@ -923,6 +923,24 @@ export class SessionManager {
     yield* this.streamMessage(`[SYSTEM: ${prompt}]`);
   }
 
+  /**
+   * Inject a synthetic user-role action request into the active session.
+   * Used by ConversationInitiator for proactive deliveries (briefs, scheduled
+   * sessions, `notify: immediate` job completions).
+   *
+   * Unlike `injectSystemTurn`, this does NOT wrap the prompt in `[SYSTEM: …]`.
+   * The prompt is delivered as a bare user-role turn — the model's response
+   * loop interprets it as a request to fulfill, not status context to
+   * acknowledge. M9.4-S4.2 design principle: proactive deliveries are
+   * action requests, not status notes.
+   *
+   * Caller is responsible for NOT appending the synthetic prompt to the
+   * transcript — only the brain's response should be recorded.
+   */
+  async *injectActionRequest(prompt: string): AsyncGenerator<StreamEvent> {
+    yield* this.streamMessage(prompt);
+  }
+
   async abort(): Promise<void> {
     if (this.activeQuery) {
       await this.activeQuery.interrupt();
