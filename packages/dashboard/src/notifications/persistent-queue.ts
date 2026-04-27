@@ -19,6 +19,13 @@ export interface PersistentNotification {
   created: string;
   delivery_attempts: number;
   resumable?: boolean;
+  /**
+   * Job run directory (M9.4-S4.2). Populated for `job_completed` so the
+   * heartbeat's action-request prompt can reference `${run_dir}/deliverable.md`
+   * directly — the model reads the artifact and renders it in voice instead
+   * of relying on a verbatim summary slice.
+   */
+  run_dir?: string;
   /** Internal — filename in pending/ or delivered/. Not persisted to disk. */
   _filename?: string;
 }

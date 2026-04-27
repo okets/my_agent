@@ -4,7 +4,7 @@
  * Verifies:
  * 1. check_job_status returns todo progress for active jobs
  * 2. [Active Working Agents] includes todo progress in system prompt
- * 3. [Pending Briefing] from notification queue appears in system prompt
+ * 3. [Pending Deliveries] from notification queue appears in system prompt (renamed from [Pending Deliveries] in M9.4-S4.2)
  * 4. [Your Pending Tasks] shows conversation todos in system prompt
  * 5. After briefing is built, notifications move from pending/ to delivered/
  */
@@ -115,7 +115,7 @@ describe("S5 Acceptance: status communication — 3 delivery channels", () => {
     expect(promptText).toContain("Step 3");
   });
 
-  it("system prompt includes [Pending Briefing] from notification queue", async () => {
+  it("system prompt includes [Pending Deliveries] from notification queue", async () => {
     const context: BuildContext = {
       channel: "dashboard",
       conversationId: "test-conv",
@@ -129,14 +129,14 @@ describe("S5 Acceptance: status communication — 3 delivery channels", () => {
     const blocks = await builder.build(context);
     const promptText = blocks.map((b) => b.text).join("\n");
 
-    expect(promptText).toContain("[Pending Briefing]");
+    expect(promptText).toContain("[Pending Deliveries]");
     expect(promptText).toContain("interrupted");
     expect(promptText).toContain("3/5 items done");
     expect(promptText).toContain("resume or discard");
     expect(promptText).toContain("stt-deepgram");
   });
 
-  it("system prompt does NOT include [Pending Briefing] when queue is empty", async () => {
+  it("system prompt does NOT include [Pending Deliveries] when queue is empty", async () => {
     const context: BuildContext = {
       channel: "dashboard",
       conversationId: "test-conv",
@@ -147,7 +147,7 @@ describe("S5 Acceptance: status communication — 3 delivery channels", () => {
     const blocks = await builder.build(context);
     const promptText = blocks.map((b) => b.text).join("\n");
 
-    expect(promptText).not.toContain("[Pending Briefing]");
+    expect(promptText).not.toContain("[Pending Deliveries]");
   });
 
   // --- Channel 3: Briefing (conversation todos in system prompt) ---
@@ -275,12 +275,12 @@ describe("S5 Acceptance: status communication — 3 delivery channels", () => {
 
     // All three sections present
     expect(promptText).toContain("[Active Working Agents]");
-    expect(promptText).toContain("[Pending Briefing]");
+    expect(promptText).toContain("[Pending Deliveries]");
     expect(promptText).toContain("[Your Pending Tasks]");
 
     // Correct order: active agents → briefing → todos → view context → session
     const agentsIdx = promptText.indexOf("[Active Working Agents]");
-    const briefingIdx = promptText.indexOf("[Pending Briefing]");
+    const briefingIdx = promptText.indexOf("[Pending Deliveries]");
     const todosIdx = promptText.indexOf("[Your Pending Tasks]");
     const sessionIdx = promptText.indexOf("[Session Context]");
 

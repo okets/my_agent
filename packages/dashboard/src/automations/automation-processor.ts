@@ -280,6 +280,7 @@ export class AutomationProcessor {
         todos_total: todosTotal,
         incomplete_items: incompleteItems.length > 0 ? incompleteItems : undefined,
         resumable: job.status === "needs_review",
+        run_dir: job.run_dir,
         created: new Date().toISOString(),
         delivery_attempts: 0,
       });
@@ -303,7 +304,7 @@ export class AutomationProcessor {
       if (result.status === "delivered") {
         this.config.onAlertDelivered?.();
       } else if (result.status === "no_conversation") {
-        const init = await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+        const init = await ci.initiate({ firstTurnPrompt: prompt });
         if (init.delivery.status === "delivered") {
           this.config.onAlertDelivered?.();
         } else {

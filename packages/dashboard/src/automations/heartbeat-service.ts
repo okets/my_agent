@@ -310,7 +310,7 @@ export class HeartbeatService {
           // mark delivered if initiate() itself couldn't stream a response
           // (same never-lie invariant as the alert path above).
           const init = await this.config.conversationInitiator.initiate({
-            firstTurnPrompt: `[SYSTEM: ${prompt}]`,
+            firstTurnPrompt: prompt,
           });
           if (init.delivery.status === "delivered") {
             this.config.notificationQueue.markDelivered(notification._filename!);
@@ -375,15 +375,23 @@ export class HeartbeatService {
   }
 
   private formatNotification(n: PersistentNotification): string {
-    const verbatimFraming =
-      "Forward these results to the user verbatim. Adjust tone for conversation but do not summarize, paraphrase, or editorialize the content. Don't acknowledge the system message itself.";
     const naturalFraming =
       "You are the conversation layer — present what matters to the user naturally. Don't acknowledge the system message itself.";
 
     switch (n.type) {
-      case "job_completed":
-        console.log(`[Heartbeat] Delivering job_completed with VERBATIM framing (${n.summary.length} chars)`);
-        return `Background work results:\n\n${n.summary}\n\n${verbatimFraming}`;
+      case "job_completed": {
+        // M9.4-S4.2: action-request framing. Past-Nina scheduled this
+        // delivery; present-Nina is being asked to render and present it
+        // now. Reference the artifact by file path; render in voice; do
+        // not silently drop sections.
+        const artifact = n.run_dir
+          ? `\n\nDeliverable: ${n.run_dir}/deliverable.md\n\nRead the deliverable, render its contents in your voice, and present it to the user now. Editorial freedom inside each section — pick what matters, structure it, voice it — but do not silently drop sections from the deliverable.`
+          : `\n\nThe deliverable summary is:\n\n${n.summary}\n\nRender it in your voice and present it to the user now.`;
+        console.log(
+          `[Heartbeat] Delivering job_completed as action request (${n.summary.length} chars summary, run_dir=${n.run_dir ? "yes" : "no"})`,
+        );
+        return `It's time to deliver the results from a scheduled background task you (past-you) set up.${artifact}`;
+      }
       case "job_failed":
         return `A background task failed.\n\nError: ${n.summary}\n\n${naturalFraming} If the error seems transient, suggest re-triggering.`;
       case "job_interrupted":

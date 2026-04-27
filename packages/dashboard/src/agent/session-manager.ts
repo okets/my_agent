@@ -886,15 +886,6 @@ export class SessionManager {
     return createBrainQuery(content, opts);
   }
 
-  /**
-   * Inject a synthetic system turn into the active session.
-   * Used by ConversationInitiator to alert in active conversations.
-   *
-   * Wraps the prompt in [SYSTEM: ] format so the brain can distinguish
-   * system injections from user messages. The caller is responsible for
-   * NOT appending this synthetic turn to the transcript — only the
-   * brain's response should be recorded.
-   */
   /** Whether the session is currently streaming a response. */
   isStreaming(): boolean {
     return this.activeQuery !== null;
@@ -919,6 +910,20 @@ export class SessionManager {
     return this.pendingNotifications.length > 0;
   }
 
+  /**
+   * Inject a synthetic system turn into the active session.
+   * Used for genuine system events (mount failures, infra alerts).
+   *
+   * Wraps the prompt in [SYSTEM: ] format so the brain reads it as
+   * instructional context to acknowledge, not as a user-role action to
+   * perform. The caller is responsible for NOT appending this synthetic
+   * turn to the transcript — only the brain's response should be recorded.
+   *
+   * For proactive deliveries (briefs, scheduled sessions, `notify: immediate`
+   * job completions), use `injectActionRequest` instead — that path delivers
+   * the prompt as a bare user-role turn, which Nina's response loop
+   * interprets as a request to fulfill.
+   */
   async *injectSystemTurn(prompt: string): AsyncGenerator<StreamEvent> {
     yield* this.streamMessage(`[SYSTEM: ${prompt}]`);
   }

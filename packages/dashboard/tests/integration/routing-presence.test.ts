@@ -152,7 +152,7 @@ function makeNotification(
     job_id: overrides.job_id ?? "job-test-001",
     automation_id: overrides.automation_id ?? "test-automation",
     type: overrides.type ?? "job_completed",
-    summary: overrides.summary ?? "Background work finished.",
+    summary: overrides.summary ?? "Job completed.",
     created: overrides.created ?? new Date().toISOString(),
     delivery_attempts: overrides.delivery_attempts ?? 0,
     ...overrides,
