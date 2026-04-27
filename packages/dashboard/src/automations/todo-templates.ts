@@ -52,7 +52,7 @@ const TEMPLATES: Record<string, TodoTemplate> = {
   generic: {
     items: [
       {
-        text: "Write deliverable.md with your key findings and output — this is what gets delivered to the user",
+        text: "Use the Write tool to emit deliverable.md with your final findings and output — this is what gets delivered to the user. Do NOT narrate your process (no 'Let me start by…', 'Now let me check…', or 'I'll help you condense…') — emit the report only. Final step: this should be the last thing you write before marking done.",
         mandatory: true,
         validation: "deliverable_written",
       },
@@ -70,7 +70,7 @@ const TEMPLATES: Record<string, TodoTemplate> = {
   research: {
     items: [
       {
-        text: "Write deliverable.md with your key findings and output — this is what gets delivered to the user",
+        text: "Use the Write tool to emit deliverable.md with your final findings and output — this is what gets delivered to the user. Do NOT narrate your process (no 'Let me start by…', 'Now let me check…', or 'I'll help you condense…') — emit the report only. Final step: this should be the last thing you write before marking done.",
         mandatory: true,
         validation: "deliverable_written",
       },

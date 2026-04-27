@@ -119,6 +119,39 @@ const VALIDATORS: Record<string, ValidatorFn> = {
           "deliverable.md body is too short (< 50 chars after frontmatter). Include a substantive summary of your work — key findings, outcomes, and recommendations.",
       };
     }
+
+    // M9.4-S4.2 Task 5 — doubled-signal narration heuristic.
+    // The brief pipeline was contaminated by stream-of-consciousness openers
+    // ("Let me start by checking my todo list. Now let me look at the …").
+    // Reject if (a) the head matches a strong narration opener, or
+    // (b) two or more weak narration markers appear within the first 300 chars.
+    const STRONG_OPENERS = [
+      /^Let me start by\b/i,
+      /^I'll start by\b/i,
+      /^I'll help (you )?(condense|summarize|format)\b/i,
+      /^Now I'll (start|check|look)\b/i,
+      /^Here'?s what I'?ll do\b/i,
+      /^Let'?s check\b/i,
+    ];
+    const SECOND_MARKERS =
+      /\b(Now let me|Let me (check|look|fetch|read)|I'll (check|fetch|read|look))\b/gi;
+
+    const head = body.slice(0, 300);
+    if (STRONG_OPENERS.some((p) => p.test(head))) {
+      return {
+        pass: false,
+        message:
+          "deliverable.md opens with a stream-of-consciousness narration pattern. Use the Write tool to emit the final report only — do not narrate your process.",
+      };
+    }
+    const secondMatches = (head.match(SECOND_MARKERS) || []).length;
+    if (secondMatches >= 2) {
+      return {
+        pass: false,
+        message: `deliverable.md head contains ${secondMatches} narration markers — this looks like stream-of-consciousness, not a final report. Use the Write tool to emit the deliverable directly.`,
+      };
+    }
+
     return { pass: true };
   },
 
