@@ -268,4 +268,86 @@ describe("AutomationManager", () => {
     expect(readBack!.manifest.autonomy).toBe("cautious");
     expect(readBack!.manifest.once).toBe(true);
   });
+
+  // ── M9.4-S4.2 Task 8: notify default depends on manifest.system flag ──
+
+  describe("notify default depends on manifest.system flag", () => {
+    it("system: true automation defaults notify to 'none'", () => {
+      const auto = manager.create({
+        name: "cfr-fix-test",
+        instructions: "system orchestrated repair",
+        manifest: {
+          system: true,
+          // notify intentionally omitted — default should be 'none'
+        },
+      });
+      expect(auto.manifest.notify).toBe("none");
+    });
+
+    it("system: false defaults notify to 'debrief'", () => {
+      const auto = manager.create({
+        name: "thailand-news-worker",
+        instructions: "fetch news",
+        manifest: {
+          system: false,
+          // notify omitted
+        },
+      });
+      expect(auto.manifest.notify).toBe("debrief");
+    });
+
+    it("system absent defaults notify to 'debrief'", () => {
+      const auto = manager.create({
+        name: "morning-brief-collator",
+        instructions: "collate brief",
+        manifest: {
+          // system + notify both omitted
+        },
+      });
+      expect(auto.manifest.notify).toBe("debrief");
+    });
+
+    it("explicit notify in manifest wins over system-flag default", () => {
+      const auto = manager.create({
+        name: "system-but-explicit",
+        instructions: "x",
+        manifest: {
+          system: true,
+          notify: "immediate",
+        },
+      });
+      expect(auto.manifest.notify).toBe("immediate");
+    });
+
+    it("frontmatter parse path applies the same default rule (list/read)", async () => {
+      // Hand-write a frontmatter file with system: true and no notify
+      const fs = require("node:fs") as typeof import("node:fs");
+      const path = require("node:path") as typeof import("node:path");
+      const filePath = path.join(automationsDir, "raw-system.md");
+      fs.writeFileSync(
+        filePath,
+        "---\nname: raw-system\nstatus: active\nsystem: true\n---\nbody",
+      );
+      // Force resync from disk
+      await manager.syncAll();
+      const read = manager.read("raw-system");
+      expect(read).not.toBeNull();
+      expect(read!.manifest.system).toBe(true);
+      expect(read!.manifest.notify).toBe("none");
+    });
+
+    it("frontmatter parse path: system absent → debrief default", async () => {
+      const fs = require("node:fs") as typeof import("node:fs");
+      const path = require("node:path") as typeof import("node:path");
+      const filePath = path.join(automationsDir, "raw-user.md");
+      fs.writeFileSync(
+        filePath,
+        "---\nname: raw-user\nstatus: active\n---\nbody",
+      );
+      await manager.syncAll();
+      const read = manager.read("raw-user");
+      expect(read).not.toBeNull();
+      expect(read!.manifest.notify).toBe("debrief");
+    });
+  });
 });
