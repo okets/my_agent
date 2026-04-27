@@ -373,7 +373,6 @@ export class SessionManager {
   } | null = null;
   private agentDir: string | null = null;
   private disabledSkills: string[] = [];
-  private pendingNotifications: string[] = [];
   private delegationEnforcer: DelegationEnforcer = createDelegationEnforcer(2);
   /** Briefing captured in buildQuery, marked delivered after first model output. */
   private pendingBriefingResult: { lines: string[]; markDelivered: () => void } | null = null;
@@ -681,27 +680,6 @@ export class SessionManager {
     const isHaiku = model.includes("haiku");
     const reasoning = options?.reasoning && !isHaiku;
 
-    // Drain pending notifications and prepend to content as system context
-    if (this.pendingNotifications.length > 0) {
-      const notifications = this.pendingNotifications.splice(0);
-      const notificationBlock = notifications
-        .map((n) => `[SYSTEM: ${n}]`)
-        .join("\n\n");
-      console.log(
-        `[SessionManager] Delivering ${notifications.length} queued notification(s) for conversation ${this.conversationId}`,
-      );
-
-      if (typeof content === "string") {
-        content = `${notificationBlock}\n\n${content}`;
-      } else {
-        // Prepend notification text block to content blocks array
-        content = [
-          { type: "text" as const, text: notificationBlock },
-          ...content,
-        ];
-      }
-    }
-
     // Increment once per user message — not per buildQuery call (avoids double-increment on fallback)
     this.messageIndex++;
 
@@ -889,25 +867,6 @@ export class SessionManager {
   /** Whether the session is currently streaming a response. */
   isStreaming(): boolean {
     return this.activeQuery !== null;
-  }
-
-  /**
-   * Queue a notification for delivery on the next streamMessage() call.
-   * Used when a job completes while the session is busy streaming.
-   * The notification will be prepended to the user's message as a [SYSTEM: ] block.
-   */
-  queueNotification(prompt: string): void {
-    this.pendingNotifications.push(prompt);
-    console.log(
-      `[SessionManager] Queued notification (${this.pendingNotifications.length} pending) for conversation ${this.conversationId}`,
-    );
-  }
-
-  /**
-   * Check if there are pending notifications waiting to be delivered.
-   */
-  hasPendingNotifications(): boolean {
-    return this.pendingNotifications.length > 0;
   }
 
   /**
