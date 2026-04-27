@@ -16,6 +16,7 @@
 import type { ConversationManager } from "../conversations/manager.js";
 import type { Conversation } from "../conversations/types.js";
 import type { ChatEvent, SystemMessageOptions } from "../chat/types.js";
+import { proactiveDeliveryAsActionRequest } from "../env.js";
 
 /**
  * Minimal chat service interface for system-initiated brain invocation.
@@ -151,7 +152,12 @@ export class ConversationInitiator {
     if (!targetChannel || targetChannel === "web") {
       let sawDone = false;
       let errorMsg: string | undefined;
-      for await (const event of this.chatService.sendActionRequest(
+      // M9.4-S4.2 — flag-gated routing. Default ON: action-request path.
+      // Set PROACTIVE_DELIVERY_AS_ACTION_REQUEST=0 to roll back to S4.1.
+      const sender = proactiveDeliveryAsActionRequest()
+        ? this.chatService.sendActionRequest.bind(this.chatService)
+        : this.chatService.sendSystemMessage.bind(this.chatService);
+      for await (const event of sender(
         current.id,
         prompt,
         (current.turnCount ?? 0) + 1,
@@ -203,7 +209,11 @@ export class ConversationInitiator {
     const chunks: string[] = [];
     let sawDone = false;
     let errorMsg: string | undefined;
-    for await (const event of this.chatService.sendActionRequest(
+    // M9.4-S4.2 — same flag-gated routing on the same-channel branch.
+    const sender = proactiveDeliveryAsActionRequest()
+      ? this.chatService.sendActionRequest.bind(this.chatService)
+      : this.chatService.sendSystemMessage.bind(this.chatService);
+    for await (const event of sender(
       current.id,
       prompt,
       (current.turnCount ?? 0) + 1,
@@ -272,7 +282,11 @@ export class ConversationInitiator {
     let response = "";
     let sawDone = false;
     let errorMsg: string | undefined;
-    for await (const event of this.chatService.sendActionRequest(
+    // M9.4-S4.2 — flag-gated routing on the initiate() path too.
+    const sender = proactiveDeliveryAsActionRequest()
+      ? this.chatService.sendActionRequest.bind(this.chatService)
+      : this.chatService.sendSystemMessage.bind(this.chatService);
+    for await (const event of sender(
       conv.id,
       prompt,
       1,
