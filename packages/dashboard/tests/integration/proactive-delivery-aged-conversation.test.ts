@@ -28,6 +28,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { AppHarness } from "./app-harness.js";
 import { installMockSession } from "./mock-session.js";
+import { ConversationInitiator } from "../../src/agent/conversation-initiator.js";
 import type { TranscriptTurn } from "../../src/conversations/types.js";
 
 async function seedConversationTo50Turns(
@@ -108,25 +109,52 @@ describe("Proactive delivery survives 50-turn synthetic gravity (M9.4-S4.2 Task 
     expect(session.lastInjectedPrompt).not.toMatch(/^\[SYSTEM:/);
   });
 
-  it("alert() routing through ConversationInitiator delivers via sendActionRequest", async () => {
-    // This test exercises the conversation-initiator alert() path end-to-end
-    // through the chat-service mediator with a mocked session — same shape
-    // production uses but without a live LLM.
-    installMockSession(harness, {
-      response: "Brief rendered.",
-    });
+  it("ConversationInitiator.alert() routes end-to-end through sendActionRequest at depth", async () => {
+    // True end-to-end: ConversationInitiator → harness.chat (real AppChatService)
+    // → harness.sessionRegistry (returns MockSessionManager) → injectActionRequest.
+    // This is the same composition production uses for the alert() path; only the
+    // SDK boundary is mocked. Exercises:
+    //   - ConversationInitiator.alert() → resolveOutboundInfo (web fallback)
+    //   - flag-gated sender selection (env default ON → sendActionRequest)
+    //   - AppChatService.sendActionRequest → sendActionRequest helper
+    //   - MockSessionManager.injectActionRequest → records lastInjectionKind
+    installMockSession(harness, { response: "Brief rendered." });
     const conv = await harness.conversations.create();
     await seedConversationTo50Turns(harness, conv.id);
 
-    // Drive sendActionRequest directly (alert() sits one layer above this).
-    for await (const _ of harness.chat.sendActionRequest(
-      conv.id,
-      "Brief delivery time.",
-      51,
-    )) {
-      void _;
-    }
+    // Mock channel manager returning no external transports — alert() resolves
+    // to the "web delivery: no external transport involved" branch, which is
+    // the exact production path for web-channel proactive deliveries.
+    const channelManager = {
+      send: async () => {},
+      getTransportConfig: () => undefined,
+      getTransportInfos: () => [],
+    };
+    const ci = new ConversationInitiator({
+      conversationManager: harness.conversationManager,
+      chatService: harness.chat,
+      channelManager,
+      getOutboundChannel: () => "web",
+    });
+
+    const briefPrompt =
+      "Brief delivery time. Render the deliverable in your voice and present it now.";
+    const result = await ci.alert(briefPrompt);
+
+    // (1) alert() observed delivery (never-lie semantics from S4.1 still hold)
+    expect(result.status).toBe("delivered");
+
+    // (2) The mock session received the prompt as action_request, not system —
+    //     i.e. the full alert() → chat → session chain dropped the [SYSTEM:] wrap.
     const session = (await harness.sessionRegistry.getOrCreate(conv.id)) as any;
     expect(session.lastInjectionKind).toBe("action_request");
+    expect(session.lastInjectedPrompt).toBe(briefPrompt);
+    expect(session.lastInjectedPrompt).not.toMatch(/^\[SYSTEM:/);
+
+    // (3) The assistant turn from the mock landed on the transcript at depth+1
+    const turns = await harness.conversationManager.getTurns(conv.id);
+    expect(turns.length).toBe(51);
+    expect(turns[turns.length - 1].role).toBe("assistant");
+    expect(turns[turns.length - 1].content).toBe("Brief rendered.");
   });
 });

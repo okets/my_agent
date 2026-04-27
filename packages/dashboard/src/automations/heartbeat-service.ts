@@ -400,7 +400,7 @@ export class HeartbeatService {
         return `A background task needs your review.\n\n${n.summary}\n\n${naturalFraming}`;
       case "infra_alert":
         // Caller supplies the full user-facing prompt in `summary`. Passed
-        // through verbatim so the queue path preserves the original wording.
+        // through unmodified so the queue path preserves the original wording.
         return n.summary;
       default:
         return `[Notification] ${n.summary}\n\n${naturalFraming}`;

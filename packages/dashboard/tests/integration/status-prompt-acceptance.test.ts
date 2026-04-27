@@ -4,7 +4,7 @@
  * Verifies:
  * 1. check_job_status returns todo progress for active jobs
  * 2. [Active Working Agents] includes todo progress in system prompt
- * 3. [Pending Deliveries] from notification queue appears in system prompt (renamed from [Pending Deliveries] in M9.4-S4.2)
+ * 3. [Pending Deliveries] from notification queue appears in system prompt (renamed from [Pending Briefing] in M9.4-S4.2)
  * 4. [Your Pending Tasks] shows conversation todos in system prompt
  * 5. After briefing is built, notifications move from pending/ to delivered/
  */
