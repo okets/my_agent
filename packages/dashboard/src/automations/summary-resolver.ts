@@ -114,6 +114,50 @@ function extractWrapperHeadings(text: string): string[] {
   return headings;
 }
 
+/**
+ * M9.4-S4.2 Task 10 — strip Haiku conversational preamble.
+ *
+ * Haiku occasionally narrates the task before producing the condensed output:
+ * "I'll help you condense this content...", "Let me start by checking...".
+ * These leak into the brief queue and contaminate `[Pending Deliveries]`.
+ *
+ * Heuristic:
+ * 1. Find the first `## ` heading (top-level wrapper boundary).
+ * 2. If it sits AFTER content, inspect the leading text for Haiku-style
+ *    opener verbs (`I'll`, `Let me`, `Here's`, `Sure`, `First, let me`,
+ *    `Now I'll`).
+ * 3. If a match is found, slice off everything before the heading. Otherwise
+ *    leave the output alone (legitimate intros like "Today's brief:" pass
+ *    through untouched).
+ *
+ * INVARIANT: stripHaikuPreamble may slice off a leading `<!-- wrapper -->`
+ * HTML comment if it precedes the first `## heading`. Heading verification
+ * uses substring containment (line 165) and is unaffected. If that
+ * verification ever tightens to require the marker, this function must
+ * preserve it.
+ */
+function stripHaikuPreamble(text: string): string {
+  const firstHeadingIdx = text.search(/^## /m);
+  if (firstHeadingIdx === -1) {
+    console.log(
+      "[summary-resolver] no-heading-passthrough — Haiku output has no `## ` heading; preamble strip skipped",
+    );
+    return text;
+  }
+  if (firstHeadingIdx === 0) {
+    // Output already starts with the heading — nothing to strip.
+    return text;
+  }
+  const preamble = text.slice(0, firstHeadingIdx);
+  if (/^(I'll|Let me|Here's|Sure|Now I'll|First,? let me)/im.test(preamble)) {
+    console.log(
+      `[summary-resolver] Stripped Haiku preamble (${preamble.length} chars before first ## heading)`,
+    );
+    return text.slice(firstHeadingIdx);
+  }
+  return text;
+}
+
 export async function resolveJobSummaryAsync(
   runDir: string | undefined | null,
   fallbackWork: string,
@@ -149,11 +193,12 @@ export async function resolveJobSummaryAsync(
     try {
       console.log(`[summary-resolver] Haiku condense: ${text.length} chars → ≤${MAX_LENGTH} (source: ${source})`);
       const expectedHeadings = extractWrapperHeadings(text);
-      const condensed = await queryModelFn(
+      const rawCondensed = await queryModelFn(
         text,
         CONDENSE_SYSTEM_PROMPT,
         "haiku",
       );
+      const condensed = stripHaikuPreamble(rawCondensed);
 
       // Post-Haiku heading verification: every wrapper heading name must
       // appear SOMEWHERE in the output. Relaxed substring match (not
