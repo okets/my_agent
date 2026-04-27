@@ -42,6 +42,7 @@ interface RecordedSystemCall {
   turnNumber: number;
   channel?: string;
   triggerJobId?: string;
+  method: "sendSystemMessage" | "sendActionRequest";
 }
 
 function makeChatService(response = "system response"): ChatServiceLike & {
@@ -62,6 +63,25 @@ function makeChatService(response = "system response"): ChatServiceLike & {
         turnNumber,
         channel: options?.channel,
         triggerJobId: options?.triggerJobId,
+        method: "sendSystemMessage",
+      });
+      yield { type: "start" };
+      yield { type: "text_delta", text: response };
+      yield { type: "done" };
+    },
+    async *sendActionRequest(
+      conversationId,
+      prompt,
+      turnNumber,
+      options,
+    ): AsyncGenerator<ChatEvent> {
+      calls.push({
+        conversationId,
+        prompt,
+        turnNumber,
+        channel: options?.channel,
+        triggerJobId: options?.triggerJobId,
+        method: "sendActionRequest",
       });
       yield { type: "start" };
       yield { type: "text_delta", text: response };
@@ -132,7 +152,7 @@ function makeNotification(
     job_id: overrides.job_id ?? "job-test-001",
     automation_id: overrides.automation_id ?? "test-automation",
     type: overrides.type ?? "job_completed",
-    summary: overrides.summary ?? "Background work finished.",
+    summary: overrides.summary ?? "Job completed.",
     created: overrides.created ?? new Date().toISOString(),
     delivery_attempts: overrides.delivery_attempts ?? 0,
     ...overrides,

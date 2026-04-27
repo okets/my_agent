@@ -717,13 +717,9 @@ export class App extends EventEmitter {
             `Outcome: ${outcome}.\n\n${message}\n\n` +
             `You are the conversation layer — let the user know briefly.`;
           try {
-            // Pre-M9.4-S4.1 this was `if (!alerted)` which never fired
-            // (AlertResult is always a truthy object). Fixed FU-7 rollup:
-            // fall back to initiate() only when alert() reports no_conversation,
-            // and observe the initiate delivery outcome too.
             const alerted = await ci.alert(prompt);
             if (alerted.status === "no_conversation") {
-              const init = await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+              const init = await ci.initiate({ firstTurnPrompt: prompt });
               if (init.delivery.status !== "delivered") {
                 const reason =
                   "reason" in init.delivery
@@ -1329,6 +1325,14 @@ export class App extends EventEmitter {
         chatService: {
           async *sendSystemMessage(conversationId, prompt, turnNumber, options) {
             yield* app.chat.sendSystemMessage(
+              conversationId,
+              prompt,
+              turnNumber,
+              options,
+            );
+          },
+          async *sendActionRequest(conversationId, prompt, turnNumber, options) {
+            yield* app.chat.sendActionRequest(
               conversationId,
               prompt,
               turnNumber,
@@ -2031,6 +2035,7 @@ export class App extends EventEmitter {
                     summary: `[${automation.manifest.name}] ${result.summary ?? "Completed after restart recovery."}`,
                     todos_completed: total,
                     todos_total: total,
+                    run_dir: job.run_dir,
                     created: new Date().toISOString(),
                     delivery_attempts: 0,
                   });

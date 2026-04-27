@@ -16,6 +16,17 @@ import { readFrontmatter, writeFrontmatter } from "../metadata/frontmatter.js";
 import type { ConversationDatabase } from "../conversations/db.js";
 
 /**
+ * Pick the default `notify` value for an automation based on whether it is
+ * system-orchestrated. M9.4-S4.2: system-orchestrated automations (cfr-fix-*,
+ * build-*-capability, internal probes) should not surface deliverables in
+ * the user-facing brief — their work is housekeeping, not content the user
+ * asked for.
+ */
+function defaultNotifyFor(manifest: { system?: boolean }): "immediate" | "debrief" | "none" {
+  return manifest.system ? "none" : "debrief";
+}
+
+/**
  * Convert a human-readable name to a kebab-case ID.
  */
 function nameToId(name: string): string {
@@ -64,7 +75,7 @@ export class AutomationManager {
       trigger: input.manifest.trigger ?? [{ type: "manual" }],
       spaces: input.manifest.spaces,
       model: input.manifest.model,
-      notify: input.manifest.notify ?? "debrief",
+      notify: input.manifest.notify ?? defaultNotifyFor(input.manifest),
       persist_session: input.manifest.persist_session,
       autonomy: input.manifest.autonomy ?? "full",
       once: input.manifest.once,
@@ -211,7 +222,9 @@ export class AutomationManager {
         trigger: triggerConfig,
         spaces: row.spaces ? JSON.parse(row.spaces) : undefined,
         model: row.model ?? undefined,
-        notify: (row.notify as "immediate" | "debrief" | "none") ?? "debrief",
+        notify:
+          (row.notify as "immediate" | "debrief" | "none") ??
+          defaultNotifyFor({ system: row.system ?? false }),
         persist_session: row.persistSession,
         autonomy: (row.autonomy as "full" | "cautious" | "review") ?? "full",
         once: row.once,
@@ -334,7 +347,9 @@ export class AutomationManager {
       trigger: (data.trigger as AutomationManifest["trigger"]) ?? [
         { type: "manual" },
       ],
-      notify: (data.notify as "immediate" | "debrief" | "none") ?? "debrief",
+      notify:
+        (data.notify as "immediate" | "debrief" | "none") ??
+        defaultNotifyFor({ system: (data.system as boolean) ?? false }),
       persist_session: (data.persist_session as boolean) ?? false,
       autonomy: (data.autonomy as "full" | "cautious" | "review") ?? "full",
       once: (data.once as boolean) ?? false,

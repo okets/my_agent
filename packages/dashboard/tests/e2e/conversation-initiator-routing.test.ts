@@ -28,6 +28,7 @@ describe("Conversation Initiator Reply Routing", () => {
       prompt: string;
       turnNumber: number;
       options?: SystemMessageOptions;
+      method: "sendSystemMessage" | "sendActionRequest";
     }>;
   };
   let channelManager: TransportManagerLike;
@@ -50,7 +51,30 @@ describe("Conversation Initiator Reply Routing", () => {
         turnNumber: number,
         options?: SystemMessageOptions,
       ): AsyncGenerator<ChatEvent> {
-        calls.push({ conversationId, prompt, turnNumber, options });
+        calls.push({
+          conversationId,
+          prompt,
+          turnNumber,
+          options,
+          method: "sendSystemMessage",
+        });
+        yield { type: "start" };
+        yield { type: "text_delta", text: "Hello, I have news for you." };
+        yield { type: "done" };
+      },
+      async *sendActionRequest(
+        conversationId: string,
+        prompt: string,
+        turnNumber: number,
+        options?: SystemMessageOptions,
+      ): AsyncGenerator<ChatEvent> {
+        calls.push({
+          conversationId,
+          prompt,
+          turnNumber,
+          options,
+          method: "sendActionRequest",
+        });
         yield { type: "start" };
         yield { type: "text_delta", text: "Hello, I have news for you." };
         yield { type: "done" };

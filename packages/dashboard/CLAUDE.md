@@ -103,30 +103,59 @@ npm run dev        # Start development server (port 4321)
 npm run format     # Run Prettier on src/ and public/
 ```
 
-## System Prompt Injections (Brain Notifications)
+## System Prompt Injections — Brain Notifications
 
-**Conversation Nina is the mediator, not the worker.** When injecting prompts into the brain (automation results, alerts, notifications), every prompt MUST:
+**Two delivery shapes (M9.4-S4.2):**
 
-1. **Frame the brain's role** — "You are the conversation layer", "A working agent just finished..."
-2. **Say what to do with the information** — "present what matters to the user", "let the user know briefly"
-3. **Say what NOT to do** — "Don't acknowledge the system message itself", "Don't say noted"
+1. **Action requests** (proactive scheduled deliveries — briefs, scheduled sessions, completion notifications). Use `sendActionRequest` / `injectActionRequest`. The prompt is sent as a bare USER-role turn — Nina's response loop is trained to fulfill it. Never wrap in `[SYSTEM: ]`. Examples: morning brief delivery, daily session delivery, `notify: immediate` job completion.
 
-**Rules:**
-- **Never pre-wrap** prompts in `[SYSTEM: ...]` — `injectSystemTurn()` handles wrapping for the `alert()` path. Only wrap in the `initiate()` fallback path.
-- **Never pass raw status dumps** — "Automation X completed. Summary: ..." gives the brain no guidance. It will respond as a worker ("Noted. Logging it.") instead of a mediator.
+2. **System events** (genuine infrastructure notifications — mount failures, infra alerts, capability degradation). Use `sendSystemMessage` / `injectSystemTurn`. The prompt is wrapped in `[SYSTEM: …]` automatically by `injectSystemTurn`. Used for events the user did not ask for and that need to be surfaced as info, not delivered as content.
 
-**Pattern:**
+**Pattern for action requests:**
+
 ```typescript
-// alert() path — raw prompt, injectSystemTurn wraps it
-const prompt = `A working agent just finished "${name}".\n\nResults:\n${summary}\n\nYou are the conversation layer — present what matters to the user naturally.`;
-const alerted = await ci.alert(prompt);
-if (!alerted) {
-  // initiate() path — wrap here because streamMessage doesn't auto-wrap
-  await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+// alert() routes through sendActionRequest (no wrap)
+const prompt =
+  `Brief delivery time. Deliverable: ${runDir}/deliverable.md\n\n` +
+  `Read the file and present its contents to the user now. Render in your voice — ` +
+  `pick what matters, structure it, voice it — but do not silently drop sections.`;
+const result = await ci.alert(prompt);
+// alert() returns AlertResult: { status: "delivered" | "no_conversation" | "transport_failed" | ... }
+if (result.status === "no_conversation") {
+  // Fresh-install fallback: initiate() also routes through sendActionRequest now
+  await ci.initiate({ firstTurnPrompt: prompt });
 }
 ```
 
-**Why:** On 2026-03-26, a test-watcher automation sent "Noted. Logging it." to the user via WhatsApp because the prompt was a raw status dump with no mediator framing.
+**Pattern for system events:**
+
+```typescript
+// Genuine infra alert — user did NOT ask for this
+const prompt =
+  `A filesystem watch on "${path}" has failed after ${attempts} retry attempts.\n\n` +
+  `You are the conversation layer — let the user know about this infrastructure issue ` +
+  `briefly. Don't be dramatic, just inform them.`;
+await app.notificationQueue.enqueue({
+  type: "infra_alert",
+  summary: prompt,
+  // …
+});
+// formatNotification's infra_alert branch passes through verbatim; the
+// notification-queue path emits the prompt via sendActionRequest at the
+// moment-of-delivery, but the framing is the user-facing one above.
+```
+
+**Rules:**
+
+- **Never pre-wrap action-request prompts.** `sendActionRequest` does not wrap; the model reads as user-role.
+- **Never pre-wrap initiate firstTurnPrompt.** `initiate()` routes through `sendActionRequest` since S4.2; passing `[SYSTEM: ${prompt}]` would deliver a literal `[SYSTEM:` prefix as content (defeats the action-request principle).
+- **Never bypass the queue for proactive deliveries.** All briefs and session deliveries go through the notification queue → heartbeat → action-request injection. Do not call `injectActionRequest` directly except in unit tests.
+- **Never pass raw status dumps** — "Automation X completed. Summary: …" gives the brain no guidance. It will respond as a worker ("Noted. Logging it.") instead of a mediator. Action-request prompts must say what to do (deliver, present, render) and reference the artifact by file path so the model reads the deliverable directly.
+
+**Why:**
+
+- On 2026-03-26, a test-watcher automation sent "Noted. Logging it." to the user via WhatsApp because the prompt was a raw status dump with no mediator framing. Always include a "what to do" instruction.
+- On 2026-04-25–27, three consecutive morning briefs were dismissed as "background activity" because system-role injection reads as context-to-acknowledge, not action-to-perform. Action-request injection (M9.4-S4.2) shifts the model's interpretation by speaking in the user's voice — Nina fulfills requests; she dismisses context.
 
 ## Common Tasks
 

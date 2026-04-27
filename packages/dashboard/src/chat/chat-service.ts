@@ -32,6 +32,7 @@ import type {
   SystemMessageOptions,
 } from "./types.js";
 import { sendSystemMessage } from "./send-system-message.js";
+import { sendActionRequest } from "./send-action-request.js";
 
 const TURNS_PER_PAGE = 50;
 const MAX_MESSAGE_LENGTH = 10000;
@@ -1025,6 +1026,27 @@ export class AppChatService {
     options?: SystemMessageOptions,
   ): AsyncGenerator<ChatEvent> {
     yield* sendSystemMessage(
+      this.app,
+      conversationId,
+      prompt,
+      turnNumber,
+      options,
+    );
+  }
+
+  /**
+   * Inject a user-role action request into an existing conversation's brain
+   * session. Used for proactive deliveries (briefs, scheduled sessions,
+   * `notify: immediate` job completions). Companion to sendSystemMessage —
+   * see send-action-request.ts for the design principle.
+   */
+  async *sendActionRequest(
+    conversationId: string,
+    prompt: string,
+    turnNumber: number,
+    options?: SystemMessageOptions,
+  ): AsyncGenerator<ChatEvent> {
+    yield* sendActionRequest(
       this.app,
       conversationId,
       prompt,

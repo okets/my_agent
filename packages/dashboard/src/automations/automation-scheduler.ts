@@ -326,7 +326,7 @@ export class AutomationScheduler {
       `You are the conversation layer — let the user know briefly.`;
     const result = await ci.alert(prompt);
     if (result.status === "no_conversation") {
-      const init = await ci.initiate({ firstTurnPrompt: `[SYSTEM: ${prompt}]` });
+      const init = await ci.initiate({ firstTurnPrompt: prompt });
       if (init.delivery.status !== "delivered") {
         const reason =
           "reason" in init.delivery ? init.delivery.reason : init.delivery.status;

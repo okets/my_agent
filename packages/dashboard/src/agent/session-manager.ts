@@ -373,7 +373,6 @@ export class SessionManager {
   } | null = null;
   private agentDir: string | null = null;
   private disabledSkills: string[] = [];
-  private pendingNotifications: string[] = [];
   private delegationEnforcer: DelegationEnforcer = createDelegationEnforcer(2);
   /** Briefing captured in buildQuery, marked delivered after first model output. */
   private pendingBriefingResult: { lines: string[]; markDelivered: () => void } | null = null;
@@ -681,27 +680,6 @@ export class SessionManager {
     const isHaiku = model.includes("haiku");
     const reasoning = options?.reasoning && !isHaiku;
 
-    // Drain pending notifications and prepend to content as system context
-    if (this.pendingNotifications.length > 0) {
-      const notifications = this.pendingNotifications.splice(0);
-      const notificationBlock = notifications
-        .map((n) => `[SYSTEM: ${n}]`)
-        .join("\n\n");
-      console.log(
-        `[SessionManager] Delivering ${notifications.length} queued notification(s) for conversation ${this.conversationId}`,
-      );
-
-      if (typeof content === "string") {
-        content = `${notificationBlock}\n\n${content}`;
-      } else {
-        // Prepend notification text block to content blocks array
-        content = [
-          { type: "text" as const, text: notificationBlock },
-          ...content,
-        ];
-      }
-    }
-
     // Increment once per user message — not per buildQuery call (avoids double-increment on fallback)
     this.messageIndex++;
 
@@ -886,41 +864,45 @@ export class SessionManager {
     return createBrainQuery(content, opts);
   }
 
-  /**
-   * Inject a synthetic system turn into the active session.
-   * Used by ConversationInitiator to alert in active conversations.
-   *
-   * Wraps the prompt in [SYSTEM: ] format so the brain can distinguish
-   * system injections from user messages. The caller is responsible for
-   * NOT appending this synthetic turn to the transcript — only the
-   * brain's response should be recorded.
-   */
   /** Whether the session is currently streaming a response. */
   isStreaming(): boolean {
     return this.activeQuery !== null;
   }
 
   /**
-   * Queue a notification for delivery on the next streamMessage() call.
-   * Used when a job completes while the session is busy streaming.
-   * The notification will be prepended to the user's message as a [SYSTEM: ] block.
+   * Inject a synthetic system turn into the active session.
+   * Used for genuine system events (mount failures, infra alerts).
+   *
+   * Wraps the prompt in [SYSTEM: ] format so the brain reads it as
+   * instructional context to acknowledge, not as a user-role action to
+   * perform. The caller is responsible for NOT appending this synthetic
+   * turn to the transcript — only the brain's response should be recorded.
+   *
+   * For proactive deliveries (briefs, scheduled sessions, `notify: immediate`
+   * job completions), use `injectActionRequest` instead — that path delivers
+   * the prompt as a bare user-role turn, which Nina's response loop
+   * interprets as a request to fulfill.
    */
-  queueNotification(prompt: string): void {
-    this.pendingNotifications.push(prompt);
-    console.log(
-      `[SessionManager] Queued notification (${this.pendingNotifications.length} pending) for conversation ${this.conversationId}`,
-    );
+  async *injectSystemTurn(prompt: string): AsyncGenerator<StreamEvent> {
+    yield* this.streamMessage(`[SYSTEM: ${prompt}]`);
   }
 
   /**
-   * Check if there are pending notifications waiting to be delivered.
+   * Inject a synthetic user-role action request into the active session.
+   * Used by ConversationInitiator for proactive deliveries (briefs, scheduled
+   * sessions, `notify: immediate` job completions).
+   *
+   * Unlike `injectSystemTurn`, this does NOT wrap the prompt in `[SYSTEM: …]`.
+   * The prompt is delivered as a bare user-role turn — the model's response
+   * loop interprets it as a request to fulfill, not status context to
+   * acknowledge. M9.4-S4.2 design principle: proactive deliveries are
+   * action requests, not status notes.
+   *
+   * Caller is responsible for NOT appending the synthetic prompt to the
+   * transcript — only the brain's response should be recorded.
    */
-  hasPendingNotifications(): boolean {
-    return this.pendingNotifications.length > 0;
-  }
-
-  async *injectSystemTurn(prompt: string): AsyncGenerator<StreamEvent> {
-    yield* this.streamMessage(`[SYSTEM: ${prompt}]`);
+  async *injectActionRequest(prompt: string): AsyncGenerator<StreamEvent> {
+    yield* this.streamMessage(prompt);
   }
 
   async abort(): Promise<void> {

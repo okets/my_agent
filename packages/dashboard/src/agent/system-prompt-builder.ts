@@ -155,11 +155,14 @@ export class SystemPromptBuilder {
       );
     }
 
-    // Pending briefing: events that occurred since last interaction (restart, job completions)
+    // Pending deliveries: events that occurred since last interaction
+    // (restart, job completions). M9.4-S4.2 — renamed from [Pending Briefing]
+    // and reframed as action requests rather than status notes. Past-Nina
+    // scheduled these; present-Nina is being asked to deliver them now.
     const briefing = context.pendingBriefing ?? [];
     if (briefing.length > 0) {
       dynamicParts.push(
-        `[Pending Briefing]\nThe following events occurred since your last interaction:\n${briefing.map((b) => `- ${b}`).join("\n")}\n\nForward these results to the user verbatim. Adjust tone for conversation but do not summarize or paraphrase the content. For interrupted jobs, ask whether to resume or discard.\n[End Pending Briefing]`,
+        `[Pending Deliveries]\nThe following scheduled deliveries are pending — past-you set these up and asked future-you to present them when ready:\n${briefing.map((b) => `- ${b}`).join("\n")}\n\nPresent these to the user now in your voice. Render — pick what matters, structure it, voice it — but do not silently drop sections. For interrupted jobs, ask whether to resume or discard.\n[End Pending Deliveries]`,
       );
     }
 

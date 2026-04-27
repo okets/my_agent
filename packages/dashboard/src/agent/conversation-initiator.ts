@@ -16,12 +16,26 @@
 import type { ConversationManager } from "../conversations/manager.js";
 import type { Conversation } from "../conversations/types.js";
 import type { ChatEvent, SystemMessageOptions } from "../chat/types.js";
+import { proactiveDeliveryAsActionRequest } from "../env.js";
 
 /**
  * Minimal chat service interface for system-initiated brain invocation.
+ *
+ * Two delivery shapes:
+ * - `sendSystemMessage` — wraps prompt in `[SYSTEM: …]`. For genuine system
+ *   events (mount failures, infra alerts).
+ * - `sendActionRequest` — bare user-role turn, no wrap. For proactive
+ *   deliveries (briefs, scheduled sessions, `notify: immediate` job
+ *   completions). M9.4-S4.2 design principle.
  */
 export interface ChatServiceLike {
   sendSystemMessage(
+    conversationId: string,
+    prompt: string,
+    turnNumber: number,
+    options?: SystemMessageOptions,
+  ): AsyncGenerator<ChatEvent>;
+  sendActionRequest(
     conversationId: string,
     prompt: string,
     turnNumber: number,
@@ -138,7 +152,12 @@ export class ConversationInitiator {
     if (!targetChannel || targetChannel === "web") {
       let sawDone = false;
       let errorMsg: string | undefined;
-      for await (const event of this.chatService.sendSystemMessage(
+      // M9.4-S4.2 — flag-gated routing. Default ON: action-request path.
+      // Set PROACTIVE_DELIVERY_AS_ACTION_REQUEST=0 to roll back to S4.1.
+      const sender = proactiveDeliveryAsActionRequest()
+        ? this.chatService.sendActionRequest.bind(this.chatService)
+        : this.chatService.sendSystemMessage.bind(this.chatService);
+      for await (const event of sender(
         current.id,
         prompt,
         (current.turnCount ?? 0) + 1,
@@ -181,7 +200,7 @@ export class ConversationInitiator {
       // errored session during channel-switch initiation doesn't silently
       // mark the notification delivered (FU-7).
       const { delivery } = await this.initiate({
-        firstTurnPrompt: `[SYSTEM: ${prompt}]`,
+        firstTurnPrompt: prompt,
         channel: targetChannel,
       });
       return delivery;
@@ -190,7 +209,11 @@ export class ConversationInitiator {
     const chunks: string[] = [];
     let sawDone = false;
     let errorMsg: string | undefined;
-    for await (const event of this.chatService.sendSystemMessage(
+    // M9.4-S4.2 — same flag-gated routing on the same-channel branch.
+    const sender = proactiveDeliveryAsActionRequest()
+      ? this.chatService.sendActionRequest.bind(this.chatService)
+      : this.chatService.sendSystemMessage.bind(this.chatService);
+    for await (const event of sender(
       current.id,
       prompt,
       (current.turnCount ?? 0) + 1,
@@ -252,14 +275,18 @@ export class ConversationInitiator {
 
     const prompt =
       options?.firstTurnPrompt ||
-      "[SYSTEM: You are reaching out to the user proactively. You are the conversation layer — explain briefly why you're messaging them. If you don't have a specific reason, let them know you're available.]";
+      "You are reaching out to the user proactively. You are the conversation layer — explain briefly why you're messaging them. If you don't have a specific reason, let them know you're available.";
 
     // Observe delivery outcome — same never-lie semantics as alert(). See
     // InitiateResult doc and M9.4-S4.1 FU-7.
     let response = "";
     let sawDone = false;
     let errorMsg: string | undefined;
-    for await (const event of this.chatService.sendSystemMessage(
+    // M9.4-S4.2 — flag-gated routing on the initiate() path too.
+    const sender = proactiveDeliveryAsActionRequest()
+      ? this.chatService.sendActionRequest.bind(this.chatService)
+      : this.chatService.sendSystemMessage.bind(this.chatService);
+    for await (const event of sender(
       conv.id,
       prompt,
       1,

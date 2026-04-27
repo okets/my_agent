@@ -252,6 +252,75 @@ describe("resolveJobSummaryAsync", () => {
     warnSpy.mockRestore();
   });
 
+  // ── M9.4-S4.2 Task 10 — Haiku preamble stripping with telemetry ───────────
+
+  it("strips Haiku 'I'll help you condense...' preamble before the first ## heading", async () => {
+    const dir = makeTmpDir();
+    const longContent = "F".repeat(12_000);
+    fs.writeFileSync(path.join(dir, "deliverable.md"), longContent);
+
+    const mockQuery = vi.fn(async () =>
+      "I'll help you condense this content to fit within 10,000 characters.\n\n## a\n**body content**",
+    );
+    const result = await resolveJobSummaryAsync(dir, "fallback", mockQuery);
+    // Preamble is gone; output starts at ## a
+    expect(result.startsWith("## a")).toBe(true);
+    expect(result).not.toMatch(/I'll help you condense/i);
+  });
+
+  it("strips 'Let me start by...' preamble", async () => {
+    const dir = makeTmpDir();
+    fs.writeFileSync(path.join(dir, "deliverable.md"), "G".repeat(12_000));
+    const mockQuery = vi.fn(async () =>
+      "Let me start by checking the brief.\n\n## a\nbody",
+    );
+    const result = await resolveJobSummaryAsync(dir, "fallback", mockQuery);
+    expect(result.startsWith("## a")).toBe(true);
+    expect(result).not.toMatch(/Let me start by/i);
+  });
+
+  it("logs 'stripped' counter when preamble is removed", async () => {
+    const dir = makeTmpDir();
+    fs.writeFileSync(path.join(dir, "deliverable.md"), "H".repeat(12_000));
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const mockQuery = vi.fn(async () =>
+      "I'll help you condense this content.\n\n## a\n**body**",
+    );
+    await resolveJobSummaryAsync(dir, "fallback", mockQuery);
+    const flat = logSpy.mock.calls.flat().join(" ");
+    expect(flat).toMatch(/Stripped Haiku preamble/i);
+    logSpy.mockRestore();
+  });
+
+  it("logs 'no-heading-passthrough' when no ## heading found (distinct from stripping)", async () => {
+    const dir = makeTmpDir();
+    fs.writeFileSync(path.join(dir, "deliverable.md"), "I".repeat(12_000));
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const mockQuery = vi.fn(async () => "I'll help you condense. Here is data.");
+    await resolveJobSummaryAsync(dir, "fallback", mockQuery);
+    const flat = logSpy.mock.calls.flat().join(" ");
+    expect(flat).toMatch(/no-heading-passthrough/i);
+    logSpy.mockRestore();
+  });
+
+  it("does NOT strip when output starts cleanly with ## (no preamble at all)", async () => {
+    const dir = makeTmpDir();
+    fs.writeFileSync(path.join(dir, "deliverable.md"), "J".repeat(12_000));
+    const mockQuery = vi.fn(async () => "## clean-output\nbody");
+    const result = await resolveJobSummaryAsync(dir, "fallback", mockQuery);
+    expect(result).toBe("## clean-output\nbody");
+  });
+
+  it("does NOT strip preamble that lacks Haiku-style opener verbs (legitimate intro)", async () => {
+    const dir = makeTmpDir();
+    fs.writeFileSync(path.join(dir, "deliverable.md"), "K".repeat(12_000));
+    // "Today's brief:" is a legitimate intro line, not a Haiku narration.
+    const mockQuery = vi.fn(async () => "Today's brief:\n\n## a\nbody");
+    const result = await resolveJobSummaryAsync(dir, "fallback", mockQuery);
+    expect(result.startsWith("Today's brief")).toBe(true);
+    expect(result).toContain("## a");
+  });
+
   it("returns stub and skips Haiku when content exceeds 100K hard cap", async () => {
     const dir = makeTmpDir();
     const content = [

@@ -22,8 +22,12 @@ function makeInitiator(
     getLastUserTurn: vi.fn(async () => null),
     create: vi.fn(async () => ({ id: "conv-new", turnCount: 0 })),
   };
+  // M9.4-S4.2: initiate() routes through sendActionRequest. Mock both
+  // methods so the ChatServiceLike interface is satisfied and the
+  // generator implementation drives both paths uniformly.
   const mockChat = {
     sendSystemMessage: vi.fn(() => sendSystemMessageImpl()),
+    sendActionRequest: vi.fn(() => sendSystemMessageImpl()),
   };
   const mockChannel = {
     send: vi.fn(async () => {}),
