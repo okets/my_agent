@@ -749,7 +749,7 @@ export async function registerDebugRoutes(
 
     if (mode === "initiate") {
       const { conversation: conv, delivery } = await initiator.initiate({
-        firstTurnPrompt: `[SYSTEM: ${prompt}]`,
+        firstTurnPrompt: prompt,
       });
       return { mode: "initiate", conversation: conv, delivery };
     }
@@ -758,7 +758,7 @@ export async function registerDebugRoutes(
     const result = await initiator.alert(prompt);
     if (result.status === "no_conversation") {
       const { conversation: conv, delivery } = await initiator.initiate({
-        firstTurnPrompt: `[SYSTEM: ${prompt}]`,
+        firstTurnPrompt: prompt,
       });
       return {
         mode: "auto",
