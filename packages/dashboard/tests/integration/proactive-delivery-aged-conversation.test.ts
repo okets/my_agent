@@ -40,7 +40,7 @@ async function seedConversationTo50Turns(
     const userTurn: TranscriptTurn = {
       type: "turn",
       role: "user",
-      content: `Working on the Shopee App Store link, attempt ${i + 1}.`,
+      content: `Working on the integration link, attempt ${i + 1}.`,
       timestamp: new Date().toISOString(),
       turnNumber: i * 2 + 1,
     };
@@ -48,7 +48,7 @@ async function seedConversationTo50Turns(
     const assistantTurn: TranscriptTurn = {
       type: "turn",
       role: "assistant",
-      content: `Got it — testing iteration ${i + 1} of the Shopee link now.`,
+      content: `Got it — testing iteration ${i + 1} of the integration link now.`,
       timestamp: new Date().toISOString(),
       turnNumber: i * 2 + 2,
     };
@@ -69,7 +69,7 @@ describe("Proactive delivery survives 50-turn synthetic gravity (M9.4-S4.2 Task 
 
   it("sendActionRequest reaches the session unwrapped after 50 prior turns", async () => {
     installMockSession(harness, {
-      response: "Today's brief — AQI is 145, no major news, Songkran weekend events listed.",
+      response: "Today's brief — sensor reading is 145, no major news, weekend events listed.",
     });
     const conv = await harness.conversations.create();
     await seedConversationTo50Turns(harness, conv.id);
