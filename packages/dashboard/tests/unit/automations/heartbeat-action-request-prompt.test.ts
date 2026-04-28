@@ -120,4 +120,50 @@ describe("HeartbeatService.formatNotification(job_completed)", () => {
     }
     expect(logs.some((l) => /VERBATIM framing/i.test(l))).toBe(false);
   });
+
+  // ─── M9.4-S4.2-fu1 — Day-1 soak prompt tightening ────────────────────────
+
+  it("prompt explicitly says 'now' to anchor delivery in present time", () => {
+    const prompt = format({
+      job_id: "j1",
+      automation_id: "morning-brief",
+      type: "job_completed",
+      summary: "summary",
+      run_dir: "/tmp/x",
+      created: "2026-04-28T00:01:00Z",
+      delivery_attempts: 0,
+    });
+    expect(prompt).toMatch(/\bnow\b/i);
+  });
+
+  it("prompt warns against 'tomorrow' / 'background' framing (Day-1 soak failure modes)", () => {
+    const prompt = format({
+      job_id: "j1",
+      automation_id: "morning-brief",
+      type: "job_completed",
+      summary: "summary",
+      run_dir: "/tmp/x",
+      created: "2026-04-28T00:01:00Z",
+      delivery_attempts: 0,
+    });
+    // The body must explicitly forbid the dismissal patterns Nina produced
+    // on Apr 25–28 (mislabeling today's brief as "tomorrow's", calling
+    // active delivery "background activity").
+    expect(prompt).toMatch(/\btomorrow\b/i); // mentioned, in a forbidding context
+    expect(prompt).toMatch(/\bbackground\b/i); // mentioned, in a forbidding context
+  });
+
+  it("prompt includes interruption-tolerance framing", () => {
+    const prompt = format({
+      job_id: "j1",
+      automation_id: "morning-brief",
+      type: "job_completed",
+      summary: "summary",
+      run_dir: "/tmp/x",
+      created: "2026-04-28T00:01:00Z",
+      delivery_attempts: 0,
+    });
+    // "the conversation may have been on another topic — pause and deliver"
+    expect(prompt).toMatch(/pause|interrupt|other topic|in the middle/i);
+  });
 });
