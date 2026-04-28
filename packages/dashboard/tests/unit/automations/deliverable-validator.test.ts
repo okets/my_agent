@@ -63,7 +63,7 @@ describe("deliverable_written validator", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
     fs.writeFileSync(
       path.join(tmpDir, "deliverable.md"),
-      "Let me start by checking my todo list. The AQI today is 145 (Unhealthy for Sensitive Groups).\n\n## Report\nPM2.5: 52 µg/m³",
+      "Let me start by checking my todo list. The sensor reading today is 145 (above threshold).\n\n## Report\nMeasurement: 52 units",
     );
     const result = runValidation("deliverable_written", tmpDir);
     expect(result.pass).toBe(false);
@@ -74,7 +74,7 @@ describe("deliverable_written validator", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
     fs.writeFileSync(
       path.join(tmpDir, "deliverable.md"),
-      "I'll help you condense this content to fit within 10,000 characters.\n\n## AQI\n**AQI: 151**\nPM2.5: 60",
+      "I'll help you condense this content to fit within 10,000 characters.\n\n## Status\n**Reading: 151**\nMeasurement: 60",
     );
     const result = runValidation("deliverable_written", tmpDir);
     expect(result.pass).toBe(false);
@@ -85,7 +85,7 @@ describe("deliverable_written validator", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
     fs.writeFileSync(
       path.join(tmpDir, "deliverable.md"),
-      "I'll check the news. Now let me look at the AQI sensors.\n\n## Report\n**AQI: 151**\nPM2.5: 60 µg/m³",
+      "I'll check the source. Now let me look at the sensors.\n\n## Report\n**Reading: 151**\nMeasurement: 60 units",
     );
     const result = runValidation("deliverable_written", tmpDir);
     expect(result.pass).toBe(false);
@@ -96,7 +96,7 @@ describe("deliverable_written validator", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
     fs.writeFileSync(
       path.join(tmpDir, "deliverable.md"),
-      "I need to flag — AQI sensors at the North-East station were offline today and the report is partial.\n\n## Report\n**AQI: estimated 145 (Unhealthy for Sensitive Groups)**\nPM2.5: ~52 µg/m³",
+      "I need to flag — sensors at the North-East station were offline today and the report is partial.\n\n## Report\n**Reading: estimated 145 (above threshold)**\nMeasurement: ~52 units",
     );
     const result = runValidation("deliverable_written", tmpDir);
     expect(result.pass).toBe(true);
@@ -106,7 +106,7 @@ describe("deliverable_written validator", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
     fs.writeFileSync(
       path.join(tmpDir, "deliverable.md"),
-      "## AQI Report — Chiang Mai, 2026-04-27\n\n**AQI: 145 (Unhealthy for Sensitive Groups)**\nPM2.5: 52 µg/m³",
+      "## Sensor Report — Region X, 2026-04-27\n\n**Reading: 145 (above threshold)**\nMeasurement: 52 units",
     );
     const result = runValidation("deliverable_written", tmpDir);
     expect(result.pass).toBe(true);
@@ -118,7 +118,7 @@ describe("deliverable_written validator", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
     fs.writeFileSync(
       path.join(tmpDir, "deliverable.md"),
-      "I'll start executing the daily relocation session automation by first checking my todo list. I need to load more tools.\n\n## Report\n**AQI: 145**",
+      "I'll start executing the daily session automation by first checking my todo list. I need to load more tools.\n\n## Report\n**Reading: 145**",
     );
     const result = runValidation("deliverable_written", tmpDir);
     expect(result.pass).toBe(false);
@@ -127,11 +127,11 @@ describe("deliverable_written validator", () => {
 
   it("doubled-signal — rejects 'Let me get' / 'Let me find' / 'Let me search' / 'Let me create' / 'Let me locate'", () => {
     for (const opener of [
-      "Let me get the necessary tools to research the relocation status.",
+      "Let me get the necessary tools to research the current status.",
       "Let me find the relevant files for today's session.",
       "Let me search for the most recent automation run output.",
       "Let me create a deliverable for today's session.",
-      "Let me locate the thailand-relocation knowledge space.",
+      "Let me locate the project knowledge space.",
     ]) {
       tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
       fs.writeFileSync(
@@ -148,7 +148,7 @@ describe("deliverable_written validator", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
     fs.writeFileSync(
       path.join(tmpDir, "deliverable.md"),
-      "Now I need to load more tools. Now I need to fetch the AQI data.\n\n## Report\n**AQI: 145**",
+      "Now I need to load more tools. Now I need to fetch the latest data.\n\n## Report\n**Reading: 145**",
     );
     const result = runValidation("deliverable_written", tmpDir);
     expect(result.pass).toBe(false);
@@ -158,7 +158,7 @@ describe("deliverable_written validator", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
     fs.writeFileSync(
       path.join(tmpDir, "deliverable.md"),
-      "I need to flag — AQI sensors at North-East station were offline today.\n\n## Report\n**AQI: estimated 145**\nPM2.5: ~52 µg/m³",
+      "I need to flag — sensors at North-East station were offline today.\n\n## Report\n**Reading: estimated 145**\nMeasurement: ~52 units",
     );
     const result = runValidation("deliverable_written", tmpDir);
     expect(result.pass).toBe(true);
