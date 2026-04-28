@@ -384,13 +384,22 @@ export class HeartbeatService {
         // delivery; present-Nina is being asked to render and present it
         // now. Reference the artifact by file path; render in voice; do
         // not silently drop sections.
+        // M9.4-S4.2-fu1: explicit "today, now" anchor + interruption-
+        // tolerance clause. Day-1 soak surfaced "tomorrow's brief"
+        // mislabeling and "background activity" dismissal patterns
+        // bleeding from prior turns.
         const artifact = n.run_dir
           ? `\n\nDeliverable: ${n.run_dir}/deliverable.md\n\nRead the deliverable, render its contents in your voice, and present it to the user now. Editorial freedom inside each section — pick what matters, structure it, voice it — but do not silently drop sections from the deliverable.`
           : `\n\nThe deliverable summary is:\n\n${n.summary}\n\nRender it in your voice and present it to the user now.`;
         console.log(
           `[Heartbeat] Delivering job_completed as action request (${n.summary.length} chars summary, run_dir=${n.run_dir ? "yes" : "no"})`,
         );
-        return `It's time to deliver the results from a scheduled background task you (past-you) set up.${artifact}`;
+        return (
+          `It's time to deliver TODAY's results from a scheduled background task you (past-you) set up. ` +
+          `The conversation may have been on another topic — pause and deliver this now. ` +
+          `Do not call this "tomorrow's" delivery (it's today's) and do not classify it as "background activity to ignore" (it's the active delivery).` +
+          artifact
+        );
       }
       case "job_failed":
         return `A background task failed.\n\nError: ${n.summary}\n\n${naturalFraming} If the error seems transient, suggest re-triggering.`;

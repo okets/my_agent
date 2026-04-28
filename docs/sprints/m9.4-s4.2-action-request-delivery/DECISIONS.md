@@ -93,3 +93,22 @@ The flag controls *only* the routing decision in `conversation-initiator.ts` (`s
 - If the flag is set to `0`, the new prompts get delivered through the old (system-role) injection path — strictly different from S4.1 behaviour, but provides a config-only path back if user-role injection itself is the problem (e.g. if Nina pivots mid-answer over the soak window).
 
 **Default ON.** Set to `0` in `packages/dashboard/.env` and restart if Task 16 (live soak) reveals a regression. Plan to remove the flag after 14 days of clean operation post-soak (= 21 days from merge).
+
+---
+
+## D4: User-authored automation manifests need explicit deliverable validators
+
+**Date:** 2026-04-28 (Soak Day-1 follow-up)
+
+The `generic` and `research` todo templates (S4.2 Task 5) include a Write-tool-only deliverable todo with `validation: deliverable_written`. But automations with **inline todos** in their manifest (like `daily-relocation-session.md`) override the template, and those inline todos may not include the validator. Day-1 surfaced this: the relocation worker emitted a 100% narration deliverable; the validator regex didn't match (separately fixed by L1); but more fundamentally **the validator was never asked to run** because the manifest's inline todos didn't reference it.
+
+**Decision (this round):** audit user-authored manifests one-by-one. Patch `daily-relocation-session.md` (the failing one) plus any other `notify: immediate` / `notify: debrief` automation with inline todos and no validator.
+
+**Audit performed 2026-04-28:**
+- Total `notify: immediate` manifests with inline todos and no validator: 17
+- Of those, 16 are `status: disabled` + `once: true` (already-run one-offs that won't fire again) — left as-is
+- 1 is `status: active` + manual trigger (`coworking-spaces-chiang-mai`) — patched in place
+- `daily-relocation-session` (the Day-1 failure) — patched in place
+- All `notify: debrief` manifests with inline todos already attach the validator (zero gaps found)
+
+**Future work (deferred — not this sprint):** at automation registration time, force-attach a `deliverable_written` validator to any manifest with `notify: immediate` or `notify: debrief` that doesn't already have one. Lifts the responsibility off the author. Tracked as L7 in the follow-up plan's "out of scope" section.

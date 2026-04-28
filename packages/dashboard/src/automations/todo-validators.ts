@@ -127,14 +127,18 @@ const VALIDATORS: Record<string, ValidatorFn> = {
     // (b) two or more weak narration markers appear within the first 300 chars.
     const STRONG_OPENERS = [
       /^Let me start by\b/i,
-      /^I'll start by\b/i,
+      /^I'll start (by|executing)\b/i, // M9.4-S4.2-fu1: cover Day-1 verb "I'll start executing"
       /^I'll help (you )?(condense|summarize|format)\b/i,
       /^Now I'll (start|check|look)\b/i,
       /^Here'?s what I'?ll do\b/i,
       /^Let'?s check\b/i,
     ];
+    // M9.4-S4.2-fu1: widened to cover narration verbs Day-1 surfaced
+    // (`Let me get/find/search/create/locate`, `Now I need (to)?`, plus the
+    // `I'll <verb>` parallels). FP guard: "I need to flag" still passes
+    // because it's not "I'll start", and a single weak match doesn't trip.
     const SECOND_MARKERS =
-      /\b(Now let me|Let me (check|look|fetch|read)|I'll (check|fetch|read|look))\b/gi;
+      /\b(Now let me|Now I need(?: to)?|Let me (check|look|fetch|read|get|find|search|create|locate)|I'll (check|fetch|read|look|get|find|search|create|locate))\b/gi;
 
     const head = body.slice(0, 300);
     if (STRONG_OPENERS.some((p) => p.test(head))) {

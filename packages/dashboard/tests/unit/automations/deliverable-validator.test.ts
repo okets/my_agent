@@ -111,4 +111,56 @@ describe("deliverable_written validator", () => {
     const result = runValidation("deliverable_written", tmpDir);
     expect(result.pass).toBe(true);
   });
+
+  // ─── M9.4-S4.2-fu1 — Day-1 soak failure verbs ─────────────────────────────
+
+  it("doubled-signal — rejects 'I'll start executing' (Day-1 soak failure verb)", () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "deliverable.md"),
+      "I'll start executing the daily relocation session automation by first checking my todo list. I need to load more tools.\n\n## Report\n**AQI: 145**",
+    );
+    const result = runValidation("deliverable_written", tmpDir);
+    expect(result.pass).toBe(false);
+    expect(result.message).toMatch(/narration|stream-of-consciousness|Write tool/i);
+  });
+
+  it("doubled-signal — rejects 'Let me get' / 'Let me find' / 'Let me search' / 'Let me create' / 'Let me locate'", () => {
+    for (const opener of [
+      "Let me get the necessary tools to research the relocation status.",
+      "Let me find the relevant files for today's session.",
+      "Let me search for the most recent automation run output.",
+      "Let me create a deliverable for today's session.",
+      "Let me locate the thailand-relocation knowledge space.",
+    ]) {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
+      fs.writeFileSync(
+        path.join(tmpDir, "deliverable.md"),
+        `${opener} Now let me check the latest data.\n\n## Report\n**Body**`,
+      );
+      const result = runValidation("deliverable_written", tmpDir);
+      expect(result.pass, opener).toBe(false);
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("doubled-signal — rejects 'Now I need to' (weak repeat marker)", () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "deliverable.md"),
+      "Now I need to load more tools. Now I need to fetch the AQI data.\n\n## Report\n**AQI: 145**",
+    );
+    const result = runValidation("deliverable_written", tmpDir);
+    expect(result.pass).toBe(false);
+  });
+
+  it("doubled-signal — still accepts 'I need to flag' single weak match (FP guard)", () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-test-"));
+    fs.writeFileSync(
+      path.join(tmpDir, "deliverable.md"),
+      "I need to flag — AQI sensors at North-East station were offline today.\n\n## Report\n**AQI: estimated 145**\nPM2.5: ~52 µg/m³",
+    );
+    const result = runValidation("deliverable_written", tmpDir);
+    expect(result.pass).toBe(true);
+  });
 });
