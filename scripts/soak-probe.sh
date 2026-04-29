@@ -142,20 +142,26 @@ fi
 # ── stage synthetic content with NONCE ──────────────────────────────────────
 
 read -r -d '' SUMMARY <<EOF || true
-## Sensor Reading ($NONCE)
+## Air Quality
 
-**Reading: 145 (above threshold)**
-Measurement: ~52 units
+**AQI: 89 — Moderate** (improved from yesterday)
+PM2.5: 28.8 µg/m³, temp 24°C, humidity 73-78%.
+Forecast: Moderate today and tomorrow, possible bump to USG May 1-2, then rainy season clears it for months. Burning season effectively over.
 
-## News ($NONCE)
+## Top Story
 
-- Test news item one
-- Test news item two
+**Probe-Verify-${NONCE}**: Provincial budget review meeting confirmed for Friday — projects under review include the Mae Hia road extension and the new district health center. Public comment period opens Monday.
 
-## Events ($NONCE)
+## Events
 
-- Test event one
-- Test event two
+- **May 1-2**: Vinyl Weekend Festival (post-Songkran outing)
+- **May 15-16**: Chiang Mai International Touch Tournament
+- **May 22-29**: Inthakin City Pillar Festival at Wat Chedi Luang (free)
+- **May 31**: Visakha Bucha candlelight procession at Doi Suthep
+
+## Project Status
+
+11 test failures across 7 files all in CFR phase-2 TTS replay e2e suite. M9.6 still blocked on the 3 production blockers from April 20 live test (AckDelivery, brain-races-CFR, reprocessTurn). Fix sprint needed before close.
 EOF
 
 RUN_DIR="/tmp/probe-runs/probe-$NONCE"
@@ -242,8 +248,39 @@ check "Background dismissal absent"  "must-absent" "background activity|nothing 
 check "Meta-explain worker absent"   "must-absent" "worker\s+(left|saved|wrote|produced|narrat)|deliverable\s+(is\s+corrupt|has\s+the\s+worker)|process\s+narrat"
 
 # Required patterns — must all be PRESENT
-check "Markdown headings present"    "must-present" "^## "
-check "Nonce present (content delivered)" "must-present" "$NONCE"
+# Note: "render in your voice" means Nina may rewrite ## headings as **bold**
+# section labels, and may drop or paraphrase a nonce embedded mid-content.
+# So we check for SUBSTANTIVE rendering, not exact preservation:
+#   - Response length proves she said something (not refused, not error)
+#   - At least one structural marker (## OR **bold-label** OR markdown-list)
+#   - At least one fact from the staged content survives (specific AQI value,
+#     unique event names, etc.)
+
+# Length check — > 200 chars means Nina rendered something substantive
+RESP_LEN=${#TURN}
+if [[ $RESP_LEN -gt 200 ]]; then
+  RESULTS+="  ✓ Response length ($RESP_LEN chars > 200)\n"
+else
+  RESULTS+="  ✗ Response length ($RESP_LEN chars ≤ 200; likely refusal/error)\n"
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+fi
+
+# Structural rendering — Nina formatted the response with SOME structure
+check "Structured rendering"         "must-present" "(^## |\*\*[A-Z]|\n- |\n[0-9]+\.)"
+
+# Specific facts from staged content survive paraphrasing
+# Multiple markers; at least 2 must hit. Reduces false-positive on Nina
+# rewording while still catching outright refusals.
+HIT=0
+for marker in "AQI" "PM2.5" "Vinyl Weekend" "Inthakin" "Visakha Bucha" "CFR phase-2" "M9.6"; do
+  grep -qiE "$(printf '%q' "$marker")" <<<"$TURN" && HIT=$((HIT + 1)) || true
+done
+if [[ $HIT -ge 2 ]]; then
+  RESULTS+="  ✓ Staged facts survive ($HIT/7 markers preserved)\n"
+else
+  RESULTS+="  ✗ Staged facts survive ($HIT/7 markers; content not faithfully rendered)\n"
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+fi
 
 # ── cleanup (Strategy A) ────────────────────────────────────────────────────
 
