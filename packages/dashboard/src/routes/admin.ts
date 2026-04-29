@@ -162,7 +162,11 @@ export async function registerAdminRoutes(
   /**
    * POST /conversations
    *
-   * Create a new conversation (for E2E testing)
+   * Create a new conversation (for E2E testing). Returns the previous
+   * "current" conversation id (if any) in `previous_current_id` so callers
+   * can restore it after a probe completes — `conversationManager.create()`
+   * demotes the current conversation to "inactive" before creating the new
+   * one.
    */
   fastify.post<{ Body: { channel?: string; title?: string } }>(
     "/conversations",
@@ -177,6 +181,9 @@ export async function registerAdminRoutes(
 
       const { title } = request.body || {};
 
+      // Capture previous current BEFORE creation (which demotes it).
+      const previousCurrent = await conversationManager.getCurrent();
+
       const conversation = await conversationManager.create({ title });
       fastify.log.info(`[Admin] Created conversation ${conversation.id}`);
 
@@ -184,6 +191,7 @@ export async function registerAdminRoutes(
         id: conversation.id,
         title: conversation.title,
         created: conversation.created.toISOString(),
+        previous_current_id: previousCurrent?.id ?? null,
       };
     },
   );
@@ -258,6 +266,38 @@ export async function registerAdminRoutes(
       fastify.log.info(`[Admin] Deleted conversation ${id}`);
 
       return { ok: true, conversationId: id };
+    },
+  );
+
+  /**
+   * POST /conversation/:id/activate
+   *
+   * Make this conversation the "current" one (used by the fast-iteration
+   * probe to restore the user's conversation as current after a probe
+   * conversation is deleted). Transactional swap: any other "current"
+   * conversation is demoted to "inactive" before this one is promoted.
+   */
+  fastify.post<{ Params: { id: string } }>(
+    "/conversation/:id/activate",
+    async (request, reply) => {
+      const { id } = request.params;
+      const conversationManager = fastify.conversationManager;
+
+      if (!conversationManager) {
+        return reply
+          .code(503)
+          .send({ error: "Conversation manager not initialized" });
+      }
+
+      const conversation = await conversationManager.get(id);
+      if (!conversation) {
+        return reply.code(404).send({ error: "Conversation not found" });
+      }
+
+      await conversationManager.makeCurrent(id);
+      fastify.log.info(`[Admin] Activated conversation ${id} as current`);
+
+      return { ok: true, conversationId: id, status: "current" };
     },
   );
 

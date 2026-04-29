@@ -772,6 +772,91 @@ export async function registerDebugRoutes(
   });
 
   /**
+   * POST /api/debug/notification — M9.4-S4.2 fast-iteration probe.
+   *
+   * Synthetically enqueue a `job_completed` notification and drain the
+   * heartbeat immediately. Used by `scripts/soak-probe.sh` to exercise the
+   * full delivery path (notificationQueue → heartbeat.formatNotification →
+   * conversationInitiator.alert → sendActionRequest → SDK) without waiting
+   * for a real automation to fire.
+   *
+   * Body: `{ summary, run_dir?, automation_id?, type? }`
+   *  - `summary` is the resolved deliverable content (what fu2 inlines into
+   *    the action-request prompt body).
+   *  - `run_dir` is logged for telemetry only (post-fu2: prompt does NOT
+   *    reference it; provenance only).
+   *  - `automation_id` and `type` default to "probe" / "job_completed".
+   *
+   * Heartbeat alerts via `getCurrent()` — caller is responsible for ensuring
+   * the desired conversation is current (Strategy A: create fresh conv via
+   * `POST /api/admin/conversations`; Strategy B: pre-rotate `sdk_session_id`
+   * for an existing conv).
+   */
+  fastify.post<{
+    Body: {
+      summary?: string;
+      run_dir?: string;
+      automation_id?: string;
+      type?: "job_completed" | "job_failed" | "job_interrupted" | "job_needs_review";
+      conversation_id?: string; // accepted but not used — see jsdoc
+    };
+  }>("/notification", { preHandler: localhostOnly }, async (request, reply) => {
+    const app = fastify.app;
+    if (!app) {
+      return reply.code(503).send({ error: "App not initialized" });
+    }
+    if (!app.notificationQueue) {
+      return reply
+        .code(503)
+        .send({ error: "Notification queue not initialized (hatching incomplete?)" });
+    }
+    if (!app.heartbeatService) {
+      return reply
+        .code(503)
+        .send({ error: "Heartbeat service not initialized (hatching incomplete?)" });
+    }
+
+    const body = request.body || {};
+    const summary = body.summary;
+    if (!summary || typeof summary !== "string" || summary.length < 10) {
+      return reply
+        .code(400)
+        .send({ error: "summary is required (string, ≥10 chars)" });
+    }
+
+    const automation_id = body.automation_id ?? "probe";
+    const type = body.type ?? "job_completed";
+    const job_id = `probe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const run_dir = body.run_dir; // optional; logged only post-fu2
+
+    app.notificationQueue.enqueue({
+      job_id,
+      automation_id,
+      type,
+      summary,
+      run_dir,
+      created: new Date().toISOString(),
+      delivery_attempts: 0,
+    });
+
+    // Fast-fire: drain immediately rather than waiting for the 30s tick.
+    try {
+      await app.heartbeatService.drainNow();
+    } catch (err) {
+      return reply.code(500).send({
+        error: "drainNow failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    return {
+      ok: true,
+      enqueued: { job_id, automation_id, type, summary_length: summary.length, run_dir },
+      drained: true,
+    };
+  });
+
+  /**
    * POST /task-tools/update_property
    *
    * Invoke updateProperty directly. Tests property file writes.
