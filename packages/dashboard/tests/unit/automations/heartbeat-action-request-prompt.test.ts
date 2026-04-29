@@ -42,18 +42,77 @@ describe("HeartbeatService.formatNotification(job_completed)", () => {
     expect(prompt).not.toMatch(/forward.*verbatim/i);
   });
 
-  it("references the run_dir/deliverable.md artifact when run_dir is provided", () => {
-    const runDir = "/tmp/runs/morning-brief/2026-04-27-070000-abc";
+  // ─── M9.4-S4.2-fu2 — inline content; no Read tool invitation ──────────────
+
+  it("inlines the deliverable summary content; does NOT reference a file path for the model to read", () => {
+    const summary =
+      "## Sensor Report\n\n**Reading: 145 (above threshold)**\nMeasurement: ~52 units";
     const prompt = format({
       job_id: "j1",
       automation_id: "morning-brief",
       type: "job_completed",
-      summary: "Today's brief summary…",
-      run_dir: runDir,
-      created: "2026-04-27T07:00:00Z",
+      summary,
+      run_dir: "/tmp/runs/morning-brief/2026-04-30",
+      created: "2026-04-30T07:00:00Z",
       delivery_attempts: 0,
     });
-    expect(prompt).toContain(`${runDir}/deliverable.md`);
+    // Inline content present
+    expect(prompt).toContain(summary);
+    // No file-path Read directive (this is the regression we're fixing)
+    expect(prompt).not.toMatch(/Read the deliverable/i);
+    expect(prompt).not.toMatch(/deliverable\.md\b/i);
+    expect(prompt).not.toMatch(/\$\{?run_dir\}?/);
+  });
+
+  it("does NOT instruct any tool call (Read, Open, Fetch, etc.) — content is inline", () => {
+    const prompt = format({
+      job_id: "j1",
+      automation_id: "morning-brief",
+      type: "job_completed",
+      summary: "## Brief\n**Body**",
+      run_dir: "/tmp/x",
+      created: "2026-04-30T07:00:00Z",
+      delivery_attempts: 0,
+    });
+    // The structural fix: no instruction to invoke a tool. Sonnet narrates
+    // tool calls; this prompt must not invite one.
+    expect(prompt).not.toMatch(/\bRead\s+(the\s+)?(deliverable|file|content)\b/i);
+    expect(prompt).not.toMatch(/\bOpen\s+the\b/i);
+    expect(prompt).not.toMatch(/\bFetch\s+/i);
+  });
+
+  it("when run_dir is absent, still inlines summary (same shape as run_dir-present case)", () => {
+    const prompt = format({
+      job_id: "j1",
+      automation_id: "morning-brief",
+      type: "job_completed",
+      summary: "## Brief\n**Body**",
+      // run_dir intentionally omitted
+      created: "2026-04-30T07:00:00Z",
+      delivery_attempts: 0,
+    });
+    expect(prompt).toContain("## Brief");
+    expect(prompt).toContain("**Body**");
+  });
+
+  it("delimits the inline content with a clear boundary so the model treats it as deliverable, not framing", () => {
+    const prompt = format({
+      job_id: "j1",
+      automation_id: "morning-brief",
+      type: "job_completed",
+      summary: "BODY_SENTINEL",
+      run_dir: "/tmp/x",
+      created: "2026-04-30T07:00:00Z",
+      delivery_attempts: 0,
+    });
+    // The body should be wrapped in a delimiter ("---" works) so the model
+    // distinguishes content-to-render from framing-around-content.
+    const idx = prompt.indexOf("BODY_SENTINEL");
+    expect(idx).toBeGreaterThan(0);
+    const before = prompt.slice(0, idx);
+    const after = prompt.slice(idx + "BODY_SENTINEL".length);
+    expect(before).toMatch(/---|```|<deliverable>/);
+    expect(after).toMatch(/---|```|<\/deliverable>/);
   });
 
   it("frames the prompt as an action request (deliver / present / render)", () => {
