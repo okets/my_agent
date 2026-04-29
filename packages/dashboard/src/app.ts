@@ -445,6 +445,11 @@ export class App extends EventEmitter {
   automationSyncService: AutomationSyncService | null = null;
   watchTriggerService: WatchTriggerService | null = null;
   notificationQueue: PersistentNotificationQueue | null = null;
+  // M9.4-S4.2 fast-iteration probe: exposed so /api/debug/notification can
+  // call drainNow() to fast-fire pending notifications without waiting for
+  // the 30s heartbeat tick. Production code paths still use the local
+  // `heartbeatService` const.
+  heartbeatService: HeartbeatService | null = null;
 
   // Health
   healthMonitor: HealthMonitor | null = null;
@@ -2187,6 +2192,9 @@ export class App extends EventEmitter {
         // Must be set BEFORE start() so the first drainNow path is wired.
         app.automationProcessor?.setHeartbeat(heartbeatService);
         heartbeatService.start();
+        // M9.4-S4.2 fast-iteration probe: also expose on App so the debug
+        // notification endpoint can call drainNow().
+        app.heartbeatService = heartbeatService;
 
         // Service namespace
         app.automations = new AppAutomationService(
