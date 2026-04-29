@@ -39,7 +39,7 @@ STRATEGY="${STRATEGY:-A}"
 TRIGGER="${TRIGGER:-2}"
 DASHBOARD="${DASHBOARD:-http://localhost:4321}"
 AGENT_DIR="${AGENT_DIR:-$HOME/my_agent/.my_agent}"
-WAIT_SECS="${WAIT_SECS:-30}"  # heartbeat drainNow returns when delivery completes; this is a safety buffer
+WAIT_SECS="${WAIT_SECS:-2}"   # tiny buffer for transcript write to settle (debug endpoint awaits the full SDK call)
 SACRIFICIAL_CONV="${SACRIFICIAL_CONV:-conv-FAST-ITERATION-PROBE}"
 
 # Parse --strategy=A|B  --trigger=1|2  --wait=N
@@ -64,8 +64,10 @@ log() { echo "[probe] $*"; }
 fail() { echo "[probe] $*" >&2; exit "${2:-1}"; }
 
 require_localhost() {
-  curl -fsS -o /dev/null "$DASHBOARD/api/auth/status" 2>/dev/null \
-    || fail "Dashboard not reachable at $DASHBOARD" 2
+  # Hit / which serves the dashboard HTML (200 when up, anything else is dead).
+  local code
+  code="$(curl -fsS -o /dev/null -w '%{http_code}' "$DASHBOARD/" 2>/dev/null || echo "000")"
+  [[ "$code" == "200" ]] || fail "Dashboard not reachable at $DASHBOARD (got HTTP $code)" 2
 }
 
 # Extract a JSON field from stdin via python3 (avoids jq dependency)
@@ -161,7 +163,7 @@ RUN_DIR="/tmp/probe-runs/probe-$NONCE"
 # ── trigger ─────────────────────────────────────────────────────────────────
 
 if [[ "$TRIGGER" == "2" ]]; then
-  log "Trigger 2: injecting synthetic notification via /api/debug/notification"
+  log "Trigger 2: synthesizing notification + sendActionRequest into $CONV_ID"
   PAYLOAD="$(python3 -c "
 import json, sys
 print(json.dumps({
@@ -169,38 +171,45 @@ print(json.dumps({
     'automation_id': 'probe',
     'summary': '''$SUMMARY''',
     'run_dir': '$RUN_DIR',
+    'target_conversation_id': '$CONV_ID',
 }))
 ")"
   RESP="$(curl -fsS -X POST "$DASHBOARD/api/debug/notification" \
     -H 'Content-Type: application/json' \
-    -d "$PAYLOAD")" || fail "POST /api/debug/notification failed" 2
-  log "  enqueue+drainNow returned: $(echo "$RESP" | head -c 200)"
+    -d "$PAYLOAD")" || { cleanup_strategy_a; fail "POST /api/debug/notification failed" 2; }
+
+  # The endpoint returns the assistant response inline (sendActionRequest
+  # was called synchronously). No need to read the jsonl — but we'll do it
+  # anyway as a corroborating check for transcript persistence.
+  TURN="$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('response',''))")"
+  STREAMED_DONE="$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('streamed_done',False))")"
+  log "  endpoint returned: streamed_done=$STREAMED_DONE  response_len=${#TURN}"
 elif [[ "$TRIGGER" == "1" ]]; then
+  cleanup_strategy_a
   fail "Trigger 1 (real automation fire) not yet implemented" 2
 else
+  cleanup_strategy_a
   fail "Unknown trigger: $TRIGGER" 2
 fi
 
-# ── wait for delivery to complete ───────────────────────────────────────────
+# ── extract turn (corroborating jsonl check) ────────────────────────────────
 
-# drainNow returns when the alert chain completes, so the assistant turn
-# should already be persisted. This sleep is a safety buffer for transcript
-# write to settle to disk.
+# Brief wait for the appendTurn write to land on disk (sendActionRequest
+# already returned, so the turn should be persisted, but FS write can lag).
 log "Waiting ${WAIT_SECS}s for transcript write to settle..."
 sleep "$WAIT_SECS"
 
-# ── extract turn ────────────────────────────────────────────────────────────
-
 TURN_PATH="$AGENT_DIR/conversations/${CONV_ID}.jsonl"
-if [[ ! -f "$TURN_PATH" ]]; then
-  cleanup_strategy_a
-  fail "No conversation file at $TURN_PATH" 1
+if [[ -f "$TURN_PATH" ]]; then
+  JSONL_TURN="$(latest_assistant_content "$TURN_PATH")"
+  if [[ -n "$JSONL_TURN" && "$JSONL_TURN" != "$TURN" ]]; then
+    log "  (note) jsonl content differs from endpoint response (${#JSONL_TURN} vs ${#TURN} chars) — using endpoint response"
+  fi
 fi
 
-TURN="$(latest_assistant_content "$TURN_PATH")"
 if [[ -z "$TURN" ]]; then
   cleanup_strategy_a
-  fail "No assistant turn found in $TURN_PATH" 1
+  fail "No response received (endpoint returned empty content)" 1
 fi
 
 # ── pattern checks ──────────────────────────────────────────────────────────

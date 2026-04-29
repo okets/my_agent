@@ -375,10 +375,25 @@ export class HeartbeatService {
   }
 
   private formatNotification(n: PersistentNotification): string {
-    const naturalFraming =
-      "You are the conversation layer — present what matters to the user naturally. Don't acknowledge the system message itself.";
+    return formatNotification(n);
+  }
+}
 
-    switch (n.type) {
+/**
+ * Format a `PersistentNotification` into the action-request prompt body that
+ * Nina sees when delivering proactive content. Exported as a free function
+ * so the M9.4-S4.2 fast-iteration probe (`POST /api/debug/notification`) can
+ * synthesize the same prompt the real heartbeat path produces.
+ *
+ * The HeartbeatService class delegates to this implementation — there is no
+ * behavioural difference between calling it from the heartbeat or from the
+ * probe.
+ */
+export function formatNotification(n: PersistentNotification): string {
+  const naturalFraming =
+    "You are the conversation layer — present what matters to the user naturally. Don't acknowledge the system message itself.";
+
+  switch (n.type) {
       case "job_completed": {
         // M9.4-S4.2: action-request framing. Past-Nina scheduled this
         // delivery; present-Nina is being asked to render and present it
@@ -422,5 +437,4 @@ export class HeartbeatService {
       default:
         return `[Notification] ${n.summary}\n\n${naturalFraming}`;
     }
-  }
 }
