@@ -74,9 +74,16 @@ describe("Proactive delivery survives 50-turn synthetic gravity (M9.4-S4.2 Task 
     const conv = await harness.conversations.create();
     await seedConversationTo50Turns(harness, conv.id);
 
+    // M9.4-S4.2-fu2 — fixture matches the new inline-content prompt shape.
+    // Earlier fixture asked the model to "Read the file" which Sonnet
+    // narrated as tool-call leakage; production now inlines content
+    // between --- delimiters. See heartbeat-service.ts formatNotification
+    // and soak-day-2-followup-plan.md.
     const briefPrompt =
-      `Brief delivery time. Deliverable: /tmp/runs/morning-brief/2026-04-27/deliverable.md\n\n` +
-      `Read the file and present its contents to the user now. Render in your voice — pick what matters, structure it, voice it — but do not silently drop sections.`;
+      `It's time to deliver TODAY's results from a scheduled background task you (past-you) set up. ` +
+      `Pause and deliver this now.\n\nDeliverable content:\n\n---\n` +
+      `## Sensor Report\n\n**Reading: 145 (above threshold)**\nMeasurement: ~52 units\n` +
+      `\n---\n\nRender this in your voice — pick what matters, structure it, voice it — but do not silently drop sections.`;
 
     const events: Array<{ type: string; text?: string }> = [];
     for await (const event of harness.chat.sendActionRequest(
