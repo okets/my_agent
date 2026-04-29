@@ -774,23 +774,27 @@ export async function registerDebugRoutes(
   /**
    * POST /api/debug/notification — M9.4-S4.2 fast-iteration probe.
    *
-   * Synthetically enqueue a `job_completed` notification and drain the
-   * heartbeat immediately. Used by `scripts/soak-probe.sh` to exercise the
-   * full delivery path (notificationQueue → heartbeat.formatNotification →
-   * conversationInitiator.alert → sendActionRequest → SDK) without waiting
-   * for a real automation to fire.
+   * Synthesize an action-request prompt and deliver it directly to a target
+   * conversation, bypassing the heartbeat → alert routing layer. Tests
+   * exactly what fu2 changed: `formatNotification` (the prompt body) and
+   * `sendActionRequest` (delivery to SDK). Used by `scripts/soak-probe.sh`.
    *
-   * Body: `{ summary, run_dir?, automation_id?, type? }`
+   * Body: `{ summary, target_conversation_id, run_dir?, automation_id?, type? }`
    *  - `summary` is the resolved deliverable content (what fu2 inlines into
    *    the action-request prompt body).
+   *  - `target_conversation_id` is the conversation to deliver into. Required
+   *    so the probe can target a freshly-created conv without depending on
+   *    `getCurrent()`/`alert()` channel-routing. (When alert() runs against a
+   *    fresh conv with no user turns, it falls through to `initiate()` which
+   *    creates a *second* conversation for the preferred outbound channel —
+   *    splitting the test across two convs. Direct sendActionRequest avoids
+   *    that.)
    *  - `run_dir` is logged for telemetry only (post-fu2: prompt does NOT
    *    reference it; provenance only).
    *  - `automation_id` and `type` default to "probe" / "job_completed".
    *
-   * Heartbeat alerts via `getCurrent()` — caller is responsible for ensuring
-   * the desired conversation is current (Strategy A: create fresh conv via
-   * `POST /api/admin/conversations`; Strategy B: pre-rotate `sdk_session_id`
-   * for an existing conv).
+   * Returns `{ ok, target_conversation_id, prompt, response, turn_number }`
+   * so the probe can verify the delivered response inline.
    */
   fastify.post<{
     Body: {
@@ -798,22 +802,22 @@ export async function registerDebugRoutes(
       run_dir?: string;
       automation_id?: string;
       type?: "job_completed" | "job_failed" | "job_interrupted" | "job_needs_review";
-      conversation_id?: string; // accepted but not used — see jsdoc
+      target_conversation_id?: string;
     };
   }>("/notification", { preHandler: localhostOnly }, async (request, reply) => {
     const app = fastify.app;
     if (!app) {
       return reply.code(503).send({ error: "App not initialized" });
     }
-    if (!app.notificationQueue) {
+    if (!app.chat) {
       return reply
         .code(503)
-        .send({ error: "Notification queue not initialized (hatching incomplete?)" });
+        .send({ error: "Chat service not initialized (hatching incomplete?)" });
     }
-    if (!app.heartbeatService) {
+    if (!app.conversationManager) {
       return reply
         .code(503)
-        .send({ error: "Heartbeat service not initialized (hatching incomplete?)" });
+        .send({ error: "Conversation manager not initialized" });
     }
 
     const body = request.body || {};
@@ -824,12 +828,30 @@ export async function registerDebugRoutes(
         .send({ error: "summary is required (string, ≥10 chars)" });
     }
 
+    const target = body.target_conversation_id;
+    if (!target || typeof target !== "string") {
+      return reply
+        .code(400)
+        .send({ error: "target_conversation_id is required" });
+    }
+
+    const conv = await app.conversationManager.get(target);
+    if (!conv) {
+      return reply
+        .code(404)
+        .send({ error: `Target conversation not found: ${target}` });
+    }
+
+    // Build a synthetic notification + format the prompt the same way the
+    // real heartbeat path does. This is the load-bearing fu2 behavior.
     const automation_id = body.automation_id ?? "probe";
     const type = body.type ?? "job_completed";
     const job_id = `probe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const run_dir = body.run_dir; // optional; logged only post-fu2
-
-    app.notificationQueue.enqueue({
+    const run_dir = body.run_dir;
+    const { formatNotification } = await import(
+      "../automations/heartbeat-service.js"
+    );
+    const prompt = formatNotification({
       job_id,
       automation_id,
       type,
@@ -839,20 +861,49 @@ export async function registerDebugRoutes(
       delivery_attempts: 0,
     });
 
-    // Fast-fire: drain immediately rather than waiting for the 30s tick.
+    // Deliver directly via sendActionRequest. Drain the stream and capture
+    // the assistant content for the probe to assert against.
+    const turnNumber = (conv.turnCount ?? 0) + 1;
+    let response = "";
+    let sawDone = false;
+    let errorMsg: string | undefined;
     try {
-      await app.heartbeatService.drainNow();
+      for await (const event of app.chat.sendActionRequest(
+        target,
+        prompt,
+        turnNumber,
+        { triggerJobId: job_id },
+      )) {
+        if (event.type === "text_delta" && event.text) {
+          response += event.text;
+        } else if (event.type === "done") {
+          sawDone = true;
+        } else if (event.type === "error") {
+          errorMsg = event.message;
+        }
+      }
     } catch (err) {
       return reply.code(500).send({
-        error: "drainNow failed",
+        error: "sendActionRequest threw",
         message: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    if (errorMsg) {
+      return reply.code(500).send({
+        error: "sendActionRequest yielded error event",
+        message: errorMsg,
       });
     }
 
     return {
       ok: true,
-      enqueued: { job_id, automation_id, type, summary_length: summary.length, run_dir },
-      drained: true,
+      target_conversation_id: target,
+      job_id,
+      prompt_length: prompt.length,
+      response,
+      turn_number: turnNumber,
+      streamed_done: sawDone,
     };
   });
 
