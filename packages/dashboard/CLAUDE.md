@@ -115,10 +115,13 @@ npm run format     # Run Prettier on src/ and public/
 
 ```typescript
 // alert() routes through sendActionRequest (no wrap)
+// fu2 (2026-04-29): INLINE the deliverable content. Do NOT reference a
+// file path and ask Nina to Read it — Sonnet narrates Read calls and
+// the brief opens with "Let me read that deliverable…" leakage.
 const prompt =
-  `Brief delivery time. Deliverable: ${runDir}/deliverable.md\n\n` +
-  `Read the file and present its contents to the user now. Render in your voice — ` +
-  `pick what matters, structure it, voice it — but do not silently drop sections.`;
+  `It's time to deliver TODAY's results from a scheduled background task you (past-you) set up. ` +
+  `Pause and deliver this now.\n\nDeliverable content:\n\n---\n${resolvedSummary}\n---\n\n` +
+  `Render this in your voice — pick what matters, structure it, voice it — but do not silently drop sections.`;
 const result = await ci.alert(prompt);
 // alert() returns AlertResult: { status: "delivered" | "no_conversation" | "transport_failed" | ... }
 if (result.status === "no_conversation") {
@@ -150,12 +153,14 @@ await app.notificationQueue.enqueue({
 - **Never pre-wrap action-request prompts.** `sendActionRequest` does not wrap; the model reads as user-role.
 - **Never pre-wrap initiate firstTurnPrompt.** `initiate()` routes through `sendActionRequest` since S4.2; passing `[SYSTEM: ${prompt}]` would deliver a literal `[SYSTEM:` prefix as content (defeats the action-request principle).
 - **Never bypass the queue for proactive deliveries.** All briefs and session deliveries go through the notification queue → heartbeat → action-request injection. Do not call `injectActionRequest` directly except in unit tests.
-- **Never pass raw status dumps** — "Automation X completed. Summary: …" gives the brain no guidance. It will respond as a worker ("Noted. Logging it.") instead of a mediator. Action-request prompts must say what to do (deliver, present, render) and reference the artifact by file path so the model reads the deliverable directly.
+- **Never pass raw status dumps** — "Automation X completed. Summary: …" gives the brain no guidance. It will respond as a worker ("Noted. Logging it.") instead of a mediator. Action-request prompts must say what to do (deliver, present, render).
+- **Inline the deliverable content; do not reference files for the model to read.** Pre-S4.2 used inline content (clean Apr 24 baseline). S4.2 introduced a `Read the deliverable.md` directive which Sonnet narrated as tool-call leakage. fu2 (2026-04-29) restored inline content. The artifact still lives at `run_dir/deliverable.md` for provenance/inspection, but the model receives the resolved content directly in the prompt body — no Read call. Wrap the inlined content in `---` delimiters so the model treats it as content-to-render, not framing.
 
 **Why:**
 
 - On 2026-03-26, a test-watcher automation sent "Noted. Logging it." to the user via WhatsApp because the prompt was a raw status dump with no mediator framing. Always include a "what to do" instruction.
 - On 2026-04-25–27, three consecutive morning briefs were dismissed as "background activity" because system-role injection reads as context-to-acknowledge, not action-to-perform. Action-request injection (M9.4-S4.2) shifts the model's interpretation by speaking in the user's voice — Nina fulfills requests; she dismisses context.
+- On 2026-04-28–29, Nina's brief openers exposed Read tool narration ("Let me read that deliverable… Let me render this cleanly…") — a structural side effect of asking the model to Read a file path. Fu2 inlines the content so no tool call is invited. Soak surfaced that prompt-level "don't narrate tools" instructions cannot reliably override Sonnet's trained tool-call narration; the structural fix is to not trigger the call.
 
 ## Common Tasks
 
