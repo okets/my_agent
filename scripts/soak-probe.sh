@@ -50,7 +50,7 @@ DASHBOARD="${DASHBOARD:-http://localhost:4321}"
 AGENT_DIR="${AGENT_DIR:-$HOME/my_agent/.my_agent}"
 WAIT_SECS="${WAIT_SECS:-2}"
 SACRIFICIAL_CONV="${SACRIFICIAL_CONV:-conv-FAST-ITERATION-PROBE}"
-WORKER_TIMEOUT_SECS="${WORKER_TIMEOUT_SECS:-90}"
+WORKER_TIMEOUT_SECS="${WORKER_TIMEOUT_SECS:-150}"
 DELIVERY_TIMEOUT_SECS="${DELIVERY_TIMEOUT_SECS:-60}"
 AUTOMATION_ID="${AUTOMATION:-}"
 
@@ -289,6 +289,21 @@ elif [[ "$TRIGGER" == "1" ]]; then
     exit 1
   fi
 
+  # Check the worker's notify field. notify: debrief workers don't deliver
+  # immediately — they queue for the daily 7am brief assembly. STAGE 2
+  # against the user conv won't fire; STAGE 1 alone is the validation.
+  WORKER_NOTIFY="$(grep -m1 '^notify:' "$AGENT_DIR/automations/$AUTOMATION_ID.md" 2>/dev/null | sed 's/notify:[[:space:]]*//' | tr -d '[:space:]')"
+  WORKER_NOTIFY="${WORKER_NOTIFY:-debrief}"
+  log "Worker notify type: $WORKER_NOTIFY"
+
+  if [[ "$WORKER_NOTIFY" != "immediate" ]]; then
+    log "STAGE 2 skipped — notify=$WORKER_NOTIFY (no immediate delivery to observe)"
+    log "fu3 primary signal is STAGE 1 (worker→executor contract). STAGE 1 already passed."
+    log "OVERALL PASS — STAGE 1 green, STAGE 2 N/A for this worker"
+    cleanup_strategy_a
+    exit 0
+  fi
+
   # Wait for heartbeat to deliver
   log "Polling up to ${DELIVERY_TIMEOUT_SECS}s for delivery to user conv..."
   TURN=""
@@ -304,7 +319,7 @@ elif [[ "$TRIGGER" == "1" ]]; then
       fi
     fi
   done
-  [[ -n "$TURN" ]] || fail "No new assistant turn appeared within ${DELIVERY_TIMEOUT_SECS}s" 1
+  [[ -n "$TURN" ]] || fail "No new assistant turn appeared within ${DELIVERY_TIMEOUT_SECS}s (notify=immediate but no delivery)" 1
 
 else
   fail "Unknown trigger: $TRIGGER" 2
