@@ -10,9 +10,25 @@ import { AutomationJobService } from "../../src/automations/automation-job-servi
 import { AutomationExecutor } from "../../src/automations/automation-executor.js";
 import { AutomationProcessor } from "../../src/automations/automation-processor.js";
 import { ConversationDatabase } from "../../src/conversations/db.js";
-import { mkdtempSync, mkdirSync } from "fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+
+/**
+ * M9.4-S4.2-fu3: the executor reads `deliverable.md` from `run_dir` at job-end
+ * and throws if it's missing. These tests mock `createBrainQuery` so no real
+ * worker writes the file — seed it manually before each `executor.run()`.
+ *
+ * Body must be ≥50 chars after frontmatter strip and contain no narration
+ * patterns (see todo-validators.ts `deliverable_written`).
+ */
+const SAFE_DELIVERABLE =
+  "## Result\n\nThe automation completed and produced a substantive summary of its findings, outcomes, and recommendations for downstream review.\n";
+
+function seedDeliverable(runDir: string) {
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, "deliverable.md"), SAFE_DELIVERABLE);
+}
 
 // Mock external dependencies
 vi.mock("@my-agent/core", async () => {
@@ -117,6 +133,7 @@ describe("HITL Resume Flow", () => {
     );
 
     const job = jobService.createJob(automation.id);
+    seedDeliverable(job.run_dir!);
     await executor.run(automation, job);
 
     const reviewJob = jobService.getJob(job.id);
@@ -150,6 +167,7 @@ describe("HITL Resume Flow", () => {
     );
 
     const job = jobService.createJob(automation.id);
+    seedDeliverable(job.run_dir!);
     await executor.run(automation, job);
     expect(jobService.getJob(job.id)!.status).toBe("needs_review");
 

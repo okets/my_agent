@@ -54,6 +54,32 @@ function makeAsyncIterable(messages: any[]) {
   };
 }
 
+/**
+ * M9.4-S4.2-fu3: post the worker-contract change, the executor reads
+ * `deliverable.md` from `run_dir` at job-end and throws if it's missing.
+ * Tests that mock `createBrainQuery` must simulate the worker writing the
+ * file — use this helper as a `mockImplementation` factory.
+ *
+ * `findRunDir` resolves to the active job's run_dir at the moment the SDK is
+ * invoked (jobs may not exist when the mock is set up).
+ */
+const SAFE_DELIVERABLE =
+  "## Result\n\nThe automation completed and produced a substantive summary of its findings, outcomes, and recommendations for downstream review.\n";
+
+function mockSdkWithDeliverable(
+  messages: any[],
+  findRunDir: () => string | undefined,
+) {
+  return () => {
+    const runDir = findRunDir();
+    if (runDir) {
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(join(runDir, "deliverable.md"), SAFE_DELIVERABLE);
+    }
+    return makeAsyncIterable(messages);
+  };
+}
+
 // ─── Task 1: System Automation Lifecycle ───────────────────────────────────
 
 describe("System Automation Lifecycle (real services)", () => {
@@ -256,30 +282,36 @@ describe("User Automation Lifecycle (real services)", () => {
   });
 
   it("user automation → SDK session path → job completed", async () => {
-    // Mock SDK boundary
-    (createBrainQuery as any).mockReturnValue(
-      makeAsyncIterable([
-        { type: "system", subtype: "init", session_id: "sess-user-e2e" },
-        {
-          type: "assistant",
-          message: {
-            content: [
-              {
-                type: "text",
-                text: "Research complete. Blue is a calming color.",
-              },
-            ],
-          },
-        },
-      ]),
-    );
-
     // Create user automation via real service
     const automation = harness.automations!.create({
       name: "Color Research",
       instructions: "Write about the color blue.",
       manifest: { trigger: [{ type: "manual" }], autonomy: "full" },
     });
+
+    // Mock SDK boundary — also seed deliverable.md (post-fu3 contract)
+    (createBrainQuery as any).mockImplementation(
+      mockSdkWithDeliverable(
+        [
+          { type: "system", subtype: "init", session_id: "sess-user-e2e" },
+          {
+            type: "assistant",
+            message: {
+              content: [
+                {
+                  type: "text",
+                  text: "Research complete. Subject summary written to disk.",
+                },
+              ],
+            },
+          },
+        ],
+        () =>
+          harness.automationJobService!.listJobs({
+            automationId: automation.id,
+          })[0]?.run_dir,
+      ),
+    );
 
     // Collect events
     const events: string[] = [];
@@ -432,46 +464,58 @@ describe("HITL Resume Flow (real services)", () => {
   });
 
   it("needs_review → resume → completed with events", async () => {
-    // Mock: first call returns needs_review, second call returns completed
-    (createBrainQuery as any)
-      .mockReturnValueOnce(
-        makeAsyncIterable([
-          { type: "system", subtype: "init", session_id: "sess-hitl-e2e" },
-          {
-            type: "assistant",
-            message: {
-              content: [
-                {
-                  type: "text",
-                  text: "I need your input. needs_review: What color do you prefer?",
-                },
-              ],
-            },
-          },
-        ]),
-      )
-      .mockReturnValueOnce(
-        makeAsyncIterable([
-          { type: "system", subtype: "init", session_id: "sess-hitl-e2e" },
-          {
-            type: "assistant",
-            message: {
-              content: [
-                {
-                  type: "text",
-                  text: "Great, you chose green. Task completed successfully.",
-                },
-              ],
-            },
-          },
-        ]),
-      );
-
     const automation = harness.automations!.create({
       name: "HITL Review Task",
       instructions: "Ask the user a question.",
       manifest: { trigger: [{ type: "manual" }], autonomy: "full" },
     });
+
+    const findRunDir = () =>
+      harness.automationJobService!.listJobs({
+        automationId: automation.id,
+      })[0]?.run_dir;
+
+    // Mock: first call returns needs_review, second call returns completed.
+    // Both implementations seed deliverable.md (post-fu3 contract).
+    (createBrainQuery as any)
+      .mockImplementationOnce(
+        mockSdkWithDeliverable(
+          [
+            { type: "system", subtype: "init", session_id: "sess-hitl-e2e" },
+            {
+              type: "assistant",
+              message: {
+                content: [
+                  {
+                    type: "text",
+                    text: "I need your input. needs_review: Which option do you prefer?",
+                  },
+                ],
+              },
+            },
+          ],
+          findRunDir,
+        ),
+      )
+      .mockImplementationOnce(
+        mockSdkWithDeliverable(
+          [
+            { type: "system", subtype: "init", session_id: "sess-hitl-e2e" },
+            {
+              type: "assistant",
+              message: {
+                content: [
+                  {
+                    type: "text",
+                    text: "Acknowledged the user's choice. Task completed successfully.",
+                  },
+                ],
+              },
+            },
+          ],
+          findRunDir,
+        ),
+      );
 
     // Collect events
     const events: string[] = [];
@@ -504,36 +548,47 @@ describe("HITL Resume Flow (real services)", () => {
   });
 
   it("resume passes user answer in trigger context", async () => {
-    (createBrainQuery as any)
-      .mockReturnValueOnce(
-        makeAsyncIterable([
-          { type: "system", subtype: "init", session_id: "sess-ctx-e2e" },
-          {
-            type: "assistant",
-            message: {
-              content: [
-                { type: "text", text: "needs_review: Approve the plan?" },
-              ],
-            },
-          },
-        ]),
-      )
-      .mockReturnValueOnce(
-        makeAsyncIterable([
-          {
-            type: "assistant",
-            message: {
-              content: [{ type: "text", text: "Acknowledged: approved." }],
-            },
-          },
-        ]),
-      );
-
     const automation = harness.automations!.create({
       name: "Context Check",
       instructions: "Ask then continue.",
       manifest: { trigger: [{ type: "manual" }], autonomy: "full" },
     });
+
+    const findRunDir = () =>
+      harness.automationJobService!.listJobs({
+        automationId: automation.id,
+      })[0]?.run_dir;
+
+    (createBrainQuery as any)
+      .mockImplementationOnce(
+        mockSdkWithDeliverable(
+          [
+            { type: "system", subtype: "init", session_id: "sess-ctx-e2e" },
+            {
+              type: "assistant",
+              message: {
+                content: [
+                  { type: "text", text: "needs_review: Approve the plan?" },
+                ],
+              },
+            },
+          ],
+          findRunDir,
+        ),
+      )
+      .mockImplementationOnce(
+        mockSdkWithDeliverable(
+          [
+            {
+              type: "assistant",
+              message: {
+                content: [{ type: "text", text: "Acknowledged: approved." }],
+              },
+            },
+          ],
+          findRunDir,
+        ),
+      );
 
     await harness.automations!.fire(automation.id);
 
@@ -590,31 +645,37 @@ describe("Debrief Pipeline Mechanics (real services)", () => {
   });
 
   it("notify:debrief jobs are collected by getDebriefPendingJobs", async () => {
-    // Mock SDK for user automation
-    (createBrainQuery as any).mockReturnValue(
-      makeAsyncIterable([
-        { type: "system", subtype: "init", session_id: "sess-debrief-e2e" },
-        {
-          type: "assistant",
-          message: {
-            content: [
-              { type: "text", text: "Thailand news: markets up 2% today." },
-            ],
-          },
-        },
-      ]),
-    );
-
     // Create automation with notify: debrief
     const automation = harness.automations!.create({
       name: "Thailand News Worker",
-      instructions: "Fetch Thailand news.",
+      instructions: "Fetch generic news headlines.",
       manifest: {
         trigger: [{ type: "manual" }],
         notify: "debrief",
         autonomy: "full",
       },
     });
+
+    // Mock SDK for user automation — also seed deliverable.md (post-fu3)
+    (createBrainQuery as any).mockImplementation(
+      mockSdkWithDeliverable(
+        [
+          { type: "system", subtype: "init", session_id: "sess-debrief-e2e" },
+          {
+            type: "assistant",
+            message: {
+              content: [
+                { type: "text", text: "News headlines summarised." },
+              ],
+            },
+          },
+        ],
+        () =>
+          harness.automationJobService!.listJobs({
+            automationId: automation.id,
+          })[0]?.run_dir,
+      ),
+    );
 
     // Fire
     await harness.automations!.fire(automation.id);

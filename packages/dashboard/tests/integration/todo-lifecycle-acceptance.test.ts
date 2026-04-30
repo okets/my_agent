@@ -120,9 +120,20 @@ describe("S2 Acceptance: todo-driven job lifecycle", () => {
 
     await harness.automationManager!.syncAll();
 
-    // Mock createBrainQuery
-    (createBrainQuery as ReturnType<typeof vi.fn>).mockReturnValue(
-      makeAsyncIterable([
+    // Mock createBrainQuery — also seed deliverable.md (post-fu3 contract:
+    // executor reads worker's deliverable.md at job-end and throws if missing).
+    (createBrainQuery as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      const job = harness.automationJobService!.listJobs({
+        automationId: "build-test-cap",
+      })[0];
+      if (job?.run_dir) {
+        fs.mkdirSync(job.run_dir, { recursive: true });
+        fs.writeFileSync(
+          path.join(job.run_dir, "deliverable.md"),
+          "## Result\n\nThe automation completed and produced a substantive summary of its findings, outcomes, and recommendations for downstream review.\n",
+        );
+      }
+      return makeAsyncIterable([
         {
           type: "assistant",
           message: {
@@ -130,8 +141,8 @@ describe("S2 Acceptance: todo-driven job lifecycle", () => {
             content: [{ type: "text", text: "Done." }],
           },
         },
-      ]),
-    );
+      ]);
+    });
 
     const automation = harness.automationManager!.findById("build-test-cap");
     expect(automation).toBeDefined();
