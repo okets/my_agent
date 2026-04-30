@@ -213,7 +213,7 @@ describe("E2E agentic flow", () => {
             // Write deliverable.md for validators that check it
             fs.writeFileSync(
               path.join(job.run_dir!, "deliverable.md"),
-              "---\nchange_type: configure\ntest_result: pass\n---\n\nAll tasks done.\n",
+              "---\nchange_type: configure\ntest_result: pass\n---\n\n## Result\n\nAll tasks completed and the configuration is now in place. Connection test passed; rollout is ready when you are.\n",
             );
           },
         },
@@ -269,11 +269,11 @@ describe("E2E agentic flow", () => {
 
     const result = await harness.automationExecutor!.run(automation, job);
 
-    // Job should be gated to needs_review due to incomplete mandatory items
+    // fu3 (2026-04-30): worker did not write a clean deliverable.md, so the
+    // executor's fail-loud gate marks the job as failed (not needs_review).
     expect(result.success).toBe(false);
     const finalJob = harness.automationJobService!.getJob(job.id);
-    expect(finalJob?.status).toBe("needs_review");
-    expect(finalJob?.summary).toContain("Incomplete mandatory items");
+    expect(finalJob?.status).toBe("failed");
 
     await harness.shutdown();
   });
@@ -321,8 +321,9 @@ describe("E2E agentic flow", () => {
     // Verify notification was enqueued
     const pending = queue.listPending();
     expect(pending).toHaveLength(1);
-    // Generic fallback adds mandatory items → needs_review (M9.2-S1)
-    expect(pending[0].type).toBe("job_needs_review");
+    // fu3 (2026-04-30): worker mock doesn't write deliverable.md, so the
+    // executor fails the job loudly → notification is job_failed.
+    expect(pending[0].type).toBe("job_failed");
     expect(pending[0].summary).toContain("Notification Test");
     expect(pending[0].automation_id).toBe("notify-test");
 
