@@ -40,7 +40,6 @@ import type { ConversationDatabase } from "../conversations/db.js";
 import type { AutomationManager } from "./automation-manager.js";
 import type { AutomationJobService } from "./automation-job-service.js";
 import { buildWorkingNinaPrompt } from "./working-nina-prompt.js";
-import { extractDeliverable } from "./deliverable-utils.js";
 import { createChartServer } from "../mcp/chart-server.js";
 import { createImageFetchServer } from "../mcp/image-fetch-server.js";
 import { createTodoServer, type TodoProgress } from "../mcp/todo-server.js";
@@ -50,6 +49,53 @@ import { runValidation } from "./todo-validators.js";
 import { handleCreateChart } from "../mcp/chart-server.js";
 import { queryModel } from "../scheduler/query-model.js";
 import { resolveJobSummary } from "./summary-resolver.js";
+
+/**
+ * M9.4-S4.2-fu3: read and validate the worker's `deliverable.md` at job-end.
+ *
+ * Replaces the f4f5d83 (Apr 1) auto-write fallback and the 697ab41 (Apr 6)
+ * `startsWith("---")` frontmatter guard. Both were correct for contracts that
+ * no longer exist in production:
+ *   - The XML-tag contract (`<deliverable>...</deliverable>`) was abandoned
+ *     when modern templates moved to Write tool.
+ *   - The frontmatter requirement was capability_*-specific and never
+ *     extended when generic/research workers became first-class.
+ *
+ * Today's contract: workers write `deliverable.md` directly via the Write
+ * tool. Plain markdown. The on-disk file IS the deliverable. The framework
+ * reads it, validates it once more (defense in depth against any worker that
+ * bypassed the todo-runtime validator), and returns it for downstream
+ * consumers (notification queue, chart augmentation, etc.).
+ *
+ * @throws if `deliverable.md` is missing — fails loud rather than fabricating
+ *         from the response stream.
+ * @throws if the final-gate validator detects narration contamination —
+ *         catches workers that bypassed the todo-update MCP path.
+ */
+export function readAndValidateWorkerDeliverable(runDir: string): string {
+  const deliverablePath = path.join(runDir, "deliverable.md");
+  if (!fs.existsSync(deliverablePath)) {
+    throw new Error(
+      `Worker did not write deliverable.md to ${runDir}. ` +
+        `Check ${runDir}/todos.json for validation_attempts. ` +
+        `The worker likely skipped or short-circuited the deliverable-emit step.`,
+    );
+  }
+  const content = fs.readFileSync(deliverablePath, "utf-8");
+
+  // Defense in depth: re-run the validator at job-end. Catches any worker
+  // that bypassed the todo_update MCP path (Hypothesis H2 from the bug
+  // record). Cheap regex check on a file already on disk.
+  const finalCheck = runValidation("deliverable_written", runDir);
+  if (!finalCheck.pass) {
+    throw new Error(
+      `Final validator gate failed for ${runDir}: ${finalCheck.message}. ` +
+        `This indicates the worker bypassed the todo-runtime validator.`,
+    );
+  }
+
+  return content;
+}
 
 /** Working Nina's allowed tools — full access including web for research workers */
 const WORKER_TOOLS = [
@@ -599,25 +645,19 @@ export class AutomationExecutor {
         return { success: false, work: response, deliverable: null, error: "Stopped by user" };
       }
 
-      // 7. Extract deliverable
-      const { work, deliverable } = extractDeliverable(response);
-
-      // Write deliverable.md to run_dir — but preserve the worker's version if it has
-      // valid frontmatter (workers write structured deliverables with metadata that
-      // validators check; the extracted stream text would overwrite that).
+      // 7. Worker run complete. The worker MUST have written deliverable.md
+      //    via the Write tool during its run. We do not extract from the
+      //    response stream, do not merge, do not overwrite — the on-disk file
+      //    is the source of truth from this point forward.
+      //    M9.4-S4.2-fu3: replaces the f4f5d83 (Apr 1) auto-write fallback
+      //    and the 697ab41 (Apr 6) startsWith("---") guard. Both were
+      //    correct for contracts that no longer exist in production. See
+      //    docs/sprints/m9.4-s4.2-action-request-delivery/worker-pipeline-history.md
       let deliverablePath: string | undefined;
-      let finalDeliverable = deliverable ?? work;
+      let finalDeliverable: string | undefined;
       if (job.run_dir) {
         deliverablePath = path.join(job.run_dir, "deliverable.md");
-        const workerWroteDeliverable =
-          fs.existsSync(deliverablePath) &&
-          fs.readFileSync(deliverablePath, "utf-8").startsWith("---");
-        if (workerWroteDeliverable) {
-          // Worker wrote structured deliverable with frontmatter — keep it
-          finalDeliverable = fs.readFileSync(deliverablePath, "utf-8");
-        } else if (finalDeliverable) {
-          fs.writeFileSync(deliverablePath, finalDeliverable, "utf-8");
-        }
+        finalDeliverable = readAndValidateWorkerDeliverable(job.run_dir);
       }
       if (unsubscribe) unsubscribe();
 
@@ -714,7 +754,7 @@ export class AutomationExecutor {
       this.config.jobService.updateJob(job.id, {
         status: finalStatus as Job["status"],
         completed: new Date().toISOString(),
-        summary: todoGatingSummary ?? resolveJobSummary(job.run_dir, deliverable ?? work),
+        summary: todoGatingSummary ?? resolveJobSummary(job.run_dir, finalDeliverable ?? response),
         sdk_session_id: sdkSessionId ?? undefined,
         deliverablePath,
         screenshotIds,
@@ -738,8 +778,8 @@ export class AutomationExecutor {
 
       return {
         success: finalStatus === "completed",
-        work,
-        deliverable,
+        work: response,
+        deliverable: finalDeliverable ?? null,
       };
     } catch (error) {
       const errorMessage =
@@ -969,8 +1009,10 @@ export class AutomationExecutor {
             );
           }
 
-          const { work, deliverable } = extractDeliverable(response);
-          const summary = resolveJobSummary(job.run_dir, deliverable ?? work);
+          // M9.4-S4.2-fu3: resume path. Worker's deliverable.md (if it
+          // exists) is read by resolveJobSummary; we pass `response` only
+          // as the fallback for when no deliverable.md was written.
+          const summary = resolveJobSummary(job.run_dir, response);
 
           // Store updated session ID in sidecar
           const finalSessionId = newSessionId ?? effectiveSessionId;
