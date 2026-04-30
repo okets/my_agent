@@ -1154,7 +1154,7 @@ export class AutomationExecutor {
       "**The first tool call of this job MUST be `todo_in_progress` on your first step.**",
       "Not `Read`, not `Bash`, not `browser_*`, not a capability tool. `todo_in_progress`.",
       "",
-      "**The last tool call before writing `deliverable.md` MUST be `todo_done` on your final step.**",
+      "**Write `deliverable.md` first via the Write tool, then call `todo_done` on the deliverable-emit step.** The `deliverable_written` validator runs when you mark the step done — it reads the file you just wrote, so the file MUST exist before you mark the todo done.",
       "",
       "**Anti-patterns — do not do these:**",
       "- Do **not** batch todo updates at the end. Calling `todo_done` on three steps",
