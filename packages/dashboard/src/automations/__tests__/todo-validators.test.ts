@@ -47,45 +47,65 @@ describe("todo-validators", () => {
     expect(result.message).toContain("CAPABILITY.md");
   });
 
-  it("completion_report passes with valid deliverable", () => {
+  // M9.4-S4.3: capability validators read from result.json sidecar, not
+  // deliverable.md frontmatter. Markdown is for humans, JSON is for the framework.
+
+  it("completion_report passes with valid result.json", () => {
     fs.writeFileSync(
-      path.join(tmpDir, "deliverable.md"),
-      [
-        "---",
-        "change_type: configure",
-        "provider: Deepgram Nova-2",
-        "test_result: PASSED",
-        "---",
-        "Report content.",
-      ].join("\n"),
+      path.join(tmpDir, "result.json"),
+      JSON.stringify({
+        change_type: "configure",
+        provider: "Deepgram Nova-2",
+        test_result: "pass",
+        summary: "Reconfigured Deepgram threshold.",
+      }),
     );
     const result = runValidation("completion_report", tmpDir);
     expect(result.pass).toBe(true);
   });
 
+  it("completion_report fails when result.json is missing", () => {
+    const result = runValidation("completion_report", tmpDir);
+    expect(result.pass).toBe(false);
+    expect(result.message).toMatch(/result\.json/);
+  });
+
+  it("completion_report fails when result.json is malformed JSON", () => {
+    fs.writeFileSync(path.join(tmpDir, "result.json"), "{not json");
+    const result = runValidation("completion_report", tmpDir);
+    expect(result.pass).toBe(false);
+    expect(result.message).toMatch(/result\.json/);
+  });
+
   it("completion_report fails with change_type unknown", () => {
     fs.writeFileSync(
-      path.join(tmpDir, "deliverable.md"),
-      ["---", "change_type: unknown", "---"].join("\n"),
+      path.join(tmpDir, "result.json"),
+      JSON.stringify({ change_type: "unknown" }),
     );
     const result = runValidation("completion_report", tmpDir);
     expect(result.pass).toBe(false);
     expect(result.message).toContain("change_type");
   });
 
-  it("test_executed passes with test_result in frontmatter", () => {
+  it("test_executed passes with test_result in result.json", () => {
     fs.writeFileSync(
-      path.join(tmpDir, "deliverable.md"),
-      ["---", "test_result: PASSED", "---", "Test passed."].join("\n"),
+      path.join(tmpDir, "result.json"),
+      JSON.stringify({ test_result: "pass" }),
     );
     const result = runValidation("test_executed", tmpDir);
     expect(result.pass).toBe(true);
   });
 
+  it("test_executed fails when result.json is missing", () => {
+    const result = runValidation("test_executed", tmpDir);
+    expect(result.pass).toBe(false);
+    expect(result.message).toMatch(/result\.json/);
+  });
+
   it("test_executed fails without test_result", () => {
     fs.writeFileSync(
-      path.join(tmpDir, "deliverable.md"),
-      ["---", "change_type: fix", "---"].join("\n"),
+      path.join(tmpDir, "result.json"),
+      JSON.stringify({ change_type: "fix" }),
     );
     const result = runValidation("test_executed", tmpDir);
     expect(result.pass).toBe(false);
@@ -93,17 +113,23 @@ describe("todo-validators", () => {
 
   it("change_type_set passes with valid change_type", () => {
     fs.writeFileSync(
-      path.join(tmpDir, "deliverable.md"),
-      ["---", "change_type: upgrade", "---"].join("\n"),
+      path.join(tmpDir, "result.json"),
+      JSON.stringify({ change_type: "upgrade" }),
     );
     const result = runValidation("change_type_set", tmpDir);
     expect(result.pass).toBe(true);
   });
 
+  it("change_type_set fails when result.json is missing", () => {
+    const result = runValidation("change_type_set", tmpDir);
+    expect(result.pass).toBe(false);
+    expect(result.message).toMatch(/result\.json/);
+  });
+
   it("change_type_set fails with unknown", () => {
     fs.writeFileSync(
-      path.join(tmpDir, "deliverable.md"),
-      ["---", "change_type: unknown", "---"].join("\n"),
+      path.join(tmpDir, "result.json"),
+      JSON.stringify({ change_type: "unknown" }),
     );
     const result = runValidation("change_type_set", tmpDir);
     expect(result.pass).toBe(false);
@@ -145,13 +171,13 @@ describe("todo-validators", () => {
   });
 
   it("completion_report uses runDir even when targetDir is provided", () => {
-    // deliverable.md should be in runDir, not targetDir
+    // result.json should be in runDir, not targetDir
     const targetDir = path.join(tmpDir, "target-cap");
     fs.mkdirSync(targetDir, { recursive: true });
 
     fs.writeFileSync(
-      path.join(tmpDir, "deliverable.md"),
-      ["---", "change_type: fix", "---", "Fixed."].join("\n"),
+      path.join(tmpDir, "result.json"),
+      JSON.stringify({ change_type: "fix" }),
     );
 
     const result = runValidation("completion_report", tmpDir, targetDir);

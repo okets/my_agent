@@ -36,12 +36,15 @@ prompt).
    If the existing design cannot be repaired, write `ESCALATE: redesign-needed` atop
    your deliverable and stop.
 4. Run `<capDir>/scripts/smoke.sh`. Record the result.
-5. Write two files in your run directory:
-   - **`deliverable.md`** — frontmatter (`change_type`, `test_result`, `hypothesis_confirmed`,
-     `summary`, `surface_required_for_hotreload`) UNCHANGED. Body: terse one-liner per attempt,
-     2–5 lines TOTAL. Format: `Attempt {N}: {outcome} — {file changed | "no change"}`.
+5. Write three files in your run directory (M9.4-S4.3: deliverable + sidecar + forensic):
+   - **`deliverable.md`** — plain markdown for the user. NO frontmatter. Body: terse one-liner
+     per attempt, 2–5 lines TOTAL. Format: `Attempt {N}: {outcome} — {file changed | "no change"}`.
      No diagnosis prose, no decision log, no per-attempt state, no validation commands.
-     `summary` frontmatter field: one short sentence summarising the FINAL outcome.
+   - **`result.json`** — typed framework metadata sidecar. JSON object with these fields:
+     `change_type` (one of: configure, upgrade, fix, replace), `test_result` ("pass" or "fail"),
+     `hypothesis_confirmed` (boolean), `summary` (one short sentence — the FINAL outcome),
+     `surface_required_for_hotreload` (boolean). Read by the recovery orchestrator,
+     paper-trail writer, and the capability validators.
    - **`forensic.md`** — full per-attempt detail: diagnosis, hypothesis, change explanation,
      smoke output, validation commands. Free-form prose. For human/agent audit only —
      the debrief aggregator reads `deliverable.md`, not this file.

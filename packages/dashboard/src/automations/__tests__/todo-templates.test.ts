@@ -53,8 +53,11 @@ describe("todo-templates", () => {
   });
 
   it("assembleJobTodos with only template returns template items", () => {
+    // M9.4-S4.3: capability_build template grew from 5 to 6 items —
+    // the deliverable-emit step split into deliverable.md (markdown for
+    // the user) + result.json (typed framework metadata).
     const result = assembleJobTodos(undefined, "capability_build");
-    expect(result.length).toBe(5);
+    expect(result.length).toBe(6);
     expect(result.every((i) => i.created_by === "framework")).toBe(true);
   });
 
