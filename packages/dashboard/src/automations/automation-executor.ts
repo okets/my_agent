@@ -46,8 +46,6 @@ import { createTodoServer, type TodoProgress } from "../mcp/todo-server.js";
 import { createEmptyTodoFile, readTodoFile, writeTodoFile } from "./todo-file.js";
 import { assembleJobTodos } from "./todo-templates.js";
 import { runValidation } from "./todo-validators.js";
-import { handleCreateChart } from "../mcp/chart-server.js";
-import { queryModel } from "../scheduler/query-model.js";
 import { resolveJobSummary } from "./summary-resolver.js";
 
 /**
@@ -653,6 +651,8 @@ export class AutomationExecutor {
       //    and the 697ab41 (Apr 6) startsWith("---") guard. Both were
       //    correct for contracts that no longer exist in production. See
       //    docs/sprints/m9.4-s4.2-action-request-delivery/worker-pipeline-history.md
+      //    M9.4-S4.3: post-run chart augmentation deleted. Workers self-serve
+      //    via chart_tools.create_chart and embed the URL inline when writing.
       let deliverablePath: string | undefined;
       let finalDeliverable: string | undefined;
       if (job.run_dir) {
@@ -660,58 +660,6 @@ export class AutomationExecutor {
         finalDeliverable = readAndValidateWorkerDeliverable(job.run_dir);
       }
       if (unsubscribe) unsubscribe();
-
-      // Post-execution visual augmentation: if deliverable has chartable
-      // data but no images, generate a chart and append it
-      if (finalDeliverable && deliverablePath && this.config.visualService) {
-        const hasImages = finalDeliverable.includes("![");
-        const numbers = finalDeliverable.match(/\d+/g) || [];
-        const hasBulletedData =
-          /[-•*]\s.*\d/.test(finalDeliverable) ||
-          /\|.*\d.*\|/.test(finalDeliverable);
-
-        if (!hasImages && numbers.length >= 3 && hasBulletedData) {
-          try {
-            console.log(
-              `[AutomationExecutor] Deliverable has chartable data, generating chart`,
-            );
-            const CHART_PROMPT = `Generate an SVG chart for the data in this text. Output ONLY the raw SVG — no markdown fences, no explanation. Include a descriptive title in the chart.\n\nRules:\n- <svg xmlns="http://www.w3.org/2000/svg" width="600" height="350">\n- Use inline style="" attributes, NOT <style> blocks\n- Font: sans-serif only\n- Colors: background #1a1b26, panel #292e42, text #c0caf5, muted #565f89, accent #7aa2f7, purple #bb9af7, pink #f7768e, green #9ece6a, yellow #e0af68\n- Include axis labels, data point values, and a title\n- Round corners on background rect (rx="12")`;
-
-            const svgResponse = await queryModel(
-              `Generate a chart for this report:\n\n${finalDeliverable}`,
-              CHART_PROMPT,
-              "haiku",
-            );
-
-            const svgMatch = svgResponse.match(/<svg[\s\S]*<\/svg>/);
-            if (svgMatch) {
-              const chartResult = await handleCreateChart(
-                { visualService: this.config.visualService },
-                { svg: svgMatch[0], description: "deliverable chart" },
-              );
-
-              if (!chartResult.isError) {
-                const parsed = JSON.parse(
-                  (chartResult.content[0] as { type: "text"; text: string })
-                    .text,
-                );
-                finalDeliverable += `\n\n![${automation.manifest.name} chart](${parsed.url})`;
-                fs.writeFileSync(deliverablePath, finalDeliverable, "utf-8");
-                screenshotIds.push(parsed.id);
-                console.log(
-                  `[AutomationExecutor] Chart appended to deliverable: ${parsed.url}`,
-                );
-              }
-            }
-          } catch (err) {
-            console.warn(
-              `[AutomationExecutor] Deliverable chart generation failed:`,
-              err,
-            );
-            // Non-fatal — job completes without chart
-          }
-        }
-      }
 
       // 8. Determine final status
       const hasNeedsReview =
@@ -1155,6 +1103,8 @@ export class AutomationExecutor {
       "Not `Read`, not `Bash`, not `browser_*`, not a capability tool. `todo_in_progress`.",
       "",
       "**Write `deliverable.md` first via the Write tool, then call `todo_done` on the deliverable-emit step.** The `deliverable_written` validator runs when you mark the step done — it reads the file you just wrote, so the file MUST exist before you mark the todo done.",
+      "",
+      "**If your deliverable has numeric data worth visualizing**, call `chart_tools.create_chart` (when available) and embed the returned URL inline as `![chart](url)` in `deliverable.md` when you write it. The framework does not augment your deliverable after the fact — what you write is what the user sees.",
       "",
       "**Anti-patterns — do not do these:**",
       "- Do **not** batch todo updates at the end. Calling `todo_done` on three steps",
