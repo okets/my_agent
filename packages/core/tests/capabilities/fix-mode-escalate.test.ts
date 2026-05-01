@@ -32,8 +32,18 @@ function makeFailure(): CapabilityFailure {
 
 function makeRunDir(deliverableBody: string): string {
   const dir = mkdtempSync(join(tmpdir(), "cfr-escalate-"));
-  const frontmatter = `---\nchange_type: script\ntest_result: fail\nhypothesis_confirmed: false\nsummary: escalating\n---\n`;
-  writeFileSync(join(dir, "deliverable.md"), frontmatter + deliverableBody);
+  // M9.4-S4.3: capability metadata moved out of deliverable.md frontmatter
+  // into a JSON sidecar. Markdown is for humans; JSON is for the framework.
+  writeFileSync(join(dir, "deliverable.md"), deliverableBody);
+  writeFileSync(
+    join(dir, "result.json"),
+    JSON.stringify({
+      change_type: "script",
+      test_result: "fail",
+      hypothesis_confirmed: false,
+      summary: "escalating",
+    }),
+  );
   return dir;
 }
 

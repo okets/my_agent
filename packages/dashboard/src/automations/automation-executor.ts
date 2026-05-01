@@ -10,7 +10,6 @@ import {
   loadConfig,
   filterSkillsByTools,
   cleanupSkillFilters,
-  parseFrontmatterContent,
   createStopReminder,
   createCapabilityAuditLogger,
   storeAndInject,
@@ -708,16 +707,13 @@ export class AutomationExecutor {
         screenshotIds,
       });
 
-      // 11. Paper trail: write DECISIONS.md at artifact path
+      // 11. Paper trail: write DECISIONS.md at artifact path.
+      // M9.4-S4.3: writePaperTrail reads typed metadata from result.json
+      // sidecar in run_dir, not from deliverable.md frontmatter.
       const targetPath = automation.manifest.target_path;
 
       if (targetPath) {
-        this.writePaperTrail(
-          targetPath,
-          finalDeliverable ?? "",
-          automation,
-          job,
-        );
+        this.writePaperTrail(targetPath, job, automation);
       }
 
       console.log(
@@ -1157,19 +1153,35 @@ export class AutomationExecutor {
    */
   private writePaperTrail(
     targetPath: string,
-    deliverable: string,
-    automation: Automation,
     job: Job,
+    automation: Automation,
   ): void {
     try {
-      // Parse frontmatter for optional enrichment fields
-      const { data } = parseFrontmatterContent<{
+      // M9.4-S4.3: read typed metadata from result.json sidecar (was
+      // deliverable.md YAML frontmatter pre-S4.3).
+      let data: {
         change_type?: string;
         provider?: string;
         test_result?: string;
         test_duration_ms?: number;
         files_changed?: string[];
-      }>(deliverable);
+      } = {};
+      if (job.run_dir) {
+        const resultPath = path.join(job.run_dir, "result.json");
+        if (fs.existsSync(resultPath)) {
+          try {
+            const parsed = JSON.parse(fs.readFileSync(resultPath, "utf-8"));
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+              data = parsed;
+            }
+          } catch (err) {
+            console.warn(
+              `[AutomationExecutor] result.json malformed at ${resultPath}, paper trail will be sparse:`,
+              err,
+            );
+          }
+        }
+      }
 
       const targetDir = path.resolve(this.config.agentDir, "..", targetPath);
       const decisionsPath = path.join(targetDir, "DECISIONS.md");

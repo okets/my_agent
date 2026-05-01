@@ -760,8 +760,17 @@ export class RecoveryOrchestrator {
   }
 
   /**
-   * Read and parse `deliverable.md` from a job's run directory.
-   * Returns null if the job has no run dir or the file doesn't exist.
+   * Read the worker's deliverable + sidecar from a job's run directory.
+   *
+   * M9.4-S4.3: typed metadata moved out of `deliverable.md` frontmatter into a
+   * `result.json` sidecar. `deliverable.md` is plain markdown the user reads;
+   * `result.json` is structured worker telemetry the framework reads. This
+   * function returns both: `frontmatter` is populated from the sidecar (or `{}`
+   * if absent), `body` is the raw `deliverable.md` content.
+   *
+   * Returns null only if the job has no run dir or `deliverable.md` is missing.
+   * `parseFrontmatterContent` is still used on the body so legacy deliverables
+   * (with frontmatter) keep working through the migration window.
    */
   private readDeliverable(jobId: string): ParsedDeliverable | null {
     const runDir = this.deps.getJobRunDir(jobId);
@@ -770,13 +779,29 @@ export class RecoveryOrchestrator {
     const deliverablePath = join(runDir, "deliverable.md");
     if (!existsSync(deliverablePath)) return null;
 
+    let body = "";
     try {
       const raw = readFileSync(deliverablePath, "utf-8");
-      const { data, body } = parseFrontmatterContent<DeliverableFrontmatter>(raw);
-      return { frontmatter: data, body };
+      const parsed = parseFrontmatterContent<DeliverableFrontmatter>(raw);
+      body = parsed.body;
     } catch {
       return null;
     }
+
+    let frontmatter: DeliverableFrontmatter = {};
+    const resultPath = join(runDir, "result.json");
+    if (existsSync(resultPath)) {
+      try {
+        const parsed = JSON.parse(readFileSync(resultPath, "utf-8"));
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          frontmatter = parsed as DeliverableFrontmatter;
+        }
+      } catch {
+        // Malformed sidecar — leave frontmatter empty; body still returns.
+      }
+    }
+
+    return { frontmatter, body };
   }
 
   /**

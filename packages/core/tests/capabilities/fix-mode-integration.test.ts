@@ -115,4 +115,41 @@ describe("fix-mode integration", () => {
     expect(captured.length).toBeGreaterThan(0);
     expect(captured[0].prompt).toContain(capDir);
   });
+
+  it("M9.4-S4.3: hypothesis comes from result.json summary, not deliverable.md frontmatter", async () => {
+    const capDir = makeCapDir();
+    const runDir = mkdtempSync(join(tmpdir(), "cfr-readdeliv-"));
+    createdDirs.push(runDir);
+    // New contract: deliverable.md is plain markdown body; result.json carries metadata.
+    writeFileSync(join(runDir, "deliverable.md"), "Attempt 1: tweaked — config.yaml\n");
+    writeFileSync(
+      join(runDir, "result.json"),
+      JSON.stringify({
+        change_type: "configure",
+        test_result: "fail",
+        hypothesis_confirmed: false,
+        summary: "RESULT_JSON_SUMMARY_MARKER reconfigured threshold to 0.4.",
+        surface_required_for_hotreload: false,
+      }),
+    );
+
+    const captured: AutomationSpec[] = [];
+    const deps = makeDeps(capDir, {
+      spawnAutomation: vi.fn().mockImplementation(async (spec: AutomationSpec) => {
+        captured.push(spec);
+        return { jobId: `j-${captured.length}`, automationId: `a-${captured.length}` };
+      }),
+      awaitAutomation: vi.fn().mockResolvedValue({ status: "failed" }),
+      getJobRunDir: vi.fn().mockReturnValue(runDir),
+    });
+    const orch = new RecoveryOrchestrator(deps);
+    await orch.handle(makeFailure());
+
+    // The orchestrator should run multiple attempts (failed + retry up to 3),
+    // and each subsequent spawn's prompt should include the prior attempt's
+    // hypothesis (summary from result.json).
+    expect(captured.length).toBeGreaterThan(1);
+    const subsequent = captured.slice(1).map((c) => c.prompt).join("\n");
+    expect(subsequent).toContain("RESULT_JSON_SUMMARY_MARKER");
+  });
 });
