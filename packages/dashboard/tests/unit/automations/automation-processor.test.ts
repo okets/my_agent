@@ -38,7 +38,9 @@ describe("AutomationProcessor", () => {
         return {
           success: true,
           work: "Mock execution completed successfully",
-          deliverable: null,
+          // M9.4-S4.3 Item E: heuristic now reads result.deliverable; mock provides
+          // a substantive deliverable so unrelated tests don't trip the downgrade.
+          deliverable: "Mock execution completed — substantive deliverable content for tests.",
         };
       }),
     } as any;
@@ -295,6 +297,107 @@ describe("AutomationProcessor", () => {
 
       await expect(processorNoHb.fire(automation)).resolves.not.toThrow();
       expect(enqueue).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("M9.4-S4.3 Item E — empty-deliverable heuristic reads on-disk truth", () => {
+    it("does NOT downgrade success when result.work is empty but result.deliverable is substantive (post-fu1 anti-narration)", async () => {
+      const automation = createTestAutomation({});
+      const cleanDeliverable = "## Report\n\n**AQI: 145 (Unhealthy for Sensitive Groups)**\nPM2.5: 52 µg/m³. Advisory follows: keep windows closed during morning hours.";
+      mockExecutor.run = vi.fn(async (_a, job) => {
+        jobService.updateJob(job.id, {
+          status: "completed",
+          completed: new Date().toISOString(),
+          summary: "ok",
+        });
+        return {
+          success: true,
+          work: "",  // anti-narration directive working — model emitted no text-block stream
+          deliverable: cleanDeliverable,
+          screenshotIds: [],
+        };
+      }) as any;
+
+      await processor.fire(automation);
+
+      const job = jobService.listJobs(automation.id)[0];
+      expect(job.status).toBe("completed");
+      expect(job.status).not.toBe("failed");
+    });
+
+    it("DOES downgrade when both result.work AND result.deliverable are empty (heuristic still catches real misses)", async () => {
+      const automation = createTestAutomation({});
+      mockExecutor.run = vi.fn(async (_a, job) => {
+        jobService.updateJob(job.id, {
+          status: "completed",
+          completed: new Date().toISOString(),
+          summary: "ok",
+        });
+        return {
+          success: true,
+          work: "",
+          deliverable: "",
+          screenshotIds: [],
+        };
+      }) as any;
+
+      await processor.fire(automation);
+
+      const job = jobService.listJobs(automation.id)[0];
+      expect(job.status).toBe("failed");
+      expect(job.summary).toMatch(/empty deliverable/i);
+    });
+
+    it("DOES downgrade when result.deliverable is whitespace-only (≤20 chars after trim)", async () => {
+      const automation = createTestAutomation({});
+      mockExecutor.run = vi.fn(async (_a, job) => {
+        jobService.updateJob(job.id, {
+          status: "completed",
+          completed: new Date().toISOString(),
+          summary: "ok",
+        });
+        return {
+          success: true,
+          work: "verbose model thinking that doesn't matter",
+          deliverable: "    \n  \n",
+          screenshotIds: [],
+        };
+      }) as any;
+
+      await processor.fire(automation);
+
+      const job = jobService.listJobs(automation.id)[0];
+      expect(job.status).toBe("failed");
+    });
+
+    it("does NOT downgrade handler-based automation with success: true and deliverable: null (handler-skip)", async () => {
+      // Handlers (manifest.handler set) are authoritative — they don't go through
+      // the worker-deliverable contract; the heuristic must not second-guess them.
+      // (Note: manager.create() omits the `handler` field today; production
+      // handler-based automations are loaded via frontmatterToManifest from .md
+      // files. We patch the manifest directly here to exercise the heuristic's
+      // skip clause without depending on the manager's create-vs-read asymmetry.)
+      const automation = createTestAutomation({});
+      (automation.manifest as any).handler = "monthly-summary";
+
+      mockExecutor.run = vi.fn(async (_a, job) => {
+        jobService.updateJob(job.id, {
+          status: "completed",
+          completed: new Date().toISOString(),
+          summary: "Quiet month.",
+        });
+        return {
+          success: true,
+          work: "Quiet month.",   // legitimately short
+          deliverable: null,       // handler returns no on-disk deliverable
+          screenshotIds: [],
+        };
+      }) as any;
+
+      await processor.fire(automation);
+
+      const job = jobService.listJobs(automation.id)[0];
+      expect(job.status).toBe("completed");
     });
   });
 });

@@ -132,8 +132,18 @@ export class AutomationProcessor {
       triggerContext,
     );
 
-    // 2.5. Empty deliverable detection — downgrade to failed if nothing useful
-    if (result.success && (!result.work || result.work.trim().length < 20)) {
+    // 2.5. Empty deliverable detection — downgrade to failed if nothing useful.
+    // M9.4-S4.3 Item E: heuristic reads on-disk truth (result.deliverable),
+    // not the response stream (result.work, which fu1's anti-narration directive
+    // correctly silences). Handlers (manifest.handler set) are authoritative —
+    // they don't go through the worker-deliverable contract, so skip the heuristic.
+    // Surfaced by 2026-05-02 incident with update-relocation-roadmap worker.
+    const isHandlerBased = !!automation.manifest.handler;
+    if (
+      !isHandlerBased &&
+      result.success &&
+      (!result.deliverable || result.deliverable.trim().length < 20)
+    ) {
       console.warn(
         `[AutomationProcessor] Empty deliverable for "${automation.manifest.name}" (job ${job.id})`,
       );
