@@ -45,7 +45,7 @@ The "all archived, dormant" framing in the original redesign was wrong: `cfr-fix
 | Modify | `packages/dashboard/src/automations/automation-executor.ts:1208-1257` (`writePaperTrail`) | Read `change_type` / `test_result` / `provider` / etc. from `result.json` sidecar. |
 | Modify | `packages/core/src/capabilities/recovery-orchestrator.ts:766-780` (`readDeliverable`) | Read `change_type` / `test_result` / `hypothesis_confirmed` / `summary` / `surface_required_for_hotreload` from `result.json` sidecar. |
 | Modify | `packages/dashboard/CLAUDE.md` | Codify the sidecar convention: structured worker metadata uses `result.json` (JSON, typed). Frontmatter-in-markdown is reserved for static files (capabilities, notebook references, etc.) per the existing normalized metadata standard. |
-| Modify | `.my_agent/skills/capability-brainstorming/SKILL.md` (and any related capability skill files) | Update worker instructions to emit `result.json` alongside `deliverable.md`. (Local data; gitignored.) |
+| Modify | `packages/core/skills/capability-brainstorming/SKILL.md` (and any related capability skill files in `packages/core/skills/`) | Update worker instructions to emit `result.json` alongside `deliverable.md`. **AUDIT BLOCKER 3:** edit the framework source-of-truth, NOT `.my_agent/skills/` (per memory `feedback_framework_skills_source.md` — agent copy gets overwritten on next install). After editing, run the install script (or copy manually) so the agent's `.my_agent/.claude/skills/` reflects the new source. |
 | Create | `packages/dashboard/tests/integration/capability-modify-post-fu3.test.ts` | End-to-end test: spawn a capability_modify worker, verify `result.json` written, all four validators pass, paper-trail entry contains correct fields, `recovery-orchestrator.readDeliverable()` returns the right struct. |
 | Modify | `packages/dashboard/tests/unit/automations/todo-validators.test.ts` | Update validator tests for the sidecar source. |
 | Modify | `packages/dashboard/src/automations/automation-processor.ts:136` | **(Item E — empty-deliverable heuristic fix)** Change `result.work.trim().length < 20` → `result.deliverable.trim().length < 20`. Reads from on-disk truth (already populated by fu3) instead of the response stream that fu1's anti-narration directive correctly silenced. |
@@ -126,22 +126,55 @@ cd ../my_agent-s4.3
 
 **Files:**
 - Modify: `packages/dashboard/src/automations/automation-executor.ts:649-672`
-- Modify: worker prompt sections that mention chart generation
+- Modify: `packages/dashboard/src/automations/todo-templates.ts` (`generic` template — add chart-todo; `research` already has it at line 86)
 
-- [ ] **2.1: Delete the post-run chart augmentation block** (`:649-672`)
+> **AUDIT BLOCKER 1 — read before starting.** Pre-audit, the plan deleted the auto-augmentation block and added a single soft hint to the system prompt. Audit found this would silently break charts on `chiang-mai-aqi-worker` and other `generic` workers in production: the morning brief currently embeds `![chiang-mai-aqi-worker chart](...)` (the literal string from `automation-executor.ts:698`), proving those workers rely on the auto-path, NOT a worker-side `create_chart` call. The `generic` template (`todo-templates.ts:53-69`) has zero chart instructions today. The fix below adds an explicit per-todo chart instruction to `generic` and `research` (research already has it; copy/align), AND requires a soak-probe smoke before merge.
 
-This is the third writer of `deliverable.md`. Workers already have `chart_tools.create_chart` available; they get back a URL on call. Workers that want a chart should embed `![chart](url)` in their `deliverable.md` content when they Write it.
+- [ ] **2.1: Delete the post-run chart augmentation block** (`automation-executor.ts:649-672`)
 
-- [ ] **2.2: Update the worker prompt's tool-use section** to mention the chart pattern explicitly
+This is the third writer of `deliverable.md`. Workers will self-serve via existing `chart_tools.create_chart` (returns URL); the worker embeds `![chart](url)` in `deliverable.md` when calling Write.
 
-In `automation-executor.ts` system prompt assembly (the section that lists allowed tools and their use), add: "If your deliverable has numeric data worth visualizing, call `chart_tools.create_chart` and embed the returned URL inline in your deliverable.md content."
+- [ ] **2.2: Add an explicit chart todo to the `generic` template**
 
-- [ ] **2.3: Run unit tests + typecheck**
+In `packages/dashboard/src/automations/todo-templates.ts`, the `generic` template (around lines 53-69) is missing the chart instruction. The `research` template at line 86 already has the right pattern. Copy that pattern into `generic`:
 
-- [ ] **2.4: Commit**
+```typescript
+// In generic template, add a todo before the final "Write deliverable.md" step:
+{
+  text: "Does your output contain numeric data, comparisons, or trends? If you have the create_chart tool, call mcp__chart-tools__create_chart with an SVG and embed the returned URL inline in your deliverable.md as ![chart description](url). If no numeric data or no chart tool available, mark done with a note explaining why.",
+  mandatory: false,
+}
+```
+
+If `research` template's exact wording differs, mirror it — keep the two templates in sync on this todo so future refactors don't drift them apart.
+
+- [ ] **2.3: Smoke-test against `chiang-mai-aqi-worker` BEFORE merge** (soak-probe Trigger 1)
+
+Spin up a dev-mode dashboard at port 4322:
+```bash
+cd packages/dashboard
+PORT=4322 npm run dev
+```
+
+In another terminal, fire the brief feeder worker against the dev port and inspect its deliverable for an embedded chart:
+```bash
+DASHBOARD=http://localhost:4322 ./scripts/soak-probe.sh chiang-mai-aqi-worker
+# Wait for completion, then:
+LATEST_RUN=$(ls -td ~/my_agent/.my_agent/automations/.runs/chiang-mai-aqi-worker/* | head -1)
+grep -E '!\[.*chart.*\]\(' "$LATEST_RUN/deliverable.md" || echo "NO CHART — fix before merge"
+```
+
+If the deliverable has no `![...chart...](url)` line: the prompt isn't strong enough OR the worker isn't calling `create_chart`. Iterate on the template wording until charts appear consistently. Block merge until 3 consecutive runs all embed a chart.
+
+> **Why this is a merge gate:** the morning brief has been embedding charts daily since this code shipped. Pre-merge verification is the only way to know post-Item-A workers still produce them. The soak signal on master would catch a regression but only AFTER one or more morning briefs land chartless — too late.
+
+- [ ] **2.4: Run unit tests + typecheck**
+
+- [ ] **2.5: Commit**
 
 ```bash
-git add packages/dashboard/src/automations/automation-executor.ts
+git add packages/dashboard/src/automations/automation-executor.ts \
+        packages/dashboard/src/automations/todo-templates.ts
 git commit -m "fix(s4.3): chart augmentation as worker self-service
 
 DELETE the post-run chart code at automation-executor.ts:649-672.
@@ -150,8 +183,13 @@ worker via Write tool and — pre-fu3 — the executor via overwrite).
 Post-fu3 it was enrichment-not-corruption (read worker's clean file
 and appended), but it still violated the single-writer principle.
 
-Workers self-serve via existing chart_tools.create_chart and embed
-the returned URL inline when writing deliverable.md.
+Add explicit chart todo to the 'generic' template (the 'research'
+template already has it). Workers self-serve via existing
+mcp__chart-tools__create_chart and embed the returned URL inline
+when writing deliverable.md.
+
+Smoke-tested against chiang-mai-aqi-worker on a dev-mode dashboard:
+3+ consecutive runs all embed ![chart](url) in deliverable.md.
 
 One write path per file."
 ```
@@ -210,9 +248,32 @@ Replace todos that say "write deliverable.md frontmatter" with two separate todo
 1. "Use the Write tool to emit `deliverable.md` as plain markdown — the user-facing change summary, what to do next, etc. No frontmatter."
 2. "Use the Write tool to emit `result.json` with `{change_type, test_result, summary}` (capability_modify) or `{change_type, test_result, summary, files_changed}` (capability_build)."
 
-- [ ] **3.5: Run tests, confirm PASS**
+- [ ] **3.5: Update the capability-brainstorming skill source**
 
-- [ ] **3.6: Commit**
+> **AUDIT BLOCKER 3:** Edit `packages/core/skills/capability-brainstorming/SKILL.md` (framework source), NOT `.my_agent/skills/capability-brainstorming/SKILL.md` (agent copy). Per memory `feedback_framework_skills_source.md`: agent copies get overwritten on next install. The framework `packages/core/skills/` is the source-of-truth.
+
+Find the section that instructs the worker to write YAML frontmatter into `deliverable.md` (search for `change_type` or `frontmatter` in the SKILL.md file). Replace with:
+
+> *"Emit two files in the run dir:*
+> - *`deliverable.md` — plain markdown for the user. The change summary, what was done, what to do next. No YAML header.*
+> - *`result.json` — typed framework metadata. Object with `change_type` (one of: `configure`, `upgrade`, `fix`, `replace`), `test_result` (one of: `pass`, `fail`, `skipped`), `summary` (1-2 sentence string), and (capability_build only) `files_changed` (array of relative paths). Use the Write tool for both."*
+
+After editing, sync to the agent install:
+
+```bash
+# Run the project's skill-install script if one exists, or copy manually:
+cp -r packages/core/skills/capability-brainstorming/* ~/my_agent/.my_agent/.claude/skills/capability-brainstorming/
+```
+
+Verify the agent copy now reflects the framework source:
+```bash
+diff packages/core/skills/capability-brainstorming/SKILL.md ~/my_agent/.my_agent/.claude/skills/capability-brainstorming/SKILL.md
+# Should be empty (no diff)
+```
+
+- [ ] **3.6: Run tests, confirm PASS**
+
+- [ ] **3.7: Commit**
 
 ```bash
 git add packages/dashboard/src/automations/todo-templates.ts \
@@ -267,70 +328,157 @@ git commit -m "feat(s4.3): paper trail + recovery orchestrator read result.json 
 **Files:**
 - Create: `packages/dashboard/tests/integration/capability-modify-post-fu3.test.ts`
 
-- [ ] **5.1: Write the e2e test**
+> **AUDIT BLOCKER 2 — read before starting.** The pre-audit version of this test called `AppHarness.create({ withCfr: true })` and `harness.app.cfr.spawnAutomation(...)`. **Neither exists.** `AppHarnessOptions` (at `app-harness.ts:83-90`) defines `withMemory`, `withAutomations`, `agentDir` only. `spawnAutomation` is a `RecoveryOrchestrator` constructor arg (per `app.ts:758`), not a `CfrEmitter` method. The harness wires `cfr: new CfrEmitter()` inline at line 184 but does NOT create a `RecoveryOrchestrator` for tests.
+>
+> **The fix:** rewrite the test to use existing harness APIs. Spawn the capability worker via `harness.automationManager.create({...})` directly with the `capability_modify` manifest, then `harness.automationProcessor.fire(automation.id)`. This proves the same chain (`assembleJobTodos` → `runValidation` → `readAndValidateWorkerDeliverable` → `writePaperTrail` → `recovery-orchestrator.readDeliverable`) without needing a non-existent `spawnAutomation` API.
 
-Test outline:
+- [ ] **5.1: Write the e2e test using existing harness APIs**
 
 ```typescript
-describe("capability_modify post-fu3 end-to-end", () => {
-  it("worker spawn → deliverable.md + result.json written → validators pass → paper trail + recovery orchestrator read fields correctly", async () => {
-    const harness = await AppHarness.create({ withAutomations: true, withCfr: true });
+import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import { AppHarness } from "./app-harness.js";
+import { installMockSession } from "./mock-session.js";
+import { readDeliverable } from "../../../core/src/capabilities/recovery-orchestrator.js";
 
-    // Configure mock SDK to:
-    //  1. write deliverable.md (clean markdown body, ≥50 chars)
-    //  2. write result.json ({change_type: "configure", test_result: "pass", summary: "..."})
-    //  3. call todo_done for each todo
+describe("capability_modify post-fu3 end-to-end (Item D)", () => {
+  it("worker emits deliverable.md + result.json → validators pass → paper trail records fields → readDeliverable returns the struct", async () => {
+    const harness = await AppHarness.create({ withAutomations: true });
 
-    // Spawn via the same path production uses
-    const { jobId, automationId } = await harness.app.cfr.spawnAutomation({
-      jobType: "capability_modify",
-      capability: "stt-deepgram",
-      targetPath: harness.tmpDir + "/capabilities/stt-deepgram",
+    // 1. Stage a target capability folder under the harness's agent dir
+    const targetPath = path.join(harness.agentDir, "capabilities", "stt-deepgram");
+    fs.mkdirSync(targetPath, { recursive: true });
+    fs.writeFileSync(path.join(targetPath, "CAPABILITY.md"),
+      "---\nname: stt-deepgram\nprovides: audio-to-text\ninterface: tool\n---\n");
+
+    // 2. Install mock SDK that writes BOTH files when the worker runs
+    installMockSession(harness, {
+      onWorkerRun: async (job) => {
+        // capability_modify worker writes two files (post-S4.3 contract):
+        fs.writeFileSync(
+          path.join(job.run_dir, "deliverable.md"),
+          "## STT Deepgram fix\n\nReverted the API key rotation that broke transcription. Tested with a 12s sample; output JSON is well-formed.",
+        );
+        fs.writeFileSync(
+          path.join(job.run_dir, "result.json"),
+          JSON.stringify({
+            change_type: "configure",
+            test_result: "pass",
+            summary: "API key rotation reverted; transcription verified.",
+          }),
+        );
+        // status-report.md (status_report validator)
+        fs.writeFileSync(
+          path.join(job.run_dir, "status-report.md"),
+          "# Job complete\n\nDelivered.",
+        );
+      },
     });
 
-    await harness.app.automations.fire(automationId);
+    // 3. Create the capability_modify automation manifest directly
+    const auto = await harness.automationManager.create({
+      manifest: {
+        name: "test-capability-modify",
+        job_type: "capability_modify",
+        target_path: targetPath,
+        notify: "none",
+        trigger: [{ type: "manual" }],
+        once: true,
+      },
+    });
 
-    // Wait for completion
-    const job = await harness.waitForJobStatus(jobId, "completed");
+    // 4. Fire via the production processor path
+    await harness.automationProcessor.fire(auto.id);
 
-    // Assertions
+    // 5. Wait for the job to settle
+    const job = await harness.waitForJobStatus(auto.id, "completed");
+
+    // 6. Assertions
+
+    // Files exist
     expect(fs.existsSync(path.join(job.run_dir, "deliverable.md"))).toBe(true);
     expect(fs.existsSync(path.join(job.run_dir, "result.json"))).toBe(true);
 
-    // Paper trail
-    const decisions = fs.readFileSync(
-      path.join(harness.tmpDir, "capabilities/stt-deepgram/DECISIONS.md"),
-      "utf-8",
-    );
+    // Paper trail wrote a DECISIONS.md entry into the target dir
+    const decisions = fs.readFileSync(path.join(targetPath, "DECISIONS.md"), "utf-8");
     expect(decisions).toMatch(/change_type.*configure/);
     expect(decisions).toMatch(/test_result.*pass/);
 
-    // Recovery orchestrator readDeliverable
-    const result = harness.app.cfr.readDeliverable(job.run_dir);
+    // recovery-orchestrator.readDeliverable returns the struct from result.json
+    const result = readDeliverable(job.run_dir);
     expect(result.change_type).toBe("configure");
     expect(result.test_result).toBe("pass");
+    expect(result.summary).toContain("API key rotation");
 
     await harness.shutdown();
   });
 
-  it("fails loud when result.json is missing", async () => {
-    // Mock SDK writes only deliverable.md (no result.json)
-    // Expect: validator rejects, job ends 'failed' or 'needs_review'
+  it("fails loud when result.json is missing (validator rejects)", async () => {
+    const harness = await AppHarness.create({ withAutomations: true });
+    const targetPath = path.join(harness.agentDir, "capabilities", "test-cap");
+    fs.mkdirSync(targetPath, { recursive: true });
+    fs.writeFileSync(path.join(targetPath, "CAPABILITY.md"),
+      "---\nname: test-cap\nprovides: foo\ninterface: tool\n---\n");
+
+    installMockSession(harness, {
+      onWorkerRun: async (job) => {
+        // Worker writes ONLY deliverable.md, no result.json
+        fs.writeFileSync(
+          path.join(job.run_dir, "deliverable.md"),
+          "## Cap fix\n\nDid the work but forgot to emit result.json.",
+        );
+      },
+    });
+
+    const auto = await harness.automationManager.create({
+      manifest: { name: "test-missing-result", job_type: "capability_modify", target_path: targetPath, notify: "none", trigger: [{ type: "manual" }], once: true },
+    });
+
+    await harness.automationProcessor.fire(auto.id);
+    const job = await harness.waitForJobStatus(auto.id);
+    expect(["failed", "needs_review"]).toContain(job.status);
+    await harness.shutdown();
   });
 
-  it("fails loud when result.json has invalid change_type", async () => {
-    // Mock SDK writes result.json with change_type: "unknown"
-    // Expect: completion_report validator rejects
+  it("fails loud when result.json has unknown change_type", async () => {
+    const harness = await AppHarness.create({ withAutomations: true });
+    const targetPath = path.join(harness.agentDir, "capabilities", "test-cap-2");
+    fs.mkdirSync(targetPath, { recursive: true });
+    fs.writeFileSync(path.join(targetPath, "CAPABILITY.md"),
+      "---\nname: test-cap-2\nprovides: foo\ninterface: tool\n---\n");
+
+    installMockSession(harness, {
+      onWorkerRun: async (job) => {
+        fs.writeFileSync(path.join(job.run_dir, "deliverable.md"), "## Cap fix\n\nBody text.");
+        fs.writeFileSync(path.join(job.run_dir, "result.json"),
+          JSON.stringify({ change_type: "unknown", test_result: "pass", summary: "..." }));
+      },
+    });
+
+    const auto = await harness.automationManager.create({
+      manifest: { name: "test-bad-change-type", job_type: "capability_modify", target_path: targetPath, notify: "none", trigger: [{ type: "manual" }], once: true },
+    });
+
+    await harness.automationProcessor.fire(auto.id);
+    const job = await harness.waitForJobStatus(auto.id);
+    expect(["failed", "needs_review"]).toContain(job.status);
+    await harness.shutdown();
   });
 });
 ```
 
-- [ ] **5.2: Run test, confirm PASS**
+> **Note on `installMockSession.onWorkerRun`:** if this hook doesn't exist in the current mock-session API, extend it as a small sub-task. The mock should expose a callback that runs INSIDE the SDK loop where the worker would normally call its tools. This is a one-helper extension, not the full `withCfr` harness build the original plan implied.
 
-- [ ] **5.3: Commit**
+- [ ] **5.2: Verify `harness.waitForJobStatus` exists** (the existing tests use this pattern; confirm by grep). If it doesn't, the equivalent is a polling loop on `harness.automationJobService.getJob(autoId)` checking `status`. ~10 lines of helper code at the top of the test file.
+
+- [ ] **5.3: Run test, confirm PASS**
+
+- [ ] **5.4: Commit**
 
 ```bash
-git add packages/dashboard/tests/integration/capability-modify-post-fu3.test.ts
+git add packages/dashboard/tests/integration/capability-modify-post-fu3.test.ts \
+        packages/dashboard/tests/integration/mock-session.ts  # if extended
 git commit -m "test(s4.3): e2e for capability_modify with result.json sidecar
 
 Locks the post-fu3 capability worker contract. Was a deferred item
@@ -338,7 +486,12 @@ from the post-fu3 capability implications audit (no e2e test
 existed for the full spawn → deliverable + result.json → validators
 → paper trail → recovery orchestrator chain).
 
-Three cases: happy path, missing result.json, invalid change_type."
+Three cases: happy path, missing result.json, invalid change_type.
+
+Uses existing harness APIs (automationManager.create +
+automationProcessor.fire + waitForJobStatus) rather than the
+non-existent withCfr/spawnAutomation pair the original plan
+projected. Same chain coverage; smaller harness extension."
 ```
 
 ---
@@ -451,16 +604,50 @@ describe("AutomationProcessor — empty-deliverable heuristic (M9.4-S4.3 Item E)
 
     expect(mockJobService.getJob(job.id).status).toBe("failed");
   });
+
+  // AUDIT TIGHTENING 1: handler-based automations don't go through the SDK worker
+  // path; they return result.deliverable from code (potentially null for
+  // empty-by-design summaries). The heuristic should NOT fire for handlers.
+  it("does NOT downgrade handler-based automation with success: true and deliverable: null (handler-skip)", async () => {
+    const handlerAutomation = {
+      ...automation,
+      manifest: { ...automation.manifest, handler: "monthly-summary" },  // handler-based
+    };
+    const mockExecutor = {
+      run: vi.fn(async () => ({
+        success: true,
+        work: "Quiet month.",         // legitimately short
+        deliverable: null,            // handler returns no on-disk deliverable
+        error: null,
+      })),
+    };
+    const mockJobService = makeMockJobService();
+    const processor = new AutomationProcessor({ executor: mockExecutor, jobService: mockJobService, /* ... */ });
+
+    await processor.process(handlerAutomation, job);
+
+    // Handler is authoritative; processor must NOT second-guess via the heuristic
+    expect(mockJobService.getJob(job.id).status).toBe("completed");
+  });
 });
 ```
 
 - [ ] **7.2: Run, confirm 2-of-3 FAIL** (the empty-both case may already pass; the substantive-deliverable case definitely fails today)
 
-- [ ] **7.3: Apply the two-line patch**
+- [ ] **7.3: Apply the patch**
+
+> **AUDIT TIGHTENING 1:** original two-line patch left handler-based automations exposed (handlers can legitimately return `deliverable: null` with `success: true`). Add a handler-skip clause so the heuristic only fires for SDK-worker automations.
 
 ```diff
 - if (result.success && (!result.work || result.work.trim().length < 20)) {
++ // M9.4-S4.3 Item E: heuristic reads on-disk truth (result.deliverable),
++ // not the response stream (result.work, which fu1's anti-narration
++ // directive correctly silences). Handlers (manifest.handler set) are
++ // authoritative — they don't go through the worker-deliverable contract,
++ // so skip the heuristic for them.
++ const isHandlerBased = !!automation.manifest.handler;
 + if (
++   !isHandlerBased &&
 +   result.success &&
 +   (!result.deliverable || result.deliverable.trim().length < 20)
 + ) {
@@ -541,6 +728,26 @@ describe("AutomationExecutor — audit metadata in result.json (M9.4-S4.3 Item F
   it("does NOT touch result.json on job failure (audit only on success)", () => {
     // Worker run throws; readAndValidateWorkerDeliverable not called; result.json unchanged
   });
+
+  // AUDIT TIGHTENING 2 (collision case): if a worker writes its OWN audit field,
+  // the framework's audit field MUST overwrite it. Framework owns the session_id;
+  // worker doesn't have authoritative knowledge of the SDK session.
+  it("framework's audit field overwrites worker-written audit (no merge of audit subkeys)", () => {
+    // Worker writes result.json with both real metadata AND a bogus audit object
+    fs.writeFileSync(
+      path.join(runDir, "result.json"),
+      JSON.stringify({
+        change_type: "configure",
+        audit: { foo: "worker-bogus", session_id: "worker-fabricated-id" },
+      }),
+    );
+    // Framework runs writeAuditMetadata with the real sdkSessionId
+    writeAuditMetadata(runDir, "real-sdk-session-id");
+    const result = JSON.parse(fs.readFileSync(path.join(runDir, "result.json"), "utf-8"));
+    expect(result.change_type).toBe("configure");           // worker's data preserved
+    expect(result.audit.session_id).toBe("real-sdk-session-id");  // framework's wins
+    expect(result.audit.foo).toBeUndefined();               // worker's bogus subkeys gone
+  });
 });
 ```
 
@@ -569,12 +776,27 @@ export function buildTranscriptPath(runDir: string, sdkSessionId: string): strin
  * Merge audit fields into result.json. If the file exists (capability worker wrote
  * structured metadata), preserve those fields and add audit. If not (generic/research
  * worker), create a new file with just audit.
+ *
+ * M9.4-S4.3 AUDIT TIGHTENING 2: probe the computed transcript_path with
+ * fs.existsSync. If the SDK encoding rule drifts (e.g. release change, non-ASCII
+ * path), the file we point to won't exist. Log a warning so this is detectable
+ * in production telemetry; do NOT fail the job (the path is reference-only).
  */
 export function writeAuditMetadata(runDir: string, sdkSessionId: string): void {
   const resultJsonPath = path.join(runDir, "result.json");
+  const transcriptPath = buildTranscriptPath(runDir, sdkSessionId);
+
+  // Falsifiability probe — SDK encoding rule could drift; don't silently rot.
+  if (!fs.existsSync(transcriptPath)) {
+    console.warn(
+      `[AutomationExecutor] audit.transcript_path computed but file does not exist: ` +
+      `${transcriptPath}. SDK encoding rule may have changed; investigate.`,
+    );
+  }
+
   const audit = {
     session_id: sdkSessionId,
-    transcript_path: buildTranscriptPath(runDir, sdkSessionId),
+    transcript_path: transcriptPath,
   };
 
   let existing: Record<string, unknown> = {};
@@ -586,6 +808,8 @@ export function writeAuditMetadata(runDir: string, sdkSessionId: string): void {
     }
   }
 
+  // Framework owns the audit field — overwrite if the worker wrote one too
+  // (collision case; framework has the authoritative session_id).
   const merged = { ...existing, audit };
   fs.writeFileSync(resultJsonPath, JSON.stringify(merged, null, 2), "utf-8");
 }
@@ -675,6 +899,27 @@ it("omits 'Audit trail:' line when result.json present but lacks audit field", (
   });
   const prompt = format({ /* ... */ });
   expect(prompt).not.toMatch(/Audit trail:/);
+});
+
+// AUDIT TIGHTENING 3: notification queue is persistent (delivered/ has hundreds
+// of files); run_dir on a notification could be archived/pruned between
+// job-end and delivery format-time. Format must not crash, must not interpolate
+// undefined into the prompt body.
+it("omits 'Audit trail:' line gracefully when run_dir no longer exists on disk (stale)", () => {
+  const prompt = format({
+    job_id: "j1",
+    automation_id: "morning-brief",
+    type: "job_completed",
+    summary: "Body content...",
+    run_dir: "/tmp/this-path-was-archived-and-pruned-long-ago",  // doesn't exist
+    created: "2026-05-02T07:00:00Z",
+    delivery_attempts: 0,
+  });
+  expect(prompt).not.toMatch(/Audit trail:/);
+  expect(prompt).not.toMatch(/undefined/);
+  expect(prompt).not.toMatch(/null/);
+  // body still delivered:
+  expect(prompt).toContain("Body content...");
 });
 ```
 
@@ -780,13 +1025,20 @@ S4.3 merges to master when ALL of the following are true:
 
 After merge, S4.3 inherits the remaining S4.2 soak days as bonus gravity testing. If the brief or relocation session regresses post-S4.3-merge, flip `PROACTIVE_DELIVERY_AS_ACTION_REQUEST=0` and triage.
 
+> **AUDIT TIGHTENING 4 — soak signal change post-merge:** Item E's heuristic fix is **NOT a no-op** for the soak signal. Pre-merge, silent workers (anti-narration directive working as intended) have been false-failing — at least one `job_failed` notification fired during S4.2 soak Days 4-5 (the May-2 roadmap incident). Post-merge, silent workers correctly end `status: completed`. The expected delta:
+>
+> - **Before merge:** soak observations include occasional `job_failed` notifications for jobs whose `deliverable.md` is on disk and substantive (false positives from the stale heuristic).
+> - **After merge:** zero such false positives. Real failures (worker didn't write `deliverable.md`, validator caught contamination) still fire as `job_failed` correctly.
+>
+> Soak Day-N reports after merge should explicitly note the absence of false-failed notifications as a positive signal, NOT misread their absence as "soak unchanged." If a `job_failed` fires after merge, it's now load-bearing — investigate it as a real failure, not a heuristic artifact.
+
 ---
 
 ## Risk log
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Capability skill (`capability-brainstorming/SKILL.md`) tells workers to write frontmatter; not updated in this sprint | Medium | Update the skill in `.my_agent/skills/` as part of Task 3.4. Local data fix; no commit needed on public repo. |
+| Capability skill (`capability-brainstorming/SKILL.md`) tells workers to write frontmatter; not updated in this sprint | Medium | Update the skill in **`packages/core/skills/`** (framework source-of-truth) as part of Task 3.4. Per memory `feedback_framework_skills_source.md` editing `.my_agent/skills/` directly is wrong — the agent copy gets overwritten on next install. Re-copy/re-install after the framework edit so the agent's `.my_agent/.claude/skills/` reflects the change. |
 | A live capability failure fires during the merge gap (branch ready but not merged) | Low | The pre-merge state is just S4.2-fu3 master, which the audit confirmed handles capability_modify correctly. No regression risk during the gap. |
 | The e2e test in Task 5 takes longer than expected and gates the sprint | Medium | The test is the deferred item the audit flagged. Worth taking the time. If it bogs down, defer Item D specifically and ship A/B/C without it; track D as its own follow-up. |
 | Item A's chart change breaks brief content rendering | Low | Probe-run on dev-mode dashboard before merge (Task 7.2). Briefs without charts are degraded, not broken. |
