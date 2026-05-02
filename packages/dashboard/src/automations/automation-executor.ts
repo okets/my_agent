@@ -32,6 +32,7 @@ import type {
 } from "@my-agent/core";
 import type { PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { getHandler } from "../scheduler/jobs/handler-registry.js";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
@@ -92,6 +93,73 @@ export function readAndValidateWorkerDeliverable(runDir: string): string {
   }
 
   return content;
+}
+
+/**
+ * Compute the path to the SDK session transcript for a given run dir + session id.
+ * The Agent SDK persists per-session JSONL transcripts at:
+ *   ~/.claude/projects/<encoded-cwd>/<session-id>.jsonl
+ * where encoded-cwd = the cwd path with every non-alphanumeric character
+ * (except dash) replaced by a dash.
+ *
+ * Verified empirically against actual SDK output 2026-05-02:
+ *   /home/<user>/my_agent/.my_agent/automations/.runs/<auto>/<job>
+ *   → -home-<user>-my-agent--my-agent-automations--runs-<auto>-<job>
+ *
+ * M9.4-S4.3 Item F.
+ */
+export function buildTranscriptPath(runDir: string, sdkSessionId: string): string {
+  const encoded = runDir.replace(/[^a-zA-Z0-9-]/g, "-");
+  return path.join(os.homedir(), ".claude", "projects", encoded, `${sdkSessionId}.jsonl`);
+}
+
+/**
+ * Merge audit fields into result.json. If the worker already wrote one
+ * (capability worker, post-S4.3 Item B), preserve those fields and add audit.
+ * If not (generic/research worker), create the file with just audit.
+ *
+ * Framework owns the `audit` field — overwrites any worker-written audit
+ * (collision case; framework has the authoritative session_id).
+ *
+ * Logs a warning if the computed transcript_path doesn't exist on disk —
+ * makes SDK encoding-rule drift detectable in production telemetry.
+ *
+ * M9.4-S4.3 Item F.
+ */
+export function writeAuditMetadata(runDir: string, sdkSessionId: string): void {
+  const resultJsonPath = path.join(runDir, "result.json");
+  const transcriptPath = buildTranscriptPath(runDir, sdkSessionId);
+
+  // Falsifiability probe — SDK encoding rule could drift across SDK versions
+  // or with non-ASCII paths. Don't silently rot.
+  if (!fs.existsSync(transcriptPath)) {
+    console.warn(
+      `[AutomationExecutor] audit.transcript_path computed but file does not exist: ` +
+        `${transcriptPath}. SDK encoding rule may have drifted or path contains non-ASCII; investigate.`,
+    );
+  }
+
+  const audit = {
+    session_id: sdkSessionId,
+    transcript_path: transcriptPath,
+  };
+
+  let existing: Record<string, unknown> = {};
+  if (fs.existsSync(resultJsonPath)) {
+    try {
+      existing = JSON.parse(fs.readFileSync(resultJsonPath, "utf-8"));
+    } catch (err) {
+      console.warn(
+        `[AutomationExecutor] result.json malformed at ${resultJsonPath}, overwriting:`,
+        err,
+      );
+      existing = {};
+    }
+  }
+
+  // Framework owns `audit` — overwrite if the worker also wrote an audit field.
+  const merged = { ...existing, audit };
+  fs.writeFileSync(resultJsonPath, JSON.stringify(merged, null, 2), "utf-8");
 }
 
 /** Working Nina's allowed tools — full access including web for research workers */
@@ -657,6 +725,22 @@ export class AutomationExecutor {
       if (job.run_dir) {
         deliverablePath = path.join(job.run_dir, "deliverable.md");
         finalDeliverable = readAndValidateWorkerDeliverable(job.run_dir);
+        // M9.4-S4.3 Item F: write audit metadata (transcript_path + session_id)
+        // into result.json so the brain can reference the SDK's session
+        // transcript for audit. Merges with existing capability worker metadata
+        // (Item B) when present; creates the file with just audit fields when
+        // absent (generic/research workers).
+        if (sdkSessionId) {
+          try {
+            writeAuditMetadata(job.run_dir, sdkSessionId);
+          } catch (err) {
+            console.warn(
+              `[AutomationExecutor] writeAuditMetadata failed for ${job.run_dir}:`,
+              err,
+            );
+            // Non-fatal — audit metadata is reference-only; don't fail the job.
+          }
+        }
       }
       if (unsubscribe) unsubscribe();
 
