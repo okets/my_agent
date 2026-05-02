@@ -5,7 +5,10 @@
  * the prompt can reference the deliverable artifact directly.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import { HeartbeatService } from "../../../src/automations/heartbeat-service.js";
 import type { PersistentNotification } from "../../../src/notifications/persistent-queue.js";
 
@@ -224,5 +227,129 @@ describe("HeartbeatService.formatNotification(job_completed)", () => {
     });
     // "the conversation may have been on another topic — pause and deliver"
     expect(prompt).toMatch(/pause|interrupt|other topic|in the middle/i);
+  });
+
+  // ─── M9.4-S4.3 Item G — surface SDK transcript path in prompt body ─────
+
+  describe("Item G — Audit trail surfacing", () => {
+    let tmpRunDir: string;
+
+    beforeEach(() => {
+      tmpRunDir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-prompt-test-"));
+    });
+
+    afterEach(() => {
+      fs.rmSync(tmpRunDir, { recursive: true, force: true });
+    });
+
+    it("includes 'Audit trail:' line when result.json has audit.transcript_path", () => {
+      const transcriptPath =
+        "/home/test/.claude/projects/encoded-path/sid-123.jsonl";
+      fs.writeFileSync(
+        path.join(tmpRunDir, "result.json"),
+        JSON.stringify({
+          audit: { transcript_path: transcriptPath, session_id: "sid-123" },
+        }),
+      );
+      const prompt = format({
+        job_id: "j1",
+        automation_id: "morning-brief",
+        type: "job_completed",
+        summary: "Body content...",
+        run_dir: tmpRunDir,
+        created: "2026-05-02T07:00:00Z",
+        delivery_attempts: 0,
+      });
+      expect(prompt).toContain(`Audit trail: ${transcriptPath}`);
+    });
+
+    it("MERGES with capability worker's structured result.json (audit field present alongside change_type, etc.)", () => {
+      // Capability worker wrote its own result.json; framework's writeAuditMetadata
+      // merged audit into it. Prompt should still surface the audit field.
+      fs.writeFileSync(
+        path.join(tmpRunDir, "result.json"),
+        JSON.stringify({
+          change_type: "configure",
+          test_result: "pass",
+          audit: { transcript_path: "/x/y/z.jsonl", session_id: "sid" },
+        }),
+      );
+      const prompt = format({
+        job_id: "j1",
+        automation_id: "cap-modify",
+        type: "job_completed",
+        summary: "Capability fixed.",
+        run_dir: tmpRunDir,
+        created: "2026-05-02T07:00:00Z",
+        delivery_attempts: 0,
+      });
+      expect(prompt).toContain("Audit trail: /x/y/z.jsonl");
+    });
+
+    it("omits 'Audit trail:' line gracefully when result.json is absent (no run_dir/result.json)", () => {
+      // run_dir exists but no result.json (older runs, or pre-Item-F state)
+      const prompt = format({
+        job_id: "j1",
+        automation_id: "morning-brief",
+        type: "job_completed",
+        summary: "Body content...",
+        run_dir: tmpRunDir,
+        created: "2026-05-02T07:00:00Z",
+        delivery_attempts: 0,
+      });
+      expect(prompt).not.toMatch(/Audit trail:/);
+      expect(prompt).not.toMatch(/undefined/);
+    });
+
+    it("omits 'Audit trail:' line when result.json present but lacks audit field", () => {
+      fs.writeFileSync(
+        path.join(tmpRunDir, "result.json"),
+        JSON.stringify({ change_type: "configure" }), // no audit
+      );
+      const prompt = format({
+        job_id: "j1",
+        automation_id: "cap-modify",
+        type: "job_completed",
+        summary: "Body content...",
+        run_dir: tmpRunDir,
+        created: "2026-05-02T07:00:00Z",
+        delivery_attempts: 0,
+      });
+      expect(prompt).not.toMatch(/Audit trail:/);
+    });
+
+    it("omits 'Audit trail:' line gracefully when run_dir no longer exists on disk (stale)", () => {
+      // Notification queue is persistent; run_dir could be archived/pruned
+      // between job-end and delivery format-time. Format must not crash.
+      const prompt = format({
+        job_id: "j1",
+        automation_id: "morning-brief",
+        type: "job_completed",
+        summary: "Body content...",
+        run_dir: "/tmp/this-path-was-archived-and-pruned-long-ago-" + Date.now(),
+        created: "2026-05-02T07:00:00Z",
+        delivery_attempts: 0,
+      });
+      expect(prompt).not.toMatch(/Audit trail:/);
+      expect(prompt).not.toMatch(/undefined/);
+      expect(prompt).not.toMatch(/null/);
+      // body still delivered:
+      expect(prompt).toContain("Body content...");
+    });
+
+    it("omits 'Audit trail:' line when result.json is malformed JSON (graceful)", () => {
+      fs.writeFileSync(path.join(tmpRunDir, "result.json"), "{ this is not valid json");
+      const prompt = format({
+        job_id: "j1",
+        automation_id: "morning-brief",
+        type: "job_completed",
+        summary: "Body content...",
+        run_dir: tmpRunDir,
+        created: "2026-05-02T07:00:00Z",
+        delivery_attempts: 0,
+      });
+      expect(prompt).not.toMatch(/Audit trail:/);
+      expect(prompt).toContain("Body content...");
+    });
   });
 });
