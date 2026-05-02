@@ -154,9 +154,10 @@ describe("E2E agentic flow", () => {
     expect(items[1].text).toBe("Update config.yaml with new language");
     expect(items[1].created_by).toBe("delegator");
 
-    // Template items follow (capability_build has 5 items)
+    // Template items follow (M9.4-S4.3: capability_build has 6 items —
+    // the deliverable-emit step split into deliverable.md + result.json).
     const frameworkItems = items.filter((i) => i.created_by === "framework");
-    expect(frameworkItems.length).toBe(5);
+    expect(frameworkItems.length).toBe(6);
     expect(frameworkItems[0].text).toContain("Read spec");
     expect(frameworkItems[1].text).toContain("CAPABILITY.md");
 
@@ -200,7 +201,7 @@ describe("E2E agentic flow", () => {
     mockCreateBrainQuery.mockImplementation(() => {
       const todoPath = path.join(job.run_dir!, "todos.json");
       return makeBrainResponse(
-        "I completed all the work.\n\n<deliverable>\n---\nchange_type: configure\ntest_result: pass\n---\n\nAll tasks done successfully.\n</deliverable>",
+        "I completed all the work.",
         {
           sideEffect: () => {
             // Simulate the worker marking all mandatory items as done
@@ -210,10 +211,19 @@ describe("E2E agentic flow", () => {
             }
             writeTodoFile(todoPath, todos);
 
-            // Write deliverable.md for validators that check it
+            // M9.4-S4.3 worker contract: deliverable.md (markdown for the user)
+            // + result.json (typed metadata for the framework).
             fs.writeFileSync(
               path.join(job.run_dir!, "deliverable.md"),
-              "---\nchange_type: configure\ntest_result: pass\n---\n\n## Result\n\nAll tasks completed and the configuration is now in place. Connection test passed; rollout is ready when you are.\n",
+              "## Result\n\nAll tasks completed and the configuration is now in place. Connection test passed; rollout is ready when you are.\n",
+            );
+            fs.writeFileSync(
+              path.join(job.run_dir!, "result.json"),
+              JSON.stringify({
+                change_type: "configure",
+                test_result: "pass",
+                summary: "Configuration applied; smoke green.",
+              }),
             );
           },
         },

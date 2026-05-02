@@ -1,18 +1,20 @@
 /**
  * M9.6-S20 §2.5.1 — CFR-fix worker output contract
+ * M9.4-S4.3 — migrated to result.json sidecar
  *
- * Validates the terse deliverable.md + forensic.md contract added in S20:
- * - deliverable.md body: ≤ 5 lines, per-attempt one-liner format
- * - forensic.md: exists, longer than deliverable.md body
- * - ESCALATE: marker still parses correctly at body start
- * - readDeliverable-style frontmatter + body parsing is unaffected
+ * Validates the worker output contract for capability fix runs:
+ * - deliverable.md: plain markdown body, ≤ 5 lines, per-attempt one-liner format,
+ *   NO frontmatter (markdown is for humans)
+ * - result.json: typed framework metadata sidecar with change_type, test_result,
+ *   hypothesis_confirmed, summary, surface_required_for_hotreload
+ * - forensic.md: exists, longer than deliverable.md (audit detail)
+ * - ESCALATE: marker still parses correctly at body start (still in deliverable.md)
  */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { parseFrontmatterContent } from "@my-agent/core";
 
 const createdDirs: string[] = [];
 
@@ -26,15 +28,16 @@ afterEach(() => {
   for (const d of createdDirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-const TERSE_DELIVERABLE = `---
-change_type: config
-test_result: pass
-hypothesis_confirmed: true
-summary: Restored API key reference in config.yaml; smoke green.
-surface_required_for_hotreload: false
----
-Attempt 1: fixed — config.yaml
+const TERSE_DELIVERABLE = `Attempt 1: fixed — config.yaml
 `;
+
+const RESULT_JSON = JSON.stringify({
+  change_type: "config",
+  test_result: "pass",
+  hypothesis_confirmed: true,
+  summary: "Restored API key reference in config.yaml; smoke green.",
+  surface_required_for_hotreload: false,
+});
 
 const VERBOSE_FORENSIC = `# Forensic Log
 
@@ -58,13 +61,20 @@ bash scripts/smoke.sh
 Result: exit 0.
 `;
 
-describe("fix-mode deliverable contract — terse body + forensic sibling", () => {
-  it("deliverable.md body has ≤ 5 non-empty lines", () => {
+describe("fix-mode worker output contract — deliverable + sidecar + forensic", () => {
+  it("deliverable.md is plain markdown with no frontmatter", () => {
     const runDir = makeRunDir();
     writeFileSync(join(runDir, "deliverable.md"), TERSE_DELIVERABLE);
 
     const raw = readFileSync(join(runDir, "deliverable.md"), "utf-8");
-    const { body } = parseFrontmatterContent(raw);
+    expect(raw.trimStart().startsWith("---")).toBe(false);
+  });
+
+  it("deliverable.md body has ≤ 5 non-empty lines", () => {
+    const runDir = makeRunDir();
+    writeFileSync(join(runDir, "deliverable.md"), TERSE_DELIVERABLE);
+
+    const body = readFileSync(join(runDir, "deliverable.md"), "utf-8");
     const nonEmptyLines = body.split("\n").filter((l) => l.trim().length > 0);
     expect(nonEmptyLines.length).toBeLessThanOrEqual(5);
   });
@@ -73,10 +83,8 @@ describe("fix-mode deliverable contract — terse body + forensic sibling", () =
     const runDir = makeRunDir();
     writeFileSync(join(runDir, "deliverable.md"), TERSE_DELIVERABLE);
 
-    const raw = readFileSync(join(runDir, "deliverable.md"), "utf-8");
-    const { body } = parseFrontmatterContent(raw);
+    const body = readFileSync(join(runDir, "deliverable.md"), "utf-8");
     const nonEmptyLines = body.split("\n").filter((l) => l.trim().length > 0);
-    // Every non-empty line must match: "Attempt N: <outcome> — <file | 'no change'>"
     for (const line of nonEmptyLines) {
       expect(line).toMatch(/^Attempt \d+:/);
     }
@@ -95,35 +103,35 @@ describe("fix-mode deliverable contract — terse body + forensic sibling", () =
     writeFileSync(join(runDir, "deliverable.md"), TERSE_DELIVERABLE);
     writeFileSync(join(runDir, "forensic.md"), VERBOSE_FORENSIC);
 
-    const delivBody = parseFrontmatterContent(readFileSync(join(runDir, "deliverable.md"), "utf-8")).body;
+    const delivBody = readFileSync(join(runDir, "deliverable.md"), "utf-8");
     const forensicContent = readFileSync(join(runDir, "forensic.md"), "utf-8");
     expect(forensicContent.length).toBeGreaterThan(delivBody.length);
   });
 
   it("ESCALATE: marker at body start still parses correctly", () => {
     const runDir = makeRunDir();
-    const escalateDeliverable = `---
-change_type: unknown
-test_result: skipped
-hypothesis_confirmed: false
-summary: Could not determine root cause.
-surface_required_for_hotreload: false
----
-ESCALATE: insufficient-context
-`;
-    writeFileSync(join(runDir, "deliverable.md"), escalateDeliverable);
+    writeFileSync(join(runDir, "deliverable.md"), "ESCALATE: insufficient-context\n");
+    writeFileSync(
+      join(runDir, "result.json"),
+      JSON.stringify({
+        change_type: "unknown",
+        test_result: "skipped",
+        hypothesis_confirmed: false,
+        summary: "Could not determine root cause.",
+        surface_required_for_hotreload: false,
+      }),
+    );
 
-    const raw = readFileSync(join(runDir, "deliverable.md"), "utf-8");
-    const { body } = parseFrontmatterContent(raw);
+    const body = readFileSync(join(runDir, "deliverable.md"), "utf-8");
     expect(body.trimStart().startsWith("ESCALATE:")).toBe(true);
   });
 
-  it("frontmatter fields survive the terse body format", () => {
+  it("result.json sidecar carries the typed framework metadata", () => {
     const runDir = makeRunDir();
     writeFileSync(join(runDir, "deliverable.md"), TERSE_DELIVERABLE);
+    writeFileSync(join(runDir, "result.json"), RESULT_JSON);
 
-    const raw = readFileSync(join(runDir, "deliverable.md"), "utf-8");
-    const { data } = parseFrontmatterContent(raw);
+    const data = JSON.parse(readFileSync(join(runDir, "result.json"), "utf-8"));
     expect(data.change_type).toBe("config");
     expect(data.test_result).toBe("pass");
     expect(data.hypothesis_confirmed).toBe(true);

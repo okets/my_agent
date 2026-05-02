@@ -14,12 +14,17 @@ const TEMPLATES: Record<string, TodoTemplate> = {
         mandatory: true,
       },
       {
-        text: "Run test harness — record result in deliverable.md frontmatter as test_result",
+        text: "Run test harness — record the outcome in result.json as `test_result` (\"pass\" or \"fail\")",
         mandatory: true,
         validation: "test_executed",
       },
       {
-        text: "Write deliverable.md with YAML frontmatter (change_type, test_result, summary)",
+        text: "Use the Write tool to emit deliverable.md as plain markdown — the user-facing change summary, what to do next, etc. No frontmatter.",
+        mandatory: true,
+        validation: "deliverable_written",
+      },
+      {
+        text: "Use the Write tool to emit result.json with {change_type, test_result, summary, files_changed} as typed framework metadata. change_type is one of: configure, upgrade, fix, replace.",
         mandatory: true,
         validation: "completion_report",
       },
@@ -32,18 +37,23 @@ const TEMPLATES: Record<string, TodoTemplate> = {
         mandatory: true,
       },
       {
-        text: "Identify change type (configure/upgrade/fix/replace) — write to deliverable.md frontmatter as change_type",
+        text: "Identify change type (configure/upgrade/fix/replace) — write it to result.json as `change_type` (you can write result.json incrementally; this validator only checks the field is set and not 'unknown').",
         mandatory: true,
         validation: "change_type_set",
       },
       { text: "Apply changes per spec", mandatory: true },
       {
-        text: "Run test harness — record result in deliverable.md frontmatter as test_result",
+        text: "Run test harness — record the outcome in result.json as `test_result` (\"pass\" or \"fail\")",
         mandatory: true,
         validation: "test_executed",
       },
       {
-        text: "Write deliverable.md with YAML frontmatter (change_type, test_result, summary)",
+        text: "Use the Write tool to emit deliverable.md as plain markdown — the user-facing change summary, what to do next, etc. No frontmatter.",
+        mandatory: true,
+        validation: "deliverable_written",
+      },
+      {
+        text: "Use the Write tool to emit result.json with {change_type, test_result, summary} as typed framework metadata. change_type is one of: configure, upgrade, fix, replace.",
         mandatory: true,
         validation: "completion_report",
       },

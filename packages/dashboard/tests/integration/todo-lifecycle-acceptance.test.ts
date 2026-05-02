@@ -80,16 +80,17 @@ describe("S2 Acceptance: todo-driven job lifecycle", () => {
     expect(delegated[0].text).toBe("Research provider");
     expect(delegated.every((i) => i.mandatory)).toBe(true);
 
-    // Layer 2: 5 template items
+    // Layer 2: 6 template items (M9.4-S4.3: deliverable-emit step split into
+    // deliverable.md + result.json — capability_build template grew from 5 to 6).
     const framework = todos.filter((i) => i.created_by === "framework");
-    expect(framework).toHaveLength(5);
+    expect(framework).toHaveLength(6);
     expect(framework.some((i) => i.validation === "capability_frontmatter")).toBe(true);
     expect(framework.some((i) => i.validation === "completion_report")).toBe(true);
 
-    // Total: 7 items with sequential IDs
-    expect(todos).toHaveLength(7);
+    // Total: 8 items with sequential IDs
+    expect(todos).toHaveLength(8);
     expect(todos[0].id).toBe("t1");
-    expect(todos[6].id).toBe("t7");
+    expect(todos[7].id).toBe("t8");
   });
 
   it("capability_modify template has change_type_set validator", () => {
@@ -170,8 +171,8 @@ describe("S2 Acceptance: todo-driven job lifecycle", () => {
     expect(fs.existsSync(todoPath)).toBe(true);
 
     const todoFile = readTodoFile(todoPath);
-    // 1 delegator + 5 template = 6 items
-    expect(todoFile.items).toHaveLength(6);
+    // 1 delegator + 6 template = 7 items (M9.4-S4.3 split deliverable + sidecar)
+    expect(todoFile.items).toHaveLength(7);
     expect(todoFile.items[0].created_by).toBe("delegator");
     expect(todoFile.items[0].text).toBe("Research API");
     expect(todoFile.items[1].created_by).toBe("framework");
@@ -224,10 +225,11 @@ describe("S2 Acceptance: todo-driven job lifecycle", () => {
     const tmpDir = path.join(harness.agentDir, "test-valid");
     fs.mkdirSync(tmpDir, { recursive: true });
 
-    // Write valid deliverable
+    // Write valid deliverable + result.json sidecar (M9.4-S4.3 contract)
+    fs.writeFileSync(path.join(tmpDir, "deliverable.md"), "Done.\n");
     fs.writeFileSync(
-      path.join(tmpDir, "deliverable.md"),
-      ["---", "change_type: configure", "test_result: PASSED", "---", "Done."].join("\n"),
+      path.join(tmpDir, "result.json"),
+      JSON.stringify({ change_type: "configure", test_result: "pass" }),
     );
 
     const todoPath = path.join(tmpDir, "todos.json");

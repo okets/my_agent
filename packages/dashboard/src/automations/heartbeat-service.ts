@@ -412,16 +412,38 @@ export function formatNotification(n: PersistentNotification): string {
         // summary-resolver (handles 100K cap + ≥10K Haiku condense +
         // heading preservation). `run_dir` is still logged for
         // provenance/telemetry but no longer alters prompt shape.
+        // M9.4-S4.3 Item G (2026-05-02): if the run_dir's result.json
+        // has audit.transcript_path (written by Item F), append it to
+        // the prompt body. The brain has the path in its context for
+        // reference (CTO audits); not used unprompted.
         console.log(
           `[Heartbeat] Delivering job_completed as action request (${n.summary.length} chars summary, run_dir=${n.run_dir ? "logged" : "absent"})`,
         );
+        let auditLine = "";
+        if (n.run_dir && fs.existsSync(n.run_dir)) {
+          const resultJsonPath = path.join(n.run_dir, "result.json");
+          if (fs.existsSync(resultJsonPath)) {
+            try {
+              const result = JSON.parse(
+                fs.readFileSync(resultJsonPath, "utf-8"),
+              );
+              const transcriptPath = result?.audit?.transcript_path;
+              if (typeof transcriptPath === "string" && transcriptPath.length > 0) {
+                auditLine = `\n\nAudit trail: ${transcriptPath}`;
+              }
+            } catch {
+              // result.json malformed — skip audit line, never block delivery
+            }
+          }
+        }
         return (
           `It's time to deliver TODAY's results from a scheduled background task you (past-you) set up. ` +
           `The conversation may have been on another topic — pause and deliver this now. ` +
           `Do not call this "tomorrow's" delivery (it's today's) and do not classify it as "background activity to ignore" (it's the active delivery).` +
           `\n\nDeliverable content:\n\n---\n${n.summary}\n---\n\n` +
           `Render this in your voice — pick what matters, structure it, voice it — but do not silently drop sections. ` +
-          `The content above is what to deliver; do not invoke any tools to gather additional context for it.`
+          `The content above is what to deliver; do not invoke any tools to gather additional context for it.` +
+          auditLine
         );
       }
       case "job_failed":

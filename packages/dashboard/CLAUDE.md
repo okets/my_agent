@@ -162,6 +162,26 @@ await app.notificationQueue.enqueue({
 - On 2026-04-25–27, three consecutive morning briefs were dismissed as "background activity" because system-role injection reads as context-to-acknowledge, not action-to-perform. Action-request injection (M9.4-S4.2) shifts the model's interpretation by speaking in the user's voice — Nina fulfills requests; she dismisses context.
 - On 2026-04-28–29, Nina's brief openers exposed Read tool narration ("Let me read that deliverable… Let me render this cleanly…") — a structural side effect of asking the model to Read a file path. Fu2 inlines the content so no tool call is invited. Soak surfaced that prompt-level "don't narrate tools" instructions cannot reliably override Sonnet's trained tool-call narration; the structural fix is to not trigger the call.
 
+## Worker Output Contract (M9.4-S4.3)
+
+Each worker run produces files in its `run_dir`. The contract:
+
+| File | Format | Purpose | Reader |
+|---|---|---|---|
+| `deliverable.md` | Plain markdown | User-facing content | summary-resolver, debrief aggregator, dashboard UI |
+| `result.json` | JSON object | Typed framework telemetry | validators (`completion_report`, `test_executed`, `change_type_set`), `writePaperTrail`, `recovery-orchestrator.readDeliverable` |
+| `status-report.md` | Markdown | Internal post-mortem | `status_report` validator |
+| `todos.json` | JSON | Worker-runtime task tracking | todo MCP server |
+| `forensic.md` (capability fix-mode only) | Markdown | Per-attempt audit detail | human/agent inspection |
+
+**Rules:**
+
+- **One writer per file.** Workers write `deliverable.md` and (for capability workers) `result.json` via the Write tool. The framework never overwrites either after the run completes (the pre-fu3 executor overwrite and the pre-S4.3 chart-augmentation appender are both deleted).
+- **Markdown is for humans. JSON is for the framework.** Don't conflate by writing structured fields as YAML frontmatter inside markdown. The user never wants to see `change_type: configure` in their delivery; the framework wants typed fields. Sidecar separates them cleanly.
+- **Sidecar JSON is the runtime structured-data format.** Frontmatter-in-markdown remains the standard for STATIC files (`CAPABILITY.md`, notebook references, automation manifests) per the [normalized metadata standard](../../docs/design/normalized-markdown-metadata.md). When a worker emits structured data alongside markdown at runtime, the typed fields go in `result.json`.
+- **Capability workers MUST emit `result.json`.** `capability_build` and `capability_modify` templates split the deliverable-emit step into two mandatory todos: one for `deliverable.md` (validated by `deliverable_written`) and one for `result.json` (validated by `completion_report`). Generic and research workers don't need a sidecar — their output is purely user-facing.
+- **Worker self-serves charts.** If the deliverable has numeric data worth visualizing, the worker calls `chart_tools.create_chart` and embeds the URL inline in `deliverable.md` when writing it. The framework does not augment after the fact.
+
 ## Common Tasks
 
 ### Adding UI Components

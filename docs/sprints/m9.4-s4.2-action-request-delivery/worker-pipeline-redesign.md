@@ -163,6 +163,8 @@ Template t1 says: write deliverable.md, then mark done. The prompt says: mark do
 
 ## Migration plan
 
+> **Status update — 2026-05-01:** Steps 3 and 4 (capability template + validator migration to `result.json`, and chart-augmentation removal) shipped in [`m9.4-s4.3-worker-pipeline-cleanup`](../m9.4-s4.3-worker-pipeline-cleanup/plan.md). The S4.3 sprint also added the missing capability_modify e2e test (locking the spawn → deliverable + sidecar → validators → paper-trail chain) and codified the worker output contract in `packages/dashboard/CLAUDE.md`. The migration plan below remains as historical context for the original S4.2-fu3 redesign.
+
 **Pre-production reality check** (per inventory):
 
 - 9 of 9 active model-driven workers use Contract B (no frontmatter). The redesign default-aligns with their existing template. **Zero manifest changes required.**

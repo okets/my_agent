@@ -373,3 +373,127 @@ describe("AutomationExecutor — worker-deliverable contract (M9.4-S4.2-fu3)", (
     expect(result).toBe(fs.readFileSync(join(runDir, "deliverable.md"), "utf-8"));
   });
 });
+
+describe("AutomationExecutor — audit metadata in result.json (M9.4-S4.3 Item F)", () => {
+  let runDir: string;
+
+  beforeEach(() => {
+    runDir = mkdtempSync(join(tmpdir(), "audit-meta-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(runDir, { recursive: true, force: true });
+  });
+
+  it("buildTranscriptPath encodes the run dir per SDK convention (non-alphanumeric → dash)", async () => {
+    const { buildTranscriptPath } = await import(
+      "../../../src/automations/automation-executor.js"
+    );
+    const fakeRunDir =
+      "/home/test/my_agent/.my_agent/automations/.runs/foo/job-abc";
+    const sessionId = "deadbeef-cafe-1234-5678-abcdefabcdef";
+    const transcriptPath = buildTranscriptPath(fakeRunDir, sessionId);
+    expect(transcriptPath).toContain(
+      "-home-test-my-agent--my-agent-automations--runs-foo-job-abc",
+    );
+    expect(transcriptPath.endsWith(`${sessionId}.jsonl`)).toBe(true);
+    expect(transcriptPath).toContain(".claude/projects/");
+  });
+
+  it("creates result.json with audit fields when worker didn't write one (generic/research worker)", async () => {
+    const { writeAuditMetadata } = await import(
+      "../../../src/automations/automation-executor.js"
+    );
+    // Worker only wrote deliverable.md; no result.json yet
+    fs.writeFileSync(
+      join(runDir, "deliverable.md"),
+      "## Report\n\nClean content.",
+    );
+    expect(fs.existsSync(join(runDir, "result.json"))).toBe(false);
+
+    writeAuditMetadata(runDir, "test-session-id-123");
+
+    expect(fs.existsSync(join(runDir, "result.json"))).toBe(true);
+    const parsed = JSON.parse(
+      fs.readFileSync(join(runDir, "result.json"), "utf-8"),
+    );
+    expect(parsed.audit).toBeDefined();
+    expect(parsed.audit.session_id).toBe("test-session-id-123");
+    expect(parsed.audit.transcript_path).toMatch(
+      /\.claude\/projects\/.*\.jsonl$/,
+    );
+  });
+
+  it("MERGES audit fields when worker already wrote result.json (capability worker)", async () => {
+    const { writeAuditMetadata } = await import(
+      "../../../src/automations/automation-executor.js"
+    );
+    // Capability worker wrote result.json with structured metadata
+    const workerJson = {
+      change_type: "configure",
+      test_result: "pass",
+      summary: "Done",
+    };
+    fs.writeFileSync(
+      join(runDir, "result.json"),
+      JSON.stringify(workerJson),
+    );
+
+    writeAuditMetadata(runDir, "test-session-id-456");
+
+    const parsed = JSON.parse(
+      fs.readFileSync(join(runDir, "result.json"), "utf-8"),
+    );
+    // Worker's data preserved
+    expect(parsed.change_type).toBe("configure");
+    expect(parsed.test_result).toBe("pass");
+    expect(parsed.summary).toBe("Done");
+    // Framework's audit added
+    expect(parsed.audit.session_id).toBe("test-session-id-456");
+    expect(parsed.audit.transcript_path).toBeDefined();
+  });
+
+  it("framework's audit field overwrites any worker-written audit (no merge of audit subkeys)", async () => {
+    const { writeAuditMetadata } = await import(
+      "../../../src/automations/automation-executor.js"
+    );
+    // Worker bogusly wrote its own audit field
+    fs.writeFileSync(
+      join(runDir, "result.json"),
+      JSON.stringify({
+        change_type: "configure",
+        audit: {
+          foo: "worker-bogus",
+          session_id: "worker-fabricated-id",
+        },
+      }),
+    );
+
+    writeAuditMetadata(runDir, "real-sdk-session-id");
+
+    const parsed = JSON.parse(
+      fs.readFileSync(join(runDir, "result.json"), "utf-8"),
+    );
+    // Worker's other data preserved
+    expect(parsed.change_type).toBe("configure");
+    // Framework's audit wins entirely (not a deep merge)
+    expect(parsed.audit.session_id).toBe("real-sdk-session-id");
+    expect(parsed.audit.foo).toBeUndefined();
+  });
+
+  it("recovers gracefully when result.json is malformed (overwrites with just audit)", async () => {
+    const { writeAuditMetadata } = await import(
+      "../../../src/automations/automation-executor.js"
+    );
+    // Pre-existing malformed JSON
+    fs.writeFileSync(join(runDir, "result.json"), "{ this is not valid json");
+
+    writeAuditMetadata(runDir, "test-session-id-789");
+
+    // Should have overwritten with valid JSON containing just audit
+    const parsed = JSON.parse(
+      fs.readFileSync(join(runDir, "result.json"), "utf-8"),
+    );
+    expect(parsed.audit.session_id).toBe("test-session-id-789");
+  });
+});

@@ -176,10 +176,11 @@ describe("todo-server validation", () => {
   });
 
   it("todo_update passes validation when deliverable is valid", async () => {
-    // Write a valid deliverable
+    // M9.4-S4.3: completion_report reads from result.json sidecar
+    fs.writeFileSync(path.join(tmpDir, "deliverable.md"), "Done.\n");
     fs.writeFileSync(
-      path.join(tmpDir, "deliverable.md"),
-      ["---", "change_type: configure", "---", "Done."].join("\n"),
+      path.join(tmpDir, "result.json"),
+      JSON.stringify({ change_type: "configure" }),
     );
 
     const file = readTodoFile(todoPath);

@@ -10,7 +10,6 @@ import {
   loadConfig,
   filterSkillsByTools,
   cleanupSkillFilters,
-  parseFrontmatterContent,
   createStopReminder,
   createCapabilityAuditLogger,
   storeAndInject,
@@ -33,6 +32,7 @@ import type {
 } from "@my-agent/core";
 import type { PostToolUseHookInput } from "@anthropic-ai/claude-agent-sdk";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { getHandler } from "../scheduler/jobs/handler-registry.js";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
@@ -46,8 +46,6 @@ import { createTodoServer, type TodoProgress } from "../mcp/todo-server.js";
 import { createEmptyTodoFile, readTodoFile, writeTodoFile } from "./todo-file.js";
 import { assembleJobTodos } from "./todo-templates.js";
 import { runValidation } from "./todo-validators.js";
-import { handleCreateChart } from "../mcp/chart-server.js";
-import { queryModel } from "../scheduler/query-model.js";
 import { resolveJobSummary } from "./summary-resolver.js";
 
 /**
@@ -95,6 +93,73 @@ export function readAndValidateWorkerDeliverable(runDir: string): string {
   }
 
   return content;
+}
+
+/**
+ * Compute the path to the SDK session transcript for a given run dir + session id.
+ * The Agent SDK persists per-session JSONL transcripts at:
+ *   ~/.claude/projects/<encoded-cwd>/<session-id>.jsonl
+ * where encoded-cwd = the cwd path with every non-alphanumeric character
+ * (except dash) replaced by a dash.
+ *
+ * Verified empirically against actual SDK output 2026-05-02:
+ *   /home/<user>/my_agent/.my_agent/automations/.runs/<auto>/<job>
+ *   → -home-<user>-my-agent--my-agent-automations--runs-<auto>-<job>
+ *
+ * M9.4-S4.3 Item F.
+ */
+export function buildTranscriptPath(runDir: string, sdkSessionId: string): string {
+  const encoded = runDir.replace(/[^a-zA-Z0-9-]/g, "-");
+  return path.join(os.homedir(), ".claude", "projects", encoded, `${sdkSessionId}.jsonl`);
+}
+
+/**
+ * Merge audit fields into result.json. If the worker already wrote one
+ * (capability worker, post-S4.3 Item B), preserve those fields and add audit.
+ * If not (generic/research worker), create the file with just audit.
+ *
+ * Framework owns the `audit` field — overwrites any worker-written audit
+ * (collision case; framework has the authoritative session_id).
+ *
+ * Logs a warning if the computed transcript_path doesn't exist on disk —
+ * makes SDK encoding-rule drift detectable in production telemetry.
+ *
+ * M9.4-S4.3 Item F.
+ */
+export function writeAuditMetadata(runDir: string, sdkSessionId: string): void {
+  const resultJsonPath = path.join(runDir, "result.json");
+  const transcriptPath = buildTranscriptPath(runDir, sdkSessionId);
+
+  // Falsifiability probe — SDK encoding rule could drift across SDK versions
+  // or with non-ASCII paths. Don't silently rot.
+  if (!fs.existsSync(transcriptPath)) {
+    console.warn(
+      `[AutomationExecutor] audit.transcript_path computed but file does not exist: ` +
+        `${transcriptPath}. SDK encoding rule may have drifted or path contains non-ASCII; investigate.`,
+    );
+  }
+
+  const audit = {
+    session_id: sdkSessionId,
+    transcript_path: transcriptPath,
+  };
+
+  let existing: Record<string, unknown> = {};
+  if (fs.existsSync(resultJsonPath)) {
+    try {
+      existing = JSON.parse(fs.readFileSync(resultJsonPath, "utf-8"));
+    } catch (err) {
+      console.warn(
+        `[AutomationExecutor] result.json malformed at ${resultJsonPath}, overwriting:`,
+        err,
+      );
+      existing = {};
+    }
+  }
+
+  // Framework owns `audit` — overwrite if the worker also wrote an audit field.
+  const merged = { ...existing, audit };
+  fs.writeFileSync(resultJsonPath, JSON.stringify(merged, null, 2), "utf-8");
 }
 
 /** Working Nina's allowed tools — full access including web for research workers */
@@ -653,65 +718,31 @@ export class AutomationExecutor {
       //    and the 697ab41 (Apr 6) startsWith("---") guard. Both were
       //    correct for contracts that no longer exist in production. See
       //    docs/sprints/m9.4-s4.2-action-request-delivery/worker-pipeline-history.md
+      //    M9.4-S4.3: post-run chart augmentation deleted. Workers self-serve
+      //    via chart_tools.create_chart and embed the URL inline when writing.
       let deliverablePath: string | undefined;
       let finalDeliverable: string | undefined;
       if (job.run_dir) {
         deliverablePath = path.join(job.run_dir, "deliverable.md");
         finalDeliverable = readAndValidateWorkerDeliverable(job.run_dir);
-      }
-      if (unsubscribe) unsubscribe();
-
-      // Post-execution visual augmentation: if deliverable has chartable
-      // data but no images, generate a chart and append it
-      if (finalDeliverable && deliverablePath && this.config.visualService) {
-        const hasImages = finalDeliverable.includes("![");
-        const numbers = finalDeliverable.match(/\d+/g) || [];
-        const hasBulletedData =
-          /[-•*]\s.*\d/.test(finalDeliverable) ||
-          /\|.*\d.*\|/.test(finalDeliverable);
-
-        if (!hasImages && numbers.length >= 3 && hasBulletedData) {
+        // M9.4-S4.3 Item F: write audit metadata (transcript_path + session_id)
+        // into result.json so the brain can reference the SDK's session
+        // transcript for audit. Merges with existing capability worker metadata
+        // (Item B) when present; creates the file with just audit fields when
+        // absent (generic/research workers).
+        if (sdkSessionId) {
           try {
-            console.log(
-              `[AutomationExecutor] Deliverable has chartable data, generating chart`,
-            );
-            const CHART_PROMPT = `Generate an SVG chart for the data in this text. Output ONLY the raw SVG — no markdown fences, no explanation. Include a descriptive title in the chart.\n\nRules:\n- <svg xmlns="http://www.w3.org/2000/svg" width="600" height="350">\n- Use inline style="" attributes, NOT <style> blocks\n- Font: sans-serif only\n- Colors: background #1a1b26, panel #292e42, text #c0caf5, muted #565f89, accent #7aa2f7, purple #bb9af7, pink #f7768e, green #9ece6a, yellow #e0af68\n- Include axis labels, data point values, and a title\n- Round corners on background rect (rx="12")`;
-
-            const svgResponse = await queryModel(
-              `Generate a chart for this report:\n\n${finalDeliverable}`,
-              CHART_PROMPT,
-              "haiku",
-            );
-
-            const svgMatch = svgResponse.match(/<svg[\s\S]*<\/svg>/);
-            if (svgMatch) {
-              const chartResult = await handleCreateChart(
-                { visualService: this.config.visualService },
-                { svg: svgMatch[0], description: "deliverable chart" },
-              );
-
-              if (!chartResult.isError) {
-                const parsed = JSON.parse(
-                  (chartResult.content[0] as { type: "text"; text: string })
-                    .text,
-                );
-                finalDeliverable += `\n\n![${automation.manifest.name} chart](${parsed.url})`;
-                fs.writeFileSync(deliverablePath, finalDeliverable, "utf-8");
-                screenshotIds.push(parsed.id);
-                console.log(
-                  `[AutomationExecutor] Chart appended to deliverable: ${parsed.url}`,
-                );
-              }
-            }
+            writeAuditMetadata(job.run_dir, sdkSessionId);
           } catch (err) {
             console.warn(
-              `[AutomationExecutor] Deliverable chart generation failed:`,
+              `[AutomationExecutor] writeAuditMetadata failed for ${job.run_dir}:`,
               err,
             );
-            // Non-fatal — job completes without chart
+            // Non-fatal — audit metadata is reference-only; don't fail the job.
           }
         }
       }
+      if (unsubscribe) unsubscribe();
 
       // 8. Determine final status
       const hasNeedsReview =
@@ -760,16 +791,13 @@ export class AutomationExecutor {
         screenshotIds,
       });
 
-      // 11. Paper trail: write DECISIONS.md at artifact path
+      // 11. Paper trail: write DECISIONS.md at artifact path.
+      // M9.4-S4.3: writePaperTrail reads typed metadata from result.json
+      // sidecar in run_dir, not from deliverable.md frontmatter.
       const targetPath = automation.manifest.target_path;
 
       if (targetPath) {
-        this.writePaperTrail(
-          targetPath,
-          finalDeliverable ?? "",
-          automation,
-          job,
-        );
+        this.writePaperTrail(targetPath, job, automation);
       }
 
       console.log(
@@ -1156,6 +1184,8 @@ export class AutomationExecutor {
       "",
       "**Write `deliverable.md` first via the Write tool, then call `todo_done` on the deliverable-emit step.** The `deliverable_written` validator runs when you mark the step done — it reads the file you just wrote, so the file MUST exist before you mark the todo done.",
       "",
+      "**If your deliverable has numeric data worth visualizing**, call `chart_tools.create_chart` (when available) and embed the returned URL inline as `![chart](url)` in `deliverable.md` when you write it. The framework does not augment your deliverable after the fact — what you write is what the user sees.",
+      "",
       "**Anti-patterns — do not do these:**",
       "- Do **not** batch todo updates at the end. Calling `todo_done` on three steps",
       "  in a row after all work is finished defeats the purpose.",
@@ -1207,19 +1237,35 @@ export class AutomationExecutor {
    */
   private writePaperTrail(
     targetPath: string,
-    deliverable: string,
-    automation: Automation,
     job: Job,
+    automation: Automation,
   ): void {
     try {
-      // Parse frontmatter for optional enrichment fields
-      const { data } = parseFrontmatterContent<{
+      // M9.4-S4.3: read typed metadata from result.json sidecar (was
+      // deliverable.md YAML frontmatter pre-S4.3).
+      let data: {
         change_type?: string;
         provider?: string;
         test_result?: string;
         test_duration_ms?: number;
         files_changed?: string[];
-      }>(deliverable);
+      } = {};
+      if (job.run_dir) {
+        const resultPath = path.join(job.run_dir, "result.json");
+        if (fs.existsSync(resultPath)) {
+          try {
+            const parsed = JSON.parse(fs.readFileSync(resultPath, "utf-8"));
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+              data = parsed;
+            }
+          } catch (err) {
+            console.warn(
+              `[AutomationExecutor] result.json malformed at ${resultPath}, paper trail will be sparse:`,
+              err,
+            );
+          }
+        }
+      }
 
       const targetDir = path.resolve(this.config.agentDir, "..", targetPath);
       const decisionsPath = path.join(targetDir, "DECISIONS.md");
